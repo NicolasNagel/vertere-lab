@@ -1,0 +1,21 @@
+# Local development only — production uses managed PostgreSQL.
+services:
+  postgres:
+    image: postgres:17-alpine
+    container_name: vertere-postgres
+    environment:
+      POSTGRES_USER: vertere
+      POSTGRES_PASSWORD: vertere_dev # dev-only credential, never reused elsewhere
+      POSTGRES_DB: vertere_lab
+    ports:
+      - "5432:5432"
+    volumes:
+      - vertere_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U vertere -d vertere_lab"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+volumes:
+  vertere_pgdata:

@@ -1,0 +1,109 @@
+[project]
+name = "vertere-lab"
+version = "0.1.0"
+description = "Vertere Lab workspace root (tooling and workspace config only)"
+requires-python = ">=3.12"
+dependencies = ["vertere-backend"]
+
+[tool.uv]
+package = false
+
+[tool.uv.workspace]
+members = ["backend"]
+
+[tool.uv.sources]
+vertere-backend = { workspace = true }
+
+[dependency-groups]
+dev = [
+    "ruff>=0.14",
+    "mypy>=1.14",
+    "pytest>=8.3",
+    "pytest-asyncio>=0.25",
+    "httpx>=0.28",
+    "testcontainers[postgres]>=4.9",
+    "uvicorn[standard]>=0.34",
+]
+
+# ---------------------------------------------------------------------------
+# Alembic — invocado da raiz (uv run alembic upgrade head), como no /validar.
+# URL do banco vem de DATABASE_URL (ver backend/alembic/env.py), nunca daqui.
+# ---------------------------------------------------------------------------
+[tool.alembic]
+script_location = "backend/alembic"
+prepend_sys_path = ["backend"]
+
+# ---------------------------------------------------------------------------
+# Ruff — lint + format (alvo py312). Config na raiz vale para o repo inteiro.
+# ---------------------------------------------------------------------------
+[tool.ruff]
+target-version = "py312"
+line-length = 100
+src = ["backend"]
+
+[tool.ruff.lint]
+select = [
+    "E", "W",    # pycodestyle
+    "F",         # pyflakes
+    "I",         # isort
+    "N",         # pep8-naming
+    "UP",        # pyupgrade
+    "B",         # bugbear
+    "C4",        # comprehensions
+    "SIM",       # simplify
+    "RET",       # return
+    "ARG",       # unused arguments
+    "PTH",       # pathlib
+    "DTZ",       # timezone-aware datetimes (regra de datas do projeto)
+    "RUF",
+]
+ignore = [
+    "E501",  # linha longa: o formatter decide
+]
+
+[tool.ruff.lint.per-file-ignores]
+"backend/tests/**" = ["ARG"]  # fixtures de pytest recebem argumentos "não usados"
+# Assinatura (request, exc) é contrato do FastAPI, mesmo sem usar os dois.
+"backend/app/api/error_handlers.py" = ["ARG001"]
+
+# ---------------------------------------------------------------------------
+# mypy — invocado da raiz (uv run mypy backend), como no /validar e no hook.
+# Estrito em domain/application; infra/api sem Any implícito, mas permissivo.
+# ---------------------------------------------------------------------------
+[tool.mypy]
+python_version = "3.12"
+plugins = ["pydantic.mypy"]
+mypy_path = "backend"
+explicit_package_bases = true
+exclude = ["\\.venv", "node_modules"]
+warn_unused_configs = true
+warn_redundant_casts = true
+warn_unused_ignores = true
+no_implicit_optional = true
+check_untyped_defs = true
+disallow_untyped_defs = true
+disallow_any_generics = true
+warn_return_any = true
+
+[[tool.mypy.overrides]]
+module = [
+    "app.shared.domain.*",
+    "app.shared.application.*",
+    "app.modules.*.domain.*",
+    "app.modules.*.application.*",
+]
+strict = true
+
+[[tool.mypy.overrides]]
+module = ["testcontainers.*"]
+ignore_missing_imports = true
+
+# ---------------------------------------------------------------------------
+# pytest — invocado da raiz (uv run pytest -q). Integração usa Postgres real.
+# ---------------------------------------------------------------------------
+[tool.pytest.ini_options]
+testpaths = ["backend/tests"]
+asyncio_mode = "auto"
+markers = [
+    "integration: usa PostgreSQL real via Testcontainers (requer Docker)",
+]
