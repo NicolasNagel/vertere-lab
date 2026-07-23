@@ -1,10 +1,24 @@
 :root {
-  font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
-  color: #1a1a1a;
+  /* Paleta da marca — assets/features/screens/1-login.html */
+  --color-brand-ink: #2c4768;
+  --color-brand-ink-deep: #1f3450;
+  --color-text-primary: #1a2d45;
+  --color-text-secondary: #6b7b8c;
+  --color-surface-cream: #eeeae0;
+  --color-surface-form: #fbfaf6;
+  --color-border: #e5e2db;
+  --color-accent-mist: #9cbfc2;
+
+  --font-display: 'Big Shoulders Display', system-ui, sans-serif;
+  --font-script: 'Cormorant Garamond', Georgia, serif;
+  --font-body: 'Manrope', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, monospace;
+
+  font-family: var(--font-body);
+  color: var(--color-text-primary);
   background-color: #ffffff;
 }
 
 body {
   margin: 0;
-  padding: 1rem;
 }
