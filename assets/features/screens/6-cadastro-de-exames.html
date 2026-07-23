@@ -1,0 +1,177 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<title>6 · CADASTRO DE EXAMES</title>
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Big+Shoulders+Display:wght@500;600;700;800;900&family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;1,400;1,500;1,600&family=Manrope:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+
+
+<style>
+  body { font-family: 'Manrope', -apple-system, sans-serif; color: #1A2D45; -webkit-font-smoothing: antialiased; }
+  .serif { font-family: 'Big Shoulders Display', 'Manrope', sans-serif; text-transform: uppercase; letter-spacing: 0.02em; font-weight: 800; }
+  .serif em { font-family: 'Cormorant Garamond', Georgia, serif; font-style: italic; text-transform: none; letter-spacing: 0; font-weight: 500; color: #9CBFC2; }
+  .script { font-family: 'Cormorant Garamond', Georgia, serif; font-style: italic; font-weight: 500; }
+  .mono { font-family: 'JetBrains Mono', monospace; }
+  .frame-card { background: #FFFFFF; border-radius: 4px; box-shadow: 0 1px 3px rgba(28,45,69,0.08), 0 8px 32px rgba(28,45,69,0.06); overflow: hidden; }
+  .frame-label { font-family: 'JetBrains Mono', monospace; font-size: 11px; letter-spacing: 0.12em; text-transform: uppercase; color: #6B7B8C; margin-bottom: 12px; display: flex; align-items: center; gap: 10px; }
+  .frame-label::before { content:''; width: 22px; height: 1px; background: #6B7B8C; }
+  .tab-active { color: #2C4768; border-bottom: 2px solid #2C4768; }
+  .tab-inactive { color: #6B7B8C; border-bottom: 2px solid transparent; }
+  ::-webkit-scrollbar { width: 0; height: 0; }
+</style>
+
+<style>
+  body { margin:0; padding:32px; background:#EEEAE0; }
+  /* Reset .frame-label hide */
+</style>
+</head>
+<body>
+<div style="width:1280px; margin:0 auto;">
+  <div class="frame-card" style="height:880px; background:#FBFAF6;">
+    <div style="background:#fff; padding:22px 32px; border-bottom:1px solid #E5E2DB; display:flex; justify-content:space-between; align-items:center;">
+      <div>
+        <div class="mono" style="font-size:10px; letter-spacing:0.16em; color:#6B7B8C; text-transform:uppercase;">Cadastros</div>
+        <h1 class="serif" style="font-size:28px; font-weight:600; color:#1F3450; margin:2px 0 0;">Exames & Preços</h1>
+      </div>
+      <div style="display:flex; gap:10px;">
+        <button style="background:#fff; border:1px solid #E5E2DB; padding:11px 16px; font-size:12px; color:#1F3450; font-family:inherit; display:flex; align-items:center; gap:8px;">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>
+          Importar CSV
+        </button>
+        <button style="background:#2C4768; color:#fff; border:none; padding:11px 18px; font-size:11px; letter-spacing:0.14em; text-transform:uppercase; font-weight:600; font-family:inherit; display:flex; align-items:center; gap:8px;">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>
+          Novo exame
+        </button>
+      </div>
+    </div>
+
+    <div style="display:flex; height:calc(100% - 84px);">
+      <!-- Categories sidebar -->
+      <div style="width:240px; background:#F4F1EA; border-right:1px solid #E5E2DB; padding:20px 0;">
+        <div class="mono" style="padding:0 22px 12px; font-size:10px; letter-spacing:0.16em; color:#6B7B8C; text-transform:uppercase;">Categorias</div>
+        <div style="padding:10px 22px; background:#fff; border-left:3px solid #2C4768; font-size:13px; color:#1F3450; font-weight:600; display:flex; justify-content:space-between;">Todos <span style="color:#6B7B8C; font-weight:400;">62</span></div>
+        <div style="padding:10px 22px; font-size:13px; color:#1A2D45; display:flex; justify-content:space-between;">Hematológicos <span style="color:#6B7B8C;">8</span></div>
+        <div style="padding:10px 22px; font-size:13px; color:#1A2D45; display:flex; justify-content:space-between;">Bioquímicos <span style="color:#6B7B8C;">14</span></div>
+        <div style="padding:10px 22px; font-size:13px; color:#1A2D45; display:flex; justify-content:space-between;">Urinários <span style="color:#6B7B8C;">4</span></div>
+        <div style="padding:10px 22px; font-size:13px; color:#1A2D45; display:flex; justify-content:space-between;">Perfis <span style="color:#6B7B8C;">9</span></div>
+        <div style="padding:10px 22px; font-size:13px; color:#1A2D45; display:flex; justify-content:space-between;">Dermatológicos <span style="color:#6B7B8C;">5</span></div>
+        <div style="padding:10px 22px; font-size:13px; color:#1A2D45; display:flex; justify-content:space-between;">Coprológicos <span style="color:#6B7B8C;">3</span></div>
+        <div style="padding:10px 22px; font-size:13px; color:#1A2D45; display:flex; justify-content:space-between;">Internos <span style="color:#6B7B8C;">12</span></div>
+        <div style="padding:10px 22px; font-size:13px; color:#1A2D45; display:flex; justify-content:space-between;">Terceirizados <span style="color:#6B7B8C;">7</span></div>
+
+        <div class="mono" style="padding:24px 22px 12px; font-size:10px; letter-spacing:0.16em; color:#6B7B8C; text-transform:uppercase;">Espécies</div>
+        <div style="display:flex; flex-direction:column; gap:6px; padding:0 22px;">
+          <label style="display:flex; align-items:center; gap:8px; font-size:12.5px; color:#1A2D45;"><span style="width:14px; height:14px; border:1px solid #2C4768; background:#2C4768; border-radius:2px;"></span>Canino</label>
+          <label style="display:flex; align-items:center; gap:8px; font-size:12.5px; color:#1A2D45;"><span style="width:14px; height:14px; border:1px solid #2C4768; background:#2C4768; border-radius:2px;"></span>Felino</label>
+          <label style="display:flex; align-items:center; gap:8px; font-size:12.5px; color:#1A2D45;"><span style="width:14px; height:14px; border:1px solid #C7CCD4; border-radius:2px;"></span>Equino</label>
+          <label style="display:flex; align-items:center; gap:8px; font-size:12.5px; color:#1A2D45;"><span style="width:14px; height:14px; border:1px solid #C7CCD4; border-radius:2px;"></span>Bovino</label>
+          <label style="display:flex; align-items:center; gap:8px; font-size:12.5px; color:#1A2D45;"><span style="width:14px; height:14px; border:1px solid #C7CCD4; border-radius:2px;"></span>Coelho</label>
+          <label style="display:flex; align-items:center; gap:8px; font-size:12.5px; color:#1A2D45;"><span style="width:14px; height:14px; border:1px solid #C7CCD4; border-radius:2px;"></span>Caprino</label>
+        </div>
+      </div>
+
+      <!-- Exam list -->
+      <div style="flex:1; padding:24px 28px; overflow:hidden;">
+        <div style="display:grid; grid-template-columns:repeat(3,1fr); gap:14px; margin-bottom:18px;">
+          <div style="background:#fff; border:1px solid #E5E2DB; padding:14px 16px;">
+            <div class="mono" style="font-size:10px; color:#6B7B8C; letter-spacing:0.12em; text-transform:uppercase;">Exames ativos</div>
+            <div class="serif" style="font-size:28px; color:#1F3450; font-weight:600; line-height:1; margin-top:6px;">62</div>
+          </div>
+          <div style="background:#fff; border:1px solid #E5E2DB; padding:14px 16px;">
+            <div class="mono" style="font-size:10px; color:#6B7B8C; letter-spacing:0.12em; text-transform:uppercase;">Ticket médio</div>
+            <div class="serif mono" style="font-size:28px; color:#1F3450; font-weight:600; line-height:1; margin-top:6px;">R$ 143</div>
+          </div>
+          <div style="background:#fff; border:1px solid #E5E2DB; padding:14px 16px;">
+            <div class="mono" style="font-size:10px; color:#6B7B8C; letter-spacing:0.12em; text-transform:uppercase;">Última atualização</div>
+            <div style="font-size:14px; color:#1F3450; font-weight:600; margin-top:8px;">02 Jun 2026 · Fabianna G.</div>
+          </div>
+        </div>
+
+        <div style="background:#fff; border:1px solid #E5E2DB;">
+          <div style="display:grid; grid-template-columns:50px 2.4fr 1.2fr 0.9fr 0.9fr 0.9fr 60px; padding:11px 16px; background:#F4F1EA; font-size:10px; color:#6B7B8C; letter-spacing:0.12em; text-transform:uppercase; font-weight:600;">
+            <div>Cód.</div><div>Exame</div><div>Categoria</div><div>Preço base</div><div>Plantão</div><div>Espécies</div><div></div>
+          </div>
+          <div style="display:grid; grid-template-columns:50px 2.4fr 1.2fr 0.9fr 0.9fr 0.9fr 60px; padding:13px 16px; border-bottom:1px solid #F0EDE5; font-size:13px; align-items:center;">
+            <div class="mono" style="color:#6B7B8C; font-size:11px;">HEM01</div>
+            <div><b>Hemograma completo</b><div style="font-size:11px; color:#6B7B8C; margin-top:2px;">Eritograma + Leucograma + Plaquetograma</div></div>
+            <div><span style="background:#E8F1F1; color:#2C4768; padding:3px 8px; font-size:10px; font-weight:600; letter-spacing:0.06em; text-transform:uppercase;">Hematológico</span></div>
+            <div class="mono" style="font-weight:600;">R$ 75,00</div>
+            <div class="mono" style="color:#A06D2C;">+ R$ 22,50</div>
+            <div style="font-size:11px;">Can · Fel · Equ</div>
+            <div style="text-align:right; color:#6B7B8C;">⋮</div>
+          </div>
+          <div style="display:grid; grid-template-columns:50px 2.4fr 1.2fr 0.9fr 0.9fr 0.9fr 60px; padding:13px 16px; border-bottom:1px solid #F0EDE5; font-size:13px; align-items:center;">
+            <div class="mono" style="color:#6B7B8C; font-size:11px;">HEM02</div>
+            <div><b>Pesquisa de hemoparasitas</b><div style="font-size:11px; color:#6B7B8C; margin-top:2px;">Esfregaço sanguíneo · gota espessa</div></div>
+            <div><span style="background:#E8F1F1; color:#2C4768; padding:3px 8px; font-size:10px; font-weight:600; letter-spacing:0.06em; text-transform:uppercase;">Hematológico</span></div>
+            <div class="mono" style="font-weight:600;">R$ 95,00</div>
+            <div class="mono" style="color:#A06D2C;">+ R$ 28,50</div>
+            <div style="font-size:11px;">Can · Fel</div>
+            <div style="text-align:right; color:#6B7B8C;">⋮</div>
+          </div>
+          <div style="display:grid; grid-template-columns:50px 2.4fr 1.2fr 0.9fr 0.9fr 0.9fr 60px; padding:13px 16px; border-bottom:1px solid #F0EDE5; font-size:13px; align-items:center;">
+            <div class="mono" style="color:#6B7B8C; font-size:11px;">BIO01</div>
+            <div><b>Bioquímico renal</b><div style="font-size:11px; color:#6B7B8C; margin-top:2px;">Ureia + Creatinina</div></div>
+            <div><span style="background:#F1ECE0; color:#A06D2C; padding:3px 8px; font-size:10px; font-weight:600; letter-spacing:0.06em; text-transform:uppercase;">Bioquímico</span></div>
+            <div class="mono" style="font-weight:600;">R$ 120,00</div>
+            <div class="mono" style="color:#A06D2C;">+ R$ 36,00</div>
+            <div style="font-size:11px;">Todas</div>
+            <div style="text-align:right; color:#6B7B8C;">⋮</div>
+          </div>
+          <div style="display:grid; grid-template-columns:50px 2.4fr 1.2fr 0.9fr 0.9fr 0.9fr 60px; padding:13px 16px; border-bottom:1px solid #F0EDE5; font-size:13px; align-items:center;">
+            <div class="mono" style="color:#6B7B8C; font-size:11px;">BIO02</div>
+            <div><b>Bioquímico hepático</b><div style="font-size:11px; color:#6B7B8C; margin-top:2px;">ALT (TGP) + AST (TGO) + FA</div></div>
+            <div><span style="background:#F1ECE0; color:#A06D2C; padding:3px 8px; font-size:10px; font-weight:600; letter-spacing:0.06em; text-transform:uppercase;">Bioquímico</span></div>
+            <div class="mono" style="font-weight:600;">R$ 145,00</div>
+            <div class="mono" style="color:#A06D2C;">+ R$ 43,50</div>
+            <div style="font-size:11px;">Todas</div>
+            <div style="text-align:right; color:#6B7B8C;">⋮</div>
+          </div>
+          <div style="display:grid; grid-template-columns:50px 2.4fr 1.2fr 0.9fr 0.9fr 0.9fr 60px; padding:13px 16px; border-bottom:1px solid #F0EDE5; font-size:13px; align-items:center;">
+            <div class="mono" style="color:#6B7B8C; font-size:11px;">URI01</div>
+            <div><b>Urinálise (EAS)</b><div style="font-size:11px; color:#6B7B8C; margin-top:2px;">Físico-químico + sedimentoscopia</div></div>
+            <div><span style="background:#F0E8F1; color:#7A4A8C; padding:3px 8px; font-size:10px; font-weight:600; letter-spacing:0.06em; text-transform:uppercase;">Urinário</span></div>
+            <div class="mono" style="font-weight:600;">R$ 80,00</div>
+            <div class="mono" style="color:#A06D2C;">+ R$ 24,00</div>
+            <div style="font-size:11px;">Can · Fel</div>
+            <div style="text-align:right; color:#6B7B8C;">⋮</div>
+          </div>
+          <div style="display:grid; grid-template-columns:50px 2.4fr 1.2fr 0.9fr 0.9fr 0.9fr 60px; padding:13px 16px; border-bottom:1px solid #F0EDE5; font-size:13px; align-items:center;">
+            <div class="mono" style="color:#6B7B8C; font-size:11px;">PER01</div>
+            <div><b>Perfil geriátrico</b><div style="font-size:11px; color:#6B7B8C; margin-top:2px;">Hemograma + Renal + Hepático + Urinálise + T4</div></div>
+            <div><span style="background:#E8EDF1; color:#3B5275; padding:3px 8px; font-size:10px; font-weight:600; letter-spacing:0.06em; text-transform:uppercase;">Perfil</span></div>
+            <div class="mono" style="font-weight:600;">R$ 480,00</div>
+            <div class="mono" style="color:#A06D2C;">+ R$ 144,00</div>
+            <div style="font-size:11px;">Can · Fel</div>
+            <div style="text-align:right; color:#6B7B8C;">⋮</div>
+          </div>
+          <div style="display:grid; grid-template-columns:50px 2.4fr 1.2fr 0.9fr 0.9fr 0.9fr 60px; padding:13px 16px; border-bottom:1px solid #F0EDE5; font-size:13px; align-items:center;">
+            <div class="mono" style="color:#6B7B8C; font-size:11px;">COP01</div>
+            <div><b>Coproparasitológico</b><div style="font-size:11px; color:#6B7B8C; margin-top:2px;">Willis + Sedimentação + Direto</div></div>
+            <div><span style="background:#E5EBE2; color:#4F6B3F; padding:3px 8px; font-size:10px; font-weight:600; letter-spacing:0.06em; text-transform:uppercase;">Coprológico</span></div>
+            <div class="mono" style="font-weight:600;">R$ 60,00</div>
+            <div class="mono" style="color:#A06D2C;">+ R$ 18,00</div>
+            <div style="font-size:11px;">Todas</div>
+            <div style="text-align:right; color:#6B7B8C;">⋮</div>
+          </div>
+          <div style="display:grid; grid-template-columns:50px 2.4fr 1.2fr 0.9fr 0.9fr 0.9fr 60px; padding:13px 16px; border-bottom:1px solid #F0EDE5; font-size:13px; align-items:center;">
+            <div class="mono" style="color:#6B7B8C; font-size:11px;">DER01</div>
+            <div><b>Citologia de pele</b><div style="font-size:11px; color:#6B7B8C; margin-top:2px;">Imprint + raspado superficial</div></div>
+            <div><span style="background:#F1ECDB; color:#7A6235; padding:3px 8px; font-size:10px; font-weight:600; letter-spacing:0.06em; text-transform:uppercase;">Dermatológico</span></div>
+            <div class="mono" style="font-weight:600;">R$ 90,00</div>
+            <div class="mono" style="color:#A06D2C;">+ R$ 27,00</div>
+            <div style="font-size:11px;">Can · Fel</div>
+            <div style="text-align:right; color:#6B7B8C;">⋮</div>
+          </div>
+        </div>
+
+        <div style="margin-top:12px; padding:8px 0; font-size:11.5px; color:#6B7B8C;">Mostrando 8 de 62 exames · <span style="color:#2C4768; text-decoration:underline;">ver todos</span></div>
+      </div>
+    </div>
+  </div>
+</div>
+</body>
+</html>

@@ -59,5 +59,9 @@ class ConflictError(DomainError):
     code = ErrorCode.CONFLICT
 
 
+class ValidationError(DomainError):
+    code = ErrorCode.VALIDATION_ERROR
+
+
 class InvalidStateTransitionError(DomainError):
     code = ErrorCode.INVALID_STATE_TRANSITION

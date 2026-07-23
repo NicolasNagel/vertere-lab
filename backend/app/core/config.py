@@ -25,6 +25,13 @@ class Settings(BaseSettings):
     # SecretStr: the URL carries credentials and must never reach a log.
     database_url: SecretStr
 
+    # Sessão opaca (docs/adr/001-autenticacao-sessao-opaca-argon2.md).
+    session_cookie_name: str = "vertere_session"
+    session_cookie_secure: bool = True
+    session_ttl_minutes: int = 30
+    session_ttl_remember_me_days: int = 30
+    session_renewal_threshold_minutes: int = 10
+
 
 @lru_cache
 def get_settings() -> Settings:

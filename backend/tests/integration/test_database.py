@@ -73,8 +73,20 @@ def test_alembic_upgrade_head_runs_on_empty_database(
         with engine.connect() as connection:
             inspector = inspect(connection)
             table_names = inspector.get_table_names()
-        # Sem revisions ainda: o upgrade precisa rodar sem erro e sem criar
-        # nada além do controle do próprio Alembic.
-        assert set(table_names) <= {"alembic_version", "uow_probe"}
+        # `uow_probe` vem de um teste anterior no mesmo módulo (container
+        # reutilizado, escopo "module") — o schema real vem das migrations
+        # de identidade/auditoria (0001/0002).
+        assert set(table_names) <= {
+            "alembic_version",
+            "uow_probe",
+            "roles",
+            "permissions",
+            "role_permissions",
+            "users",
+            "lab_memberships",
+            "sessions",
+            "audit_log",
+        }
+        assert "roles" in table_names
     finally:
         engine.dispose()

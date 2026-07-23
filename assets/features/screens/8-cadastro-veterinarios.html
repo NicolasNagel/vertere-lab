@@ -1,0 +1,186 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<title>8 · CADASTRO VETERINÁRIOS</title>
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Big+Shoulders+Display:wght@500;600;700;800;900&family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;1,400;1,500;1,600&family=Manrope:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+
+
+<style>
+  body { font-family: 'Manrope', -apple-system, sans-serif; color: #1A2D45; -webkit-font-smoothing: antialiased; }
+  .serif { font-family: 'Big Shoulders Display', 'Manrope', sans-serif; text-transform: uppercase; letter-spacing: 0.02em; font-weight: 800; }
+  .serif em { font-family: 'Cormorant Garamond', Georgia, serif; font-style: italic; text-transform: none; letter-spacing: 0; font-weight: 500; color: #9CBFC2; }
+  .script { font-family: 'Cormorant Garamond', Georgia, serif; font-style: italic; font-weight: 500; }
+  .mono { font-family: 'JetBrains Mono', monospace; }
+  .frame-card { background: #FFFFFF; border-radius: 4px; box-shadow: 0 1px 3px rgba(28,45,69,0.08), 0 8px 32px rgba(28,45,69,0.06); overflow: hidden; }
+  .frame-label { font-family: 'JetBrains Mono', monospace; font-size: 11px; letter-spacing: 0.12em; text-transform: uppercase; color: #6B7B8C; margin-bottom: 12px; display: flex; align-items: center; gap: 10px; }
+  .frame-label::before { content:''; width: 22px; height: 1px; background: #6B7B8C; }
+  .tab-active { color: #2C4768; border-bottom: 2px solid #2C4768; }
+  .tab-inactive { color: #6B7B8C; border-bottom: 2px solid transparent; }
+  ::-webkit-scrollbar { width: 0; height: 0; }
+</style>
+
+<style>
+  body { margin:0; padding:32px; background:#EEEAE0; }
+  /* Reset .frame-label hide */
+</style>
+</head>
+<body>
+<div style="width:1280px; margin:0 auto;">
+  <div class="frame-card" style="height:780px; background:#FBFAF6;">
+    <div style="background:#fff; padding:22px 32px; border-bottom:1px solid #E5E2DB; display:flex; justify-content:space-between; align-items:center;">
+      <div>
+        <div class="mono" style="font-size:10px; letter-spacing:0.16em; color:#6B7B8C; text-transform:uppercase;">Cadastros</div>
+        <h1 class="serif" style="font-size:28px; font-weight:600; color:#1F3450; margin:2px 0 0;">Veterinários</h1>
+      </div>
+      <div style="display:flex; gap:10px; align-items:center;">
+        <div style="display:flex; gap:6px;">
+          <span style="padding:7px 14px; background:#2C4768; color:#fff; font-size:11.5px; font-weight:600;">Todos · 42</span>
+          <span style="padding:7px 14px; background:#fff; border:1px solid #E5E2DB; color:#6B7B8C; font-size:11.5px;">Vinculados · 31</span>
+          <span style="padding:7px 14px; background:#fff; border:1px solid #E5E2DB; color:#6B7B8C; font-size:11.5px;">Autônomos · 11</span>
+        </div>
+        <button style="background:#2C4768; color:#fff; border:none; padding:11px 18px; font-size:11px; letter-spacing:0.14em; text-transform:uppercase; font-weight:600; font-family:inherit; display:flex; align-items:center; gap:8px;">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>
+          Novo vet
+        </button>
+      </div>
+    </div>
+
+    <div style="padding:24px 32px; overflow:auto; height:calc(100% - 84px);">
+      <div style="display:grid; grid-template-columns:repeat(3, 1fr); gap:14px;">
+        <!-- vet cards -->
+        <div style="background:#fff; border:1px solid #E5E2DB; padding:18px;">
+          <div style="display:flex; align-items:center; gap:12px;">
+            <div style="width:44px; height:44px; border-radius:50%; background:#2C4768; color:#fff; display:flex; align-items:center; justify-content:center; font-weight:600; font-size:14px;">TS</div>
+            <div style="flex:1; min-width:0;">
+              <div style="font-size:14px; font-weight:600; color:#1F3450;">Thâmina Schweitzer</div>
+              <div class="mono" style="font-size:11px; color:#6B7B8C;">CRMV-SC 06823</div>
+            </div>
+            <span style="background:#E5EBE2; color:#4F6B3F; font-size:9.5px; padding:2px 7px; font-weight:600; letter-spacing:0.06em; text-transform:uppercase;">Ativo</span>
+          </div>
+          <div style="margin-top:12px; padding-top:12px; border-top:1px solid #F0EDE5; font-size:12px; display:flex; flex-direction:column; gap:4px;">
+            <div style="display:flex; align-items:center; gap:8px; color:#6B7B8C;"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M3 21h18M5 21V8l7-5 7 5v13"/></svg>Schweitzer</div>
+            <div style="display:flex; align-items:center; gap:8px; color:#6B7B8C;" class="mono"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M22 16.92v3a2 2 0 0 1-2.18 2A19.79 19.79 0 0 1 2.08 4.18 2 2 0 0 1 4.06 2h3a2 2 0 0 1 2 1.72c.12.85.32 1.67.58 2.46a2 2 0 0 1-.45 2.11L8.09 9.46a16 16 0 0 0 6.45 6.45l1.17-1.17a2 2 0 0 1 2.11-.45c.79.26 1.61.46 2.46.58A2 2 0 0 1 22 16.92z"/></svg>(47) 9 9914-6833</div>
+          </div>
+        </div>
+        <div style="background:#fff; border:1px solid #E5E2DB; padding:18px;">
+          <div style="display:flex; align-items:center; gap:12px;">
+            <div style="width:44px; height:44px; border-radius:50%; background:#9CBFC2; color:#1F3450; display:flex; align-items:center; justify-content:center; font-weight:600; font-size:14px;">KW</div>
+            <div style="flex:1; min-width:0;">
+              <div style="font-size:14px; font-weight:600; color:#1F3450;">Karin Witt</div>
+              <div class="mono" style="font-size:11px; color:#6B7B8C;">CRMV-SC 04127</div>
+            </div>
+            <span style="background:#E8F1F1; color:#2C4768; font-size:9.5px; padding:2px 7px; font-weight:600; letter-spacing:0.06em; text-transform:uppercase;">Autônomo</span>
+          </div>
+          <div style="margin-top:12px; padding-top:12px; border-top:1px solid #F0EDE5; font-size:12px; display:flex; flex-direction:column; gap:4px;">
+            <div style="display:flex; align-items:center; gap:8px; color:#6B7B8C;"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18"/></svg>Pede por outras clínicas</div>
+            <div style="display:flex; align-items:center; gap:8px; color:#6B7B8C;" class="mono"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M22 16.92v3a2 2 0 0 1-2.18 2A19.79 19.79 0 0 1 2.08 4.18 2 2 0 0 1 4.06 2h3a2 2 0 0 1 2 1.72c.12.85.32 1.67.58 2.46a2 2 0 0 1-.45 2.11L8.09 9.46a16 16 0 0 0 6.45 6.45l1.17-1.17a2 2 0 0 1 2.11-.45c.79.26 1.61.46 2.46.58A2 2 0 0 1 22 16.92z"/></svg>(47) 9 8833-2973</div>
+          </div>
+        </div>
+        <div style="background:#fff; border:1px solid #E5E2DB; padding:18px;">
+          <div style="display:flex; align-items:center; gap:12px;">
+            <div style="width:44px; height:44px; border-radius:50%; background:#2C4768; color:#fff; display:flex; align-items:center; justify-content:center; font-weight:600; font-size:14px;">EH</div>
+            <div style="flex:1; min-width:0;">
+              <div style="font-size:14px; font-weight:600; color:#1F3450;">Eberton Henrique</div>
+              <div class="mono" style="font-size:11px; color:#6B7B8C;">CRMV-SC 08915</div>
+            </div>
+            <span style="background:#E5EBE2; color:#4F6B3F; font-size:9.5px; padding:2px 7px; font-weight:600; letter-spacing:0.06em; text-transform:uppercase;">Ativo</span>
+          </div>
+          <div style="margin-top:12px; padding-top:12px; border-top:1px solid #F0EDE5; font-size:12px; display:flex; flex-direction:column; gap:4px;">
+            <div style="display:flex; align-items:center; gap:8px; color:#6B7B8C;"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M3 21h18M5 21V8l7-5 7 5v13"/></svg>Reale · Bicho Urbano</div>
+            <div style="display:flex; align-items:center; gap:8px; color:#6B7B8C;" class="mono"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M22 16.92v3a2 2 0 0 1-2.18 2A19.79 19.79 0 0 1 2.08 4.18 2 2 0 0 1 4.06 2h3a2 2 0 0 1 2 1.72c.12.85.32 1.67.58 2.46a2 2 0 0 1-.45 2.11L8.09 9.46a16 16 0 0 0 6.45 6.45l1.17-1.17a2 2 0 0 1 2.11-.45c.79.26 1.61.46 2.46.58A2 2 0 0 1 22 16.92z"/></svg>(47) 9 9932-5831</div>
+          </div>
+        </div>
+        <div style="background:#fff; border:1px solid #E5E2DB; padding:18px;">
+          <div style="display:flex; align-items:center; gap:12px;">
+            <div style="width:44px; height:44px; border-radius:50%; background:#9CBFC2; color:#1F3450; display:flex; align-items:center; justify-content:center; font-weight:600; font-size:14px;">FM</div>
+            <div style="flex:1; min-width:0;">
+              <div style="font-size:14px; font-weight:600; color:#1F3450;">Felipe Moreira</div>
+              <div class="mono" style="font-size:11px; color:#6B7B8C;">CRMV-SC 10204</div>
+            </div>
+            <span style="background:#E8F1F1; color:#2C4768; font-size:9.5px; padding:2px 7px; font-weight:600; letter-spacing:0.06em; text-transform:uppercase;">Autônomo</span>
+          </div>
+          <div style="margin-top:12px; padding-top:12px; border-top:1px solid #F0EDE5; font-size:12px; display:flex; flex-direction:column; gap:4px;">
+            <div style="display:flex; align-items:center; gap:8px; color:#6B7B8C;"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="12" cy="12" r="9"/></svg>Cantinho Pet (eventual)</div>
+            <div style="display:flex; align-items:center; gap:8px; color:#6B7B8C;" class="mono"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M22 16.92v3a2 2 0 0 1-2.18 2A19.79 19.79 0 0 1 2.08 4.18 2 2 0 0 1 4.06 2h3a2 2 0 0 1 2 1.72c.12.85.32 1.67.58 2.46a2 2 0 0 1-.45 2.11L8.09 9.46a16 16 0 0 0 6.45 6.45l1.17-1.17a2 2 0 0 1 2.11-.45c.79.26 1.61.46 2.46.58A2 2 0 0 1 22 16.92z"/></svg>(47) 9 9210-4064</div>
+          </div>
+        </div>
+        <div style="background:#fff; border:1px solid #E5E2DB; padding:18px;">
+          <div style="display:flex; align-items:center; gap:12px;">
+            <div style="width:44px; height:44px; border-radius:50%; background:#2C4768; color:#fff; display:flex; align-items:center; justify-content:center; font-weight:600; font-size:14px;">DP</div>
+            <div style="flex:1; min-width:0;">
+              <div style="font-size:14px; font-weight:600; color:#1F3450;">Daniella Eloá Pradi</div>
+              <div class="mono" style="font-size:11px; color:#6B7B8C;">CRMV-SC 09822</div>
+            </div>
+            <span style="background:#E5EBE2; color:#4F6B3F; font-size:9.5px; padding:2px 7px; font-weight:600; letter-spacing:0.06em; text-transform:uppercase;">Ativo</span>
+          </div>
+          <div style="margin-top:12px; padding-top:12px; border-top:1px solid #F0EDE5; font-size:12px; display:flex; flex-direction:column; gap:4px;">
+            <div style="display:flex; align-items:center; gap:8px; color:#6B7B8C;"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M3 21h18M5 21V8l7-5 7 5v13"/></svg>Bea Pet Center</div>
+            <div style="display:flex; align-items:center; gap:8px; color:#6B7B8C;" class="mono"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M22 16.92v3a2 2 0 0 1-2.18 2A19.79 19.79 0 0 1 2.08 4.18 2 2 0 0 1 4.06 2h3a2 2 0 0 1 2 1.72c.12.85.32 1.67.58 2.46a2 2 0 0 1-.45 2.11L8.09 9.46a16 16 0 0 0 6.45 6.45l1.17-1.17a2 2 0 0 1 2.11-.45c.79.26 1.61.46 2.46.58A2 2 0 0 1 22 16.92z"/></svg>(47) 9 8807-8933</div>
+          </div>
+        </div>
+        <div style="background:#fff; border:1px solid #E5E2DB; padding:18px;">
+          <div style="display:flex; align-items:center; gap:12px;">
+            <div style="width:44px; height:44px; border-radius:50%; background:#9CBFC2; color:#1F3450; display:flex; align-items:center; justify-content:center; font-weight:600; font-size:14px;">JZ</div>
+            <div style="flex:1; min-width:0;">
+              <div style="font-size:14px; font-weight:600; color:#1F3450;">Juliana Zanghelini</div>
+              <div class="mono" style="font-size:11px; color:#6B7B8C;">CRMV-SC 07412</div>
+            </div>
+            <span style="background:#E8F1F1; color:#2C4768; font-size:9.5px; padding:2px 7px; font-weight:600; letter-spacing:0.06em; text-transform:uppercase;">Autônomo</span>
+          </div>
+          <div style="margin-top:12px; padding-top:12px; border-top:1px solid #F0EDE5; font-size:12px; display:flex; flex-direction:column; gap:4px;">
+            <div style="display:flex; align-items:center; gap:8px; color:#6B7B8C;"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="12" cy="12" r="9"/></svg>Pede por outras clínicas</div>
+            <div style="display:flex; align-items:center; gap:8px; color:#6B7B8C;" class="mono"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M22 16.92v3a2 2 0 0 1-2.18 2A19.79 19.79 0 0 1 2.08 4.18 2 2 0 0 1 4.06 2h3a2 2 0 0 1 2 1.72c.12.85.32 1.67.58 2.46a2 2 0 0 1-.45 2.11L8.09 9.46a16 16 0 0 0 6.45 6.45l1.17-1.17a2 2 0 0 1 2.11-.45c.79.26 1.61.46 2.46.58A2 2 0 0 1 22 16.92z"/></svg>(47) 9 9712-1255</div>
+          </div>
+        </div>
+        <div style="background:#fff; border:1px solid #E5E2DB; padding:18px;">
+          <div style="display:flex; align-items:center; gap:12px;">
+            <div style="width:44px; height:44px; border-radius:50%; background:#2C4768; color:#fff; display:flex; align-items:center; justify-content:center; font-weight:600; font-size:14px;">MN</div>
+            <div style="flex:1; min-width:0;">
+              <div style="font-size:14px; font-weight:600; color:#1F3450;">Michael Neves</div>
+              <div class="mono" style="font-size:11px; color:#6B7B8C;">CRMV-SC 08230</div>
+            </div>
+            <span style="background:#E5EBE2; color:#4F6B3F; font-size:9.5px; padding:2px 7px; font-weight:600; letter-spacing:0.06em; text-transform:uppercase;">Ativo</span>
+          </div>
+          <div style="margin-top:12px; padding-top:12px; border-top:1px solid #F0EDE5; font-size:12px; display:flex; flex-direction:column; gap:4px;">
+            <div style="display:flex; align-items:center; gap:8px; color:#6B7B8C;"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M3 21h18M5 21V8l7-5 7 5v13"/></svg>Reale</div>
+            <div style="display:flex; align-items:center; gap:8px; color:#6B7B8C;" class="mono"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M22 16.92v3a2 2 0 0 1-2.18 2A19.79 19.79 0 0 1 2.08 4.18 2 2 0 0 1 4.06 2h3a2 2 0 0 1 2 1.72c.12.85.32 1.67.58 2.46a2 2 0 0 1-.45 2.11L8.09 9.46a16 16 0 0 0 6.45 6.45l1.17-1.17a2 2 0 0 1 2.11-.45c.79.26 1.61.46 2.46.58A2 2 0 0 1 22 16.92z"/></svg>(47) 9 8807-8933</div>
+          </div>
+        </div>
+        <div style="background:#fff; border:1px solid #E5E2DB; padding:18px;">
+          <div style="display:flex; align-items:center; gap:12px;">
+            <div style="width:44px; height:44px; border-radius:50%; background:#2C4768; color:#fff; display:flex; align-items:center; justify-content:center; font-weight:600; font-size:14px;">CL</div>
+            <div style="flex:1; min-width:0;">
+              <div style="font-size:14px; font-weight:600; color:#1F3450;">Charlene Longhi</div>
+              <div class="mono" style="font-size:11px; color:#6B7B8C;">CRMV-SC 06310</div>
+            </div>
+            <span style="background:#E5EBE2; color:#4F6B3F; font-size:9.5px; padding:2px 7px; font-weight:600; letter-spacing:0.06em; text-transform:uppercase;">Ativo</span>
+          </div>
+          <div style="margin-top:12px; padding-top:12px; border-top:1px solid #F0EDE5; font-size:12px; display:flex; flex-direction:column; gap:4px;">
+            <div style="display:flex; align-items:center; gap:8px; color:#6B7B8C;"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M3 21h18M5 21V8l7-5 7 5v13"/></svg>Bicho Urbano</div>
+            <div style="display:flex; align-items:center; gap:8px; color:#6B7B8C;" class="mono"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M22 16.92v3a2 2 0 0 1-2.18 2A19.79 19.79 0 0 1 2.08 4.18 2 2 0 0 1 4.06 2h3a2 2 0 0 1 2 1.72c.12.85.32 1.67.58 2.46a2 2 0 0 1-.45 2.11L8.09 9.46a16 16 0 0 0 6.45 6.45l1.17-1.17a2 2 0 0 1 2.11-.45c.79.26 1.61.46 2.46.58A2 2 0 0 1 22 16.92z"/></svg>charlenelonghi@gmail.com</div>
+          </div>
+        </div>
+        <div style="background:#fff; border:1px solid #E5E2DB; padding:18px;">
+          <div style="display:flex; align-items:center; gap:12px;">
+            <div style="width:44px; height:44px; border-radius:50%; background:#2C4768; color:#fff; display:flex; align-items:center; justify-content:center; font-weight:600; font-size:14px;">FG</div>
+            <div style="flex:1; min-width:0;">
+              <div style="font-size:14px; font-weight:600; color:#1F3450;">Fabianna Garcia</div>
+              <div class="mono" style="font-size:11px; color:#6B7B8C;">CRMV-SC 12345</div>
+            </div>
+            <span style="background:#1F3450; color:#9CBFC2; font-size:9.5px; padding:2px 7px; font-weight:600; letter-spacing:0.06em; text-transform:uppercase;">Interno</span>
+          </div>
+          <div style="margin-top:12px; padding-top:12px; border-top:1px solid #F0EDE5; font-size:12px; display:flex; flex-direction:column; gap:4px;">
+            <div style="display:flex; align-items:center; gap:8px; color:#6B7B8C;"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M3 21h18"/></svg>Vertere Lab · Patologista chefe</div>
+            <div style="display:flex; align-items:center; gap:8px; color:#6B7B8C;" class="mono"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M22 16.92v3"/></svg>fabianna@verterelab.com.br</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+</body>
+</html>

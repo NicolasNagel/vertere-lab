@@ -1,0 +1,181 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<title>7 · CADASTRO CLÍNICAS</title>
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Big+Shoulders+Display:wght@500;600;700;800;900&family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;1,400;1,500;1,600&family=Manrope:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+
+
+<style>
+  body { font-family: 'Manrope', -apple-system, sans-serif; color: #1A2D45; -webkit-font-smoothing: antialiased; }
+  .serif { font-family: 'Big Shoulders Display', 'Manrope', sans-serif; text-transform: uppercase; letter-spacing: 0.02em; font-weight: 800; }
+  .serif em { font-family: 'Cormorant Garamond', Georgia, serif; font-style: italic; text-transform: none; letter-spacing: 0; font-weight: 500; color: #9CBFC2; }
+  .script { font-family: 'Cormorant Garamond', Georgia, serif; font-style: italic; font-weight: 500; }
+  .mono { font-family: 'JetBrains Mono', monospace; }
+  .frame-card { background: #FFFFFF; border-radius: 4px; box-shadow: 0 1px 3px rgba(28,45,69,0.08), 0 8px 32px rgba(28,45,69,0.06); overflow: hidden; }
+  .frame-label { font-family: 'JetBrains Mono', monospace; font-size: 11px; letter-spacing: 0.12em; text-transform: uppercase; color: #6B7B8C; margin-bottom: 12px; display: flex; align-items: center; gap: 10px; }
+  .frame-label::before { content:''; width: 22px; height: 1px; background: #6B7B8C; }
+  .tab-active { color: #2C4768; border-bottom: 2px solid #2C4768; }
+  .tab-inactive { color: #6B7B8C; border-bottom: 2px solid transparent; }
+  ::-webkit-scrollbar { width: 0; height: 0; }
+</style>
+
+<style>
+  body { margin:0; padding:32px; background:#EEEAE0; }
+  /* Reset .frame-label hide */
+</style>
+</head>
+<body>
+<div style="width:1280px; margin:0 auto;">
+  <div class="frame-card" style="height:780px; background:#FBFAF6;">
+    <div style="background:#fff; padding:22px 32px; border-bottom:1px solid #E5E2DB; display:flex; justify-content:space-between; align-items:center;">
+      <div>
+        <div class="mono" style="font-size:10px; letter-spacing:0.16em; color:#6B7B8C; text-transform:uppercase;">Cadastros</div>
+        <h1 class="serif" style="font-size:28px; font-weight:600; color:#1F3450; margin:2px 0 0;">Clínicas parceiras</h1>
+      </div>
+      <button style="background:#2C4768; color:#fff; border:none; padding:12px 20px; font-size:11px; letter-spacing:0.14em; text-transform:uppercase; font-weight:600; font-family:inherit; display:flex; align-items:center; gap:8px;">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>
+        Nova clínica
+      </button>
+    </div>
+    <div style="display:flex; height:calc(100% - 84px);">
+      <!-- list -->
+      <div style="width:380px; background:#fff; border-right:1px solid #E5E2DB; overflow:hidden;">
+        <div style="padding:12px 18px; border-bottom:1px solid #E5E2DB; display:flex; align-items:center; gap:8px; background:#F4F1EA;">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#6B7B8C" stroke-width="1.6"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4-4"/></svg>
+          <span style="font-size:12px; color:#6B7B8C;">Buscar clínica...</span>
+          <span style="margin-left:auto; font-size:11px; color:#6B7B8C;">14 ativas</span>
+        </div>
+        <div style="overflow:auto;">
+          <div style="padding:14px 18px; border-left:3px solid #2C4768; background:#FBFAF6; border-bottom:1px solid #F0EDE5;">
+            <div style="display:flex; justify-content:space-between; align-items:center;">
+              <span style="font-size:14px; font-weight:600; color:#1F3450;">Schweitzer</span>
+              <span style="background:#E5EBE2; color:#4F6B3F; font-size:10px; padding:2px 7px; font-weight:600; letter-spacing:0.06em; text-transform:uppercase;">Ativo</span>
+            </div>
+            <div style="font-size:11.5px; color:#6B7B8C; margin-top:4px;">R. Emilio Piazera, 80 — Jaraguá do Sul/SC</div>
+            <div class="mono" style="font-size:10.5px; color:#6B7B8C; margin-top:2px;">78.977.352/0001-99 · (47) 9 9914-6833</div>
+          </div>
+          <div style="padding:14px 18px; border-left:3px solid transparent; border-bottom:1px solid #F0EDE5;">
+            <div style="display:flex; justify-content:space-between; align-items:center;">
+              <span style="font-size:14px; font-weight:600; color:#1F3450;">Bicho Urbano</span>
+              <span style="background:#E5EBE2; color:#4F6B3F; font-size:10px; padding:2px 7px; font-weight:600; letter-spacing:0.06em; text-transform:uppercase;">Ativo</span>
+            </div>
+            <div style="font-size:11.5px; color:#6B7B8C; margin-top:4px;">R. Walter Marquardt, 1269 — Jaraguá do Sul/SC</div>
+            <div class="mono" style="font-size:10.5px; color:#6B7B8C; margin-top:2px;">21.804.204/0001-55 · (47) 9 8807-8933</div>
+          </div>
+          <div style="padding:14px 18px; border-left:3px solid transparent; border-bottom:1px solid #F0EDE5;">
+            <div style="display:flex; justify-content:space-between; align-items:center;">
+              <span style="font-size:14px; font-weight:600; color:#1F3450;">Reale</span>
+              <span style="background:#E5EBE2; color:#4F6B3F; font-size:10px; padding:2px 7px; font-weight:600; letter-spacing:0.06em; text-transform:uppercase;">Ativo</span>
+            </div>
+            <div style="font-size:11.5px; color:#6B7B8C; margin-top:4px;">R. Feliciano Bortolini, 1216 — Jaraguá do Sul/SC</div>
+          </div>
+          <div style="padding:14px 18px; border-left:3px solid transparent; border-bottom:1px solid #F0EDE5;">
+            <div style="display:flex; justify-content:space-between; align-items:center;">
+              <span style="font-size:14px; font-weight:600; color:#1F3450;">Bea Pet Center</span>
+              <span style="background:#E5EBE2; color:#4F6B3F; font-size:10px; padding:2px 7px; font-weight:600; letter-spacing:0.06em; text-transform:uppercase;">Ativo</span>
+            </div>
+            <div style="font-size:11.5px; color:#6B7B8C; margin-top:4px;">R. Marcos Valdir Girolla, 74 — Jaraguá do Sul/SC</div>
+          </div>
+          <div style="padding:14px 18px; border-left:3px solid transparent; border-bottom:1px solid #F0EDE5;">
+            <div style="display:flex; justify-content:space-between; align-items:center;">
+              <span style="font-size:14px; font-weight:600; color:#1F3450;">Entrepatas</span>
+              <span style="background:#E5EBE2; color:#4F6B3F; font-size:10px; padding:2px 7px; font-weight:600; letter-spacing:0.06em; text-transform:uppercase;">Ativo</span>
+            </div>
+            <div style="font-size:11.5px; color:#6B7B8C; margin-top:4px;">Jaraguá do Sul/SC</div>
+          </div>
+          <div style="padding:14px 18px; border-left:3px solid transparent; border-bottom:1px solid #F0EDE5;">
+            <div style="display:flex; justify-content:space-between; align-items:center;">
+              <span style="font-size:14px; font-weight:600; color:#1F3450;">Autônomos</span>
+              <span style="background:#E8F1F1; color:#2C4768; font-size:10px; padding:2px 7px; font-weight:600; letter-spacing:0.06em; text-transform:uppercase;">Especial</span>
+            </div>
+            <div style="font-size:11.5px; color:#6B7B8C; margin-top:4px;">Vinculação para vets autônomos</div>
+          </div>
+          <div style="padding:14px 18px; border-left:3px solid transparent; border-bottom:1px solid #F0EDE5;">
+            <div style="display:flex; justify-content:space-between; align-items:center;">
+              <span style="font-size:14px; font-weight:600; color:#1F3450;">Zoo Vida</span>
+              <span style="background:#E5EBE2; color:#4F6B3F; font-size:10px; padding:2px 7px; font-weight:600; letter-spacing:0.06em; text-transform:uppercase;">Ativo</span>
+            </div>
+            <div style="font-size:11.5px; color:#6B7B8C; margin-top:4px;">R. Ângelo Rubini, 586 — Jaraguá do Sul/SC</div>
+          </div>
+          <div style="padding:14px 18px; border-left:3px solid transparent; border-bottom:1px solid #F0EDE5;">
+            <div style="display:flex; justify-content:space-between; align-items:center;">
+              <span style="font-size:14px; font-weight:600; color:#1F3450;">Prefeitura Schroeder</span>
+              <span style="background:#F1ECE0; color:#A06D2C; font-size:10px; padding:2px 7px; font-weight:600; letter-spacing:0.06em; text-transform:uppercase;">Negativado</span>
+            </div>
+            <div style="font-size:11.5px; color:#6B7B8C; margin-top:4px;">Schroeder/SC</div>
+          </div>
+        </div>
+      </div>
+      <!-- detail -->
+      <div style="flex:1; padding:28px 36px; overflow:auto;">
+        <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:24px;">
+          <div>
+            <div style="display:flex; align-items:center; gap:12px;">
+              <h2 class="serif" style="font-size:32px; font-weight:600; color:#1F3450; margin:0;">Schweitzer</h2>
+              <span style="background:#E5EBE2; color:#4F6B3F; font-size:11px; padding:3px 10px; font-weight:600; letter-spacing:0.08em; text-transform:uppercase;">Ativo</span>
+            </div>
+            <div style="font-size:13px; color:#6B7B8C; margin-top:6px;">Cliente desde Jan/2024 · 312 protocolos · R$ 87.420 em 2026</div>
+          </div>
+          <div style="display:flex; gap:8px;">
+            <button style="padding:9px 14px; border:1px solid #E5E2DB; background:#fff; color:#1F3450; font-size:12px; font-family:inherit;">Editar</button>
+            <button style="padding:9px 12px; border:1px solid #E5E2DB; background:#fff; color:#6B7B8C; font-size:12px;">⋮</button>
+          </div>
+        </div>
+
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:14px; margin-bottom:18px;">
+          <div style="background:#fff; border:1px solid #E5E2DB; padding:16px 18px;">
+            <div class="mono" style="font-size:10px; letter-spacing:0.12em; color:#6B7B8C; text-transform:uppercase; margin-bottom:12px;">Dados gerais</div>
+            <div style="display:grid; grid-template-columns:auto 1fr; gap:8px 16px; font-size:13px;">
+              <div style="color:#6B7B8C;">CNPJ</div><div class="mono" style="color:#1A2D45;">78.977.352/0001-99</div>
+              <div style="color:#6B7B8C;">Telefone</div><div class="mono" style="color:#1A2D45;">(47) 9 9914-6833</div>
+              <div style="color:#6B7B8C;">E-mail</div><div style="color:#1A2D45;">clinicavetschweitzer@gmail.com</div>
+              <div style="color:#6B7B8C;">Observação</div><div style="color:#1A2D45;">—</div>
+            </div>
+          </div>
+          <div style="background:#fff; border:1px solid #E5E2DB; padding:16px 18px;">
+            <div class="mono" style="font-size:10px; letter-spacing:0.12em; color:#6B7B8C; text-transform:uppercase; margin-bottom:12px;">Endereço</div>
+            <div style="display:grid; grid-template-columns:auto 1fr; gap:8px 16px; font-size:13px;">
+              <div style="color:#6B7B8C;">CEP</div><div class="mono" style="color:#1A2D45;">89255-200</div>
+              <div style="color:#6B7B8C;">Rua</div><div style="color:#1A2D45;">R. Emilio Piazera</div>
+              <div style="color:#6B7B8C;">Número</div><div style="color:#1A2D45;">80</div>
+              <div style="color:#6B7B8C;">Bairro</div><div style="color:#1A2D45;">Vila Baependi</div>
+              <div style="color:#6B7B8C;">Cidade / UF</div><div style="color:#1A2D45;">Jaraguá do Sul / SC</div>
+              <div style="color:#6B7B8C;">Complemento</div><div style="color:#1A2D45;">—</div>
+            </div>
+          </div>
+        </div>
+
+        <div style="background:#fff; border:1px solid #E5E2DB;">
+          <div style="padding:14px 18px; border-bottom:1px solid #F0EDE5; display:flex; justify-content:space-between; align-items:center;">
+            <div class="serif" style="font-size:17px; font-weight:600; color:#1F3450;">Veterinários vinculados</div>
+            <span style="font-size:11px; color:#2C4768; text-decoration:underline;">vincular novo</span>
+          </div>
+          <div style="display:grid; grid-template-columns:repeat(2,1fr); gap:1px; background:#F0EDE5;">
+            <div style="background:#fff; padding:12px 18px; display:flex; align-items:center; gap:12px;">
+              <div style="width:32px; height:32px; border-radius:50%; background:#E8F1F1; color:#2C4768; display:flex; align-items:center; justify-content:center; font-weight:600; font-size:11px;">TS</div>
+              <div style="flex:1;"><div style="font-size:13px; font-weight:600; color:#1F3450;">Thâmina Schweitzer</div><div class="mono" style="font-size:11px; color:#6B7B8C;">CRMV-SC 06823</div></div>
+            </div>
+            <div style="background:#fff; padding:12px 18px; display:flex; align-items:center; gap:12px;">
+              <div style="width:32px; height:32px; border-radius:50%; background:#E8F1F1; color:#2C4768; display:flex; align-items:center; justify-content:center; font-weight:600; font-size:11px;">VS</div>
+              <div style="flex:1;"><div style="font-size:13px; font-weight:600; color:#1F3450;">Valdemar Schweitzer</div><div class="mono" style="font-size:11px; color:#6B7B8C;">CRMV-SC 02114</div></div>
+            </div>
+            <div style="background:#fff; padding:12px 18px; display:flex; align-items:center; gap:12px;">
+              <div style="width:32px; height:32px; border-radius:50%; background:#E8F1F1; color:#2C4768; display:flex; align-items:center; justify-content:center; font-weight:600; font-size:11px;">DP</div>
+              <div style="flex:1;"><div style="font-size:13px; font-weight:600; color:#1F3450;">Daniella Eloá Pradi</div><div class="mono" style="font-size:11px; color:#6B7B8C;">CRMV-SC 09822</div></div>
+            </div>
+            <div style="background:#fff; padding:12px 18px; display:flex; align-items:center; gap:12px;">
+              <div style="width:32px; height:32px; border-radius:50%; background:#E8F1F1; color:#2C4768; display:flex; align-items:center; justify-content:center; font-weight:600; font-size:11px;">SK</div>
+              <div style="flex:1;"><div style="font-size:13px; font-weight:600; color:#1F3450;">Sabrina Kelly</div><div class="mono" style="font-size:11px; color:#6B7B8C;">CRMV-SC 11240</div></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+</body>
+</html>

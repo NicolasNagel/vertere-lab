@@ -1,0 +1,96 @@
+from __future__ import annotations
+
+from dataclasses import dataclass
+from uuid import UUID
+
+from app.modules.audit.domain.entities import ActorScope, AuditEntry
+from app.modules.audit.domain.repositories import AuditLogWriter
+from app.modules.identity.application.dtos import AuthenticatedUserDTO, UserSummaryDTO
+from app.modules.identity.domain.errors import SelfLockoutError
+from app.modules.identity.domain.repositories import (
+    RoleRepository,
+    SessionRepository,
+    UserRepository,
+)
+from app.shared.application.clock import Clock
+from app.shared.domain.errors import ForbiddenError, NotFoundError
+
+_REQUIRED_PERMISSION = "roles.assign"
+# Perder qualquer uma destas permissões tira a capacidade de gerenciar
+# usuários — não pode sobrar zero pessoas com nenhuma delas.
+_CONTROL_PERMISSIONS = frozenset({"users.update", "roles.assign", "users.deactivate"})
+
+
+@dataclass(frozen=True, kw_only=True)
+class AssignRoleCommand:
+    actor: AuthenticatedUserDTO
+    user_id: UUID
+    new_role_id: UUID
+
+
+class AssignRoleUseCase:
+    def __init__(
+        self,
+        *,
+        users: UserRepository,
+        roles: RoleRepository,
+        sessions: SessionRepository,
+        audit: AuditLogWriter,
+        clock: Clock,
+    ) -> None:
+        self._users = users
+        self._roles = roles
+        self._sessions = sessions
+        self._audit = audit
+        self._clock = clock
+
+    def execute(self, command: AssignRoleCommand) -> UserSummaryDTO:
+        if _REQUIRED_PERMISSION not in command.actor.permissions:
+            raise ForbiddenError(f"Permissão ausente: {_REQUIRED_PERMISSION}")
+
+        user = self._users.get_by_id(command.user_id)
+        if user is None:
+            raise NotFoundError("Usuário não encontrado.")
+
+        new_role = self._roles.get_by_id(command.new_role_id)
+        if new_role is None:
+            raise NotFoundError("Papel não encontrado.")
+
+        if user.id == command.actor.id:
+            lost_control_permissions = _CONTROL_PERMISSIONS - new_role.permission_codes
+            for permission_code in lost_control_permissions:
+                remaining = self._users.count_active_users_with_permission(
+                    permission_code, exclude_user_id=user.id
+                )
+                if remaining == 0:
+                    raise SelfLockoutError(
+                        "Esta troca removeria o último usuário capaz de gerenciar usuários."
+                    )
+
+        old_role_id = user.role_id
+        now = self._clock.now()
+        user.change_role(new_role.id, now=now)
+        self._users.save(user)
+        self._sessions.revoke_all_for_user(user.id, now=now)
+
+        self._audit.record(
+            AuditEntry(
+                actor_user_id=command.actor.id,
+                actor_scope=ActorScope.LAB,
+                action="users.role_changed",
+                entity_type="user",
+                entity_id=str(user.id),
+                before_state={"role_id": str(old_role_id)},
+                after_state={"role_id": str(new_role.id)},
+            )
+        )
+
+        return UserSummaryDTO(
+            id=user.id,
+            email=str(user.email),
+            full_name=user.full_name,
+            is_active=user.is_active,
+            role_id=new_role.id,
+            role_name=new_role.name,
+            created_at=user.created_at,
+        )

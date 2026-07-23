@@ -1,0 +1,204 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<title>3 · OPERAÇÕES (lista)</title>
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Big+Shoulders+Display:wght@500;600;700;800;900&family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;1,400;1,500;1,600&family=Manrope:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+
+
+<style>
+  body { font-family: 'Manrope', -apple-system, sans-serif; color: #1A2D45; -webkit-font-smoothing: antialiased; }
+  .serif { font-family: 'Big Shoulders Display', 'Manrope', sans-serif; text-transform: uppercase; letter-spacing: 0.02em; font-weight: 800; }
+  .serif em { font-family: 'Cormorant Garamond', Georgia, serif; font-style: italic; text-transform: none; letter-spacing: 0; font-weight: 500; color: #9CBFC2; }
+  .script { font-family: 'Cormorant Garamond', Georgia, serif; font-style: italic; font-weight: 500; }
+  .mono { font-family: 'JetBrains Mono', monospace; }
+  .frame-card { background: #FFFFFF; border-radius: 4px; box-shadow: 0 1px 3px rgba(28,45,69,0.08), 0 8px 32px rgba(28,45,69,0.06); overflow: hidden; }
+  .frame-label { font-family: 'JetBrains Mono', monospace; font-size: 11px; letter-spacing: 0.12em; text-transform: uppercase; color: #6B7B8C; margin-bottom: 12px; display: flex; align-items: center; gap: 10px; }
+  .frame-label::before { content:''; width: 22px; height: 1px; background: #6B7B8C; }
+  .tab-active { color: #2C4768; border-bottom: 2px solid #2C4768; }
+  .tab-inactive { color: #6B7B8C; border-bottom: 2px solid transparent; }
+  ::-webkit-scrollbar { width: 0; height: 0; }
+</style>
+
+<style>
+  body { margin:0; padding:32px; background:#EEEAE0; }
+  /* Reset .frame-label hide */
+</style>
+</head>
+<body>
+<div style="width:1280px; margin:0 auto;">
+  <div class="frame-card" style="height:780px; background:#FBFAF6;">
+    <!-- Top bar -->
+    <div style="background:#fff; padding:20px 32px; border-bottom:1px solid #E5E2DB; display:flex; justify-content:space-between; align-items:center;">
+      <div>
+        <div class="mono" style="font-size:10px; letter-spacing:0.16em; color:#6B7B8C; text-transform:uppercase;">Operação</div>
+        <h1 class="serif" style="font-size:28px; font-weight:600; color:#1F3450; margin:2px 0 0;">Registro de Atendimentos</h1>
+      </div>
+      <div style="display:flex; align-items:center; gap:10px;">
+        <div style="display:flex; align-items:center; gap:8px; padding:10px 14px; background:#FBFAF6; border:1px solid #E5E2DB; font-size:13px; color:#6B7B8C;">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4-4"/></svg>
+          Buscar protocolo, paciente, tutor...
+        </div>
+        <button style="background:#2C4768; color:#fff; border:none; padding:12px 20px; font-size:11px; letter-spacing:0.14em; text-transform:uppercase; font-weight:600; display:flex; align-items:center; gap:8px; font-family:inherit;">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>
+          Novo protocolo
+        </button>
+      </div>
+    </div>
+    <!-- Filter row -->
+    <div style="padding:14px 32px; background:#fff; border-bottom:1px solid #E5E2DB; display:flex; align-items:center; gap:18px; font-size:12px;">
+      <div style="display:flex; gap:18px;">
+        <span class="tab-active" style="padding:6px 0; font-weight:600;">Todos · 347</span>
+        <span class="tab-inactive" style="padding:6px 0;">Aguardando coleta · 5</span>
+        <span class="tab-inactive" style="padding:6px 0;">Em análise · 23</span>
+        <span class="tab-inactive" style="padding:6px 0;">Laudo pendente · 12</span>
+        <span class="tab-inactive" style="padding:6px 0;">Concluído · 307</span>
+      </div>
+      <div style="margin-left:auto; display:flex; gap:8px; align-items:center; color:#6B7B8C;">
+        <span style="padding:6px 12px; border:1px solid #E5E2DB; display:flex; align-items:center; gap:6px;">
+          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>
+          Jun 2026
+        </span>
+        <span style="padding:6px 12px; border:1px solid #E5E2DB;">Clínica: Todas ▾</span>
+        <span style="padding:6px 12px; border:1px solid #E5E2DB;">Tipo: Todos ▾</span>
+      </div>
+    </div>
+    <!-- Table -->
+    <div style="overflow:hidden;">
+      <table style="width:100%; border-collapse:collapse; font-size:12.5px;">
+        <thead>
+          <tr style="background:#F4F1EA; color:#6B7B8C; text-align:left;">
+            <th style="padding:11px 14px; font-weight:600; font-size:10px; letter-spacing:0.12em; text-transform:uppercase;">Protocolo</th>
+            <th style="padding:11px 14px; font-weight:600; font-size:10px; letter-spacing:0.12em; text-transform:uppercase;">Data · Hora</th>
+            <th style="padding:11px 14px; font-weight:600; font-size:10px; letter-spacing:0.12em; text-transform:uppercase;">Clínica</th>
+            <th style="padding:11px 14px; font-weight:600; font-size:10px; letter-spacing:0.12em; text-transform:uppercase;">Veterinário</th>
+            <th style="padding:11px 14px; font-weight:600; font-size:10px; letter-spacing:0.12em; text-transform:uppercase;">Paciente</th>
+            <th style="padding:11px 14px; font-weight:600; font-size:10px; letter-spacing:0.12em; text-transform:uppercase;">Exames</th>
+            <th style="padding:11px 14px; font-weight:600; font-size:10px; letter-spacing:0.12em; text-transform:uppercase;">Tipo</th>
+            <th style="padding:11px 14px; font-weight:600; font-size:10px; letter-spacing:0.12em; text-transform:uppercase;">Status</th>
+            <th style="padding:11px 14px; font-weight:600; font-size:10px; letter-spacing:0.12em; text-transform:uppercase; text-align:right;">Valor</th>
+          </tr>
+        </thead>
+        <tbody style="background:#fff;">
+          <tr style="border-bottom:1px solid #F0EDE5;">
+            <td style="padding:14px;" class="mono"><b style="color:#2C4768;">P0346/2026</b></td>
+            <td style="padding:14px; color:#6B7B8C;">27/06 · 08:21</td>
+            <td style="padding:14px;">Autônomo</td>
+            <td style="padding:14px;">Karin Witt</td>
+            <td style="padding:14px;"><b>Bidu</b> <span style="color:#6B7B8C;">· Canino · 4a</span></td>
+            <td style="padding:14px;">Urinálise, Glicose <span class="mono" style="color:#6B7B8C; font-size:10px;">+1</span></td>
+            <td style="padding:14px;"><span style="background:#F1E5E1; color:#B85542; padding:3px 8px; font-size:10px; font-weight:600; letter-spacing:0.06em; text-transform:uppercase;">Plantão</span></td>
+            <td style="padding:14px;"><span style="display:inline-flex; align-items:center; gap:6px; color:#A06D2C; font-weight:600;"><span style="width:6px; height:6px; border-radius:50%; background:#C89762;"></span>Em análise</span></td>
+            <td style="padding:14px; text-align:right; font-weight:600;" class="mono">R$ 215,00</td>
+          </tr>
+          <tr style="border-bottom:1px solid #F0EDE5;">
+            <td style="padding:14px;" class="mono"><b style="color:#2C4768;">P0345/2026</b></td>
+            <td style="padding:14px; color:#6B7B8C;">27/06 · 08:53</td>
+            <td style="padding:14px;">Schweitzer</td>
+            <td style="padding:14px;">Thâmina Schweitzer</td>
+            <td style="padding:14px;"><b>Thor</b> <span style="color:#6B7B8C;">· Canino · 7a</span></td>
+            <td style="padding:14px;">Pesq. Hemoparasitas</td>
+            <td style="padding:14px;"><span style="background:#E8F1F1; color:#2C4768; padding:3px 8px; font-size:10px; font-weight:600; letter-spacing:0.06em; text-transform:uppercase;">Normal</span></td>
+            <td style="padding:14px;"><span style="display:inline-flex; align-items:center; gap:6px; color:#5C8A6B; font-weight:600;"><span style="width:6px; height:6px; border-radius:50%; background:#5C8A6B;"></span>Aguardando coleta</span></td>
+            <td style="padding:14px; text-align:right; font-weight:600;" class="mono">R$ 95,00</td>
+          </tr>
+          <tr style="border-bottom:1px solid #F0EDE5; background:#FBFAF6;">
+            <td style="padding:14px;" class="mono"><b style="color:#2C4768;">P0344/2026</b></td>
+            <td style="padding:14px; color:#6B7B8C;">27/06 · 09:15</td>
+            <td style="padding:14px;">Bicho Urbano</td>
+            <td style="padding:14px;">Eberton Henrique</td>
+            <td style="padding:14px;"><b>Mel</b> <span style="color:#6B7B8C;">· Felino · 2a</span></td>
+            <td style="padding:14px;">Bioq. Renal, Bioq. Hepático</td>
+            <td style="padding:14px;"><span style="background:#E8F1F1; color:#2C4768; padding:3px 8px; font-size:10px; font-weight:600; letter-spacing:0.06em; text-transform:uppercase;">Normal</span></td>
+            <td style="padding:14px;"><span style="display:inline-flex; align-items:center; gap:6px; color:#A06D2C; font-weight:600;"><span style="width:6px; height:6px; border-radius:50%; background:#C89762;"></span>Em coleta</span></td>
+            <td style="padding:14px; text-align:right; font-weight:600;" class="mono">R$ 320,00</td>
+          </tr>
+          <tr style="border-bottom:1px solid #F0EDE5;">
+            <td style="padding:14px;" class="mono"><b style="color:#2C4768;">P0343/2026</b></td>
+            <td style="padding:14px; color:#6B7B8C;">27/06 · 09:38</td>
+            <td style="padding:14px;">Reale</td>
+            <td style="padding:14px;">Michael Neves</td>
+            <td style="padding:14px;"><b>Princesa</b> <span style="color:#6B7B8C;">· Felino · 11a</span></td>
+            <td style="padding:14px;">Perfil Geriátrico</td>
+            <td style="padding:14px;"><span style="background:#E8F1F1; color:#2C4768; padding:3px 8px; font-size:10px; font-weight:600; letter-spacing:0.06em; text-transform:uppercase;">Normal</span></td>
+            <td style="padding:14px;"><span style="display:inline-flex; align-items:center; gap:6px; color:#6B7B8C; font-weight:600;"><span style="width:6px; height:6px; border-radius:50%; background:#6B7B8C;"></span>Laudo pendente</span></td>
+            <td style="padding:14px; text-align:right; font-weight:600;" class="mono">R$ 480,00</td>
+          </tr>
+          <tr style="border-bottom:1px solid #F0EDE5;">
+            <td style="padding:14px;" class="mono"><b style="color:#2C4768;">P0342/2026</b></td>
+            <td style="padding:14px; color:#6B7B8C;">27/06 · 09:42</td>
+            <td style="padding:14px;">Bea Pet Center</td>
+            <td style="padding:14px;">Daniella Eloá Pradi</td>
+            <td style="padding:14px;"><b>Akira</b> <span style="color:#6B7B8C;">· Canino · 6a</span></td>
+            <td style="padding:14px;">Hemograma, ALT, FA</td>
+            <td style="padding:14px;"><span style="background:#E8F1F1; color:#2C4768; padding:3px 8px; font-size:10px; font-weight:600; letter-spacing:0.06em; text-transform:uppercase;">Normal</span></td>
+            <td style="padding:14px;"><span style="display:inline-flex; align-items:center; gap:6px; color:#1F3450; font-weight:600;"><span style="width:6px; height:6px; border-radius:50%; background:#1F3450;"></span>Concluído</span></td>
+            <td style="padding:14px; text-align:right; font-weight:600;" class="mono">R$ 285,00</td>
+          </tr>
+          <tr style="border-bottom:1px solid #F0EDE5;">
+            <td style="padding:14px;" class="mono"><b style="color:#2C4768;">P0341/2026</b></td>
+            <td style="padding:14px; color:#6B7B8C;">27/06 · 09:42</td>
+            <td style="padding:14px;">Cantinho Pet</td>
+            <td style="padding:14px;">Felipe Moreira</td>
+            <td style="padding:14px;"><b>Frederico</b> <span style="color:#6B7B8C;">· Canino · 10a</span></td>
+            <td style="padding:14px;">Hemograma</td>
+            <td style="padding:14px;"><span style="background:#E8F1F1; color:#2C4768; padding:3px 8px; font-size:10px; font-weight:600; letter-spacing:0.06em; text-transform:uppercase;">Normal</span></td>
+            <td style="padding:14px;"><span style="display:inline-flex; align-items:center; gap:6px; color:#1F3450; font-weight:600;"><span style="width:6px; height:6px; border-radius:50%; background:#1F3450;"></span>Concluído</span></td>
+            <td style="padding:14px; text-align:right; font-weight:600;" class="mono">R$ 75,00</td>
+          </tr>
+          <tr style="border-bottom:1px solid #F0EDE5;">
+            <td style="padding:14px;" class="mono"><b style="color:#2C4768;">P0340/2026</b></td>
+            <td style="padding:14px; color:#6B7B8C;">27/06 · 07:58</td>
+            <td style="padding:14px;">Reale</td>
+            <td style="padding:14px;">Eberton Henrique</td>
+            <td style="padding:14px;"><b>Luna</b> <span style="color:#6B7B8C;">· Felino · 3a</span></td>
+            <td style="padding:14px;">Coproparasitológico</td>
+            <td style="padding:14px;"><span style="background:#E8F1F1; color:#2C4768; padding:3px 8px; font-size:10px; font-weight:600; letter-spacing:0.06em; text-transform:uppercase;">Normal</span></td>
+            <td style="padding:14px;"><span style="display:inline-flex; align-items:center; gap:6px; color:#1F3450; font-weight:600;"><span style="width:6px; height:6px; border-radius:50%; background:#1F3450;"></span>Concluído</span></td>
+            <td style="padding:14px; text-align:right; font-weight:600;" class="mono">R$ 60,00</td>
+          </tr>
+          <tr style="border-bottom:1px solid #F0EDE5;">
+            <td style="padding:14px;" class="mono"><b style="color:#2C4768;">P0339/2026</b></td>
+            <td style="padding:14px; color:#6B7B8C;">26/06 · 16:22</td>
+            <td style="padding:14px;">Zoo Vida</td>
+            <td style="padding:14px;">Gislayne Costamilam</td>
+            <td style="padding:14px;"><b>Mia</b> <span style="color:#6B7B8C;">· Felino · 8a</span></td>
+            <td style="padding:14px;">Perfil Tireoidiano</td>
+            <td style="padding:14px;"><span style="background:#E8F1F1; color:#2C4768; padding:3px 8px; font-size:10px; font-weight:600; letter-spacing:0.06em; text-transform:uppercase;">Normal</span></td>
+            <td style="padding:14px;"><span style="display:inline-flex; align-items:center; gap:6px; color:#6B7B8C; font-weight:600;"><span style="width:6px; height:6px; border-radius:50%; background:#6B7B8C;"></span>Laudo pendente</span></td>
+            <td style="padding:14px; text-align:right; font-weight:600;" class="mono">R$ 390,00</td>
+          </tr>
+          <tr style="border-bottom:1px solid #F0EDE5;">
+            <td style="padding:14px;" class="mono"><b style="color:#2C4768;">P0338/2026</b></td>
+            <td style="padding:14px; color:#6B7B8C;">26/06 · 22:14</td>
+            <td style="padding:14px;">Schweitzer</td>
+            <td style="padding:14px;">Valdemar Schweitzer</td>
+            <td style="padding:14px;"><b>Rex</b> <span style="color:#6B7B8C;">· Canino · 9a</span></td>
+            <td style="padding:14px;">Hemograma, Bioq. Renal <span class="mono" style="color:#6B7B8C; font-size:10px;">+2</span></td>
+            <td style="padding:14px;"><span style="background:#F1E5E1; color:#B85542; padding:3px 8px; font-size:10px; font-weight:600; letter-spacing:0.06em; text-transform:uppercase;">Plantão</span></td>
+            <td style="padding:14px;"><span style="display:inline-flex; align-items:center; gap:6px; color:#1F3450; font-weight:600;"><span style="width:6px; height:6px; border-radius:50%; background:#1F3450;"></span>Concluído</span></td>
+            <td style="padding:14px; text-align:right; font-weight:600;" class="mono">R$ 612,00</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <!-- Footer -->
+    <div style="padding:14px 32px; background:#fff; border-top:1px solid #E5E2DB; display:flex; justify-content:space-between; align-items:center; font-size:12px; color:#6B7B8C;">
+      <span>Mostrando 1–9 de 347 protocolos</span>
+      <div style="display:flex; gap:6px;">
+        <span style="padding:6px 10px; border:1px solid #E5E2DB;">‹</span>
+        <span style="padding:6px 10px; background:#2C4768; color:#fff;">1</span>
+        <span style="padding:6px 10px; border:1px solid #E5E2DB;">2</span>
+        <span style="padding:6px 10px; border:1px solid #E5E2DB;">3</span>
+        <span style="padding:6px 10px; border:1px solid #E5E2DB;">…</span>
+        <span style="padding:6px 10px; border:1px solid #E5E2DB;">39</span>
+        <span style="padding:6px 10px; border:1px solid #E5E2DB;">›</span>
+      </div>
+    </div>
+  </div>
+</div>
+</body>
+</html>

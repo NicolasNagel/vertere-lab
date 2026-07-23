@@ -61,6 +61,17 @@ ignore = [
     "E501",  # linha longa: o formatter decide
 ]
 
+[tool.ruff.lint.flake8-bugbear]
+# FastAPI's DI idiom is `Depends(...)`/`Query(...)` as a default argument —
+# not the mutable-default-argument footgun B008 targets.
+extend-immutable-calls = [
+    "fastapi.Depends",
+    "fastapi.Query",
+    "fastapi.Body",
+    "fastapi.Path",
+    "app.modules.identity.api.dependencies.require_permission",
+]
+
 [tool.ruff.lint.per-file-ignores]
 "backend/tests/**" = ["ARG"]  # fixtures de pytest recebem argumentos "não usados"
 # Assinatura (request, exc) é contrato do FastAPI, mesmo sem usar os dois.

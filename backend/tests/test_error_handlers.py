@@ -35,7 +35,9 @@ def _app_with_failing_routes(settings: Settings) -> FastAPI:
 async def failing_client(settings: Settings) -> AsyncIterator[httpx.AsyncClient]:
     # raise_app_exceptions=False: queremos observar a resposta 500 que o
     # cliente real receberia, não a exceção re-levantada pelo transporte.
-    transport = httpx.ASGITransport(app=_app_with_failing_routes(settings), raise_app_exceptions=False)
+    transport = httpx.ASGITransport(
+        app=_app_with_failing_routes(settings), raise_app_exceptions=False
+    )
     async with httpx.AsyncClient(transport=transport, base_url="http://test") as async_client:
         yield async_client
 

@@ -12,6 +12,12 @@ import os
 from sqlalchemy import create_engine
 
 from alembic import context
+
+# Side-effect imports: every module's models must be imported at least once
+# so their tables register on `Base.metadata` before autogenerate compares
+# it against the database.
+from app.modules.audit.infrastructure import models as audit_models  # noqa: F401
+from app.modules.identity.infrastructure import models as identity_models  # noqa: F401
 from app.shared.infrastructure.database import Base
 
 target_metadata = Base.metadata
