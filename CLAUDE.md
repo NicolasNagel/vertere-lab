@@ -20,10 +20,10 @@ verdade. Não trocar peça estrutural da stack sem ADR em `docs/adr/`.
 
 ## Ordem de leitura ao pegar uma tarefa
 1. este arquivo;
-2. `.claude/rules/00-global.md` + `.claude/rules/01-product-domain.md` (sempre carregados);
+2. `.claude/rules/globals.md` + `.claude/rules/product-domain.md` (sempre carregados);
 3. a rule técnica da área tocada (`paths:` já filtra isso automaticamente);
-4. `.claude/rules/11-attendance.md` se a tarefa tocar cadastro/atendimento, ou
-   `.claude/rules/12-monthly-closure.md` se tocar financeiro;
+4. `.claude/rules/attendance.md` se a tarefa tocar cadastro/atendimento, ou
+   `.claude/rules/monthly-closure.md` se tocar financeiro;
 5. PRD, modelo de domínio e ADRs afetados em `docs/`.
 
 ## Prioridade de implementação (não inverter)
@@ -55,15 +55,15 @@ verdade. Não trocar peça estrutural da stack sem ADR em `docs/adr/`.
 - **`audit_log` append-only em toda ação crítica** (login, papel, cadastro mestre, atendimento,
   override de preço, fechamento, ajuste, reabertura, importação).
 - **Vercel é stateless**: nada de worker persistente, scheduler ou estado em memória entre
-  requisições — ver `.claude/rules/04-redis-queues.md` para os gatilhos de sair da Vercel.
+  requisições — ver `.claude/rules/redis-queues.md` para os gatilhos de sair da Vercel.
 - **Segredo e PII nunca em código ou log.**
 
 ## Onde fica o quê
 - regras por área (path-scoped via `paths:`, carregam só ao tocar a área): `.claude/rules/`
 - subagentes (verificação *soft*): `.claude/agents/` — `revisor-codigo` (diff vs. rules) e
   `auditor-integridade` (os 7 riscos do `docs/06-estrategia-qa.md` §1 contra o diff)
-- comandos: `.claude/commands/` — `/validar`, `/reconciliar-migracao`, `/verificar-fechamento`,
-  `/handoff`
+- comandos: `.claude/commands/` — `/planejar-fatia` (quebra em fatias antes de codificar),
+  `/validar`, `/reconciliar-migracao`, `/verificar-fechamento`, `/handoff`
 - PRD: `docs/02-prd.md` · modelo de domínio: `docs/03-modelo-de-dominio.md` · arquitetura:
   `docs/04-arquitetura.md` · roadmap: `docs/05-roadmap-backlog.md` · QA: `docs/06-estrategia-qa.md`
   · núcleo detalhado: `docs/07-nucleo-v1.md` · diagnóstico da planilha: `docs/01-analise-planilha.md`
@@ -98,6 +98,15 @@ observabilidade · rollback. Se a tarefa mexe em domínio, atualize junto: model
 matriz de permissão, migration, OpenAPI/schema, testes, auditoria, e verifique impacto no
 fechamento — mudança parcial que esquece um desses é a forma mais comum de dívida silenciosa
 aqui.
+
+## Como trabalho em fatias
+Para qualquer tarefa que não seja trivial (mais de ~1 caso de uso/migration/conjunto de testes),
+o primeiro passo é propor um plano de fatias verticais pequenas (ver
+`.claude/commands/planejar-fatia.md`) e **parar para confirmação antes de codificar**. Não
+execute a tarefa inteira em um único bloco silencioso. Depois de cada fatia: rode `/validar` no
+escopo tocado, reporte verde/vermelho, e só siga para a próxima fatia com sinal explícito de
+continuar. Isso vale mesmo sem o usuário pedir explicitamente — é o modo de trabalho padrão
+deste projeto, não uma opção.
 
 ## Antes de editar um arquivo existente
 - **Quem importa este arquivo?** Pode quebrar quem consome.
