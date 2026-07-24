@@ -4,5 +4,6 @@
 // entrada `"./*"` que existe, e resolve certinho no bundler; só falta a
 // declaração de tipo para o TypeScript não reclamar do import de efeito
 // colateral.
+declare module '@fontsource/big-shoulders-display/600'
 declare module '@fontsource/big-shoulders-display/800'
 declare module '@fontsource/big-shoulders-display/900'

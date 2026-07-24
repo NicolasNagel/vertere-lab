@@ -7,6 +7,18 @@ from dataclasses import dataclass
 from datetime import datetime
 from uuid import UUID
 
+from app.shared.application.dtos import PageDTO
+
+__all__ = [
+    "AuthenticatedUserDTO",
+    "PageDTO",
+    "PermissionDTO",
+    "RoleDTO",
+    "SessionIssuedDTO",
+    "UserCreatedDTO",
+    "UserSummaryDTO",
+]
+
 
 @dataclass(frozen=True, kw_only=True)
 class AuthenticatedUserDTO:
@@ -58,11 +70,3 @@ class PermissionDTO:
     id: UUID
     code: str
     description: str
-
-
-@dataclass(frozen=True, kw_only=True)
-class PageDTO[T]:
-    items: list[T]
-    total: int
-    page: int
-    page_size: int

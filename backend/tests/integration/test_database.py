@@ -75,7 +75,7 @@ def test_alembic_upgrade_head_runs_on_empty_database(
             table_names = inspector.get_table_names()
         # `uow_probe` vem de um teste anterior no mesmo módulo (container
         # reutilizado, escopo "module") — o schema real vem das migrations
-        # de identidade/auditoria (0001/0002).
+        # de identidade/auditoria (0001/0002) e clínicas (0003/0004).
         assert set(table_names) <= {
             "alembic_version",
             "uow_probe",
@@ -86,6 +86,7 @@ def test_alembic_upgrade_head_runs_on_empty_database(
             "lab_memberships",
             "sessions",
             "audit_log",
+            "clinics",
         }
         assert "roles" in table_names
     finally:

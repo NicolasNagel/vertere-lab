@@ -1,0 +1,169 @@
+.clinic-detail {
+  flex: 1;
+  padding: 1.75rem 2.25rem; /* 28px 36px */
+  overflow-y: auto;
+  min-height: 0;
+}
+
+.clinic-detail__content {
+  max-width: 51.6875rem; /* 827px — largura de conteúdo da tela de referência */
+}
+
+.clinic-detail__empty {
+  color: var(--color-text-secondary);
+  font-size: 0.875rem;
+}
+
+.clinic-detail__header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 1.5rem; /* 24px */
+}
+
+.clinic-detail__title-row {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem; /* 12px */
+}
+
+.clinic-detail__title {
+  font-family: var(--font-display);
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+  font-size: 2rem; /* 32px */
+  font-weight: 600;
+  color: #1f3450;
+  margin: 0;
+}
+
+.clinic-detail__status {
+  font-size: 0.6875rem;
+  padding: 0.1875rem 0.625rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  background: #e5ebe2;
+  color: #4f6b3f;
+}
+
+.clinic-detail__status[data-status='INACTIVE'] {
+  background: #ece9e2;
+  color: var(--color-text-secondary);
+}
+
+.clinic-detail__status[data-status='DELINQUENT'] {
+  background: #f1ece0;
+  color: #a06d2c;
+}
+
+.clinic-detail__status[data-status='SPECIAL'] {
+  background: #e8f1f1;
+  color: var(--color-brand-ink);
+}
+
+.clinic-detail__actions {
+  display: flex;
+  gap: 0.5rem; /* 8px */
+}
+
+.clinic-detail__edit {
+  padding: 0.5625rem 0.875rem; /* 9px 14px */
+  border: 1px solid var(--color-border);
+  background: #ffffff;
+  color: #1f3450;
+  font-size: 0.75rem;
+  text-transform: none;
+  letter-spacing: normal;
+  font-weight: 400;
+  text-decoration: none;
+}
+
+.clinic-detail__cards {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.875rem; /* 14px */
+  margin-bottom: 1.125rem; /* 18px */
+}
+
+.clinic-detail__card {
+  background: #ffffff;
+  border: 1px solid var(--color-border);
+  padding: 1rem 1.125rem; /* 16px 18px */
+}
+
+.clinic-detail__card-title {
+  font-family: var(--font-mono);
+  font-size: 0.625rem; /* 10px */
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--color-text-secondary);
+  margin-bottom: 0.75rem; /* 12px */
+}
+
+.clinic-detail__fields {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 0.5rem 1rem; /* 8px 16px */
+  font-size: 0.8125rem;
+  margin: 0;
+}
+
+.clinic-detail__fields dt {
+  color: var(--color-text-secondary);
+}
+
+.clinic-detail__fields dd {
+  margin: 0;
+  color: var(--color-text-primary);
+}
+
+.clinic-detail__mono {
+  font-family: var(--font-mono);
+}
+
+.clinic-detail__vets {
+  background: #ffffff;
+  border: 1px solid var(--color-border);
+}
+
+.clinic-detail__vets-header {
+  padding: 0.875rem 1.125rem; /* 14px 18px */
+  border-bottom: 1px solid #f0ede5;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.clinic-detail__vets-header span {
+  font-family: var(--font-display);
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+  font-size: 1.0625rem;
+  font-weight: 600;
+  color: #1f3450;
+}
+
+.clinic-detail__link-vet {
+  border: none;
+  background: none;
+  padding: 0;
+  font-family: inherit;
+  font-size: 0.6875rem;
+  color: var(--color-brand-ink);
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.clinic-detail__link-vet:disabled {
+  color: var(--color-text-secondary);
+  cursor: not-allowed;
+  text-decoration-style: dotted;
+}
+
+.clinic-detail__vets-empty {
+  padding: 1.125rem;
+  margin: 0;
+  font-size: 0.8125rem;
+  color: var(--color-text-secondary);
+}

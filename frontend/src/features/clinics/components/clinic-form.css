@@ -1,0 +1,36 @@
+.clinic-form {
+  max-width: 640px;
+}
+
+.clinic-form__row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0 1rem; /* 16px */
+}
+
+.clinic-form__section-title {
+  font-family: var(--font-mono);
+  font-size: 0.625rem; /* 10px */
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--color-text-secondary);
+  margin: 0 0 0.75rem;
+}
+
+.clinic-form__domain-error {
+  color: #b3261e;
+  font-size: 0.8125rem;
+  margin: 0 0 1rem;
+}
+
+.clinic-form__actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 1rem; /* 16px */
+  margin-top: 0.5rem;
+}
+
+.clinic-form__submit {
+  width: auto;
+}

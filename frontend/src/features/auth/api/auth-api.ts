@@ -1,4 +1,8 @@
+import { ApiError, type ApiErrorBody } from '../../../shared/api/errors'
+
 const API_BASE = '/api/v1'
+
+export { ApiError }
 
 export interface LoginPayload {
   login: string
@@ -26,26 +30,6 @@ interface ApiUser {
 interface ApiAuthResponse {
   user: ApiUser
   permissions: string[]
-}
-
-interface ApiErrorBody {
-  error?: {
-    code?: string
-    message?: string
-  }
-}
-
-/** Erro de domínio vindo do backend — nunca confundir com falha de rede. */
-export class ApiError extends Error {
-  readonly status: number
-  readonly code: string
-
-  constructor(status: number, code: string, message: string) {
-    super(message)
-    this.name = 'ApiError'
-    this.status = status
-    this.code = code
-  }
 }
 
 async function parseAuthResponse(response: Response): Promise<AuthenticatedUser> {
