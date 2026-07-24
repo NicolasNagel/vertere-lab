@@ -62,3 +62,31 @@ campos atuais continuam válidos como "o contato principal".
 - Preço, protocolo, laudo e qualquer módulo futuro que referencie `Clinic` por ID continuam
   válidos sem mudança, já que o endereço não é referenciado por ID externo em nenhum lugar do
   sistema ainda.
+
+## Complemento — 2026-07-24: autofill de endereço por CEP
+
+O cadastro embutido decidido acima ganhou uma segunda origem de preenchimento: ao digitar o CEP,
+o formulário de Clínica busca o endereço automaticamente via **ViaCEP**, através de um proxy no
+nosso backend (nunca chamado direto do frontend). Os sete campos de endereço em `clinics`
+continuam sendo a fonte de verdade armazenada — o autofill só popula esses mesmos campos antes do
+submit, sem alterar o modelo de dados decidido nesta ADR nem introduzir uma entidade nova.
+
+Decisões de implementação (detalhe, não uma revisão da decisão original):
+- Consulta de CEP vive em módulo próprio (`backend/app/modules/address_lookup/`), não em
+  `clinics`, porque `owners`/`patients` vão precisar do mesmo autofill nas fases seguintes do
+  roadmap e a capability não depende de nada específico de clínica.
+- Autenticado, sem permissão de escopo — não lê/escreve nada do domínio de negócio, só evita que
+  o proxy vire um endpoint anônimo aberto para o ViaCEP.
+- Falha do provedor (timeout, indisponibilidade) nunca bloqueia o cadastro: o usuário sempre pode
+  preencher manualmente, e o backend segue como autoridade final de validação no submit.
+
+**Verificação manual feita em 2026-07-24**: com Postgres local (`docker-compose up -d postgres`),
+backend e frontend rodando, logado como usuário real, testado no Chrome:
+- CEP válido (`01310100`) → preencheu Rua ("Avenida Paulista"), Bairro ("Bela Vista"), Cidade
+  ("São Paulo") e UF ("SP") automaticamente, com chamada real (não mock) confirmada no log do
+  backend (`GET https://viacep.com.br/ws/01310100/json/ → 200`, endpoint próprio respondeu `200`).
+- CEP inexistente (`00000000`) → ViaCEP respondeu `{"erro": true}`, nosso endpoint mapeou para
+  `404`, e a UI mostrou "CEP não encontrado. Preencha o endereço manualmente." sem travar os
+  campos já preenchidos nem impedir edição manual.
+- Suíte automatizada (backend: ruff + mypy + pytest unitário/integração com Postgres real;
+  frontend: oxlint + `tsc -b` + vitest) verde antes da verificação manual.

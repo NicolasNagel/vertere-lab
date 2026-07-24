@@ -21,6 +21,7 @@ class ErrorCode(StrEnum):
     ATTENDANCE_ALREADY_CLOSED = "ATTENDANCE_ALREADY_CLOSED"
     CLOSURE_ALREADY_EXISTS = "CLOSURE_ALREADY_EXISTS"
     PRICE_NOT_AVAILABLE = "PRICE_NOT_AVAILABLE"
+    EXTERNAL_SERVICE_UNAVAILABLE = "EXTERNAL_SERVICE_UNAVAILABLE"
     INTERNAL_ERROR = "INTERNAL_ERROR"
 
 
@@ -65,3 +66,7 @@ class ValidationError(DomainError):
 
 class InvalidStateTransitionError(DomainError):
     code = ErrorCode.INVALID_STATE_TRANSITION
+
+
+class ExternalServiceUnavailableError(DomainError):
+    code = ErrorCode.EXTERNAL_SERVICE_UNAVAILABLE

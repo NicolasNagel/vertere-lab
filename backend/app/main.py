@@ -20,6 +20,7 @@ from app.api.middleware import RequestContextMiddleware
 from app.api.routers import health
 from app.core.config import Settings, get_settings
 from app.core.logging import configure_logging
+from app.modules.address_lookup.api.routers import router as address_lookup_router
 from app.modules.clinics.api.routers import router as clinics_router
 from app.modules.identity.api.routers import router as identity_router
 from app.shared.infrastructure.database import build_engine, build_session_factory
@@ -53,5 +54,6 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     api_router.include_router(health.router)
     api_router.include_router(identity_router)
     api_router.include_router(clinics_router)
+    api_router.include_router(address_lookup_router)
     app.include_router(api_router)
     return app

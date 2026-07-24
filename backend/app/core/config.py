@@ -32,6 +32,11 @@ class Settings(BaseSettings):
     session_ttl_remember_me_days: int = 30
     session_renewal_threshold_minutes: int = 10
 
+    # Consulta de CEP (autofill de endereço) — sem chave, mas configurável para
+    # apontar a um stub em ambiente de teste sem tocar código.
+    viacep_base_url: str = "https://viacep.com.br"
+    viacep_timeout_seconds: float = 3.0
+
 
 @lru_cache
 def get_settings() -> Settings:

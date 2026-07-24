@@ -1,12 +1,15 @@
 import { zodResolver } from '@hookform/resolvers/zod'
+import { useEffect } from 'react'
 import { useForm } from 'react-hook-form'
 import { z } from 'zod'
 
+import { useCepLookupQuery } from '../../address-lookup/api/use-cep-lookup-query'
 import { Button } from '../../../shared/ui/button'
 import { SelectField } from '../../../shared/ui/select'
 import { TextField } from '../../../shared/ui/text-field'
 import { ApiError } from '../../../shared/api/errors'
 import { formatTaxId } from '../../../shared/lib/formatters'
+import { useDebouncedValue } from '../../../shared/lib/use-debounced-value'
 import type { Clinic, ClinicFormValues, ClinicStatus } from '../api/clinics-api'
 import './clinic-form.css'
 
@@ -100,11 +103,32 @@ export function ClinicForm({
   const {
     register,
     handleSubmit,
+    watch,
+    setValue,
     formState: { errors },
   } = useForm<ClinicFormFields>({
     resolver: zodResolver(clinicSchema),
     defaultValues: toFormFields(clinic),
   })
+
+  const debouncedZipCode = useDebouncedValue(watch('addressZipCode'), 500)
+  const cepLookup = useCepLookupQuery(debouncedZipCode)
+
+  useEffect(() => {
+    if (!cepLookup.data) return
+    setValue('addressStreet', cepLookup.data.street ?? '', { shouldDirty: true })
+    setValue('addressNeighborhood', cepLookup.data.neighborhood ?? '', { shouldDirty: true })
+    setValue('addressCity', cepLookup.data.city ?? '', { shouldDirty: true })
+    setValue('addressState', cepLookup.data.state ?? '', { shouldDirty: true })
+  }, [cepLookup.data, setValue])
+
+  const cepStatusMessage = cepLookup.isFetching
+    ? 'Buscando endereço…'
+    : cepLookup.data === null
+      ? 'CEP não encontrado. Preencha o endereço manualmente.'
+      : cepLookup.isError
+        ? 'Não foi possível consultar o CEP. Preencha manualmente.'
+        : null
 
   const onSubmit = handleSubmit((fields) => {
     if (clinic) {
@@ -165,6 +189,12 @@ export function ClinicForm({
           {...register('addressStreet')}
         />
       </div>
+
+      {cepStatusMessage && (
+        <p role="status" aria-live="polite" className="clinic-form__cep-status">
+          {cepStatusMessage}
+        </p>
+      )}
 
       <div className="clinic-form__row">
         <TextField

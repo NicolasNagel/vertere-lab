@@ -58,7 +58,8 @@ paths:
 ## Códigos de erro mínimos
 `UNAUTHENTICATED` · `FORBIDDEN` · `NOT_FOUND` · `VALIDATION_ERROR` · `CONFLICT` ·
 `INVALID_STATE_TRANSITION` · `IDEMPOTENCY_CONFLICT` · `ATTENDANCE_ALREADY_CLOSED` ·
-`CLOSURE_ALREADY_EXISTS` · `PRICE_NOT_AVAILABLE` · `INTERNAL_ERROR`.
+`CLOSURE_ALREADY_EXISTS` · `PRICE_NOT_AVAILABLE` · `EXTERNAL_SERVICE_UNAVAILABLE` ·
+`INTERNAL_ERROR`.
 
 ## Performance
 - Endpoint comum não executa trabalho pesado; exportação grande é assíncrona quando necessário.
