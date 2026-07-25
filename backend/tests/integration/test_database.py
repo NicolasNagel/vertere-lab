@@ -76,7 +76,8 @@ def test_alembic_upgrade_head_runs_on_empty_database(
         # `uow_probe` vem de um teste anterior no mesmo módulo (container
         # reutilizado, escopo "module") — o schema real vem das migrations
         # de identidade/auditoria (0001/0002), clínicas (0003/0004),
-        # veterinários (0005) e vínculo veterinário-clínica (0006).
+        # veterinários (0005), vínculo veterinário-clínica (0006) e espécies
+        # (0007).
         assert set(table_names) <= {
             "alembic_version",
             "uow_probe",
@@ -90,6 +91,7 @@ def test_alembic_upgrade_head_runs_on_empty_database(
             "clinics",
             "veterinarians",
             "veterinarian_clinics",
+            "species",
         }
         assert "roles" in table_names
     finally:
