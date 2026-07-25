@@ -18,7 +18,7 @@ const mainNavEntries: SidebarNavItemProps[] = [
   { icon: <DashboardIcon />, label: 'Dashboard', to: '/' },
   { icon: <OperationIcon />, label: 'Operação', to: null },
   { icon: <LaudosIcon />, label: 'Laudos', to: null },
-  { icon: <PatientsIcon />, label: 'Pacientes', to: null },
+  { icon: <PatientsIcon />, label: 'Pacientes', to: '/pacientes' },
 ]
 
 const registrationNavEntries: SidebarNavItemProps[] = [

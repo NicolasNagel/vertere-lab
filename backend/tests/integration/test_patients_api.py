@@ -1,5 +1,6 @@
 """Integração com PostgreSQL real (Testcontainers) — catálogo de espécies
-seedado pela migration 0007, ponta a ponta via HTTPX/ASGI.
+seedado pela migration 0007 e CRUD de pacientes (owner embutido), ponta a
+ponta via HTTPX/ASGI.
 """
 
 from __future__ import annotations
@@ -23,7 +24,7 @@ from app.core.config import Settings
 from app.core.security import hash_password
 from app.main import create_app
 from app.modules.identity.infrastructure.models import LabMembershipModel, UserModel
-from app.modules.identity.infrastructure.seed import ROLE_FINANCE, ROLE_RECEPTION
+from app.modules.identity.infrastructure.seed import ROLE_FINANCE, ROLE_LAB_ADMIN, ROLE_RECEPTION
 from app.shared.infrastructure.database import build_engine, build_session_factory
 
 pytestmark = pytest.mark.integration
@@ -65,8 +66,17 @@ def session_factory(postgres_url: str) -> Iterator[sessionmaker[Session]]:
 def _reset_data(session_factory: sessionmaker[Session]) -> None:
     with session_factory() as session:
         session.execute(text("DELETE FROM audit_log"))
+        session.execute(text("DELETE FROM patients"))
         session.execute(text("DELETE FROM users"))
         session.commit()
+
+
+def _get_species_id(session_factory: sessionmaker[Session], *, name: str) -> str:
+    with session_factory() as session:
+        row = session.execute(
+            text("SELECT id FROM species WHERE name = :name"), {"name": name}
+        ).one()
+        return str(row[0])
 
 
 @pytest.fixture
@@ -165,3 +175,179 @@ async def test_reception_lists_seeded_species(
     names = [item["name"] for item in response.json()["items"]]
     assert names == sorted(names)
     assert {"Cão", "Gato", "Ave", "Outro"} <= set(names)
+
+
+async def test_create_patient_without_permission_is_forbidden(
+    client: httpx.AsyncClient, session_factory: sessionmaker[Session]
+) -> None:
+    _create_user(
+        session_factory,
+        email="finance@vertere.local",
+        password="s3nhaForte!",
+        role_id=ROLE_FINANCE,
+    )
+    await _login(client, email="finance@vertere.local", password="s3nhaForte!")
+    species_id = _get_species_id(session_factory, name="Cão")
+
+    response = await client.post(
+        "/api/v1/patients",
+        json={
+            "name": "Rex",
+            "species_id": species_id,
+            "sex": "MALE",
+            "owner_name": "Maria Souza",
+        },
+    )
+
+    assert response.status_code == 403
+
+
+async def test_create_and_get_patient(
+    client: httpx.AsyncClient, session_factory: sessionmaker[Session]
+) -> None:
+    _create_user(
+        session_factory, email="admin@vertere.local", password="s3nhaForte!", role_id=ROLE_LAB_ADMIN
+    )
+    await _login(client, email="admin@vertere.local", password="s3nhaForte!")
+    species_id = _get_species_id(session_factory, name="Gato")
+
+    create_response = await client.post(
+        "/api/v1/patients",
+        json={
+            "name": "Mimi",
+            "species_id": species_id,
+            "sex": "FEMALE",
+            "breed": "Siamês",
+            "age_description": "3 anos",
+            "owner_name": "Joana Lima",
+            "owner_phone": "(47) 9 9914-6833",
+        },
+    )
+    assert create_response.status_code == 201
+    body = create_response.json()
+    assert body["name"] == "Mimi"
+    assert body["owner_name"] == "Joana Lima"
+    assert body["status"] == "ACTIVE"
+
+    get_response = await client.get(f"/api/v1/patients/{body['id']}")
+    assert get_response.status_code == 200
+    assert get_response.json()["owner_name"] == "Joana Lima"
+
+
+async def test_create_patient_allows_duplicate_owner_name(
+    client: httpx.AsyncClient, session_factory: sessionmaker[Session]
+) -> None:
+    _create_user(
+        session_factory, email="admin@vertere.local", password="s3nhaForte!", role_id=ROLE_LAB_ADMIN
+    )
+    await _login(client, email="admin@vertere.local", password="s3nhaForte!")
+    species_id = _get_species_id(session_factory, name="Cão")
+    payload = {
+        "name": "Rex",
+        "species_id": species_id,
+        "sex": "MALE",
+        "owner_name": "Maria Souza",
+    }
+
+    first = await client.post("/api/v1/patients", json=payload)
+    assert first.status_code == 201
+    second = await client.post("/api/v1/patients", json={**payload, "name": "Rex II"})
+    assert second.status_code == 201
+
+
+async def test_update_patient_with_stale_row_version_conflicts(
+    client: httpx.AsyncClient, session_factory: sessionmaker[Session]
+) -> None:
+    _create_user(
+        session_factory, email="admin@vertere.local", password="s3nhaForte!", role_id=ROLE_LAB_ADMIN
+    )
+    await _login(client, email="admin@vertere.local", password="s3nhaForte!")
+    species_id = _get_species_id(session_factory, name="Cão")
+
+    create_response = await client.post(
+        "/api/v1/patients",
+        json={
+            "name": "Rex",
+            "species_id": species_id,
+            "sex": "MALE",
+            "owner_name": "Maria Souza",
+        },
+    )
+    body = create_response.json()
+
+    response = await client.patch(
+        f"/api/v1/patients/{body['id']}",
+        json={
+            "name": "Rex Atualizado",
+            "species_id": species_id,
+            "sex": "MALE",
+            "owner_name": "Maria Souza",
+            "status": "ACTIVE",
+            "expected_row_version": body["row_version"] + 1,
+        },
+    )
+
+    assert response.status_code == 409
+
+
+async def test_deactivate_patient_preserves_record(
+    client: httpx.AsyncClient, session_factory: sessionmaker[Session]
+) -> None:
+    _create_user(
+        session_factory, email="admin@vertere.local", password="s3nhaForte!", role_id=ROLE_LAB_ADMIN
+    )
+    await _login(client, email="admin@vertere.local", password="s3nhaForte!")
+    species_id = _get_species_id(session_factory, name="Cão")
+
+    create_response = await client.post(
+        "/api/v1/patients",
+        json={
+            "name": "Rex",
+            "species_id": species_id,
+            "sex": "MALE",
+            "owner_name": "Maria Souza",
+        },
+    )
+    body = create_response.json()
+
+    response = await client.post(f"/api/v1/patients/{body['id']}/deactivate")
+
+    assert response.status_code == 200
+    assert response.json()["status"] == "INACTIVE"
+    assert response.json()["name"] == "Rex"
+
+
+async def test_search_patients_by_owner_name(
+    client: httpx.AsyncClient, session_factory: sessionmaker[Session]
+) -> None:
+    _create_user(
+        session_factory, email="admin@vertere.local", password="s3nhaForte!", role_id=ROLE_LAB_ADMIN
+    )
+    await _login(client, email="admin@vertere.local", password="s3nhaForte!")
+    species_id = _get_species_id(session_factory, name="Cão")
+
+    await client.post(
+        "/api/v1/patients",
+        json={
+            "name": "Rex",
+            "species_id": species_id,
+            "sex": "MALE",
+            "owner_name": "Maria Souza",
+        },
+    )
+    await client.post(
+        "/api/v1/patients",
+        json={
+            "name": "Bidu",
+            "species_id": species_id,
+            "sex": "MALE",
+            "owner_name": "Joana Lima",
+        },
+    )
+
+    response = await client.get("/api/v1/patients", params={"search": "joana"})
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["total"] == 1
+    assert body["items"][0]["name"] == "Bidu"
