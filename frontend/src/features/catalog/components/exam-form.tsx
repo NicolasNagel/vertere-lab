@@ -1,5 +1,5 @@
 import { zodResolver } from '@hookform/resolvers/zod'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { z } from 'zod'
 
@@ -109,10 +109,23 @@ export function ExamForm({
   const [speciesIds, setSpeciesIds] = useState<string[]>(exam?.speciesIds ?? [])
   const [speciesError, setSpeciesError] = useState<string | null>(null)
   const [newCategoryName, setNewCategoryName] = useState('')
+  const [pendingCategoryId, setPendingCategoryId] = useState<string | null>(null)
 
   const categoriesQuery = useActiveExamCategoriesQuery()
   const speciesQuery = useSpeciesQuery()
   const createCategoryMutation = useCreateExamCategoryMutation()
+
+  // The category list refetches asynchronously after creation — setting the
+  // select's value before its <option> exists in the DOM is a no-op (native
+  // <select> silently ignores an unmatched value). Wait for the option to
+  // actually appear in the refetched list before selecting it.
+  useEffect(() => {
+    if (!pendingCategoryId) return
+    if (categoriesQuery.data?.some((category) => category.id === pendingCategoryId)) {
+      setValue('categoryId', pendingCategoryId)
+      setPendingCategoryId(null)
+    }
+  }, [pendingCategoryId, categoriesQuery.data, setValue])
 
   function toggleSpecies(speciesId: string) {
     setSpeciesIds((current) =>
@@ -126,7 +139,7 @@ export function ExamForm({
     if (!newCategoryName.trim()) return
     createCategoryMutation.mutate(newCategoryName.trim(), {
       onSuccess: (category) => {
-        setValue('categoryId', category.id)
+        setPendingCategoryId(category.id)
         setNewCategoryName('')
       },
     })

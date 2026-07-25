@@ -246,3 +246,29 @@ test('blocks exam creation without at least one species', async () => {
     await screen.findByText('Selecione ao menos uma espécie atendida.'),
   ).toBeInTheDocument()
 })
+
+test('creating a category inline selects it once the refetched list includes it', async () => {
+  const user = userEvent.setup()
+  let categories = [{ id: 'cat1', name: 'Hematologia', status: 'ACTIVE', row_version: 1 }]
+  server.use(
+    meHandler(['catalog.read', 'catalog.manage']),
+    speciesHandler(),
+    examsListHandler(),
+    http.get('/api/v1/exam-categories/active', () => HttpResponse.json({ items: categories })),
+    http.post('/api/v1/exam-categories', async ({ request }) => {
+      const body = (await request.json()) as { name: string }
+      const created = { id: 'cat2', name: body.name, status: 'ACTIVE' as const, row_version: 1 }
+      categories = [...categories, created]
+      return HttpResponse.json(created, { status: 201 })
+    }),
+  )
+  renderWithProviders(<ExamsPage />)
+
+  await user.click(await screen.findByRole('button', { name: /Novo exame/i }))
+  await user.type(await screen.findByLabelText('Criar nova categoria'), 'Bioquímica')
+  await user.click(screen.getByRole('button', { name: 'Criar categoria' }))
+
+  await waitFor(() =>
+    expect(screen.getByLabelText('Categoria')).toHaveValue('cat2'),
+  )
+})
