@@ -1,0 +1,68 @@
+"""In-memory fakes for the veterinarians repository protocol — used by unit
+tests for use cases (rule: mock only at an external boundary; a fake
+repository backing a pure use-case test is not the repository-under-test,
+so this is fine per .claude/rules/testing.md)."""
+
+from __future__ import annotations
+
+from datetime import datetime
+from uuid import UUID
+
+from app.modules.audit.domain.entities import AuditEntry
+from app.modules.veterinarians.domain.entities import Veterinarian, VeterinarianStatus
+
+
+class FakeClock:
+    def __init__(self, now: datetime) -> None:
+        self._now = now
+
+    def now(self) -> datetime:
+        return self._now
+
+
+class FakeAuditLogWriter:
+    def __init__(self) -> None:
+        self.entries: list[AuditEntry] = []
+
+    def record(self, entry: AuditEntry) -> None:
+        self.entries.append(entry)
+
+
+class FakeVeterinarianRepository:
+    def __init__(self) -> None:
+        self._veterinarians: dict[UUID, Veterinarian] = {}
+
+    def add(self, veterinarian: Veterinarian) -> None:
+        self._veterinarians[veterinarian.id] = veterinarian
+
+    def save(self, veterinarian: Veterinarian) -> None:
+        veterinarian.row_version += 1
+        self._veterinarians[veterinarian.id] = veterinarian
+
+    def get_by_id(self, veterinarian_id: UUID) -> Veterinarian | None:
+        return self._veterinarians.get(veterinarian_id)
+
+    def get_by_crmv(self, crmv: str) -> Veterinarian | None:
+        for veterinarian in self._veterinarians.values():
+            if str(veterinarian.crmv) == crmv:
+                return veterinarian
+        return None
+
+    def list_page(
+        self,
+        *,
+        page: int,
+        page_size: int,
+        status: VeterinarianStatus | None,
+        is_autonomous: bool | None,
+        search: str | None,
+    ) -> tuple[list[Veterinarian], int]:
+        veterinarians = list(self._veterinarians.values())
+        if status is not None:
+            veterinarians = [v for v in veterinarians if v.status == status]
+        if is_autonomous is not None:
+            veterinarians = [v for v in veterinarians if v.is_autonomous == is_autonomous]
+        if search:
+            needle = search.lower()
+            veterinarians = [v for v in veterinarians if needle in v.name.lower()]
+        return veterinarians, len(veterinarians)

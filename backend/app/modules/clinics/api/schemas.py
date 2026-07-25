@@ -39,6 +39,17 @@ class ClinicListResponse(BaseModel):
     page_size: int
 
 
+class ClinicLinkedVeterinarian(BaseModel):
+    veterinarian_id: UUID
+    veterinarian_name: str
+    crmv: str
+    primary_clinic: bool
+
+
+class ClinicDetailRead(ClinicRead):
+    veterinarians: list[ClinicLinkedVeterinarian]
+
+
 class ClinicCreateRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 

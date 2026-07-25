@@ -148,14 +148,26 @@ export function ClinicDetail({
               type="button"
               className="clinic-detail__link-vet"
               disabled
-              title="Disponível quando o cadastro de Veterinários existir (próxima fatia)."
+              title="Vínculo é gerenciado a partir do cadastro do veterinário."
             >
               vincular novo
             </button>
           </div>
-          <p className="clinic-detail__vets-empty">
-            Nenhum veterinário cadastrado ainda — o vínculo chega na próxima fatia.
-          </p>
+          {clinic.veterinarians.length === 0 ? (
+            <p className="clinic-detail__vets-empty">Nenhum veterinário vinculado ainda.</p>
+          ) : (
+            <ul className="clinic-detail__vets-list">
+              {clinic.veterinarians.map((veterinarian) => (
+                <li key={veterinarian.veterinarianId} className="clinic-detail__vets-row">
+                  <span className="clinic-detail__vets-name">{veterinarian.veterinarianName}</span>
+                  <span className="clinic-detail__mono">{veterinarian.crmv}</span>
+                  {veterinarian.primaryClinic && (
+                    <span className="clinic-detail__vets-primary">Principal</span>
+                  )}
+                </li>
+              ))}
+            </ul>
+          )}
         </div>
       </div>
     </div>

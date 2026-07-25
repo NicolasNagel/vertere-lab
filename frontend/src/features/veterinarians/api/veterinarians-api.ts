@@ -1,0 +1,204 @@
+import { throwIfNotOk } from '../../../shared/api/errors'
+
+const API_BASE = '/api/v1'
+
+export type VeterinarianStatus = 'ACTIVE' | 'INACTIVE'
+
+export interface VeterinarianLinkedClinic {
+  clinicId: string
+  clinicName: string
+  primaryClinic: boolean
+}
+
+export interface Veterinarian {
+  id: string
+  name: string
+  crmv: string
+  phone: string | null
+  email: string | null
+  isAutonomous: boolean
+  status: VeterinarianStatus
+  notes: string | null
+  createdAt: string
+  updatedAt: string
+  rowVersion: number
+  clinics: VeterinarianLinkedClinic[]
+}
+
+export interface VeterinarianPage {
+  items: Veterinarian[]
+  total: number
+  page: number
+  pageSize: number
+}
+
+export interface VeterinarianListParams {
+  search?: string
+  status?: VeterinarianStatus
+  isAutonomous?: boolean
+  page?: number
+  pageSize?: number
+}
+
+export interface VeterinarianFormValues {
+  name: string
+  crmv: string
+  phone: string | null
+  email: string | null
+  isAutonomous: boolean
+  notes: string | null
+}
+
+interface ApiVeterinarianLinkedClinic {
+  clinic_id: string
+  clinic_name: string
+  primary_clinic: boolean
+}
+
+interface ApiVeterinarian {
+  id: string
+  name: string
+  crmv: string
+  phone: string | null
+  email: string | null
+  is_autonomous: boolean
+  status: VeterinarianStatus
+  notes: string | null
+  created_at: string
+  updated_at: string
+  row_version: number
+  clinics?: ApiVeterinarianLinkedClinic[]
+}
+
+interface ApiVeterinarianPage {
+  items: ApiVeterinarian[]
+  total: number
+  page: number
+  page_size: number
+}
+
+function fromApiVeterinarian(veterinarian: ApiVeterinarian): Veterinarian {
+  return {
+    id: veterinarian.id,
+    name: veterinarian.name,
+    crmv: veterinarian.crmv,
+    phone: veterinarian.phone,
+    email: veterinarian.email,
+    isAutonomous: veterinarian.is_autonomous,
+    status: veterinarian.status,
+    notes: veterinarian.notes,
+    createdAt: veterinarian.created_at,
+    updatedAt: veterinarian.updated_at,
+    rowVersion: veterinarian.row_version,
+    clinics: (veterinarian.clinics ?? []).map((clinic) => ({
+      clinicId: clinic.clinic_id,
+      clinicName: clinic.clinic_name,
+      primaryClinic: clinic.primary_clinic,
+    })),
+  }
+}
+
+function toApiPayload(values: VeterinarianFormValues): Record<string, unknown> {
+  return {
+    name: values.name,
+    crmv: values.crmv,
+    phone: values.phone || null,
+    email: values.email || null,
+    is_autonomous: values.isAutonomous,
+    notes: values.notes || null,
+  }
+}
+
+export async function fetchVeterinarians(
+  params: VeterinarianListParams = {},
+): Promise<VeterinarianPage> {
+  const query = new URLSearchParams()
+  if (params.search) query.set('search', params.search)
+  if (params.status) query.set('status', params.status)
+  if (params.isAutonomous !== undefined) query.set('is_autonomous', String(params.isAutonomous))
+  query.set('page', String(params.page ?? 1))
+  query.set('page_size', String(params.pageSize ?? 20))
+
+  const response = await fetch(`${API_BASE}/veterinarians?${query.toString()}`, {
+    credentials: 'include',
+  })
+  await throwIfNotOk(response)
+  const body = (await response.json()) as ApiVeterinarianPage
+  return {
+    items: body.items.map(fromApiVeterinarian),
+    total: body.total,
+    page: body.page,
+    pageSize: body.page_size,
+  }
+}
+
+export async function fetchVeterinarian(id: string): Promise<Veterinarian> {
+  const response = await fetch(`${API_BASE}/veterinarians/${id}`, { credentials: 'include' })
+  await throwIfNotOk(response)
+  return fromApiVeterinarian((await response.json()) as ApiVeterinarian)
+}
+
+export async function createVeterinarian(
+  values: VeterinarianFormValues,
+): Promise<Veterinarian> {
+  const response = await fetch(`${API_BASE}/veterinarians`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    credentials: 'include',
+    body: JSON.stringify(toApiPayload(values)),
+  })
+  await throwIfNotOk(response)
+  return fromApiVeterinarian((await response.json()) as ApiVeterinarian)
+}
+
+export async function updateVeterinarian(
+  id: string,
+  values: VeterinarianFormValues & { status: VeterinarianStatus; expectedRowVersion: number },
+): Promise<Veterinarian> {
+  const response = await fetch(`${API_BASE}/veterinarians/${id}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    credentials: 'include',
+    body: JSON.stringify({
+      ...toApiPayload(values),
+      status: values.status,
+      expected_row_version: values.expectedRowVersion,
+    }),
+  })
+  await throwIfNotOk(response)
+  return fromApiVeterinarian((await response.json()) as ApiVeterinarian)
+}
+
+export async function deactivateVeterinarian(id: string): Promise<Veterinarian> {
+  const response = await fetch(`${API_BASE}/veterinarians/${id}/deactivate`, {
+    method: 'POST',
+    credentials: 'include',
+  })
+  await throwIfNotOk(response)
+  return fromApiVeterinarian((await response.json()) as ApiVeterinarian)
+}
+
+export async function linkVeterinarianClinic(
+  veterinarianId: string,
+  clinicId: string,
+  primary = false,
+): Promise<void> {
+  const response = await fetch(`${API_BASE}/veterinarians/${veterinarianId}/clinics`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    credentials: 'include',
+    body: JSON.stringify({ clinic_id: clinicId, primary }),
+  })
+  await throwIfNotOk(response)
+}
+
+export async function unlinkVeterinarianClinic(
+  veterinarianId: string,
+  clinicId: string,
+): Promise<void> {
+  const response = await fetch(
+    `${API_BASE}/veterinarians/${veterinarianId}/clinics/${clinicId}`,
+    { method: 'DELETE', credentials: 'include' },
+  )
+  await throwIfNotOk(response)
+}

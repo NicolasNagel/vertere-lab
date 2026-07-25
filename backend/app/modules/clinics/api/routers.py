@@ -17,6 +17,8 @@ from app.api.dependencies import get_session, get_unit_of_work
 from app.modules.audit.infrastructure.repositories import SqlAlchemyAuditLogWriter
 from app.modules.clinics.api.schemas import (
     ClinicCreateRequest,
+    ClinicDetailRead,
+    ClinicLinkedVeterinarian,
     ClinicListResponse,
     ClinicRead,
     ClinicStatusLiteral,
@@ -35,6 +37,14 @@ from app.modules.clinics.domain.entities import ClinicStatus
 from app.modules.clinics.infrastructure.repositories import SqlAlchemyClinicRepository
 from app.modules.identity.api.dependencies import require_permission
 from app.modules.identity.application.dtos import AuthenticatedUserDTO
+from app.modules.veterinarian_clinics.application.list_veterinarians_for_clinic import (
+    ListVeterinariansForClinicQuery,
+    ListVeterinariansForClinicUseCase,
+)
+from app.modules.veterinarian_clinics.infrastructure.repositories import (
+    SqlAlchemyVeterinarianClinicLinkRepository,
+)
+from app.modules.veterinarians.infrastructure.repositories import SqlAlchemyVeterinarianRepository
 from app.shared.infrastructure.clock import SystemClock
 from app.shared.infrastructure.uow import SqlAlchemyUnitOfWork
 
@@ -86,15 +96,33 @@ def list_clinics(
     )
 
 
-@router.get("/{clinic_id}", response_model=ClinicRead)
+@router.get("/{clinic_id}", response_model=ClinicDetailRead)
 def get_clinic(
     clinic_id: UUID,
     session: SqlAlchemySession = Depends(get_session),
     current_user: AuthenticatedUserDTO = Depends(require_permission("clinics.read")),
-) -> ClinicRead:
+) -> ClinicDetailRead:
     use_case = GetClinicUseCase(clinics=SqlAlchemyClinicRepository(session))
     result = use_case.execute(GetClinicQuery(actor=current_user, clinic_id=clinic_id))
-    return _clinic_read(result)
+    veterinarians_use_case = ListVeterinariansForClinicUseCase(
+        links=SqlAlchemyVeterinarianClinicLinkRepository(session),
+        veterinarians=SqlAlchemyVeterinarianRepository(session),
+    )
+    linked_veterinarians = veterinarians_use_case.execute(
+        ListVeterinariansForClinicQuery(actor=current_user, clinic_id=clinic_id)
+    )
+    return ClinicDetailRead(
+        **_clinic_read(result).model_dump(),
+        veterinarians=[
+            ClinicLinkedVeterinarian(
+                veterinarian_id=item.veterinarian_id,
+                veterinarian_name=item.veterinarian_name,
+                crmv=item.crmv,
+                primary_clinic=item.primary_clinic,
+            )
+            for item in linked_veterinarians
+        ],
+    )
 
 
 @router.post("", response_model=ClinicRead, status_code=201)

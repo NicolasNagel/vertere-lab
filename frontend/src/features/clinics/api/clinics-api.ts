@@ -4,6 +4,13 @@ const API_BASE = '/api/v1'
 
 export type ClinicStatus = 'ACTIVE' | 'INACTIVE' | 'DELINQUENT' | 'SPECIAL'
 
+export interface ClinicLinkedVeterinarian {
+  veterinarianId: string
+  veterinarianName: string
+  crmv: string
+  primaryClinic: boolean
+}
+
 export interface Clinic {
   id: string
   name: string
@@ -22,6 +29,7 @@ export interface Clinic {
   createdAt: string
   updatedAt: string
   rowVersion: number
+  veterinarians: ClinicLinkedVeterinarian[]
 }
 
 export interface ClinicPage {
@@ -53,6 +61,13 @@ export interface ClinicFormValues {
   notes: string | null
 }
 
+interface ApiClinicLinkedVeterinarian {
+  veterinarian_id: string
+  veterinarian_name: string
+  crmv: string
+  primary_clinic: boolean
+}
+
 interface ApiClinic {
   id: string
   name: string
@@ -71,6 +86,7 @@ interface ApiClinic {
   created_at: string
   updated_at: string
   row_version: number
+  veterinarians?: ApiClinicLinkedVeterinarian[]
 }
 
 interface ApiClinicPage {
@@ -99,6 +115,12 @@ function fromApiClinic(clinic: ApiClinic): Clinic {
     createdAt: clinic.created_at,
     updatedAt: clinic.updated_at,
     rowVersion: clinic.row_version,
+    veterinarians: (clinic.veterinarians ?? []).map((veterinarian) => ({
+      veterinarianId: veterinarian.veterinarian_id,
+      veterinarianName: veterinarian.veterinarian_name,
+      crmv: veterinarian.crmv,
+      primaryClinic: veterinarian.primary_clinic,
+    })),
   }
 }
 
