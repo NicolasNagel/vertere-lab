@@ -24,7 +24,7 @@ const mainNavEntries: SidebarNavItemProps[] = [
 const registrationNavEntries: SidebarNavItemProps[] = [
   { icon: <ClinicsIcon />, label: 'Clínicas', to: '/cadastros/clinicas' },
   { icon: <UserIcon />, label: 'Veterinários', to: '/cadastros/veterinarios' },
-  { icon: <ExamsIcon />, label: 'Exames & Preços', to: null },
+  { icon: <ExamsIcon />, label: 'Exames & Preços', to: '/cadastros/exames' },
 ]
 
 const adminNavEntries: SidebarNavItemProps[] = [

@@ -1,10 +1,15 @@
 """List the fixed species catalog.
 
-Gated by `patients.read` rather than a dedicated `species.*` permission:
-species is a read-only reference list seeded once (ADR pending if a real
-management screen is ever needed), consumed only by the Patient form —
-there is no independent screen or action for it, so it does not warrant
-its own permission code beyond what `docs/07-nucleo-v1.md` §2.2 reserved.
+No permission gate beyond authentication: species started as a Patient-form
+reference list gated by `patients.read`, but the Exam catalog (Fase 2,
+`docs/adr/005-preco-embutido-em-exam.md`) now also needs it for a user
+profile (e.g. pure `FINANCE`) that has `catalog.manage`/`pricing.read` but
+not necessarily `patients.read`. It is static, non-sensitive reference
+data with no independent screen or action, so gating it per-consumer
+permission would just keep growing the list without protecting anything
+real — any authenticated user can read it (rule:
+.claude/rules/backend.md, "autorização... nunca implícita" still holds:
+this is an explicit decision, not a bypass).
 """
 
 from __future__ import annotations
@@ -15,9 +20,6 @@ from app.modules.identity.application.dtos import AuthenticatedUserDTO
 from app.modules.patients.application.dtos import SpeciesDTO
 from app.modules.patients.application.mappers import species_to_dto
 from app.modules.patients.domain.repositories import SpeciesRepository
-from app.shared.domain.errors import ForbiddenError
-
-_REQUIRED_PERMISSION = "patients.read"
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -29,8 +31,5 @@ class ListSpeciesUseCase:
     def __init__(self, *, species: SpeciesRepository) -> None:
         self._species = species
 
-    def execute(self, query: ListSpeciesQuery) -> list[SpeciesDTO]:
-        if _REQUIRED_PERMISSION not in query.actor.permissions:
-            raise ForbiddenError(f"Permissão ausente: {_REQUIRED_PERMISSION}")
-
+    def execute(self, _query: ListSpeciesQuery) -> list[SpeciesDTO]:
         return [species_to_dto(item) for item in self._species.list_all()]

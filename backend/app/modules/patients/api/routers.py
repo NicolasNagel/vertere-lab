@@ -15,7 +15,7 @@ from sqlalchemy.orm import Session as SqlAlchemySession
 
 from app.api.dependencies import get_session, get_unit_of_work
 from app.modules.audit.infrastructure.repositories import SqlAlchemyAuditLogWriter
-from app.modules.identity.api.dependencies import require_permission
+from app.modules.identity.api.dependencies import get_current_user, require_permission
 from app.modules.identity.application.dtos import AuthenticatedUserDTO
 from app.modules.patients.api.schemas import (
     PatientCreateRequest,
@@ -58,7 +58,7 @@ patients_router = APIRouter(prefix="/patients", tags=["patients"])
 @species_router.get("", response_model=SpeciesListResponse)
 def list_species(
     session: SqlAlchemySession = Depends(get_session),
-    current_user: AuthenticatedUserDTO = Depends(require_permission("patients.read")),
+    current_user: AuthenticatedUserDTO = Depends(get_current_user),
 ) -> SpeciesListResponse:
     use_case = ListSpeciesUseCase(species=SqlAlchemySpeciesRepository(session))
     result = use_case.execute(ListSpeciesQuery(actor=current_user))

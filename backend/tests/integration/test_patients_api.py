@@ -142,9 +142,13 @@ async def test_list_species_without_authentication_is_unauthenticated(
     assert response.status_code == 401
 
 
-async def test_list_species_without_permission_is_forbidden(
+async def test_list_species_is_open_to_any_authenticated_role(
     client: httpx.AsyncClient, session_factory: sessionmaker[Session]
 ) -> None:
+    """Species has no dedicated permission — any authenticated user can read
+    it (see `app/modules/patients/application/list_species.py`), since the
+    Exam catalog (Fase 2) also needs it and may be used by a role without
+    `patients.read` (e.g. pure `FINANCE`)."""
     _create_user(
         session_factory,
         email="finance@vertere.local",
@@ -155,7 +159,7 @@ async def test_list_species_without_permission_is_forbidden(
 
     response = await client.get("/api/v1/species")
 
-    assert response.status_code == 403
+    assert response.status_code == 200
 
 
 async def test_reception_lists_seeded_species(

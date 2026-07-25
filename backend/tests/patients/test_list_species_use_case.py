@@ -3,12 +3,9 @@ from __future__ import annotations
 from datetime import UTC, datetime
 from uuid import uuid4
 
-import pytest
-
 from app.modules.identity.application.dtos import AuthenticatedUserDTO
 from app.modules.patients.application.list_species import ListSpeciesQuery, ListSpeciesUseCase
 from app.modules.patients.domain.entities import Species
-from app.shared.domain.errors import ForbiddenError
 from tests.patients.fakes import FakeSpeciesRepository
 
 _NOW = datetime(2026, 1, 1, tzinfo=UTC)
@@ -25,11 +22,13 @@ def _actor(*, permissions: frozenset[str]) -> AuthenticatedUserDTO:
     )
 
 
-def test_list_species_requires_permission() -> None:
-    use_case = ListSpeciesUseCase(species=FakeSpeciesRepository())
+def test_list_species_has_no_permission_gate() -> None:
+    repository = FakeSpeciesRepository([Species(id=uuid4(), name="Cão", created_at=_NOW)])
+    use_case = ListSpeciesUseCase(species=repository)
 
-    with pytest.raises(ForbiddenError):
-        use_case.execute(ListSpeciesQuery(actor=_actor(permissions=frozenset())))
+    result = use_case.execute(ListSpeciesQuery(actor=_actor(permissions=frozenset())))
+
+    assert [item.name for item in result] == ["Cão"]
 
 
 def test_list_species_returns_catalog_sorted_by_name() -> None:
