@@ -135,6 +135,7 @@ def create_patient(
     with uow:
         use_case = CreatePatientUseCase(
             patients=SqlAlchemyPatientRepository(uow.session),
+            species=SqlAlchemySpeciesRepository(uow.session),
             audit=SqlAlchemyAuditLogWriter(uow.session),
             clock=SystemClock(),
         )
@@ -166,6 +167,7 @@ def update_patient(
     with uow:
         use_case = UpdatePatientUseCase(
             patients=SqlAlchemyPatientRepository(uow.session),
+            species=SqlAlchemySpeciesRepository(uow.session),
             audit=SqlAlchemyAuditLogWriter(uow.session),
             clock=SystemClock(),
         )

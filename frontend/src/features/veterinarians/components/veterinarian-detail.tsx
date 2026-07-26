@@ -110,6 +110,12 @@ function VeterinarianClinicsCard({ veterinarian, canManage }: VeterinarianClinic
         </div>
       )}
 
+      {linkMutation.isError && (
+        <p role="alert" className="veterinarian-detail__clinics-error">
+          Não foi possível vincular a clínica. Tente novamente.
+        </p>
+      )}
+
       {unlinkMutation.isError && (
         <p role="alert" className="veterinarian-detail__clinics-error">
           Não foi possível remover o vínculo. Veterinário não autônomo precisa de ao menos uma

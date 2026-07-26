@@ -2,6 +2,7 @@ import { Button } from '../../../shared/ui/button'
 import { KebabMenu, type KebabMenuItem } from '../../../shared/ui/kebab-menu'
 import { useSpeciesQuery } from '../../patients/api/use-species-query'
 import { useActiveExamCategoriesQuery } from '../api/use-active-exam-categories-query'
+import { useExamCategoryQuery } from '../api/use-exam-category-query'
 import type { Exam, ExamFormValues, ExamStatus } from '../api/catalog-api'
 import { ExamForm } from './exam-form'
 import './exam-detail.css'
@@ -42,6 +43,16 @@ export function ExamDetail({
 }: ExamDetailProps) {
   const categoriesQuery = useActiveExamCategoriesQuery()
   const speciesQuery = useSpeciesQuery()
+  // Categoria pode ter sido inativada depois da criação do exame — nesse
+  // caso ela não aparece em categoriesQuery (só ativas). Busca avulsa para
+  // não mostrar "—" para um exame que na verdade tem categoria.
+  const currentCategoryMissing =
+    exam !== null &&
+    !categoriesQuery.isLoading &&
+    !(categoriesQuery.data ?? []).some((category) => category.id === exam.categoryId)
+  const missingCategoryQuery = useExamCategoryQuery(
+    currentCategoryMissing && exam ? exam.categoryId : null,
+  )
 
   if (isLoading) {
     return (
@@ -74,7 +85,9 @@ export function ExamDetail({
   }
 
   const categoryName =
-    categoriesQuery.data?.find((category) => category.id === exam.categoryId)?.name ?? '—'
+    categoriesQuery.data?.find((category) => category.id === exam.categoryId)?.name ??
+    missingCategoryQuery.data?.name ??
+    '—'
   const speciesNames = exam.speciesIds
     .map((id) => speciesQuery.data?.find((species) => species.id === id)?.name)
     .filter((name): name is string => Boolean(name))

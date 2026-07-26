@@ -144,6 +144,15 @@ export async function createExamCategory(name: string): Promise<ExamCategory> {
   return fromApiCategory((await response.json()) as ApiExamCategory)
 }
 
+// Fetches a single category regardless of status — used to resolve the
+// label of an exam's category when it has since been deactivated and so
+// no longer appears in fetchActiveExamCategories().
+export async function fetchExamCategory(id: string): Promise<ExamCategory> {
+  const response = await fetch(`${API_BASE}/exam-categories/${id}`, { credentials: 'include' })
+  await throwIfNotOk(response)
+  return fromApiCategory((await response.json()) as ApiExamCategory)
+}
+
 export async function fetchExams(params: ExamListParams = {}): Promise<ExamPage> {
   const query = new URLSearchParams()
   if (params.search) query.set('search', params.search)

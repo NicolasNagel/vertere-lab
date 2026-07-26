@@ -11,6 +11,7 @@ import { TextField } from '../../../shared/ui/text-field'
 import { ApiError } from '../../../shared/api/errors'
 import { useActiveExamCategoriesQuery } from '../api/use-active-exam-categories-query'
 import { useCreateExamCategoryMutation } from '../api/use-create-exam-category-mutation'
+import { useExamCategoryQuery } from '../api/use-exam-category-query'
 import type { Exam, ExamFormValues, ExamStatus } from '../api/catalog-api'
 import './exam-form.css'
 
@@ -115,6 +116,22 @@ export function ExamForm({
   const speciesQuery = useSpeciesQuery()
   const createCategoryMutation = useCreateExamCategoryMutation()
 
+  // If the exam being edited has a category that was since deactivated, it
+  // won't be in categoriesQuery.data (active-only) — fetch it directly so
+  // the <select> still has a matching <option> instead of silently
+  // resetting to the empty placeholder (same root cause as the quick-create
+  // bug: value assigned with no matching option is a no-op).
+  const currentCategoryMissing =
+    exam !== null &&
+    !categoriesQuery.isLoading &&
+    !(categoriesQuery.data ?? []).some((category) => category.id === exam.categoryId)
+  const missingCategoryQuery = useExamCategoryQuery(currentCategoryMissing ? exam.categoryId : null)
+
+  const categoryOptions = [
+    ...(categoriesQuery.data ?? []),
+    ...(missingCategoryQuery.data ? [missingCategoryQuery.data] : []),
+  ]
+
   // The category list refetches asynchronously after creation — setting the
   // select's value before its <option> exists in the DOM is a no-op (native
   // <select> silently ignores an unmatched value). Wait for the option to
@@ -126,6 +143,16 @@ export function ExamForm({
       setPendingCategoryId(null)
     }
   }, [pendingCategoryId, categoriesQuery.data, setValue])
+
+  // Same class of issue as above: react-hook-form's `register()` sets the
+  // <select>'s DOM value once, on mount. If the exam's category is inactive,
+  // missingCategoryQuery hasn't resolved yet at that point, so the initial
+  // assignment silently fails. Re-apply it once the option actually exists.
+  useEffect(() => {
+    if (exam && missingCategoryQuery.data?.id === exam.categoryId) {
+      setValue('categoryId', exam.categoryId)
+    }
+  }, [exam, missingCategoryQuery.data, setValue])
 
   function toggleSpecies(speciesId: string) {
     setSpeciesIds((current) =>
@@ -202,9 +229,10 @@ export function ExamForm({
           label="Categoria"
           options={[
             { value: '', label: categoriesQuery.isLoading ? 'Carregando…' : 'Selecione…' },
-            ...(categoriesQuery.data ?? []).map((category) => ({
+            ...categoryOptions.map((category) => ({
               value: category.id,
-              label: category.name,
+              label:
+                category.status === 'INACTIVE' ? `${category.name} (inativa)` : category.name,
             })),
           ]}
           disabled={submitting || categoriesQuery.isLoading}

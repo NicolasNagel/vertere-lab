@@ -9,7 +9,7 @@ from app.modules.identity.application.dtos import AuthenticatedUserDTO
 from app.modules.patients.application.dtos import PatientDTO
 from app.modules.patients.application.mappers import patient_to_dto
 from app.modules.patients.domain.entities import PatientSex, PatientStatus
-from app.modules.patients.domain.repositories import PatientRepository
+from app.modules.patients.domain.repositories import PatientRepository, SpeciesRepository
 from app.shared.application.clock import Clock
 from app.shared.domain.errors import ConflictError, ForbiddenError, NotFoundError
 
@@ -38,10 +38,12 @@ class UpdatePatientUseCase:
         self,
         *,
         patients: PatientRepository,
+        species: SpeciesRepository,
         audit: AuditLogWriter,
         clock: Clock,
     ) -> None:
         self._patients = patients
+        self._species = species
         self._audit = audit
         self._clock = clock
 
@@ -57,6 +59,10 @@ class UpdatePatientUseCase:
             raise ConflictError(
                 "Este paciente foi alterado por outra pessoa. Recarregue e tente de novo."
             )
+
+        known_species_ids = {species.id for species in self._species.list_all()}
+        if command.species_id not in known_species_ids:
+            raise NotFoundError("Espécie não encontrada.")
 
         before_state = {"name": patient.name, "status": patient.status.value}
 

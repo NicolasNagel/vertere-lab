@@ -23,11 +23,17 @@ from app.modules.patients.application.update_patient import (
     UpdatePatientCommand,
     UpdatePatientUseCase,
 )
-from app.modules.patients.domain.entities import PatientStatus
+from app.modules.patients.domain.entities import PatientStatus, Species
 from app.shared.domain.errors import ConflictError, ForbiddenError, NotFoundError
-from tests.patients.fakes import FakeAuditLogWriter, FakeClock, FakePatientRepository
+from tests.patients.fakes import (
+    FakeAuditLogWriter,
+    FakeClock,
+    FakePatientRepository,
+    FakeSpeciesRepository,
+)
 
 _NOW = datetime(2026, 1, 1, tzinfo=UTC)
+_SPECIES_ID = uuid4()
 
 
 def _actor(*, permissions: frozenset[str]) -> AuthenticatedUserDTO:
@@ -41,11 +47,15 @@ def _actor(*, permissions: frozenset[str]) -> AuthenticatedUserDTO:
     )
 
 
+def _species_repo() -> FakeSpeciesRepository:
+    return FakeSpeciesRepository([Species(id=_SPECIES_ID, name="Cão", created_at=_NOW)])
+
+
 def _create_command(**overrides: object) -> CreatePatientCommand:
     defaults: dict[str, object] = {
         "actor": _actor(permissions=frozenset({"patients.manage"})),
         "name": "Rex",
-        "species_id": uuid4(),
+        "species_id": _SPECIES_ID,
         "sex": "MALE",
         "breed": "SRD",
         "age_description": "2 anos",
@@ -61,7 +71,9 @@ def _create_command(**overrides: object) -> CreatePatientCommand:
 def test_create_patient_succeeds_and_audits() -> None:
     patients = FakePatientRepository()
     audit = FakeAuditLogWriter()
-    use_case = CreatePatientUseCase(patients=patients, audit=audit, clock=FakeClock(_NOW))
+    use_case = CreatePatientUseCase(
+        patients=patients, species=_species_repo(), audit=audit, clock=FakeClock(_NOW)
+    )
 
     result = use_case.execute(_create_command())
 
@@ -75,16 +87,31 @@ def test_create_patient_succeeds_and_audits() -> None:
 def test_create_patient_without_permission_is_forbidden() -> None:
     patients = FakePatientRepository()
     audit = FakeAuditLogWriter()
-    use_case = CreatePatientUseCase(patients=patients, audit=audit, clock=FakeClock(_NOW))
+    use_case = CreatePatientUseCase(
+        patients=patients, species=_species_repo(), audit=audit, clock=FakeClock(_NOW)
+    )
 
     with pytest.raises(ForbiddenError):
         use_case.execute(_create_command(actor=_actor(permissions=frozenset())))
 
 
+def test_create_patient_with_unknown_species_not_found() -> None:
+    patients = FakePatientRepository()
+    audit = FakeAuditLogWriter()
+    use_case = CreatePatientUseCase(
+        patients=patients, species=_species_repo(), audit=audit, clock=FakeClock(_NOW)
+    )
+
+    with pytest.raises(NotFoundError):
+        use_case.execute(_create_command(species_id=uuid4()))
+
+
 def test_create_patient_allows_duplicate_owner_and_name() -> None:
     patients = FakePatientRepository()
     audit = FakeAuditLogWriter()
-    use_case = CreatePatientUseCase(patients=patients, audit=audit, clock=FakeClock(_NOW))
+    use_case = CreatePatientUseCase(
+        patients=patients, species=_species_repo(), audit=audit, clock=FakeClock(_NOW)
+    )
     use_case.execute(_create_command())
 
     result = use_case.execute(_create_command())
@@ -96,11 +123,13 @@ def test_create_patient_allows_duplicate_owner_and_name() -> None:
 def test_update_patient_with_stale_row_version_conflicts() -> None:
     patients = FakePatientRepository()
     audit = FakeAuditLogWriter()
-    created = CreatePatientUseCase(patients=patients, audit=audit, clock=FakeClock(_NOW)).execute(
-        _create_command()
-    )
+    created = CreatePatientUseCase(
+        patients=patients, species=_species_repo(), audit=audit, clock=FakeClock(_NOW)
+    ).execute(_create_command())
 
-    use_case = UpdatePatientUseCase(patients=patients, audit=audit, clock=FakeClock(_NOW))
+    use_case = UpdatePatientUseCase(
+        patients=patients, species=_species_repo(), audit=audit, clock=FakeClock(_NOW)
+    )
     with pytest.raises(ConflictError):
         use_case.execute(
             UpdatePatientCommand(
@@ -124,11 +153,13 @@ def test_update_patient_with_stale_row_version_conflicts() -> None:
 def test_update_patient_succeeds_and_bumps_row_version() -> None:
     patients = FakePatientRepository()
     audit = FakeAuditLogWriter()
-    created = CreatePatientUseCase(patients=patients, audit=audit, clock=FakeClock(_NOW)).execute(
-        _create_command()
-    )
+    created = CreatePatientUseCase(
+        patients=patients, species=_species_repo(), audit=audit, clock=FakeClock(_NOW)
+    ).execute(_create_command())
 
-    use_case = UpdatePatientUseCase(patients=patients, audit=audit, clock=FakeClock(_NOW))
+    use_case = UpdatePatientUseCase(
+        patients=patients, species=_species_repo(), audit=audit, clock=FakeClock(_NOW)
+    )
     result = use_case.execute(
         UpdatePatientCommand(
             actor=_actor(permissions=frozenset({"patients.manage"})),
@@ -155,7 +186,9 @@ def test_update_patient_succeeds_and_bumps_row_version() -> None:
 def test_update_patient_not_found() -> None:
     patients = FakePatientRepository()
     audit = FakeAuditLogWriter()
-    use_case = UpdatePatientUseCase(patients=patients, audit=audit, clock=FakeClock(_NOW))
+    use_case = UpdatePatientUseCase(
+        patients=patients, species=_species_repo(), audit=audit, clock=FakeClock(_NOW)
+    )
 
     with pytest.raises(NotFoundError):
         use_case.execute(
@@ -163,7 +196,7 @@ def test_update_patient_not_found() -> None:
                 actor=_actor(permissions=frozenset({"patients.manage"})),
                 patient_id=uuid4(),
                 name="Fantasma",
-                species_id=uuid4(),
+                species_id=_SPECIES_ID,
                 sex="MALE",
                 breed=None,
                 age_description=None,
@@ -177,12 +210,42 @@ def test_update_patient_not_found() -> None:
         )
 
 
+def test_update_patient_with_unknown_species_not_found() -> None:
+    patients = FakePatientRepository()
+    audit = FakeAuditLogWriter()
+    created = CreatePatientUseCase(
+        patients=patients, species=_species_repo(), audit=audit, clock=FakeClock(_NOW)
+    ).execute(_create_command())
+
+    use_case = UpdatePatientUseCase(
+        patients=patients, species=_species_repo(), audit=audit, clock=FakeClock(_NOW)
+    )
+    with pytest.raises(NotFoundError):
+        use_case.execute(
+            UpdatePatientCommand(
+                actor=_actor(permissions=frozenset({"patients.manage"})),
+                patient_id=created.id,
+                name=created.name,
+                species_id=uuid4(),
+                sex=created.sex,
+                breed=created.breed,
+                age_description=created.age_description,
+                owner_name=created.owner_name,
+                owner_phone=created.owner_phone,
+                owner_document=created.owner_document,
+                status=PatientStatus.ACTIVE.value,
+                notes=None,
+                expected_row_version=created.row_version,
+            )
+        )
+
+
 def test_deactivate_patient_soft_deletes_and_preserves_record() -> None:
     patients = FakePatientRepository()
     audit = FakeAuditLogWriter()
-    created = CreatePatientUseCase(patients=patients, audit=audit, clock=FakeClock(_NOW)).execute(
-        _create_command()
-    )
+    created = CreatePatientUseCase(
+        patients=patients, species=_species_repo(), audit=audit, clock=FakeClock(_NOW)
+    ).execute(_create_command())
 
     use_case = DeactivatePatientUseCase(patients=patients, audit=audit, clock=FakeClock(_NOW))
     result = use_case.execute(
@@ -211,12 +274,12 @@ def test_list_patients_requires_permission() -> None:
 def test_list_patients_filters_by_search() -> None:
     patients = FakePatientRepository()
     audit = FakeAuditLogWriter()
-    CreatePatientUseCase(patients=patients, audit=audit, clock=FakeClock(_NOW)).execute(
-        _create_command(name="Rex", owner_name="Maria Souza")
-    )
-    CreatePatientUseCase(patients=patients, audit=audit, clock=FakeClock(_NOW)).execute(
-        _create_command(name="Bidu", owner_name="Joana Lima")
-    )
+    CreatePatientUseCase(
+        patients=patients, species=_species_repo(), audit=audit, clock=FakeClock(_NOW)
+    ).execute(_create_command(name="Rex", owner_name="Maria Souza"))
+    CreatePatientUseCase(
+        patients=patients, species=_species_repo(), audit=audit, clock=FakeClock(_NOW)
+    ).execute(_create_command(name="Bidu", owner_name="Joana Lima"))
 
     use_case = ListPatientsUseCase(patients=patients)
     result = use_case.execute(

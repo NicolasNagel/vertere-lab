@@ -26,7 +26,15 @@ class LinkVeterinarianToClinicCommand:
 
 class LinkVeterinarianToClinicUseCase:
     """Idempotent: linking an already-linked (veterinarian, clinic) pair is a
-    no-op, not an error — the caller only cares about the end state."""
+    no-op, not an error — the caller only cares about the end state.
+
+    "No-op" does not mean "ignore the request entirely": if the existing
+    link isn't primary yet and the caller asks for `primary_clinic=True`,
+    it IS promoted (same effect as unlink+relink-as-primary, without the
+    detour). Silently dropping that request would leave the end state
+    different from what the caller asked for, which the idempotency
+    contract above doesn't license.
+    """
 
     def __init__(
         self,
@@ -54,6 +62,20 @@ class LinkVeterinarianToClinicUseCase:
 
         existing = self._links.get(command.veterinarian_id, command.clinic_id)
         if existing is not None:
+            if command.primary_clinic and not existing.primary_clinic:
+                self._links.clear_primary_for_veterinarian(command.veterinarian_id)
+                self._links.mark_primary(existing.id)
+                self._audit.record(
+                    AuditEntry(
+                        actor_user_id=command.actor.id,
+                        actor_scope=ActorScope.LAB,
+                        action="veterinarian_clinics.primary_changed",
+                        entity_type="veterinarian_clinic_link",
+                        entity_id=str(existing.id),
+                        before_state={"primary_clinic": "False"},
+                        after_state={"primary_clinic": "True"},
+                    )
+                )
             return
 
         if command.primary_clinic:

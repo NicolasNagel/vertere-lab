@@ -100,7 +100,20 @@ Postgres real via Testcontainers cobrindo criação, edição com conflito de `r
 inativação preservando histórico, e busca por nome de tutor); frontend (`tsc -b` + oxlint +
 vitest — 51 testes, `vite build` de produção ok).
 
-Verificação manual **não realizada nesta sessão** (sem ambiente de navegador disponível) — pendente
-antes de considerar esta fatia definitivamente encerrada, conforme a Definição de Pronto
-(`.claude/rules/definicao-de-pronto.md`, item 13, "critérios de aceite demonstrados, não
-assumidos").
+**Verificação manual em 2026-07-26**, Postgres local, backend e frontend rodando, logado como
+usuário real, testado no Chrome:
+- Criar paciente (`Rex`, espécie Cão, raça SRD, idade "2 anos") com tutor embutido (`Maria Souza`,
+  telefone, documento) → `201 Created`, painel de detalhe mostra os dois grupos de campos
+  ("Dados gerais" e "Tutor") corretos.
+- Editar nome do paciente → `200 OK`, atualização refletida na lista e no detalhe.
+- Buscar por nome do tutor (`"maria"`) → encontra o paciente correto (confirma que a busca cobre
+  `owner_name`, não só `patients.name`).
+- Inativar via menu "Mais ações" → `200 OK`, badge muda para "Inativo", registro preservado (não
+  removido), ação de editar continua disponível, kebab menu de inativar some.
+- `POST /patients` com `species_id` inexistente → `404 NOT_FOUND` ("Espécie não encontrada."), não
+  mais um `500` — confirma a correção feita depois desta ADR
+  (`app/modules/patients/application/create_patient.py`, ver commit de correções pós-fatia de
+  Exames) que passou a validar `species_id` antes de persistir, o mesmo padrão já usado em
+  `CreateExamUseCase` para `category_id`/`species_ids`.
+
+Nenhum bug novo encontrado nesta verificação — dado de teste removido ao final.

@@ -119,6 +119,23 @@ testes, incluindo criação de exame com categoria e espécie, bloqueio de submi
 selecionada, e exibição/ocultação do preço conforme a permissão do usuário logado — `vite build`
 de produção ok).
 
-Verificação manual **não realizada nesta sessão** (sem ambiente de navegador disponível) —
-pendente antes de considerar esta fatia definitivamente encerrada, conforme a Definição de Pronto
-(`.claude/rules/definicao-de-pronto.md`, item 13).
+**Verificação manual em 2026-07-25**, Postgres local, backend e frontend rodando, logado como
+`SUPER_ADMIN` e como `TECHNICAL` (sem `pricing.read`/`catalog.manage`), testado no Chrome:
+- Criar categoria "Hematologia" via quick-create dentro do formulário de exame, criar exame
+  `HEM001` com preço, adicional de plantão percentual e espécie "Cão" → `201 Created`, detalhe
+  mostra todos os campos corretos.
+- Como `TECHNICAL`: `GET /exams/{id}` direto confirma que o backend **omite** `price_base`/
+  `plantao_surcharge_*` (não apenas esconde na UI); "Novo exame" some da tela; detalhe mostra
+  "Você não tem permissão para visualizar valores."
+- Editar exame, inativar via kebab menu, buscar por código — todos corretos.
+- **Bug real encontrado e corrigido nesta verificação**: o quick-create de categoria não
+  selecionava a categoria recém-criada no `<select>` (`setValue` rodava antes do `<option>`
+  existir no DOM, já que o refetch da lista é assíncrono) — corrigido adiando o `setValue` para um
+  `useEffect` que espera a opção aparecer (commit `6b75262`).
+- **Segundo bug da mesma classe, encontrado depois por investigação de código** (não pelo
+  navegador): editar um exame cuja categoria foi inativada também perdia a seleção, pelo mesmo
+  motivo — corrigido buscando a categoria específica por ID quando ela não está na lista de ativas
+  (`useExamCategoryQuery`, usado em `exam-form.tsx` e `exam-detail.tsx`), com o mesmo padrão de
+  `useEffect` para reaplicar o valor quando a opção aparece.
+
+Dado de teste removido ao final de cada verificação.

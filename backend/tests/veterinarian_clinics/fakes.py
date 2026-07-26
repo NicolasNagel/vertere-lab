@@ -103,6 +103,17 @@ class FakeVeterinarianClinicLinkRepository:
                     created_at=link.created_at,
                 )
 
+    def mark_primary(self, link_id: UUID) -> None:
+        link = self._links[link_id]
+        self._links[link_id] = VeterinarianClinicLink(
+            id=link.id,
+            veterinarian_id=link.veterinarian_id,
+            clinic_id=link.clinic_id,
+            primary_clinic=True,
+            created_by=link.created_by,
+            created_at=link.created_at,
+        )
+
     def list_by_veterinarian(self, veterinarian_id: UUID) -> list[VeterinarianClinicLink]:
         return [link for link in self._links.values() if link.veterinarian_id == veterinarian_id]
 

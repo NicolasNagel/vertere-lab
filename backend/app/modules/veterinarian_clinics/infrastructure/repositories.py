@@ -72,6 +72,12 @@ class SqlAlchemyVeterinarianClinicLinkRepository:
         for model in models:
             model.primary_clinic = False
 
+    def mark_primary(self, link_id: UUID) -> None:
+        model = self._session.get(VeterinarianClinicModel, link_id)
+        if model is None:
+            raise LookupError(f"Vínculo {link_id} não encontrado para promoção a principal.")
+        model.primary_clinic = True
+
     def list_by_veterinarian(self, veterinarian_id: UUID) -> list[VeterinarianClinicLink]:
         models = (
             self._session.execute(

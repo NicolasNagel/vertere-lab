@@ -6,6 +6,11 @@ aggregate — see `app/modules/patients/domain/entities.py` for why. No
 duplicate check on owner or patient name: the Patient form warns about
 likely duplicates client-side via `GET /patients?search=`, it does not
 block creation server-side.
+
+`species_id` is validated against `SpeciesRepository` before persisting —
+same pattern as `category_id`/`species_ids` in
+`app/modules/catalog/application/create_exam.py` — so an unknown id raises
+`NotFoundError` instead of surfacing as a raw `IntegrityError`.
 """
 
 from __future__ import annotations
@@ -19,9 +24,9 @@ from app.modules.identity.application.dtos import AuthenticatedUserDTO
 from app.modules.patients.application.dtos import PatientDTO
 from app.modules.patients.application.mappers import patient_to_dto
 from app.modules.patients.domain.entities import Patient, PatientSex, PatientStatus
-from app.modules.patients.domain.repositories import PatientRepository
+from app.modules.patients.domain.repositories import PatientRepository, SpeciesRepository
 from app.shared.application.clock import Clock
-from app.shared.domain.errors import ForbiddenError
+from app.shared.domain.errors import ForbiddenError, NotFoundError
 
 _REQUIRED_PERMISSION = "patients.manage"
 
@@ -45,16 +50,22 @@ class CreatePatientUseCase:
         self,
         *,
         patients: PatientRepository,
+        species: SpeciesRepository,
         audit: AuditLogWriter,
         clock: Clock,
     ) -> None:
         self._patients = patients
+        self._species = species
         self._audit = audit
         self._clock = clock
 
     def execute(self, command: CreatePatientCommand) -> PatientDTO:
         if _REQUIRED_PERMISSION not in command.actor.permissions:
             raise ForbiddenError(f"Permissão ausente: {_REQUIRED_PERMISSION}")
+
+        known_species_ids = {species.id for species in self._species.list_all()}
+        if command.species_id not in known_species_ids:
+            raise NotFoundError("Espécie não encontrada.")
 
         now = self._clock.now()
         patient = Patient(

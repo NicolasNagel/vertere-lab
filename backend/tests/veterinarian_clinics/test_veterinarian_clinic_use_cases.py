@@ -139,6 +139,56 @@ def test_link_veterinarian_to_clinic_is_idempotent() -> None:
     assert len([e for e in audit.entries if e.action == "veterinarian_clinics.linked"]) == 1
 
 
+def test_link_veterinarian_to_clinic_promotes_existing_link_to_primary() -> None:
+    """Re-linking an already-linked clinic with `primary_clinic=True` must
+    still promote it, not silently no-op — see docstring of
+    LinkVeterinarianToClinicUseCase."""
+    veterinarians, clinics, links, audit = _setup()
+    veterinarian = _veterinarian()
+    clinic_a = _clinic(name="Schweitzer")
+    clinic_b = _clinic(name="Bicho Urbano")
+    veterinarians.add(veterinarian)
+    clinics.add(clinic_a)
+    clinics.add(clinic_b)
+
+    use_case = LinkVeterinarianToClinicUseCase(
+        veterinarians=veterinarians,
+        clinics=clinics,
+        links=links,
+        audit=audit,
+        clock=FakeClock(_NOW),
+    )
+    actor = _actor(permissions=frozenset({"veterinarians.manage"}))
+    use_case.execute(
+        LinkVeterinarianToClinicCommand(
+            actor=actor, veterinarian_id=veterinarian.id, clinic_id=clinic_a.id, primary_clinic=True
+        )
+    )
+    use_case.execute(
+        LinkVeterinarianToClinicCommand(
+            actor=actor,
+            veterinarian_id=veterinarian.id,
+            clinic_id=clinic_b.id,
+            primary_clinic=False,
+        )
+    )
+
+    # clinic_b is already linked (not primary) — asking to link it again as
+    # primary must promote it, not no-op.
+    use_case.execute(
+        LinkVeterinarianToClinicCommand(
+            actor=actor, veterinarian_id=veterinarian.id, clinic_id=clinic_b.id, primary_clinic=True
+        )
+    )
+
+    remaining = links.list_by_veterinarian(veterinarian.id)
+    assert len(remaining) == 2
+    primaries = [link for link in remaining if link.primary_clinic]
+    assert len(primaries) == 1
+    assert primaries[0].clinic_id == clinic_b.id
+    assert audit.entries[-1].action == "veterinarian_clinics.primary_changed"
+
+
 def test_link_veterinarian_to_clinic_clears_previous_primary() -> None:
     veterinarians, clinics, links, audit = _setup()
     veterinarian = _veterinarian()

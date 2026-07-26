@@ -12,6 +12,7 @@ import logging
 
 from fastapi import FastAPI, status
 from fastapi.exceptions import RequestValidationError
+from sqlalchemy.exc import IntegrityError
 from starlette.exceptions import HTTPException as StarletteHTTPException
 from starlette.requests import Request
 from starlette.responses import JSONResponse
@@ -90,6 +91,20 @@ async def handle_http_exception(request: Request, exc: StarletteHTTPException) -
     return error_response(code, message, status_code=exc.status_code)
 
 
+async def handle_integrity_error(request: Request, exc: IntegrityError) -> JSONResponse:
+    # Last-resort net: a use case that skipped an explicit existence/
+    # uniqueness check (or lost a race under real concurrency) hits a
+    # DB constraint directly. Never leak table/column/constraint names to
+    # the client (rule: .claude/rules/globals.md, "erro não expõe detalhe
+    # interno") — the safe fix belongs in the use case, this only prevents
+    # a raw 500.
+    logger.warning("integrity_error", extra={"path": request.url.path})
+    return error_response(
+        ErrorCode.CONFLICT,
+        "A operação não pôde ser concluída porque conflita com dados existentes.",
+    )
+
+
 async def handle_unexpected_error(request: Request, exc: Exception) -> JSONResponse:
     logger.exception("unhandled error", extra={"path": request.url.path})
     return error_response(
@@ -102,4 +117,5 @@ def register_error_handlers(app: FastAPI) -> None:
     app.add_exception_handler(DomainError, handle_domain_error)  # type: ignore[arg-type]
     app.add_exception_handler(RequestValidationError, handle_validation_error)  # type: ignore[arg-type]
     app.add_exception_handler(StarletteHTTPException, handle_http_exception)  # type: ignore[arg-type]
+    app.add_exception_handler(IntegrityError, handle_integrity_error)  # type: ignore[arg-type]
     app.add_exception_handler(Exception, handle_unexpected_error)

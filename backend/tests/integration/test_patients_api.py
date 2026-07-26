@@ -238,6 +238,30 @@ async def test_create_and_get_patient(
     assert get_response.json()["owner_name"] == "Joana Lima"
 
 
+async def test_create_patient_with_unknown_species_is_not_found(
+    client: httpx.AsyncClient, session_factory: sessionmaker[Session]
+) -> None:
+    """`species_id` is validated before persisting — an unknown id must
+    surface as 404, not as a raw IntegrityError/500 from the FK
+    constraint (see app/modules/patients/application/create_patient.py)."""
+    _create_user(
+        session_factory, email="admin@vertere.local", password="s3nhaForte!", role_id=ROLE_LAB_ADMIN
+    )
+    await _login(client, email="admin@vertere.local", password="s3nhaForte!")
+
+    response = await client.post(
+        "/api/v1/patients",
+        json={
+            "name": "Rex",
+            "species_id": str(uuid4()),
+            "sex": "MALE",
+            "owner_name": "Maria Souza",
+        },
+    )
+
+    assert response.status_code == 404
+
+
 async def test_create_patient_allows_duplicate_owner_name(
     client: httpx.AsyncClient, session_factory: sessionmaker[Session]
 ) -> None:
