@@ -143,10 +143,25 @@ async def _create_clinic(client: httpx.AsyncClient, name: str) -> str:
 
 
 async def _create_veterinarian(
-    client: httpx.AsyncClient, *, name: str, crmv: str, is_autonomous: bool = False
+    client: httpx.AsyncClient,
+    *,
+    name: str,
+    crmv: str,
+    # Autonomous by default: most tests here exercise the link/unlink
+    # endpoints as a separate step and don't care about the "non-autonomous
+    # needs >=1 clinic at creation" rule, which has its own dedicated tests
+    # in test_veterinarians_api.py.
+    is_autonomous: bool = True,
+    clinic_ids: list[str] | None = None,
 ) -> str:
     response = await client.post(
-        "/api/v1/veterinarians", json={"name": name, "crmv": crmv, "is_autonomous": is_autonomous}
+        "/api/v1/veterinarians",
+        json={
+            "name": name,
+            "crmv": crmv,
+            "is_autonomous": is_autonomous,
+            "clinic_ids": clinic_ids or [],
+        },
     )
     assert response.status_code == 201
     return str(response.json()["id"])
@@ -232,11 +247,11 @@ async def test_unlink_last_clinic_of_non_autonomous_veterinarian_conflicts(
     await _login_admin(client, session_factory)
     clinic_id = await _create_clinic(client, "Schweitzer")
     veterinarian_id = await _create_veterinarian(
-        client, name="Eberton Henrique", crmv="CRMV-SC 08915", is_autonomous=False
-    )
-    await client.post(
-        f"/api/v1/veterinarians/{veterinarian_id}/clinics",
-        json={"clinic_id": clinic_id, "primary": False},
+        client,
+        name="Eberton Henrique",
+        crmv="CRMV-SC 08915",
+        is_autonomous=False,
+        clinic_ids=[clinic_id],
     )
 
     unlink_response = await client.delete(

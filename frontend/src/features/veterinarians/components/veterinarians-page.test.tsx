@@ -233,9 +233,9 @@ test('blocks create for a non-autonomous veterinarian without a linked clinic', 
   expect(createSpy).not.toHaveBeenCalled()
 })
 
-test('creates a veterinarian and links the selected clinic', async () => {
+test('creates a veterinarian sending the selected clinic in the same request', async () => {
   const user = userEvent.setup()
-  const linkSpy = vi.fn()
+  const createSpy = vi.fn()
   server.use(
     meHandler(['veterinarians.read', 'veterinarians.manage']),
     veterinariansListHandler(),
@@ -267,8 +267,9 @@ test('creates a veterinarian and links the selected clinic', async () => {
         page_size: 100,
       }),
     ),
-    http.post('/api/v1/veterinarians', () =>
-      HttpResponse.json(
+    http.post('/api/v1/veterinarians', async ({ request }) => {
+      createSpy(await request.json())
+      return HttpResponse.json(
         {
           id: 'v2',
           name: 'Dr. Michael Neves',
@@ -283,11 +284,7 @@ test('creates a veterinarian and links the selected clinic', async () => {
           row_version: 1,
         },
         { status: 201 },
-      ),
-    ),
-    http.post('/api/v1/veterinarians/v2/clinics', async ({ request }) => {
-      linkSpy(await request.json())
-      return new HttpResponse(null, { status: 204 })
+      )
     }),
     http.get('/api/v1/veterinarians/v2', () =>
       HttpResponse.json({
@@ -314,7 +311,11 @@ test('creates a veterinarian and links the selected clinic', async () => {
   await user.click(await screen.findByLabelText('Schweitzer'))
   await user.click(screen.getByRole('button', { name: 'Salvar' }))
 
-  await waitFor(() => expect(linkSpy).toHaveBeenCalledWith({ clinic_id: 'c1', primary: true }))
+  await waitFor(() =>
+    expect(createSpy).toHaveBeenCalledWith(
+      expect.objectContaining({ clinic_ids: ['c1'], primary_clinic_id: 'c1' }),
+    ),
+  )
   expect(await screen.findByText('Schweitzer')).toBeInTheDocument()
 })
 

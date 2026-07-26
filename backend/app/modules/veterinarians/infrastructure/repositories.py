@@ -66,6 +66,12 @@ class SqlAlchemyVeterinarianRepository:
                 row_version=veterinarian.row_version,
             )
         )
+        # No `relationship()` between VeterinarianModel and
+        # VeterinarianClinicModel, so the unit of work can't infer insert
+        # order on its own — flush so a same-transaction caller creating
+        # links right after (CreateVeterinarianUseCase) doesn't hit a raw
+        # FK violation (same pattern as SqlAlchemyUserRepository.add()).
+        self._session.flush()
 
     def save(self, veterinarian: Veterinarian) -> None:
         model = self._session.get(VeterinarianModel, veterinarian.id)

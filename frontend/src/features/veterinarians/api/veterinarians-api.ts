@@ -140,12 +140,22 @@ export async function fetchVeterinarian(id: string): Promise<Veterinarian> {
 
 export async function createVeterinarian(
   values: VeterinarianFormValues,
+  clinicIds: string[] = [],
 ): Promise<Veterinarian> {
+  // The backend now requires clinic_ids in the same request for a
+  // non-autonomous veterinarian (it validates "needs >=1 clinic" at
+  // creation, not only on unlink) — the first clinic in the list is the
+  // primary one, same convention as before when this was a separate
+  // POST .../clinics call per clinic.
   const response = await fetch(`${API_BASE}/veterinarians`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     credentials: 'include',
-    body: JSON.stringify(toApiPayload(values)),
+    body: JSON.stringify({
+      ...toApiPayload(values),
+      clinic_ids: clinicIds,
+      primary_clinic_id: clinicIds[0] ?? null,
+    }),
   })
   await throwIfNotOk(response)
   return fromApiVeterinarian((await response.json()) as ApiVeterinarian)

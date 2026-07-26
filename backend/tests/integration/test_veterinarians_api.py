@@ -65,7 +65,9 @@ def session_factory(postgres_url: str) -> Iterator[sessionmaker[Session]]:
 def _reset_data(session_factory: sessionmaker[Session]) -> None:
     with session_factory() as session:
         session.execute(text("DELETE FROM audit_log"))
+        session.execute(text("DELETE FROM veterinarian_clinics"))
         session.execute(text("DELETE FROM veterinarians"))
+        session.execute(text("DELETE FROM clinics"))
         session.execute(text("DELETE FROM users"))
         session.commit()
 
@@ -156,7 +158,8 @@ async def test_reception_can_create_veterinarians(
 
     await _login(client, email="reception@vertere.local", password="s3nhaForte!")
     response = await client.post(
-        "/api/v1/veterinarians", json={"name": "Dra. Fabianna Garcia", "crmv": "CRMV-SC 04567"}
+        "/api/v1/veterinarians",
+        json={"name": "Dra. Fabianna Garcia", "crmv": "CRMV-SC 04567", "is_autonomous": True},
     )
 
     assert response.status_code == 201
@@ -200,14 +203,63 @@ async def test_create_veterinarian_with_duplicate_crmv_conflicts(
     )
     await _login(client, email="admin@vertere.local", password="s3nhaForte!")
 
-    payload = {"name": "Vet A", "crmv": "CRMV-SC 04567"}
+    payload = {"name": "Vet A", "crmv": "CRMV-SC 04567", "is_autonomous": True}
     first = await client.post("/api/v1/veterinarians", json=payload)
     assert first.status_code == 201
 
     second = await client.post(
-        "/api/v1/veterinarians", json={"name": "Vet B", "crmv": "CRMV-SC 04567"}
+        "/api/v1/veterinarians",
+        json={"name": "Vet B", "crmv": "CRMV-SC 04567", "is_autonomous": True},
     )
     assert second.status_code == 409
+
+
+async def test_create_non_autonomous_veterinarian_without_clinic_is_rejected(
+    client: httpx.AsyncClient, session_factory: sessionmaker[Session]
+) -> None:
+    """Closes the ADR-003 gap end to end — the API used to accept this."""
+    _create_user(
+        session_factory, email="admin@vertere.local", password="s3nhaForte!", role_id=ROLE_LAB_ADMIN
+    )
+    await _login(client, email="admin@vertere.local", password="s3nhaForte!")
+
+    response = await client.post(
+        "/api/v1/veterinarians",
+        json={"name": "Vet Sem Clínica", "crmv": "CRMV-SC 04570", "is_autonomous": False},
+    )
+
+    assert response.status_code == 422
+
+
+async def test_create_non_autonomous_veterinarian_with_clinic_links_it(
+    client: httpx.AsyncClient, session_factory: sessionmaker[Session]
+) -> None:
+    _create_user(
+        session_factory, email="admin@vertere.local", password="s3nhaForte!", role_id=ROLE_LAB_ADMIN
+    )
+    await _login(client, email="admin@vertere.local", password="s3nhaForte!")
+
+    clinic_response = await client.post("/api/v1/clinics", json={"name": "Schweitzer"})
+    clinic_id = clinic_response.json()["id"]
+
+    response = await client.post(
+        "/api/v1/veterinarians",
+        json={
+            "name": "Vet Com Clínica",
+            "crmv": "CRMV-SC 04571",
+            "is_autonomous": False,
+            "clinic_ids": [clinic_id],
+        },
+    )
+    assert response.status_code == 201
+    body = response.json()
+
+    get_response = await client.get(f"/api/v1/veterinarians/{body['id']}")
+    assert get_response.status_code == 200
+    clinics = get_response.json()["clinics"]
+    assert len(clinics) == 1
+    assert clinics[0]["clinic_id"] == clinic_id
+    assert clinics[0]["primary_clinic"] is True
 
 
 async def test_update_veterinarian_with_stale_row_version_conflicts(
@@ -219,7 +271,8 @@ async def test_update_veterinarian_with_stale_row_version_conflicts(
     await _login(client, email="admin@vertere.local", password="s3nhaForte!")
 
     create_response = await client.post(
-        "/api/v1/veterinarians", json={"name": "Vet Bicho Urbano", "crmv": "CRMV-SC 04568"}
+        "/api/v1/veterinarians",
+        json={"name": "Vet Bicho Urbano", "crmv": "CRMV-SC 04568", "is_autonomous": True},
     )
     veterinarian_id = create_response.json()["id"]
 
@@ -244,7 +297,8 @@ async def test_deactivate_veterinarian_preserves_record(
     await _login(client, email="admin@vertere.local", password="s3nhaForte!")
 
     create_response = await client.post(
-        "/api/v1/veterinarians", json={"name": "Vet Reale", "crmv": "CRMV-SC 04569"}
+        "/api/v1/veterinarians",
+        json={"name": "Vet Reale", "crmv": "CRMV-SC 04569", "is_autonomous": True},
     )
     veterinarian_id = create_response.json()["id"]
 

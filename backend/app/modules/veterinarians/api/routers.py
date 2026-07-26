@@ -157,6 +157,8 @@ def create_veterinarian(
     with uow:
         use_case = CreateVeterinarianUseCase(
             veterinarians=SqlAlchemyVeterinarianRepository(uow.session),
+            clinics=SqlAlchemyClinicRepository(uow.session),
+            links=SqlAlchemyVeterinarianClinicLinkRepository(uow.session),
             audit=SqlAlchemyAuditLogWriter(uow.session),
             clock=SystemClock(),
         )
@@ -169,6 +171,8 @@ def create_veterinarian(
                 email=payload.email,
                 is_autonomous=payload.is_autonomous,
                 notes=payload.notes,
+                clinic_ids=tuple(payload.clinic_ids),
+                primary_clinic_id=payload.primary_clinic_id,
             )
         )
         uow.commit()

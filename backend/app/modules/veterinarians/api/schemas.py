@@ -59,6 +59,8 @@ class VeterinarianCreateRequest(BaseModel):
     email: str | None = None
     is_autonomous: bool = False
     notes: str | None = None
+    clinic_ids: list[UUID] = Field(default_factory=list)
+    primary_clinic_id: UUID | None = None
 
 
 class VeterinarianUpdateRequest(BaseModel):

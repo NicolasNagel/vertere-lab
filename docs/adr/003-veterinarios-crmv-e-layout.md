@@ -137,6 +137,52 @@ real, testado no Chrome:
   de ao menos uma clínica." exibida na UI — a regra central desta fatia funciona ponta a ponta,
   não só nos testes automatizados.
 
+## Complemento — 2026-07-26: gate de "não autônomo exige ≥1 clínica" fechado na criação
+
+Fecha a dívida técnica registrada acima ("Onde a regra... é aplicada", item 3). Decisão de
+desenho confirmada com o usuário: **payload único** em vez de duas chamadas orquestradas.
+`POST /veterinarians` agora aceita `clinic_ids`/`primary_clinic_id` opcionais;
+`CreateVeterinarianUseCase` valida (a) se não autônomo, `clinic_ids` não pode ser vazio, (b) cada
+`clinic_id` existe, (c) `primary_clinic_id`, se informado, precisa estar em `clinic_ids` — tudo
+antes de persistir, e os vínculos são criados na mesma transação (`uow`) do veterinário, não em
+uma segunda chamada de API.
+
+**Alternativas consideradas**: (1) manter duas chamadas com compensação no frontend se a segunda
+falhasse — rejeitada, não fecha o buraco de criação direta via API sem UI; (2) adiar
+indefinidamente — rejeitada, o usuário priorizou fechar a lacuna nesta sessão.
+
+**Consequência arquitetural**: `veterinarians.application.create_veterinarian` agora depende de
+`clinics.domain.repositories` e `veterinarian_clinics.domain` — o objetivo original desta ADR de
+"nem `veterinarians` nem `clinics` depende do outro" (linha 6) não vale mais para o caso de uso de
+criação especificamente; o vínculo em si (`veterinarian_clinics`) continua em módulo neutro
+próprio. Aceitável: é a mesma transação de negócio (criar veterinário com sua(s) clínica(s)), não
+um acoplamento acidental.
+
+**Efeito colateral corrigido junto**: `SqlAlchemyVeterinarianRepository.add()` não tinha
+`session.flush()` — sem `relationship()` ORM entre `VeterinarianModel` e
+`VeterinarianClinicModel`, o unit of work não infere a ordem de inserção sozinho, e criar os
+vínculos na mesma transação batia em `IntegrityError` de FK. Mesmo problema já documentado para
+`SqlAlchemyUserRepository.add()` (`HANDOFF.md`); corrigido com o mesmo padrão (`flush()` explícito
+logo após o `add()`).
+
+O frontend (`veterinarian-form.tsx`/`veterinarians-page.tsx`) foi atualizado para enviar
+`clinic_ids`/`primary_clinic_id` na própria criação em vez de uma chamada `POST .../clinics` por
+clínica selecionada — o card de vínculos no detalhe (adicionar/remover clínica depois de já
+criado) continua usando os endpoints de link/unlink normalmente, só a criação inicial mudou.
+
+### Verificação (complemento)
+
+Backend: `ruff check` + `ruff format --check` + mypy estrito + pytest (16 unitário de
+veterinarians + 9 integração de veterinarians + 5 integração de veterinarian_clinics, todos
+verdes, incluindo os novos casos de criação sem clínica rejeitada com `422`, criação com clínica
+vinculada automaticamente, e criação com múltiplas clínicas e principal explícito). Frontend:
+`tsc -b` + oxlint + vitest (61 testes) + `vite build` de produção ok, incluindo o teste
+atualizado que confirma `clinic_ids`/`primary_clinic_id` no corpo do `POST /veterinarians`.
+
+Verificação manual no navegador **não repetida** para este complemento especificamente (a fatia
+de vínculo já foi verificada manualmente antes — ver acima); a suíte automatizada cobre o
+caminho novo ponta a ponta via HTTPX/ASGI contra Postgres real.
+
 ## Verificação
 
 Suíte automatizada verde antes da entrega: backend (`ruff check` + `ruff format --check` + mypy

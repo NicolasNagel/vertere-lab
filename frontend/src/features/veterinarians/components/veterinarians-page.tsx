@@ -5,7 +5,6 @@ import { Button } from '../../../shared/ui/button'
 import { PlusIcon } from '../../../shared/ui/icons'
 import { useCreateVeterinarianMutation } from '../api/use-create-veterinarian-mutation'
 import { useDeactivateVeterinarianMutation } from '../api/use-deactivate-veterinarian-mutation'
-import { useLinkVeterinarianClinicMutation } from '../api/use-link-veterinarian-clinic-mutation'
 import { useUpdateVeterinarianMutation } from '../api/use-update-veterinarian-mutation'
 import { useVeterinarianQuery } from '../api/use-veterinarian-query'
 import { useVeterinariansQuery } from '../api/use-veterinarians-query'
@@ -41,7 +40,6 @@ export function VeterinariansPage() {
   const createMutation = useCreateVeterinarianMutation()
   const updateMutation = useUpdateVeterinarianMutation()
   const deactivateMutation = useDeactivateVeterinarianMutation()
-  const linkClinicMutation = useLinkVeterinarianClinicMutation()
 
   const veterinarians = listQuery.data?.items ?? []
   const activeCount = veterinarians.filter((veterinarian) => veterinarian.status === 'ACTIVE').length
@@ -101,21 +99,15 @@ export function VeterinariansPage() {
               error={createMutation.error}
               onCancel={() => setMode('view')}
               onSubmitCreate={(values, clinicIds) =>
-                createMutation.mutate(values, {
-                  onSuccess: async (veterinarian) => {
-                    await Promise.all(
-                      clinicIds.map((clinicId, index) =>
-                        linkClinicMutation.mutateAsync({
-                          veterinarianId: veterinarian.id,
-                          clinicId,
-                          primary: index === 0,
-                        }),
-                      ),
-                    )
-                    setSelectedId(veterinarian.id)
-                    setMode('view')
+                createMutation.mutate(
+                  { values, clinicIds },
+                  {
+                    onSuccess: (veterinarian) => {
+                      setSelectedId(veterinarian.id)
+                      setMode('view')
+                    },
                   },
-                })
+                )
               }
             />
           </div>
