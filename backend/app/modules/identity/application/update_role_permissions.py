@@ -40,16 +40,17 @@ class UpdateRolePermissionsUseCase:
         if role is None:
             raise NotFoundError("Papel não encontrado.")
 
-        if role.row_version != command.expected_row_version:
-            raise ConflictError(
-                "Este perfil foi alterado por outra pessoa. Recarregue e tente de novo."
-            )
-
         if not self._permissions.all_codes_exist(command.permission_codes):
             raise ValidationError("Uma ou mais permissões informadas não existem.")
 
         before_permissions = sorted(role.permission_codes)
-        self._roles.replace_permissions(role.id, command.permission_codes)
+        updated = self._roles.replace_permissions(
+            role.id, command.permission_codes, expected_row_version=command.expected_row_version
+        )
+        if not updated:
+            raise ConflictError(
+                "Este perfil foi alterado por outra pessoa. Recarregue e tente de novo."
+            )
 
         self._audit.record(
             AuditEntry(

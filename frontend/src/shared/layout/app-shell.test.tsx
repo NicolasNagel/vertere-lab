@@ -15,7 +15,7 @@ beforeAll(() => server.listen({ onUnhandledRequest: 'error' }))
 afterEach(() => server.resetHandlers())
 afterAll(() => server.close())
 
-function mockAuthenticatedUser() {
+function mockAuthenticatedUser(permissions: string[] = ['clinics.manage']) {
   server.use(
     http.get('/api/v1/auth/me', () =>
       HttpResponse.json({
@@ -26,7 +26,7 @@ function mockAuthenticatedUser() {
           role_id: 'r',
           role_name: 'Administradora',
         },
-        permissions: ['clinics.manage'],
+        permissions,
       }),
     ),
   )
@@ -86,4 +86,27 @@ test('footer shows the authenticated user name, role and initials', async () => 
   expect(await screen.findByText('Fabianna Garcia')).toBeInTheDocument()
   expect(screen.getByText('Administradora')).toBeInTheDocument()
   expect(screen.getByText('FG')).toBeInTheDocument()
+})
+
+test('hides "Usuários" and "Perfis de permissão" without the matching read permission', async () => {
+  mockAuthenticatedUser(['clinics.manage'])
+  renderShell('/')
+
+  await screen.findByText('conteúdo dashboard')
+  expect(screen.queryByRole('link', { name: /^usuários$/i })).not.toBeInTheDocument()
+  expect(screen.queryByRole('link', { name: /perfis de permissão/i })).not.toBeInTheDocument()
+})
+
+test('shows "Usuários" and "Perfis de permissão" with users.read and roles.read', async () => {
+  mockAuthenticatedUser(['users.read', 'roles.read'])
+  renderShell('/')
+
+  expect(await screen.findByRole('link', { name: /^usuários$/i })).toHaveAttribute(
+    'href',
+    '/administracao/usuarios',
+  )
+  expect(screen.getByRole('link', { name: /perfis de permissão/i })).toHaveAttribute(
+    'href',
+    '/administracao/perfis',
+  )
 })

@@ -1,0 +1,21 @@
+.user-form {
+  max-width: 26rem; /* 416px */
+}
+
+.user-form__domain-error {
+  color: #b3261e;
+  font-size: 0.8125rem;
+  margin: 0 0 1rem;
+}
+
+.user-form__actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 1rem; /* 16px */
+  margin-top: 0.5rem;
+}
+
+.user-form__submit {
+  width: auto;
+}

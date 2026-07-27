@@ -37,6 +37,10 @@ from app.modules.identity.api.schemas import (
     UserListResponse,
     UserPublicRead,
 )
+from app.modules.identity.application.activate_user import (
+    ActivateUserCommand,
+    ActivateUserUseCase,
+)
 from app.modules.identity.application.assign_role import AssignRoleCommand, AssignRoleUseCase
 from app.modules.identity.application.create_role import CreateRoleCommand, CreateRoleUseCase
 from app.modules.identity.application.create_user import CreateUserCommand, CreateUserUseCase
@@ -308,6 +312,33 @@ def deactivate_user(
             clock=SystemClock(),
         )
         result = use_case.execute(DeactivateUserCommand(actor=current_user, user_id=user_id))
+        uow.commit()
+
+    return UserListItemRead(
+        id=result.id,
+        email=result.email,
+        full_name=result.full_name,
+        is_active=result.is_active,
+        role_id=result.role_id,
+        role_name=result.role_name,
+        created_at=result.created_at,
+    )
+
+
+@router.patch("/users/{user_id}/activate", response_model=UserListItemRead)
+def activate_user(
+    user_id: UUID,
+    uow: SqlAlchemyUnitOfWork = Depends(get_unit_of_work),
+    current_user: AuthenticatedUserDTO = Depends(require_permission("users.activate")),
+) -> UserListItemRead:
+    with uow:
+        use_case = ActivateUserUseCase(
+            users=SqlAlchemyUserRepository(uow.session),
+            roles=SqlAlchemyRoleRepository(uow.session),
+            audit=SqlAlchemyAuditLogWriter(uow.session),
+            clock=SystemClock(),
+        )
+        result = use_case.execute(ActivateUserCommand(actor=current_user, user_id=user_id))
         uow.commit()
 
     return UserListItemRead(

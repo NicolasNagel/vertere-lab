@@ -61,6 +61,12 @@ class User:
         self.is_active = False
         self.updated_at = now
 
+    def activate(self, *, now: datetime) -> None:
+        if self.is_active:
+            return
+        self.is_active = True
+        self.updated_at = now
+
     def change_role(self, new_role_id: UUID, *, now: datetime) -> None:
         self.role_id = new_role_id
         self.updated_at = now

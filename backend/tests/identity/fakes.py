@@ -114,8 +114,12 @@ class FakeRoleRepository:
                 return role
         return None
 
-    def replace_permissions(self, role_id: UUID, permission_codes: frozenset[str]) -> None:
+    def replace_permissions(
+        self, role_id: UUID, permission_codes: frozenset[str], *, expected_row_version: int
+    ) -> bool:
         role = self._roles[role_id]
+        if role.row_version != expected_row_version:
+            return False
         self._roles[role_id] = Role(
             id=role.id,
             name=role.name,
@@ -125,6 +129,7 @@ class FakeRoleRepository:
             permission_codes=permission_codes,
             row_version=role.row_version + 1,
         )
+        return True
 
     def list_page(self, *, page: int, page_size: int) -> tuple[list[Role], int]:
         roles = list(self._roles.values())

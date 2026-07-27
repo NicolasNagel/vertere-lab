@@ -43,7 +43,18 @@ class RoleRepository(Protocol):
 
     def add(self, role: Role) -> None: ...
 
-    def replace_permissions(self, role_id: UUID, permission_codes: frozenset[str]) -> None: ...
+    def replace_permissions(
+        self, role_id: UUID, permission_codes: frozenset[str], *, expected_row_version: int
+    ) -> bool:
+        """Atomically swaps the permission set and bumps `row_version`, but
+        only if the stored `row_version` still equals `expected_row_version`.
+        Returns False (no write happened) on mismatch — the caller raises
+        `ConflictError`. Must be a single conditional UPDATE, not a
+        read-then-write pair: two concurrent calls reading the same version
+        first would otherwise both pass and silently drop one edit (rule:
+        .claude/rules/database.md — "edição crítica usa versão... conflito
+        retorna 409")."""
+        ...
 
     def list_page(self, *, page: int, page_size: int) -> tuple[list[Role], int]: ...
 

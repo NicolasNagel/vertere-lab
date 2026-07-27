@@ -1,0 +1,42 @@
+.role-create-form {
+  max-width: 30rem; /* 480px */
+}
+
+.role-create-form__group {
+  margin: 1rem 0 1.375rem;
+}
+
+.role-create-form__group-title {
+  font-family: var(--font-mono);
+  font-size: 0.625rem; /* 10px */
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--color-text-secondary);
+  margin-bottom: 0.625rem; /* 10px */
+}
+
+.role-create-form__group-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  background: #f0ede5;
+  border: 1px solid #f0ede5;
+}
+
+.role-create-form__domain-error {
+  color: #b3261e;
+  font-size: 0.8125rem;
+  margin: 0 0 1rem;
+}
+
+.role-create-form__actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 1rem; /* 16px */
+  margin-top: 0.5rem;
+}
+
+.role-create-form__submit {
+  width: auto;
+}

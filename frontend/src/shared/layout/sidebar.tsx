@@ -27,10 +27,7 @@ const registrationNavEntries: SidebarNavItemProps[] = [
   { icon: <ExamsIcon />, label: 'Exames & Preços', to: '/cadastros/exames' },
 ]
 
-const adminNavEntries: SidebarNavItemProps[] = [
-  { icon: <ReportsIcon />, label: 'Relatórios', to: null },
-  { icon: <UsersIcon />, label: 'Usuários', to: null },
-]
+const baseAdminNavEntries: SidebarNavItemProps[] = [{ icon: <ReportsIcon />, label: 'Relatórios', to: null }]
 
 function getInitials(fullName: string): string {
   const parts = fullName.trim().split(/\s+/)
@@ -41,6 +38,20 @@ function getInitials(fullName: string): string {
 
 export function Sidebar() {
   const { user } = useAuth()
+  const permissions = user?.permissions ?? []
+
+  // Item oculto sem a permissão correspondente (não checa nome de papel —
+  // regra do domínio: `.claude/rules/product-domain.md`). Esconder é UX, a
+  // autoridade continua sendo o backend em cada página.
+  const adminNavEntries: SidebarNavItemProps[] = [
+    ...(permissions.includes('users.read')
+      ? [{ icon: <UsersIcon />, label: 'Usuários', to: '/administracao/usuarios' }]
+      : []),
+    ...(permissions.includes('roles.read')
+      ? [{ icon: <UsersIcon />, label: 'Perfis de permissão', to: '/administracao/perfis' }]
+      : []),
+    ...baseAdminNavEntries,
+  ]
 
   return (
     <div className="sidebar">

@@ -31,6 +31,7 @@ PERMISSION_CODES: tuple[str, ...] = (
     "users.create",
     "users.update",
     "users.deactivate",
+    "users.activate",
     "roles.read",
     "roles.assign",
     "roles.manage",

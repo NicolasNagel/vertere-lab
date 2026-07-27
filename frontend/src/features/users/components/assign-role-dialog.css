@@ -1,0 +1,22 @@
+.assign-role-dialog {
+  max-width: 22rem; /* 352px */
+  margin-top: 0.75rem;
+}
+
+.assign-role-dialog__domain-error {
+  color: #b3261e;
+  font-size: 0.8125rem;
+  margin: 0.75rem 0 0;
+}
+
+.assign-role-dialog__actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 1rem; /* 16px */
+  margin-top: 0.75rem;
+}
+
+.assign-role-dialog__submit {
+  width: auto;
+}

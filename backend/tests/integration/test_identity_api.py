@@ -4,6 +4,7 @@ autorização e autoexclusão de controle, ponta a ponta via HTTPX/ASGI.
 
 from __future__ import annotations
 
+import asyncio
 from collections.abc import AsyncIterator, Iterator
 from datetime import UTC, datetime
 from pathlib import Path
@@ -275,6 +276,163 @@ async def test_role_change_is_audited(
         )
     assert len(entries) == 1
     assert entries[0].entity_id == str(target.id)
+
+
+async def test_concurrent_permission_updates_on_the_same_profile_reject_the_loser(
+    client: httpx.AsyncClient, session_factory: sessionmaker[Session]
+) -> None:
+    _create_user(
+        session_factory,
+        email="lab-admin3@vertere.local",
+        password="s3nhaForte!",
+        role_id=ROLE_LAB_ADMIN,
+    )
+    login_response = await client.post(
+        "/api/v1/auth/login",
+        json={"login": "lab-admin3@vertere.local", "password": "s3nhaForte!", "remember_me": False},
+    )
+    assert login_response.status_code == 200
+
+    profile_response = await client.get("/api/v1/permission-profiles")
+    reception = next(
+        item for item in profile_response.json()["items"] if item["name"] == "RECEPTION"
+    )
+    row_version = reception["row_version"]
+
+    # Duas requisições disparadas de verdade em paralelo (asyncio.gather),
+    # não sequenciais fingindo concorrência (rule: .claude/rules/testing.md)
+    # — ambas leem o mesmo `row_version` e tentam gravar por cima uma da
+    # outra. Só uma pode vencer; a perdedora precisa de 409, nunca um
+    # "last write wins" silencioso.
+    responses = await asyncio.gather(
+        client.patch(
+            f"/api/v1/permission-profiles/{reception['id']}",
+            json={"permissions": ["clinics.read", "clinics.manage"], "expected_row_version": row_version},
+        ),
+        client.patch(
+            f"/api/v1/permission-profiles/{reception['id']}",
+            json={"permissions": ["patients.read"], "expected_row_version": row_version},
+        ),
+    )
+
+    status_codes = sorted(response.status_code for response in responses)
+    assert status_codes == [200, 409]
+
+
+async def test_deactivating_a_user_revokes_their_active_session(
+    app: FastAPI, session_factory: sessionmaker[Session]
+) -> None:
+    _create_user(
+        session_factory,
+        email="lab-admin2@vertere.local",
+        password="s3nhaForte!",
+        role_id=ROLE_LAB_ADMIN,
+    )
+    target = _create_user(
+        session_factory,
+        email="soon-revoked@vertere.local",
+        password="s3nhaForte!",
+        role_id=ROLE_RECEPTION,
+    )
+
+    transport = httpx.ASGITransport(app=app)
+    async with (
+        httpx.AsyncClient(transport=transport, base_url="http://test") as admin_client,
+        httpx.AsyncClient(transport=transport, base_url="http://test") as target_client,
+        app.router.lifespan_context(app),
+    ):
+        target_login = await target_client.post(
+            "/api/v1/auth/login",
+            json={
+                "login": "soon-revoked@vertere.local",
+                "password": "s3nhaForte!",
+                "remember_me": False,
+            },
+        )
+        assert target_login.status_code == 200
+
+        me_before = await target_client.get("/api/v1/auth/me")
+        assert me_before.status_code == 200
+
+        admin_login = await admin_client.post(
+            "/api/v1/auth/login",
+            json={"login": "lab-admin2@vertere.local", "password": "s3nhaForte!", "remember_me": False},
+        )
+        assert admin_login.status_code == 200
+
+        deactivate_response = await admin_client.patch(f"/api/v1/users/{target.id}/deactivate")
+        assert deactivate_response.status_code == 200
+
+        # Mesmo cookie de sessão de antes da desativação — precisa parar de
+        # autenticar imediatamente, não só no próximo login.
+        me_after = await target_client.get("/api/v1/auth/me")
+        assert me_after.status_code == 401
+
+
+async def test_activate_user_reactivates_and_audits(
+    client: httpx.AsyncClient, session_factory: sessionmaker[Session]
+) -> None:
+    _create_user(
+        session_factory,
+        email="lab-admin@vertere.local",
+        password="s3nhaForte!",
+        role_id=ROLE_LAB_ADMIN,
+    )
+    target = _create_user(
+        session_factory,
+        email="target@vertere.local",
+        password="s3nhaForte!",
+        role_id=ROLE_RECEPTION,
+        is_active=False,
+    )
+
+    login_response = await client.post(
+        "/api/v1/auth/login",
+        json={"login": "lab-admin@vertere.local", "password": "s3nhaForte!", "remember_me": False},
+    )
+    assert login_response.status_code == 200
+
+    response = await client.patch(f"/api/v1/users/{target.id}/activate")
+
+    assert response.status_code == 200
+    assert response.json()["is_active"] is True
+    with session_factory() as session:
+        entries = (
+            session.execute(
+                select(AuditLogModel).where(AuditLogModel.action == "users.activated")
+            )
+            .scalars()
+            .all()
+        )
+    assert len(entries) == 1
+    assert entries[0].entity_id == str(target.id)
+
+
+async def test_activate_user_without_permission_is_forbidden(
+    client: httpx.AsyncClient, session_factory: sessionmaker[Session]
+) -> None:
+    _create_user(
+        session_factory,
+        email="powerless@vertere.local",
+        password="s3nhaForte!",
+        role_id=ROLE_RECEPTION,
+    )
+    target = _create_user(
+        session_factory,
+        email="target2@vertere.local",
+        password="s3nhaForte!",
+        role_id=ROLE_RECEPTION,
+        is_active=False,
+    )
+
+    login_response = await client.post(
+        "/api/v1/auth/login",
+        json={"login": "powerless@vertere.local", "password": "s3nhaForte!", "remember_me": False},
+    )
+    assert login_response.status_code == 200
+
+    response = await client.patch(f"/api/v1/users/{target.id}/activate")
+    assert response.status_code == 403
 
 
 async def test_only_admin_cannot_demote_themselves(

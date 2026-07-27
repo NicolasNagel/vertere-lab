@@ -7,9 +7,10 @@ ORM models never leak past this file (rule: .claude/rules/database.md).
 from __future__ import annotations
 
 from datetime import datetime
+from typing import Any
 from uuid import UUID
 
-from sqlalchemy import ColumnElement, func, or_, select
+from sqlalchemy import ColumnElement, CursorResult, func, or_, select, update
 from sqlalchemy.orm import Session as SqlAlchemySession
 
 from app.modules.identity.domain.entities import (
@@ -217,7 +218,25 @@ class SqlAlchemyRoleRepository:
                 RolePermissionModel(role_id=role_id, permission_id=permission_id, granted_at=now)
             )
 
-    def replace_permissions(self, role_id: UUID, permission_codes: frozenset[str]) -> None:
+    def replace_permissions(
+        self, role_id: UUID, permission_codes: frozenset[str], *, expected_row_version: int
+    ) -> bool:
+        # Conditional UPDATE (CAS) instead of read-then-write: the WHERE
+        # clause re-checks `row_version` at the database level, inside this
+        # transaction, so two concurrent callers that both read the same
+        # stale version can no longer both succeed — only the first UPDATE
+        # matches the WHERE and the second sees `rowcount == 0`.
+        # `Session.execute` on an `Update` construct returns a `CursorResult`
+        # at runtime (`.rowcount` is valid there); the stub's generic
+        # `Result[Any]` return type just doesn't say so.
+        result: CursorResult[Any] = self._session.execute(  # type: ignore[assignment]
+            update(RoleModel)
+            .where(RoleModel.id == role_id, RoleModel.row_version == expected_row_version)
+            .values(row_version=RoleModel.row_version + 1)
+        )
+        if result.rowcount == 0:
+            return False
+
         existing = (
             self._session.execute(
                 select(RolePermissionModel).where(RolePermissionModel.role_id == role_id)
@@ -229,10 +248,7 @@ class SqlAlchemyRoleRepository:
             self._session.delete(link)
         self._session.flush()
         self._link_permissions(role_id, permission_codes)
-
-        model = self._session.get(RoleModel, role_id)
-        if model is not None:
-            model.row_version += 1
+        return True
 
     def list_page(self, *, page: int, page_size: int) -> tuple[list[Role], int]:
         total = self._session.execute(select(func.count()).select_from(RoleModel)).scalar_one()
