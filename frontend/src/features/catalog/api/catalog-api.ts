@@ -27,6 +27,7 @@ export interface Exam {
   priceBase: string | null
   plantaoSurchargeFixed: string | null
   plantaoSurchargePercent: string | null
+  updatedAt: string
 }
 
 export interface ExamPage {
@@ -79,6 +80,7 @@ interface ApiExam {
   price_base: string | null
   plantao_surcharge_fixed: string | null
   plantao_surcharge_percent: string | null
+  updated_at: string
 }
 
 interface ApiExamPage {
@@ -110,6 +112,7 @@ function fromApiExam(exam: ApiExam): Exam {
     priceBase: exam.price_base,
     plantaoSurchargeFixed: exam.plantao_surcharge_fixed,
     plantaoSurchargePercent: exam.plantao_surcharge_percent,
+    updatedAt: exam.updated_at,
   }
 }
 
@@ -217,4 +220,35 @@ export async function deactivateExam(id: string): Promise<Exam> {
   })
   await throwIfNotOk(response)
   return fromApiExam((await response.json()) as ApiExam)
+}
+
+export interface ExamImportRowError {
+  line: number
+  message: string
+}
+
+export interface ExamImportResult {
+  importedCount: number
+  errors: ExamImportRowError[]
+}
+
+interface ApiExamImportResponse {
+  imported_count: number
+  errors: { line: number; message: string }[]
+}
+
+export async function importExams(file: File): Promise<ExamImportResult> {
+  const formData = new FormData()
+  formData.append('file', file)
+  const response = await fetch(`${API_BASE}/exams/import`, {
+    method: 'POST',
+    credentials: 'include',
+    body: formData,
+  })
+  await throwIfNotOk(response)
+  const body = (await response.json()) as ApiExamImportResponse
+  return {
+    importedCount: body.imported_count,
+    errors: body.errors.map((error) => ({ line: error.line, message: error.message })),
+  }
 }

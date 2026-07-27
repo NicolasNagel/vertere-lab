@@ -1,0 +1,55 @@
+.exam-import-button {
+  position: relative;
+}
+
+.exam-import-button__input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+.exam-import-button__report {
+  position: absolute;
+  top: calc(100% + 0.5rem);
+  right: 0;
+  z-index: 10;
+  width: 20rem;
+  background: #ffffff;
+  border: 1px solid var(--color-border);
+  box-shadow: 0 8px 24px rgba(28, 45, 69, 0.12);
+  padding: 0.875rem 1rem; /* 14px 16px */
+  font-size: 0.75rem;
+}
+
+.exam-import-button__error {
+  color: #b3261e;
+  margin: 0 0 0.5rem;
+}
+
+.exam-import-button__summary {
+  color: #1f3450;
+  font-weight: 600;
+  margin: 0 0 0.5rem;
+}
+
+.exam-import-button__errors {
+  margin: 0 0 0.5rem;
+  padding-left: 1rem;
+  color: var(--color-text-secondary);
+  max-height: 8rem;
+  overflow-y: auto;
+}
+
+.exam-import-button__dismiss {
+  border: none;
+  background: transparent;
+  color: var(--color-brand-ink);
+  font-size: 0.75rem;
+  text-decoration: underline;
+  cursor: pointer;
+  padding: 0;
+  font-family: inherit;
+}

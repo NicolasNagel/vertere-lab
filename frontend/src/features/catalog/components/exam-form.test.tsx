@@ -35,6 +35,7 @@ const existingExam: Exam = {
   priceBase: '85.00',
   plantaoSurchargeFixed: null,
   plantaoSurchargePercent: null,
+  updatedAt: '2026-01-01T00:00:00Z',
 }
 
 function renderWithProviders(children: ReactNode) {

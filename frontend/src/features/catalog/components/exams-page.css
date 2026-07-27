@@ -32,6 +32,12 @@
   margin: 0.125rem 0 0;
 }
 
+.exams-page__header-actions {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.625rem; /* 10px */
+}
+
 .exams-page__new-button {
   width: auto;
   display: inline-flex;
@@ -46,19 +52,10 @@
   min-height: 0;
 }
 
-.exams-page__create-panel {
+.exams-page__main {
   flex: 1;
-  padding: 1.75rem 2.25rem; /* 28px 36px */
-  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
   min-height: 0;
-}
-
-.exams-page__create-title {
-  font-family: var(--font-display);
-  text-transform: uppercase;
-  letter-spacing: 0.02em;
-  font-size: 2rem;
-  font-weight: 600;
-  color: #1f3450;
-  margin: 0 0 1.5rem;
+  min-width: 0;
 }

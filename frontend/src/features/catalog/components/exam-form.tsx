@@ -85,6 +85,12 @@ interface ExamFormProps {
   onCancel: () => void
   onSubmitCreate?: (values: ExamFormValues) => void
   onSubmitUpdate?: (values: ExamFormValues & { status: ExamStatus }) => void
+  // Quando a página que hospeda o form renderiza seus próprios botões de
+  // ação (ex.: no header, como no mockup 19), passe `formId` + `hideActions`
+  // para que o submit externo aponte para este form via atributo `form=`
+  // nativo do HTML, sem duplicar a lógica de submissão.
+  formId?: string
+  hideActions?: boolean
 }
 
 export function ExamForm({
@@ -94,6 +100,8 @@ export function ExamForm({
   onCancel,
   onSubmitCreate,
   onSubmitUpdate,
+  formId,
+  hideActions = false,
 }: ExamFormProps) {
   const {
     register,
@@ -188,126 +196,144 @@ export function ExamForm({
   const errorMessage = describeError(error)
 
   return (
-    <form className="exam-form" onSubmit={onSubmit} noValidate>
-      <div className="exam-form__row">
-        <TextField
-          id="exam-code"
-          label="Código"
-          disabled={submitting}
-          errorMessage={errors.code?.message}
-          {...register('code')}
-        />
-        {exam && (
-          <SelectField
-            id="exam-status"
-            label="Status"
-            options={STATUS_OPTIONS}
-            disabled={submitting}
-            {...register('status')}
-          />
-        )}
-      </div>
+    <form className="exam-form" id={formId} onSubmit={onSubmit} noValidate>
+      <div className="exam-form__grid">
+        <div className="exam-form__col exam-form__col--main">
+          <div className="exam-form__card">
+            <p className="exam-form__card-title">Informações gerais</p>
+            <div className="exam-form__row">
+              <TextField
+                id="exam-code"
+                label="Código"
+                disabled={submitting}
+                errorMessage={errors.code?.message}
+                {...register('code')}
+              />
+            </div>
 
-      <TextField
-        id="exam-name"
-        label="Nome"
-        disabled={submitting}
-        errorMessage={errors.name?.message}
-        {...register('name')}
-      />
-
-      <TextField
-        id="exam-description"
-        label="Descrição"
-        disabled={submitting}
-        {...register('description')}
-      />
-
-      <div className="exam-form__row">
-        <SelectField
-          id="exam-category"
-          label="Categoria"
-          options={[
-            { value: '', label: categoriesQuery.isLoading ? 'Carregando…' : 'Selecione…' },
-            ...categoryOptions.map((category) => ({
-              value: category.id,
-              label:
-                category.status === 'INACTIVE' ? `${category.name} (inativa)` : category.name,
-            })),
-          ]}
-          disabled={submitting || categoriesQuery.isLoading}
-          errorMessage={errors.categoryId?.message}
-          {...register('categoryId')}
-        />
-      </div>
-      <div className="exam-form__new-category">
-        <TextField
-          id="exam-new-category"
-          label="Criar nova categoria"
-          disabled={submitting || createCategoryMutation.isPending}
-          value={newCategoryName}
-          onChange={(event) => setNewCategoryName(event.target.value)}
-        />
-        <Button
-          type="button"
-          variant="ghost"
-          disabled={!newCategoryName.trim() || submitting || createCategoryMutation.isPending}
-          onClick={handleCreateCategory}
-        >
-          Criar categoria
-        </Button>
-      </div>
-
-      <TextField
-        id="exam-price-base"
-        label="Preço base"
-        disabled={submitting}
-        errorMessage={errors.priceBase?.message}
-        {...register('priceBase')}
-      />
-
-      <div className="exam-form__row">
-        <SelectField
-          id="exam-plantao-mode"
-          label="Adicional de plantão"
-          options={[
-            { value: 'none', label: 'Sem adicional' },
-            { value: 'percent', label: 'Percentual' },
-            { value: 'fixed', label: 'Valor fixo' },
-          ]}
-          disabled={submitting}
-          {...register('plantaoMode')}
-        />
-        {plantaoMode !== 'none' && (
-          <TextField
-            id="exam-plantao-value"
-            label={plantaoMode === 'percent' ? 'Percentual (%)' : 'Valor fixo'}
-            disabled={submitting}
-            {...register('plantaoValue')}
-          />
-        )}
-      </div>
-
-      <p className="exam-form__section-title">Espécies atendidas</p>
-      {speciesQuery.isLoading && <p className="exam-form__hint">Carregando espécies…</p>}
-      {!speciesQuery.isLoading && (
-        <div className="exam-form__species-list" role="group" aria-label="Espécies">
-          {(speciesQuery.data ?? []).map((species) => (
-            <Checkbox
-              key={species.id}
-              label={species.name}
+            <TextField
+              id="exam-name"
+              label="Nome"
               disabled={submitting}
-              checked={speciesIds.includes(species.id)}
-              onChange={() => toggleSpecies(species.id)}
+              errorMessage={errors.name?.message}
+              {...register('name')}
             />
-          ))}
+
+            <TextField
+              id="exam-description"
+              label="Descrição"
+              disabled={submitting}
+              {...register('description')}
+            />
+
+            <div className="exam-form__row">
+              <SelectField
+                id="exam-category"
+                label="Categoria"
+                options={[
+                  { value: '', label: categoriesQuery.isLoading ? 'Carregando…' : 'Selecione…' },
+                  ...categoryOptions.map((category) => ({
+                    value: category.id,
+                    label:
+                      category.status === 'INACTIVE' ? `${category.name} (inativa)` : category.name,
+                  })),
+                ]}
+                disabled={submitting || categoriesQuery.isLoading}
+                errorMessage={errors.categoryId?.message}
+                {...register('categoryId')}
+              />
+            </div>
+            <div className="exam-form__new-category">
+              <TextField
+                id="exam-new-category"
+                label="Criar nova categoria"
+                disabled={submitting || createCategoryMutation.isPending}
+                value={newCategoryName}
+                onChange={(event) => setNewCategoryName(event.target.value)}
+              />
+              <Button
+                type="button"
+                variant="ghost"
+                disabled={!newCategoryName.trim() || submitting || createCategoryMutation.isPending}
+                onClick={handleCreateCategory}
+              >
+                Criar categoria
+              </Button>
+            </div>
+          </div>
         </div>
-      )}
-      {speciesError && (
-        <p role="alert" className="exam-form__domain-error">
-          {speciesError}
-        </p>
-      )}
+
+        <div className="exam-form__col exam-form__col--side">
+          <div className="exam-form__card">
+            <p className="exam-form__card-title">Precificação</p>
+            <TextField
+              id="exam-price-base"
+              label="Preço base"
+              disabled={submitting}
+              errorMessage={errors.priceBase?.message}
+              {...register('priceBase')}
+            />
+
+            <div className="exam-form__row">
+              <SelectField
+                id="exam-plantao-mode"
+                label="Adicional de plantão"
+                options={[
+                  { value: 'none', label: 'Sem adicional' },
+                  { value: 'percent', label: 'Percentual' },
+                  { value: 'fixed', label: 'Valor fixo' },
+                ]}
+                disabled={submitting}
+                {...register('plantaoMode')}
+              />
+              {plantaoMode !== 'none' && (
+                <TextField
+                  id="exam-plantao-value"
+                  label={plantaoMode === 'percent' ? 'Percentual (%)' : 'Valor fixo'}
+                  disabled={submitting}
+                  {...register('plantaoValue')}
+                />
+              )}
+            </div>
+          </div>
+
+          <div className="exam-form__card">
+            <p className="exam-form__card-title">Espécies atendidas</p>
+            {speciesQuery.isLoading && <p className="exam-form__hint">Carregando espécies…</p>}
+            {!speciesQuery.isLoading && (
+              <div className="exam-form__species-list" role="group" aria-label="Espécies">
+                {(speciesQuery.data ?? []).map((species) => (
+                  <Checkbox
+                    key={species.id}
+                    label={species.name}
+                    disabled={submitting}
+                    checked={speciesIds.includes(species.id)}
+                    onChange={() => toggleSpecies(species.id)}
+                  />
+                ))}
+              </div>
+            )}
+            {speciesError && (
+              <p role="alert" className="exam-form__domain-error">
+                {speciesError}
+              </p>
+            )}
+          </div>
+
+          {exam && (
+            <div className="exam-form__card">
+              <p className="exam-form__card-title">Status</p>
+              <SelectField
+                id="exam-status"
+                label="Status"
+                options={STATUS_OPTIONS}
+                disabled={submitting}
+                {...register('status')}
+              />
+            </div>
+          )}
+        </div>
+      </div>
 
       {errorMessage && (
         <p role="alert" className="exam-form__domain-error">
@@ -315,14 +341,16 @@ export function ExamForm({
         </p>
       )}
 
-      <div className="exam-form__actions">
-        <Button type="button" variant="ghost" onClick={onCancel} disabled={submitting}>
-          Cancelar
-        </Button>
-        <Button type="submit" className="exam-form__submit" disabled={submitting}>
-          {submitting ? 'Salvando…' : 'Salvar'}
-        </Button>
-      </div>
+      {!hideActions && (
+        <div className="exam-form__actions">
+          <Button type="button" variant="ghost" onClick={onCancel} disabled={submitting}>
+            Cancelar
+          </Button>
+          <Button type="submit" className="exam-form__submit" disabled={submitting}>
+            {submitting ? 'Salvando…' : 'Salvar'}
+          </Button>
+        </div>
+      )}
     </form>
   )
 }

@@ -2,6 +2,7 @@ import { createBrowserRouter } from 'react-router-dom'
 
 import { LoginPage } from '../features/auth/components/login-page'
 import { ProtectedRoute } from '../features/auth/protected-route'
+import { ExamFormPage } from '../features/catalog/components/exam-form-page'
 import { ExamsPage } from '../features/catalog/components/exams-page'
 import { ClinicsPage } from '../features/clinics/components/clinics-page'
 import { PatientsPage } from '../features/patients/components/patients-page'
@@ -26,6 +27,8 @@ export const router = createBrowserRouter([
       { path: '/cadastros/veterinarios', element: <VeterinariansPage /> },
       { path: '/pacientes', element: <PatientsPage /> },
       { path: '/cadastros/exames', element: <ExamsPage /> },
+      { path: '/cadastros/exames/novo', element: <ExamFormPage /> },
+      { path: '/cadastros/exames/:examId/editar', element: <ExamFormPage /> },
     ],
   },
 ])

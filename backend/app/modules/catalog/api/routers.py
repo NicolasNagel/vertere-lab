@@ -7,10 +7,12 @@ separately in `app.main`.
 
 from __future__ import annotations
 
+import csv
+import io
 from typing import cast
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile
 from sqlalchemy.orm import Session as SqlAlchemySession
 
 from app.api.dependencies import get_session, get_unit_of_work
@@ -23,6 +25,8 @@ from app.modules.catalog.api.schemas import (
     ExamCategoryStatusLiteral,
     ExamCategoryUpdateRequest,
     ExamCreateRequest,
+    ExamImportResponse,
+    ExamImportRowErrorRead,
     ExamListResponse,
     ExamRead,
     ExamStatusLiteral,
@@ -46,6 +50,11 @@ from app.modules.catalog.application.get_exam import GetExamQuery, GetExamUseCas
 from app.modules.catalog.application.get_exam_category import (
     GetExamCategoryQuery,
     GetExamCategoryUseCase,
+)
+from app.modules.catalog.application.import_exams import (
+    ExamImportRow,
+    ImportExamsCommand,
+    ImportExamsUseCase,
 )
 from app.modules.catalog.application.list_active_exam_categories import (
     ListActiveExamCategoriesQuery,
@@ -334,3 +343,82 @@ def deactivate_exam(
         result = use_case.execute(DeactivateExamCommand(actor=current_user, exam_id=exam_id))
         uow.commit()
     return _exam_read(result)
+
+
+_IMPORT_MAX_FILE_SIZE = 2 * 1024 * 1024  # 2 MB
+_IMPORT_REQUIRED_COLUMNS = {"code", "name", "category", "price_base", "species"}
+_IMPORT_FALSY_ACTIVE_VALUES = {"false", "0", "inativo", "não", "nao"}
+
+
+def _parse_import_rows(content: str) -> list[ExamImportRow]:
+    reader = csv.DictReader(io.StringIO(content))
+    fieldnames = set(reader.fieldnames or [])
+    if not _IMPORT_REQUIRED_COLUMNS.issubset(fieldnames):
+        missing = ", ".join(sorted(_IMPORT_REQUIRED_COLUMNS - fieldnames))
+        raise HTTPException(status_code=422, detail=f"CSV sem as colunas obrigatórias: {missing}.")
+
+    rows: list[ExamImportRow] = []
+    for line_number, raw_row in enumerate(reader, start=2):  # line 1 is the header
+        species_raw = (raw_row.get("species") or "").strip()
+        active_raw = (raw_row.get("active") or "").strip().lower()
+        rows.append(
+            ExamImportRow(
+                line=line_number,
+                code=(raw_row.get("code") or "").strip(),
+                name=(raw_row.get("name") or "").strip(),
+                category_name=(raw_row.get("category") or "").strip(),
+                price_base=(raw_row.get("price_base") or "").strip(),
+                description=(raw_row.get("description") or "").strip() or None,
+                plantao_surcharge_fixed=(raw_row.get("plantao_surcharge_fixed") or "").strip()
+                or None,
+                plantao_surcharge_percent=(raw_row.get("plantao_surcharge_percent") or "").strip()
+                or None,
+                species_names=tuple(
+                    part.strip() for part in species_raw.split(";") if part.strip()
+                ),
+                active=active_raw not in _IMPORT_FALSY_ACTIVE_VALUES,
+            )
+        )
+    return rows
+
+
+@exams_router.post("/import", response_model=ExamImportResponse)
+async def import_exams(
+    file: UploadFile = File(...),
+    uow: SqlAlchemyUnitOfWork = Depends(get_unit_of_work),
+    current_user: AuthenticatedUserDTO = Depends(require_permission("catalog.manage")),
+) -> ExamImportResponse:
+    if not file.filename or not file.filename.lower().endswith(".csv"):
+        raise HTTPException(status_code=422, detail="Envie um arquivo .csv.")
+
+    raw_bytes = await file.read()
+    if len(raw_bytes) > _IMPORT_MAX_FILE_SIZE:
+        raise HTTPException(
+            status_code=413, detail="Arquivo excede o tamanho máximo permitido (2 MB)."
+        )
+
+    try:
+        content = raw_bytes.decode("utf-8-sig")
+    except UnicodeDecodeError as exc:
+        raise HTTPException(status_code=422, detail="Arquivo precisa estar em UTF-8.") from exc
+
+    rows = _parse_import_rows(content)
+
+    with uow:
+        use_case = ImportExamsUseCase(
+            exams=SqlAlchemyExamRepository(uow.session),
+            categories=SqlAlchemyExamCategoryRepository(uow.session),
+            species=SqlAlchemySpeciesRepository(uow.session),
+            audit=SqlAlchemyAuditLogWriter(uow.session),
+            clock=SystemClock(),
+        )
+        result = use_case.execute(ImportExamsCommand(actor=current_user, rows=tuple(rows)))
+        uow.commit()
+
+    return ExamImportResponse(
+        imported_count=result.imported_count,
+        errors=[
+            ExamImportRowErrorRead(line=error.line, message=error.message)
+            for error in result.errors
+        ],
+    )

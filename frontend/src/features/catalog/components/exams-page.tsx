@@ -1,52 +1,83 @@
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 
 import { useAuth } from '../../auth/auth-provider'
+import { useSpeciesQuery } from '../../patients/api/use-species-query'
 import { Button } from '../../../shared/ui/button'
 import { PlusIcon } from '../../../shared/ui/icons'
-import { useCreateExamMutation } from '../api/use-create-exam-mutation'
+import { useActiveExamCategoriesQuery } from '../api/use-active-exam-categories-query'
 import { useDeactivateExamMutation } from '../api/use-deactivate-exam-mutation'
-import { useExamQuery } from '../api/use-exam-query'
 import { useExamsQuery } from '../api/use-exams-query'
-import { useUpdateExamMutation } from '../api/use-update-exam-mutation'
-import { ExamDetail } from './exam-detail'
-import { ExamForm } from './exam-form'
-import { ExamList } from './exam-list'
+import { ExamCatalogSidebar } from './exam-catalog-sidebar'
+import { ExamImportButton } from './exam-import-button'
+import { ExamStatCards } from './exam-stat-cards'
+import { ExamTable } from './exam-table'
 import './exams-page.css'
 
-type PanelMode = 'view' | 'create' | 'edit'
-
 export function ExamsPage() {
+  const navigate = useNavigate()
   const { user } = useAuth()
   const canManage = user?.permissions.includes('catalog.manage') ?? false
+  const priceVisible = user?.permissions.includes('pricing.read') ?? false
 
   const [search, setSearch] = useState('')
-  const [selectedId, setSelectedId] = useState<string | null>(null)
-  const [mode, setMode] = useState<PanelMode>('view')
+  const [categoryId, setCategoryId] = useState<string | null>(null)
+  const [speciesId, setSpeciesId] = useState<string | null>(null)
 
+  // Página inteira cabe em 100 itens hoje (ver pendência documentada no
+  // plano) — contagens por categoria/espécie e filtro refletem essa página
+  // carregada, não uma agregação de servidor.
   const listQuery = useExamsQuery({ search: search || undefined, pageSize: 100 })
-  const detailQuery = useExamQuery(mode === 'create' ? null : selectedId)
-
-  const createMutation = useCreateExamMutation()
-  const updateMutation = useUpdateExamMutation()
+  const categoriesQuery = useActiveExamCategoriesQuery()
+  const speciesQuery = useSpeciesQuery()
   const deactivateMutation = useDeactivateExamMutation()
 
-  const exams = listQuery.data?.items ?? []
-  const activeCount = exams.filter((exam) => exam.status === 'ACTIVE').length
+  const examItems = listQuery.data?.items
+  const categories = categoriesQuery.data ?? []
+  const species = speciesQuery.data ?? []
 
-  function handleSelect(id: string) {
-    setSelectedId(id)
-    setMode('view')
-  }
+  const allExams = useMemo(() => examItems ?? [], [examItems])
 
-  function handleStartCreate() {
-    setSelectedId(null)
-    setMode('create')
-  }
+  const filteredExams = useMemo(
+    () =>
+      allExams.filter(
+        (exam) =>
+          (categoryId === null || exam.categoryId === categoryId) &&
+          (speciesId === null || exam.speciesIds.includes(speciesId)),
+      ),
+    [allExams, categoryId, speciesId],
+  )
 
-  function handleDeactivate() {
-    if (!selectedId) return
-    deactivateMutation.mutate(selectedId)
-  }
+  const categoryCounts = useMemo(() => {
+    const counts = new Map<string, number>()
+    for (const exam of allExams) {
+      counts.set(exam.categoryId, (counts.get(exam.categoryId) ?? 0) + 1)
+    }
+    return counts
+  }, [allExams])
+
+  const activeCount = allExams.filter((exam) => exam.status === 'ACTIVE').length
+
+  // KPI de exibição, não valor financeiro persistido/cobrado — aproximação
+  // simples para o card "Ticket médio", não um cálculo de fechamento. Só
+  // considera exames ativos, mesma população do card "Exames ativos" ao
+  // lado — um exame inativado não deve puxar a média do catálogo vigente.
+  const pricedExams = allExams.filter(
+    (exam) => exam.status === 'ACTIVE' && exam.priceBase !== null,
+  )
+  const averagePriceLabel =
+    pricedExams.length > 0
+      ? `R$ ${(
+          pricedExams.reduce((sum, exam) => sum + Number(exam.priceBase), 0) / pricedExams.length
+        )
+          .toFixed(2)
+          .replace('.', ',')}`
+      : null
+
+  const lastUpdatedAt = allExams.reduce<string | null>(
+    (latest, exam) => (latest === null || exam.updatedAt > latest ? exam.updatedAt : latest),
+    null,
+  )
 
   return (
     <div className="exams-page">
@@ -56,64 +87,51 @@ export function ExamsPage() {
           <h1 className="exams-page__title">Exames &amp; Preços</h1>
         </div>
         {canManage && (
-          <Button type="button" className="exams-page__new-button" onClick={handleStartCreate}>
-            <PlusIcon /> Novo exame
-          </Button>
+          <div className="exams-page__header-actions">
+            <ExamImportButton />
+            <Button
+              type="button"
+              className="exams-page__new-button"
+              onClick={() => navigate('/cadastros/exames/novo')}
+            >
+              <PlusIcon /> Novo exame
+            </Button>
+          </div>
         )}
       </div>
 
       <div className="exams-page__body">
-        <ExamList
-          exams={exams}
-          activeCount={activeCount}
-          selectedId={mode === 'create' ? null : selectedId}
-          search={search}
-          isLoading={listQuery.isLoading}
-          onSearchChange={setSearch}
-          onSelect={handleSelect}
+        <ExamCatalogSidebar
+          categories={categories}
+          categoryCounts={categoryCounts}
+          totalCount={allExams.length}
+          selectedCategoryId={categoryId}
+          onSelectCategory={setCategoryId}
+          species={species}
+          selectedSpeciesId={speciesId}
+          onSelectSpecies={setSpeciesId}
         />
 
-        {mode === 'create' ? (
-          <div className="exams-page__create-panel">
-            <h2 className="exams-page__create-title">Novo exame</h2>
-            <ExamForm
-              exam={null}
-              submitting={createMutation.isPending}
-              error={createMutation.error}
-              onCancel={() => setMode('view')}
-              onSubmitCreate={(values) =>
-                createMutation.mutate(values, {
-                  onSuccess: (exam) => {
-                    setSelectedId(exam.id)
-                    setMode('view')
-                  },
-                })
-              }
-            />
-          </div>
-        ) : (
-          <ExamDetail
-            exam={detailQuery.data ?? null}
-            isLoading={selectedId !== null && detailQuery.isLoading}
-            isEditing={mode === 'edit'}
-            canManage={canManage}
-            submitting={updateMutation.isPending}
-            submitError={updateMutation.error}
-            onStartEdit={() => setMode('edit')}
-            onCancelEdit={() => setMode('view')}
-            onSubmitUpdate={(values) => {
-              if (!selectedId || !detailQuery.data) return
-              updateMutation.mutate(
-                {
-                  id: selectedId,
-                  values: { ...values, expectedRowVersion: detailQuery.data.rowVersion },
-                },
-                { onSuccess: () => setMode('view') },
-              )
-            }}
-            onDeactivate={handleDeactivate}
+        <div className="exams-page__main">
+          <ExamStatCards
+            activeCount={activeCount}
+            averagePriceLabel={averagePriceLabel}
+            priceVisible={priceVisible}
+            lastUpdatedAt={lastUpdatedAt}
           />
-        )}
+          <ExamTable
+            exams={filteredExams}
+            categories={categories}
+            species={species}
+            isLoading={listQuery.isLoading}
+            canManage={canManage}
+            priceVisible={priceVisible}
+            search={search}
+            onSearchChange={setSearch}
+            onRowClick={(examId) => navigate(`/cadastros/exames/${examId}/editar`)}
+            onDeactivate={(examId) => deactivateMutation.mutate(examId)}
+          />
+        </div>
       </div>
     </div>
   )

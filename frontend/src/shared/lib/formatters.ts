@@ -14,3 +14,13 @@ export function formatTaxId(value: string | null): string | null {
 export function pluralize(count: number, singular: string, plural: string): string {
   return count === 1 ? singular : plural
 }
+
+/** Datas do backend chegam em UTC (`TIMESTAMPTZ`) — formatação usa o
+ * timezone do navegador do usuário, nunca assume UTC na exibição (rule:
+ * .claude/rules/frontend.md, "apresenta em pt-BR com o timezone
+ * configurado"). */
+export function formatDate(isoDate: string): string {
+  return new Intl.DateTimeFormat('pt-BR', { day: '2-digit', month: 'short', year: 'numeric' }).format(
+    new Date(isoDate),
+  )
+}

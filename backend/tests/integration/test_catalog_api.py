@@ -447,6 +447,72 @@ async def test_deactivate_exam_preserves_record(
     assert response.json()["name"] == "Hemograma completo"
 
 
+async def test_import_exams_without_permission_is_forbidden(
+    client: httpx.AsyncClient, session_factory: sessionmaker[Session]
+) -> None:
+    _create_user(
+        session_factory,
+        email="technical@vertere.local",
+        password="s3nhaForte!",
+        role_id=ROLE_TECHNICAL,
+    )
+    await _login(client, email="technical@vertere.local", password="s3nhaForte!")
+
+    csv_content = "code,name,category,price_base,species\nHEM001,Hemograma,Hematologia,85.00,Cão\n"
+    response = await client.post(
+        "/api/v1/exams/import",
+        files={"file": ("exams.csv", csv_content, "text/csv")},
+    )
+
+    assert response.status_code == 403
+
+
+async def test_import_exams_partial_success_reports_row_errors(
+    client: httpx.AsyncClient, session_factory: sessionmaker[Session]
+) -> None:
+    _create_user(
+        session_factory, email="admin@vertere.local", password="s3nhaForte!", role_id=ROLE_LAB_ADMIN
+    )
+    await _login(client, email="admin@vertere.local", password="s3nhaForte!")
+    await _create_category(client, name="Hematologia")
+
+    csv_content = (
+        "code,name,category,price_base,species\n"
+        "HEM001,Hemograma completo,Hematologia,85.00,Cão\n"
+        "HEM002,Bioquímico,Categoria Inexistente,120.00,Gato\n"
+    )
+    response = await client.post(
+        "/api/v1/exams/import",
+        files={"file": ("exams.csv", csv_content, "text/csv")},
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["imported_count"] == 1
+    assert len(body["errors"]) == 1
+    assert body["errors"][0]["line"] == 3
+    assert "Categoria Inexistente" in body["errors"][0]["message"]
+
+    list_response = await client.get("/api/v1/exams", params={"search": "HEM001"})
+    assert list_response.json()["total"] == 1
+
+
+async def test_import_exams_rejects_non_csv_file(
+    client: httpx.AsyncClient, session_factory: sessionmaker[Session]
+) -> None:
+    _create_user(
+        session_factory, email="admin@vertere.local", password="s3nhaForte!", role_id=ROLE_LAB_ADMIN
+    )
+    await _login(client, email="admin@vertere.local", password="s3nhaForte!")
+
+    response = await client.post(
+        "/api/v1/exams/import",
+        files={"file": ("exams.txt", "code,name\n", "text/plain")},
+    )
+
+    assert response.status_code == 422
+
+
 async def test_filter_exams_by_species(
     client: httpx.AsyncClient, session_factory: sessionmaker[Session]
 ) -> None:

@@ -69,6 +69,7 @@ extend-immutable-calls = [
     "fastapi.Query",
     "fastapi.Body",
     "fastapi.Path",
+    "fastapi.File",
     "app.modules.identity.api.dependencies.require_permission",
 ]
 

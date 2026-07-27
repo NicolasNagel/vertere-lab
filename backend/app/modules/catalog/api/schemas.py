@@ -100,3 +100,13 @@ class ExamUpdateRequest(BaseModel):
     species_ids: list[UUID] = Field(min_length=1)
     status: ExamStatusLiteral
     expected_row_version: int
+
+
+class ExamImportRowErrorRead(BaseModel):
+    line: int
+    message: str
+
+
+class ExamImportResponse(BaseModel):
+    imported_count: int
+    errors: list[ExamImportRowErrorRead]
