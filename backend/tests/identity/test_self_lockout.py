@@ -11,6 +11,7 @@ from app.modules.identity.application.deactivate_user import (
     DeactivateUserUseCase,
 )
 from app.modules.identity.application.dtos import AuthenticatedUserDTO
+from app.modules.identity.domain.constants import CONTROL_PERMISSIONS
 from app.modules.identity.domain.entities import Role, RoleScope, User
 from app.modules.identity.domain.errors import SelfLockoutError
 from app.modules.identity.domain.value_objects import Email
@@ -23,7 +24,7 @@ from tests.identity.fakes import (
 )
 
 _NOW = datetime(2026, 1, 1, tzinfo=UTC)
-_ADMIN_PERMISSIONS = frozenset({"users.update", "roles.assign", "users.deactivate"})
+_ADMIN_PERMISSIONS = CONTROL_PERMISSIONS
 
 
 def _setup_single_admin() -> tuple[FakeUserRepository, FakeRoleRepository, User, Role, Role]:

@@ -6,6 +6,7 @@ from uuid import UUID
 from app.modules.audit.domain.entities import ActorScope, AuditEntry
 from app.modules.audit.domain.repositories import AuditLogWriter
 from app.modules.identity.application.dtos import AuthenticatedUserDTO, UserSummaryDTO
+from app.modules.identity.domain.constants import CONTROL_PERMISSIONS
 from app.modules.identity.domain.errors import SelfLockoutError
 from app.modules.identity.domain.repositories import (
     RoleRepository,
@@ -16,7 +17,6 @@ from app.shared.application.clock import Clock
 from app.shared.domain.errors import ForbiddenError, NotFoundError
 
 _REQUIRED_PERMISSION = "users.deactivate"
-_CONTROL_PERMISSIONS = frozenset({"users.update", "roles.assign", "users.deactivate"})
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -51,7 +51,7 @@ class DeactivateUserUseCase:
 
         if user.id == command.actor.id:
             role = self._roles.get_by_id(user.role_id)
-            held_control_permissions = _CONTROL_PERMISSIONS & (
+            held_control_permissions = CONTROL_PERMISSIONS & (
                 role.permission_codes if role is not None else frozenset()
             )
             for permission_code in held_control_permissions:

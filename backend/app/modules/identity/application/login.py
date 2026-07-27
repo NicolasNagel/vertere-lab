@@ -12,11 +12,13 @@ from app.modules.identity.application.session_tokens import SessionTokenGenerato
 from app.modules.identity.domain.entities import Session
 from app.modules.identity.domain.errors import AccountInactiveError, InvalidCredentialsError
 from app.modules.identity.domain.repositories import (
+    LoginFailureRepository,
     RoleRepository,
     SessionRepository,
     UserRepository,
 )
 from app.shared.application.clock import Clock
+from app.shared.domain.errors import RateLimitedError
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -36,28 +38,60 @@ class LoginUseCase:
         users: UserRepository,
         roles: RoleRepository,
         sessions: SessionRepository,
+        login_failures: LoginFailureRepository,
         password_hasher: PasswordHasher,
         token_generator: SessionTokenGenerator,
         audit: AuditLogWriter,
         clock: Clock,
         session_ttl: timedelta,
         session_ttl_remember_me: timedelta,
+        rate_limit_max_attempts: int,
+        rate_limit_window: timedelta,
     ) -> None:
         self._users = users
         self._roles = roles
         self._sessions = sessions
+        self._login_failures = login_failures
         self._password_hasher = password_hasher
         self._token_generator = token_generator
         self._audit = audit
         self._clock = clock
         self._session_ttl = session_ttl
         self._session_ttl_remember_me = session_ttl_remember_me
+        self._rate_limit_max_attempts = rate_limit_max_attempts
+        self._rate_limit_window = rate_limit_window
 
     def execute(self, command: LoginCommand) -> SessionIssuedDTO:
         normalized_login = command.login.strip().lower()
+        now = self._clock.now()
+
+        # Checado por login normalizado, não por IP: bloqueia quem está
+        # tentando adivinhar a senha de UMA conta específica, inclusive
+        # contra e-mail inexistente (rule: .claude/rules/auth-security-lgpd.md
+        # — "proteção contra enumeração"). Antes de verificar a senha, não
+        # depois: sem isso o Argon2 roda a cada tentativa mesmo já bloqueada,
+        # o próprio hash vira o custo que o rate limit deveria evitar.
+        recent_failures = self._login_failures.count_recent_failures(
+            normalized_login, since=now - self._rate_limit_window
+        )
+        if recent_failures >= self._rate_limit_max_attempts:
+            self._audit.record(
+                AuditEntry(
+                    actor_user_id=None,
+                    actor_scope=ActorScope.ANONYMOUS,
+                    action="auth.login_rate_limited",
+                    entity_type="user",
+                    entity_id=None,
+                    ip_address=command.ip_address,
+                    request_id=command.request_id,
+                )
+            )
+            raise RateLimitedError("Muitas tentativas. Tente novamente mais tarde.")
+
         user = self._users.get_by_email(normalized_login)
 
         if user is None or not self._password_hasher.verify(command.password, user.password_hash):
+            self._login_failures.record_failure(normalized_login, occurred_at=now)
             self._audit.record(
                 AuditEntry(
                     actor_user_id=user.id if user is not None else None,
@@ -73,6 +107,7 @@ class LoginUseCase:
             raise InvalidCredentialsError("Usuário ou senha inválidos.")
 
         if not user.is_active:
+            self._login_failures.record_failure(normalized_login, occurred_at=now)
             self._audit.record(
                 AuditEntry(
                     actor_user_id=user.id,
@@ -94,7 +129,7 @@ class LoginUseCase:
         if role is None:
             raise RuntimeError(f"Papel {user.role_id} não encontrado para o usuário {user.id}.")
 
-        now = self._clock.now()
+        self._login_failures.clear(normalized_login)
         ttl = self._session_ttl_remember_me if command.remember_me else self._session_ttl
         token = self._token_generator.generate()
         session = Session(

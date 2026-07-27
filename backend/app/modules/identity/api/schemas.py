@@ -13,8 +13,13 @@ from pydantic import BaseModel, ConfigDict, EmailStr, Field
 class LoginRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    login: str = Field(min_length=1)
-    password: str = Field(min_length=1)
+    # Sem limite superior, um payload arbitrariamente grande vira trabalho de
+    # hash Argon2 sobre lixo antes mesmo de rejeitar a credencial — DoS
+    # barato (rule: .claude/rules/auth-security-lgpd.md, "limite de tamanho
+    # de payload"). 254 é o teto de e-mail do RFC 5321; 200 já é generoso
+    # para qualquer senha real.
+    login: str = Field(min_length=1, max_length=254)
+    password: str = Field(min_length=1, max_length=200)
     remember_me: bool = False
 
 
@@ -52,7 +57,7 @@ class UserCreateRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     email: EmailStr
-    full_name: str = Field(min_length=1)
+    full_name: str = Field(min_length=1, max_length=200)
     role_id: UUID
 
 
@@ -87,16 +92,21 @@ class RoleListResponse(BaseModel):
 class RoleCreateRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    name: str = Field(min_length=1)
+    name: str = Field(min_length=1, max_length=100)
     scope: Literal["GLOBAL", "LAB", "CLINIC"]
-    description: str = ""
-    permissions: list[str] = Field(default_factory=list)
+    description: str = Field(default="", max_length=1000)
+    # max_length no limite da lista, não só no texto de cada item: sem isso,
+    # um array com milhões de códigos-lixo ainda chega inteiro até a query
+    # `all_codes_exist` (rule: .claude/rules/auth-security-lgpd.md, "limite
+    # de tamanho de payload"). O catálogo real tem ~30 códigos; 200 sobra
+    # margem sem ser ilimitado.
+    permissions: list[str] = Field(default_factory=list, max_length=200)
 
 
 class RoleUpdateRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    permissions: list[str]
+    permissions: list[str] = Field(max_length=200)
     expected_row_version: int
 
 

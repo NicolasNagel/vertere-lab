@@ -82,13 +82,19 @@ class FakeUserRepository:
         return users, len(users)
 
     def count_active_users_with_permission(
-        self, permission_code: str, *, exclude_user_id: UUID | None = None
+        self,
+        permission_code: str,
+        *,
+        exclude_user_id: UUID | None = None,
+        exclude_role_id: UUID | None = None,
     ) -> int:
         if self._roles is None:
             raise RuntimeError("FakeUserRepository needs `roles` wired to resolve permissions.")
         count = 0
         for user in self._users.values():
             if exclude_user_id is not None and user.id == exclude_user_id:
+                continue
+            if exclude_role_id is not None and user.role_id == exclude_role_id:
                 continue
             if not user.is_active:
                 continue
@@ -175,3 +181,17 @@ class FakeLabMembershipRepository:
 
     def add(self, membership: LabMembership) -> None:
         self.memberships.append(membership)
+
+
+class FakeLoginFailureRepository:
+    def __init__(self) -> None:
+        self._failures: list[tuple[str, datetime]] = []
+
+    def record_failure(self, login: str, *, occurred_at: datetime) -> None:
+        self._failures.append((login, occurred_at))
+
+    def count_recent_failures(self, login: str, *, since: datetime) -> int:
+        return sum(1 for stored_login, when in self._failures if stored_login == login and when >= since)
+
+    def clear(self, login: str) -> None:
+        self._failures = [item for item in self._failures if item[0] != login]

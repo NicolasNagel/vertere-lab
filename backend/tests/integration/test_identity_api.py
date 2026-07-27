@@ -25,7 +25,11 @@ from app.core.security import hash_password
 from app.main import create_app
 from app.modules.audit.infrastructure.models import AuditLogModel
 from app.modules.identity.infrastructure.models import LabMembershipModel, RoleModel, UserModel
-from app.modules.identity.infrastructure.seed import ROLE_LAB_ADMIN, ROLE_RECEPTION
+from app.modules.identity.infrastructure.seed import (
+    ROLE_LAB_ADMIN,
+    ROLE_RECEPTION,
+    ROLE_SUPER_ADMIN,
+)
 from app.shared.infrastructure.database import build_engine, build_session_factory
 
 pytestmark = pytest.mark.integration
@@ -456,3 +460,116 @@ async def test_only_admin_cannot_demote_themselves(
     )
 
     assert response.status_code == 409
+
+
+async def test_editing_own_role_cannot_strip_the_last_roles_manage(
+    client: httpx.AsyncClient, session_factory: sessionmaker[Session]
+) -> None:
+    # Reproduz exatamente o que a verificação manual em Chrome encontrou
+    # (ADR-007): o único SUPER_ADMIN removia `roles.manage` do próprio
+    # perfil via PATCH /permission-profiles e o backend deixava passar —
+    # travando o sistema sem caminho de volta pela UI/API.
+    _create_user(
+        session_factory,
+        email="sole-super-admin@vertere.local",
+        password="s3nhaForte!",
+        role_id=ROLE_SUPER_ADMIN,
+    )
+    login_response = await client.post(
+        "/api/v1/auth/login",
+        json={
+            "login": "sole-super-admin@vertere.local",
+            "password": "s3nhaForte!",
+            "remember_me": False,
+        },
+    )
+    assert login_response.status_code == 200
+
+    profile_response = await client.get(f"/api/v1/permission-profiles/{ROLE_SUPER_ADMIN}")
+    profile = profile_response.json()
+    permissions_without_roles_manage = [p for p in profile["permissions"] if p != "roles.manage"]
+
+    response = await client.patch(
+        f"/api/v1/permission-profiles/{ROLE_SUPER_ADMIN}",
+        json={
+            "permissions": permissions_without_roles_manage,
+            "expected_row_version": profile["row_version"],
+        },
+    )
+
+    assert response.status_code == 409
+    # E o papel continua com `roles.manage` — não é meio-caminho.
+    unchanged = await client.get(f"/api/v1/permission-profiles/{ROLE_SUPER_ADMIN}")
+    assert "roles.manage" in unchanged.json()["permissions"]
+
+
+async def test_user_full_name_over_the_length_limit_is_rejected(
+    client: httpx.AsyncClient, session_factory: sessionmaker[Session]
+) -> None:
+    _create_user(
+        session_factory,
+        email="lab-admin4@vertere.local",
+        password="s3nhaForte!",
+        role_id=ROLE_LAB_ADMIN,
+    )
+    login_response = await client.post(
+        "/api/v1/auth/login",
+        json={"login": "lab-admin4@vertere.local", "password": "s3nhaForte!", "remember_me": False},
+    )
+    assert login_response.status_code == 200
+
+    response = await client.post(
+        "/api/v1/users",
+        json={
+            "email": "toolong@vertere.local",
+            "full_name": "A" * 100_000,
+            "role_id": str(ROLE_RECEPTION),
+        },
+    )
+
+    assert response.status_code == 422
+
+
+async def test_login_payload_over_the_length_limit_is_rejected(client: httpx.AsyncClient) -> None:
+    response = await client.post(
+        "/api/v1/auth/login",
+        json={"login": "a" * 100_000 + "@vertere.local", "password": "whatever", "remember_me": False},
+    )
+
+    assert response.status_code == 422
+
+
+async def test_login_is_rate_limited_after_repeated_wrong_passwords(
+    client: httpx.AsyncClient, session_factory: sessionmaker[Session]
+) -> None:
+    # Achado em teste manual adversarial (ADR-007): 15 tentativas de senha
+    # errada em paralelo, todas 401, sem nenhum throttling.
+    _create_user(
+        session_factory,
+        email="brute-force-target@vertere.local",
+        password="s3nhaForte!",
+        role_id=ROLE_RECEPTION,
+    )
+
+    responses = [
+        await client.post(
+            "/api/v1/auth/login",
+            json={
+                "login": "brute-force-target@vertere.local",
+                "password": f"wrong-{i}",
+                "remember_me": False,
+            },
+        )
+        for i in range(5)
+    ]
+    assert all(response.status_code == 401 for response in responses)
+
+    blocked = await client.post(
+        "/api/v1/auth/login",
+        json={
+            "login": "brute-force-target@vertere.local",
+            "password": "s3nhaForte!",  # até a senha certa não passa mais
+            "remember_me": False,
+        },
+    )
+    assert blocked.status_code == 429

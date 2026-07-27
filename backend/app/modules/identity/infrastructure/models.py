@@ -107,3 +107,17 @@ class SessionModel(Base):
     remember_me: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     ip_address: Mapped[str | None] = mapped_column(nullable=True)
     user_agent: Mapped[str | None] = mapped_column(nullable=True)
+
+
+class LoginFailureModel(Base):
+    """One row per failed login attempt, keyed by the normalized login the
+    caller typed — not a FK to `users` because an attempt against an unknown
+    e-mail must still be throttled (rule: .claude/rules/auth-security-lgpd.md,
+    "proteção contra enumeração de usuário")."""
+
+    __tablename__ = "login_failures"
+    __table_args__ = (Index("ix_login_failures_login_occurred_at", "login", "occurred_at"),)
+
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
+    login: Mapped[str] = mapped_column(nullable=False)
+    occurred_at: Mapped[datetime] = mapped_column(nullable=False)

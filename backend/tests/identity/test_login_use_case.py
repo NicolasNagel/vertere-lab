@@ -9,9 +9,11 @@ from app.modules.identity.application.login import LoginCommand, LoginUseCase
 from app.modules.identity.domain.entities import Role, RoleScope, User
 from app.modules.identity.domain.errors import AccountInactiveError, InvalidCredentialsError
 from app.modules.identity.domain.value_objects import Email
+from app.shared.domain.errors import RateLimitedError
 from tests.identity.fakes import (
     FakeAuditLogWriter,
     FakeClock,
+    FakeLoginFailureRepository,
     FakePasswordHasher,
     FakeRoleRepository,
     FakeSessionRepository,
@@ -22,9 +24,9 @@ from tests.identity.fakes import (
 _NOW = datetime(2026, 1, 1, tzinfo=UTC)
 
 
-def _make_use_case() -> tuple[
-    LoginUseCase, FakeUserRepository, FakeRoleRepository, FakeAuditLogWriter
-]:
+def _make_use_case(
+    *, max_attempts: int = 5
+) -> tuple[LoginUseCase, FakeUserRepository, FakeRoleRepository, FakeAuditLogWriter]:
     roles = FakeRoleRepository()
     users = FakeUserRepository(roles=roles)
     sessions = FakeSessionRepository()
@@ -33,12 +35,15 @@ def _make_use_case() -> tuple[
         users=users,
         roles=roles,
         sessions=sessions,
+        login_failures=FakeLoginFailureRepository(),
         password_hasher=FakePasswordHasher(),
         token_generator=FakeSessionTokens(),
         audit=audit,
         clock=FakeClock(_NOW),
         session_ttl=timedelta(minutes=30),
         session_ttl_remember_me=timedelta(days=30),
+        rate_limit_max_attempts=max_attempts,
+        rate_limit_window=timedelta(minutes=15),
     )
     return use_case, users, roles, audit
 
@@ -136,3 +141,95 @@ def test_login_rejects_inactive_user_after_password_matches() -> None:
         )
 
     assert audit.entries[-1].after_state == {"reason": "inactive"}
+
+
+def _wrong_password_attempt(use_case: LoginUseCase, login: str) -> None:
+    with pytest.raises(InvalidCredentialsError):
+        use_case.execute(
+            LoginCommand(
+                login=login,
+                password="wrong-password",
+                remember_me=False,
+                ip_address=None,
+                user_agent=None,
+                request_id=None,
+            )
+        )
+
+
+def test_login_is_rate_limited_after_max_attempts() -> None:
+    use_case, users, roles, audit = _make_use_case(max_attempts=3)
+    _add_user(users, roles)
+
+    for _ in range(3):
+        _wrong_password_attempt(use_case, "reception@vertere.local")
+
+    with pytest.raises(RateLimitedError):
+        use_case.execute(
+            LoginCommand(
+                login="reception@vertere.local",
+                password="correct-password",  # mesmo a senha certa não passa
+                remember_me=False,
+                ip_address=None,
+                user_agent=None,
+                request_id=None,
+            )
+        )
+    assert audit.entries[-1].action == "auth.login_rate_limited"
+
+
+def test_login_rate_limit_is_keyed_by_login_not_shared_globally() -> None:
+    use_case, users, roles, _audit = _make_use_case(max_attempts=3)
+    _add_user(users, roles)
+    role = Role(id=uuid4(), name="FINANCE", scope=RoleScope.LAB, permission_codes=frozenset())
+    roles.add(role)
+    users.add(
+        User(
+            id=uuid4(),
+            email=Email("other@vertere.local"),
+            full_name="Other",
+            password_hash="hashed::other-password",
+            role_id=role.id,
+            created_at=_NOW,
+            updated_at=_NOW,
+        )
+    )
+
+    for _ in range(3):
+        _wrong_password_attempt(use_case, "reception@vertere.local")
+
+    # A conta atacada está bloqueada, mas uma conta diferente não é afetada.
+    result = use_case.execute(
+        LoginCommand(
+            login="other@vertere.local",
+            password="other-password",
+            remember_me=False,
+            ip_address=None,
+            user_agent=None,
+            request_id=None,
+        )
+    )
+    assert result.user.email == "other@vertere.local"
+
+
+def test_successful_login_clears_the_failure_count() -> None:
+    use_case, users, roles, _audit = _make_use_case(max_attempts=3)
+    _add_user(users, roles)
+
+    _wrong_password_attempt(use_case, "reception@vertere.local")
+    _wrong_password_attempt(use_case, "reception@vertere.local")
+
+    result = use_case.execute(
+        LoginCommand(
+            login="reception@vertere.local",
+            password="correct-password",
+            remember_me=False,
+            ip_address=None,
+            user_agent=None,
+            request_id=None,
+        )
+    )
+    assert result.user.email == "reception@vertere.local"
+
+    # O contador zerou — mais uma tentativa errada não deveria já bloquear.
+    _wrong_password_attempt(use_case, "reception@vertere.local")

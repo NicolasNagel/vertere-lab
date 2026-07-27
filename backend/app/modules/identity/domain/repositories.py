@@ -32,7 +32,11 @@ class UserRepository(Protocol):
     ) -> tuple[list[User], int]: ...
 
     def count_active_users_with_permission(
-        self, permission_code: str, *, exclude_user_id: UUID | None = None
+        self,
+        permission_code: str,
+        *,
+        exclude_user_id: UUID | None = None,
+        exclude_role_id: UUID | None = None,
     ) -> int: ...
 
 
@@ -77,3 +81,17 @@ class SessionRepository(Protocol):
 
 class LabMembershipRepository(Protocol):
     def add(self, membership: LabMembership) -> None: ...
+
+
+class LoginFailureRepository(Protocol):
+    """Backs login rate limiting — deliberately PostgreSQL, not an in-memory
+    counter or Redis: the app runs as stateless Vercel Functions with no
+    process-local memory shared across invocations, and this project's
+    default is "PostgreSQL é a única fonte de verdade" unless a measured
+    case justifies Redis (rule: CLAUDE.md)."""
+
+    def record_failure(self, login: str, *, occurred_at: datetime) -> None: ...
+
+    def count_recent_failures(self, login: str, *, since: datetime) -> int: ...
+
+    def clear(self, login: str) -> None: ...

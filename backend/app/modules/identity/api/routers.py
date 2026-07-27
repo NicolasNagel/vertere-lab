@@ -67,15 +67,18 @@ from app.modules.identity.application.update_role_permissions import (
     UpdateRolePermissionsUseCase,
 )
 from app.modules.identity.domain.entities import RoleScope
+from app.modules.identity.domain.errors import AccountInactiveError, InvalidCredentialsError
 from app.modules.identity.infrastructure.password_hasher import Argon2PasswordHasher
 from app.modules.identity.infrastructure.repositories import (
     SqlAlchemyLabMembershipRepository,
+    SqlAlchemyLoginFailureRepository,
     SqlAlchemyPermissionRepository,
     SqlAlchemyRoleRepository,
     SqlAlchemySessionRepository,
     SqlAlchemyUserRepository,
 )
 from app.modules.identity.infrastructure.session_tokens import OpaqueSessionTokens
+from app.shared.domain.errors import RateLimitedError
 from app.shared.infrastructure.clock import SystemClock
 from app.shared.infrastructure.uow import SqlAlchemyUnitOfWork
 
@@ -115,23 +118,37 @@ def login(
             users=SqlAlchemyUserRepository(uow.session),
             roles=SqlAlchemyRoleRepository(uow.session),
             sessions=SqlAlchemySessionRepository(uow.session),
+            login_failures=SqlAlchemyLoginFailureRepository(uow.session),
             password_hasher=Argon2PasswordHasher(),
             token_generator=OpaqueSessionTokens(),
             audit=SqlAlchemyAuditLogWriter(uow.session),
             clock=SystemClock(),
             session_ttl=timedelta(minutes=settings.session_ttl_minutes),
             session_ttl_remember_me=timedelta(days=settings.session_ttl_remember_me_days),
+            rate_limit_max_attempts=settings.login_rate_limit_max_attempts,
+            rate_limit_window=timedelta(minutes=settings.login_rate_limit_window_minutes),
         )
-        result = use_case.execute(
-            LoginCommand(
-                login=payload.login,
-                password=payload.password,
-                remember_me=payload.remember_me,
-                ip_address=request.client.host if request.client else None,
-                user_agent=request.headers.get("user-agent"),
-                request_id=request_id_var.get(),
-            )
+        command = LoginCommand(
+            login=payload.login,
+            password=payload.password,
+            remember_me=payload.remember_me,
+            ip_address=request.client.host if request.client else None,
+            user_agent=request.headers.get("user-agent"),
+            request_id=request_id_var.get(),
         )
+        try:
+            result = use_case.execute(command)
+        except (InvalidCredentialsError, AccountInactiveError, RateLimitedError):
+            # Rejeição esperada (senha errada, conta inativa, rate limit) não
+            # é motivo para descartar o que o caso de uso já gravou nesta
+            # mesma transação — o registro de falha (para o rate limit) e o
+            # audit_log da tentativa precisam sobreviver, senão o rollback
+            # padrão do unit of work em qualquer exceção apaga os dois e o
+            # limite nunca é alcançado (achado ao testar o rate limit de
+            # verdade: a 6ª tentativa passava porque nenhuma falha anterior
+            # tinha sido persistida).
+            uow.commit()
+            raise
         uow.commit()
 
     ttl = (
@@ -449,6 +466,7 @@ def update_permission_profile(
         use_case = UpdateRolePermissionsUseCase(
             roles=SqlAlchemyRoleRepository(uow.session),
             permissions=SqlAlchemyPermissionRepository(uow.session),
+            users=SqlAlchemyUserRepository(uow.session),
             audit=SqlAlchemyAuditLogWriter(uow.session),
         )
         role = use_case.execute(

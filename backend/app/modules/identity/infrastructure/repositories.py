@@ -10,7 +10,7 @@ from datetime import datetime
 from typing import Any
 from uuid import UUID
 
-from sqlalchemy import ColumnElement, CursorResult, func, or_, select, update
+from sqlalchemy import ColumnElement, CursorResult, delete, func, or_, select, update
 from sqlalchemy.orm import Session as SqlAlchemySession
 
 from app.modules.identity.domain.entities import (
@@ -24,6 +24,7 @@ from app.modules.identity.domain.entities import (
 from app.modules.identity.domain.value_objects import Email
 from app.modules.identity.infrastructure.models import (
     LabMembershipModel,
+    LoginFailureModel,
     PermissionModel,
     RoleModel,
     RolePermissionModel,
@@ -140,7 +141,11 @@ class SqlAlchemyUserRepository:
         return [_user_to_domain(model) for model in models], total
 
     def count_active_users_with_permission(
-        self, permission_code: str, *, exclude_user_id: UUID | None = None
+        self,
+        permission_code: str,
+        *,
+        exclude_user_id: UUID | None = None,
+        exclude_role_id: UUID | None = None,
     ) -> int:
         stmt = (
             select(func.count(func.distinct(UserModel.id)))
@@ -153,6 +158,8 @@ class SqlAlchemyUserRepository:
         )
         if exclude_user_id is not None:
             stmt = stmt.where(UserModel.id != exclude_user_id)
+        if exclude_role_id is not None:
+            stmt = stmt.where(UserModel.role_id != exclude_role_id)
         return self._session.execute(stmt).scalar_one()
 
 
@@ -349,3 +356,22 @@ class SqlAlchemyLabMembershipRepository:
                 revoked_at=membership.revoked_at,
             )
         )
+
+
+class SqlAlchemyLoginFailureRepository:
+    def __init__(self, session: SqlAlchemySession) -> None:
+        self._session = session
+
+    def record_failure(self, login: str, *, occurred_at: datetime) -> None:
+        self._session.add(LoginFailureModel(login=login, occurred_at=occurred_at))
+
+    def count_recent_failures(self, login: str, *, since: datetime) -> int:
+        stmt = (
+            select(func.count())
+            .select_from(LoginFailureModel)
+            .where(LoginFailureModel.login == login, LoginFailureModel.occurred_at >= since)
+        )
+        return self._session.execute(stmt).scalar_one()
+
+    def clear(self, login: str) -> None:
+        self._session.execute(delete(LoginFailureModel).where(LoginFailureModel.login == login))

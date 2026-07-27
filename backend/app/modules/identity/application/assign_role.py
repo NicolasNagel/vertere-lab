@@ -6,6 +6,7 @@ from uuid import UUID
 from app.modules.audit.domain.entities import ActorScope, AuditEntry
 from app.modules.audit.domain.repositories import AuditLogWriter
 from app.modules.identity.application.dtos import AuthenticatedUserDTO, UserSummaryDTO
+from app.modules.identity.domain.constants import CONTROL_PERMISSIONS
 from app.modules.identity.domain.errors import SelfLockoutError
 from app.modules.identity.domain.repositories import (
     RoleRepository,
@@ -16,9 +17,6 @@ from app.shared.application.clock import Clock
 from app.shared.domain.errors import ForbiddenError, NotFoundError
 
 _REQUIRED_PERMISSION = "roles.assign"
-# Perder qualquer uma destas permissões tira a capacidade de gerenciar
-# usuários — não pode sobrar zero pessoas com nenhuma delas.
-_CONTROL_PERMISSIONS = frozenset({"users.update", "roles.assign", "users.deactivate"})
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -57,7 +55,7 @@ class AssignRoleUseCase:
             raise NotFoundError("Papel não encontrado.")
 
         if user.id == command.actor.id:
-            lost_control_permissions = _CONTROL_PERMISSIONS - new_role.permission_codes
+            lost_control_permissions = CONTROL_PERMISSIONS - new_role.permission_codes
             for permission_code in lost_control_permissions:
                 remaining = self._users.count_active_users_with_permission(
                     permission_code, exclude_user_id=user.id

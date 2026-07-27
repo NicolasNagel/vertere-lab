@@ -37,6 +37,13 @@ class Settings(BaseSettings):
     viacep_base_url: str = "https://viacep.com.br"
     viacep_timeout_seconds: float = 3.0
 
+    # Rate limit de login — achado em teste manual adversarial (ADR-007): sem
+    # isso, o endpoint aceitava tentativas de senha ilimitadas. Persistido no
+    # PostgreSQL (login_failures), nunca em memória de processo — a app roda
+    # como Function stateless (rule: CLAUDE.md, "Vercel é stateless").
+    login_rate_limit_max_attempts: int = 5
+    login_rate_limit_window_minutes: int = 15
+
 
 @lru_cache
 def get_settings() -> Settings:
