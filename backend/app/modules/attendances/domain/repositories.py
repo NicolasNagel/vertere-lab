@@ -1,4 +1,4 @@
-"""Repository protocol for the attendances module.
+"""Repository protocols for the attendances module.
 
 Interface lives in `domain` (per .claude/rules/backend.md); implementation
 lives in `infrastructure`. The repository never commits — the unit of work
@@ -18,6 +18,8 @@ class AttendanceRepository(Protocol):
 
     def add(self, attendance: AttendanceRecord) -> None: ...
 
+    def update(self, attendance: AttendanceRecord) -> None: ...
+
     def list_page(
         self,
         *,
@@ -28,3 +30,12 @@ class AttendanceRepository(Protocol):
         patient_id: UUID | None,
         status: AttendanceStatus | None,
     ) -> tuple[list[AttendanceRecord], int]: ...
+
+
+class AttendanceSequenceRepository(Protocol):
+    """Transactional protocol sequence — `MAX + 1` is forbidden
+    (`.claude/rules/database.md`). Implementation locks the counter row for
+    the given year within the caller's transaction.
+    """
+
+    def next_sequence(self, year: int) -> int: ...

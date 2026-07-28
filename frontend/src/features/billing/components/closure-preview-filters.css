@@ -1,0 +1,15 @@
+.closure-preview-filters {
+  display: flex;
+  gap: 0.875rem; /* 14px */
+  margin-bottom: 1.125rem; /* 18px */
+  align-items: flex-end;
+}
+
+.closure-preview-filters__field {
+  flex: 1;
+  max-width: 20rem;
+}
+
+.closure-preview-filters__field--small {
+  max-width: 9rem;
+}

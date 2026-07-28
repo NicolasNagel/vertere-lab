@@ -22,10 +22,12 @@ from app.core.config import Settings, get_settings
 from app.core.logging import configure_logging
 from app.modules.address_lookup.api.routers import router as address_lookup_router
 from app.modules.attendances.api.routers import router as attendances_router
+from app.modules.billing.api.routers import router as billing_router
 from app.modules.catalog.api.routers import exams_router
 from app.modules.catalog.api.routers import router as catalog_router
 from app.modules.clinics.api.routers import router as clinics_router
 from app.modules.identity.api.routers import router as identity_router
+from app.modules.imports.api.routers import router as imports_router
 from app.modules.patients.api.routers import patients_router, species_router
 from app.modules.veterinarians.api.routers import router as veterinarians_router
 from app.shared.infrastructure.database import build_engine, build_session_factory
@@ -66,5 +68,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     api_router.include_router(species_router)
     api_router.include_router(address_lookup_router)
     api_router.include_router(attendances_router)
+    api_router.include_router(billing_router)
+    api_router.include_router(imports_router)
     app.include_router(api_router)
     return app

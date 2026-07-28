@@ -1,6 +1,7 @@
 import { useAuth } from '../../features/auth/auth-provider'
 import vertereMark from '../assets/vertere-mark.png'
 import {
+  BillingIcon,
   ClinicsIcon,
   DashboardIcon,
   ExamsIcon,
@@ -53,6 +54,10 @@ export function Sidebar() {
     ...baseAdminNavEntries,
   ]
 
+  const financeNavEntries: SidebarNavItemProps[] = permissions.includes('closures.preview')
+    ? [{ icon: <BillingIcon />, label: 'Fechamento', to: '/financeiro/fechamento' }]
+    : []
+
   return (
     <div className="sidebar">
       <div className="sidebar__brand">
@@ -72,6 +77,15 @@ export function Sidebar() {
         {registrationNavEntries.map((entry) => (
           <SidebarNavItem key={entry.label} {...entry} />
         ))}
+
+        {financeNavEntries.length > 0 && (
+          <>
+            <div className="sidebar__section-label">Financeiro</div>
+            {financeNavEntries.map((entry) => (
+              <SidebarNavItem key={entry.label} {...entry} />
+            ))}
+          </>
+        )}
 
         <div className="sidebar__section-label">Administração</div>
         {adminNavEntries.map((entry) => (

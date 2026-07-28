@@ -1,14 +1,13 @@
 """Integração com PostgreSQL real (Testcontainers) — criação de rascunho de
-atendimento, listagem, leitura e autorização, ponta a ponta via HTTPX/ASGI.
-
-Esta fatia cobre só `DRAFT` (`app/modules/attendances/domain/entities.py`) —
-sem `/confirm`, protocolo ou item financeiro ainda.
+atendimento, confirmação com protocolo/itens financeiros, listagem, leitura
+e autorização, ponta a ponta via HTTPX/ASGI.
 """
 
 from __future__ import annotations
 
 from collections.abc import AsyncIterator, Iterator
 from datetime import UTC, datetime
+from decimal import Decimal
 from pathlib import Path
 from uuid import UUID, uuid4
 
@@ -68,7 +67,11 @@ def session_factory(postgres_url: str) -> Iterator[sessionmaker[Session]]:
 def _reset_data(session_factory: sessionmaker[Session]) -> None:
     with session_factory() as session:
         session.execute(text("DELETE FROM audit_log"))
+        session.execute(text("DELETE FROM attendance_exams"))
         session.execute(text("DELETE FROM attendances"))
+        session.execute(text("DELETE FROM attendance_sequences"))
+        session.execute(text("DELETE FROM exams"))
+        session.execute(text("DELETE FROM exam_categories"))
         session.execute(text("DELETE FROM veterinarian_clinics"))
         session.execute(text("DELETE FROM patients"))
         session.execute(text("DELETE FROM veterinarians"))
@@ -188,7 +191,7 @@ def _get_species_id(session_factory: sessionmaker[Session], *, name: str) -> str
 
 
 async def _create_patient(client: httpx.AsyncClient, session_factory: sessionmaker[Session]) -> str:
-    species_id = _get_species_id(session_factory, name="Cão")
+    species_id = _get_species_id(session_factory, name="Canino")
     response = await client.post(
         "/api/v1/patients",
         json={
@@ -403,3 +406,184 @@ async def test_list_attendances_without_authentication_is_unauthenticated(
 ) -> None:
     response = await client.get("/api/v1/attendances")
     assert response.status_code == 401
+
+
+async def _create_exam_category(client: httpx.AsyncClient, name: str) -> str:
+    response = await client.post("/api/v1/exam-categories", json={"name": name})
+    assert response.status_code == 201
+    return str(response.json()["id"])
+
+
+async def _create_exam(
+    client: httpx.AsyncClient,
+    *,
+    code: str,
+    category_id: str,
+    price_base: str,
+    species_ids: list[str],
+) -> str:
+    response = await client.post(
+        "/api/v1/exams",
+        json={
+            "code": code,
+            "name": "Hemograma",
+            "category_id": category_id,
+            "price_base": price_base,
+            "species_ids": species_ids,
+        },
+    )
+    assert response.status_code == 201
+    return str(response.json()["id"])
+
+
+async def _create_confirmable_draft(
+    client: httpx.AsyncClient, session_factory: sessionmaker[Session]
+) -> tuple[str, str]:
+    """Returns (attendance_id, exam_id) for a DRAFT ready to confirm."""
+    unique = uuid4().hex[:8]
+    clinic_id = await _create_clinic(client, f"Schweitzer {unique}")
+    veterinarian_id = await _create_veterinarian(
+        client, name="Dra. Fabianna Garcia", crmv=f"CRMV-SC {unique}"
+    )
+    patient_id = await _create_patient(client, session_factory)
+    species_id = _get_species_id(session_factory, name="Canino")
+    category_id = await _create_exam_category(client, f"Hematologia {unique}")
+    exam_id = await _create_exam(
+        client,
+        code=f"HEMO-{unique}",
+        category_id=category_id,
+        price_base="100.00",
+        species_ids=[species_id],
+    )
+
+    draft_response = await client.post(
+        "/api/v1/attendances/drafts",
+        json={
+            "clinic_id": clinic_id,
+            "veterinarian_id": veterinarian_id,
+            "patient_id": patient_id,
+            "service_date": "2026-01-05",
+        },
+    )
+    assert draft_response.status_code == 201
+    return draft_response.json()["id"], exam_id
+
+
+async def test_confirm_attendance_succeeds_with_protocol_and_totals(
+    client: httpx.AsyncClient, session_factory: sessionmaker[Session]
+) -> None:
+    await _login_admin(client, session_factory)
+    attendance_id, exam_id = await _create_confirmable_draft(client, session_factory)
+
+    response = await client.post(
+        f"/api/v1/attendances/{attendance_id}/confirm",
+        json={"items": [{"exam_id": exam_id, "quantity": 2}]},
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["status"] == "CONFIRMED"
+    assert Decimal(body["grand_total"]) == Decimal("200.00")
+    assert Decimal(body["subtotal"]) == Decimal("200.00")
+    assert body["billing_competence"] == "2026-01-01"
+    assert body["protocol_number"] == "2026/000001"
+    assert len(body["items"]) == 1
+    assert Decimal(body["items"][0]["total_amount"]) == Decimal("200.00")
+
+    with session_factory() as session:
+        row = session.execute(
+            text(
+                "SELECT action, entity_id FROM audit_log "
+                "WHERE action = 'attendances.confirmed' ORDER BY occurred_at DESC LIMIT 1"
+            )
+        ).one()
+        assert row.entity_id == attendance_id
+
+
+async def test_confirm_attendance_without_permission_is_forbidden(
+    client: httpx.AsyncClient, session_factory: sessionmaker[Session]
+) -> None:
+    await _login_admin(client, session_factory)
+    attendance_id, exam_id = await _create_confirmable_draft(client, session_factory)
+
+    await client.post("/api/v1/auth/logout")
+    _create_user(
+        session_factory,
+        email="finance@vertere.local",
+        password="s3nhaForte!",
+        role_id=ROLE_FINANCE,
+    )
+    await _login(client, email="finance@vertere.local", password="s3nhaForte!")
+
+    response = await client.post(
+        f"/api/v1/attendances/{attendance_id}/confirm",
+        json={"items": [{"exam_id": exam_id, "quantity": 1}]},
+    )
+
+    assert response.status_code == 403
+
+
+async def test_confirm_attendance_twice_is_invalid(
+    client: httpx.AsyncClient, session_factory: sessionmaker[Session]
+) -> None:
+    await _login_admin(client, session_factory)
+    attendance_id, exam_id = await _create_confirmable_draft(client, session_factory)
+
+    first = await client.post(
+        f"/api/v1/attendances/{attendance_id}/confirm",
+        json={"items": [{"exam_id": exam_id, "quantity": 1}]},
+    )
+    assert first.status_code == 200
+
+    second = await client.post(
+        f"/api/v1/attendances/{attendance_id}/confirm",
+        json={"items": [{"exam_id": exam_id, "quantity": 1}]},
+    )
+    assert second.status_code == 422
+
+
+async def test_confirm_attendance_without_items_is_invalid(
+    client: httpx.AsyncClient, session_factory: sessionmaker[Session]
+) -> None:
+    await _login_admin(client, session_factory)
+    attendance_id, _exam_id = await _create_confirmable_draft(client, session_factory)
+
+    response = await client.post(f"/api/v1/attendances/{attendance_id}/confirm", json={"items": []})
+
+    assert response.status_code == 422
+
+
+async def test_confirm_attendance_unknown_attendance_is_not_found(
+    client: httpx.AsyncClient, session_factory: sessionmaker[Session]
+) -> None:
+    await _login_admin(client, session_factory)
+
+    response = await client.post(
+        f"/api/v1/attendances/{uuid4()}/confirm",
+        json={"items": [{"exam_id": str(uuid4()), "quantity": 1}]},
+    )
+
+    assert response.status_code == 404
+
+
+async def test_confirm_attendance_protocol_sequence_increments_across_clinics(
+    client: httpx.AsyncClient, session_factory: sessionmaker[Session]
+) -> None:
+    """Protocol is a lab-wide sequence per year, not per clinic
+    (`docs/03-modelo-de-dominio.md` §7: `UNIQUE(protocol_year,
+    protocol_sequence)`, no `clinic_id` in the constraint)."""
+    await _login_admin(client, session_factory)
+    first_attendance_id, first_exam_id = await _create_confirmable_draft(client, session_factory)
+    second_attendance_id, second_exam_id = await _create_confirmable_draft(client, session_factory)
+
+    first = await client.post(
+        f"/api/v1/attendances/{first_attendance_id}/confirm",
+        json={"items": [{"exam_id": first_exam_id, "quantity": 1}]},
+    )
+    second = await client.post(
+        f"/api/v1/attendances/{second_attendance_id}/confirm",
+        json={"items": [{"exam_id": second_exam_id, "quantity": 1}]},
+    )
+
+    assert first.json()["protocol_number"] == "2026/000001"
+    assert second.json()["protocol_number"] == "2026/000002"

@@ -216,6 +216,24 @@ export function UploadIcon(props: IconProps) {
   )
 }
 
+export function BillingIcon(props: IconProps) {
+  return (
+    <svg
+      width="15"
+      height="15"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={1.6}
+      aria-hidden="true"
+      {...props}
+    >
+      <circle cx="12" cy="12" r="9" />
+      <path d="M12 7v10M15 9.5c0-1.4-1.3-2.5-3-2.5s-3 1-3 2.3c0 3 6 1.4 6 4.3 0 1.3-1.3 2.4-3 2.4s-3-1-3-2.4" />
+    </svg>
+  )
+}
+
 export function UsersIcon(props: IconProps) {
   return (
     <svg

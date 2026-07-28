@@ -1,4 +1,4 @@
-"""SQLAlchemy implementation of the attendances repository protocol.
+"""SQLAlchemy implementation of the attendances repository protocols.
 
 Domain entities are the only thing that crosses back out of this module;
 ORM models never leak past this file (rule: .claude/rules/database.md).
@@ -10,9 +10,36 @@ from uuid import UUID
 
 from sqlalchemy import ColumnElement, func, select
 from sqlalchemy.orm import Session as SqlAlchemySession
+from sqlalchemy.orm import selectinload
 
-from app.modules.attendances.domain.entities import AttendanceRecord, AttendanceStatus
-from app.modules.attendances.infrastructure.models import AttendanceModel
+from app.modules.attendances.domain.entities import (
+    AttendanceExam,
+    AttendanceExamStatus,
+    AttendanceRecord,
+    AttendanceStatus,
+)
+from app.modules.attendances.infrastructure.models import (
+    AttendanceExamModel,
+    AttendanceModel,
+    AttendanceSequenceModel,
+)
+
+
+def _item_to_domain(model: AttendanceExamModel) -> AttendanceExam:
+    return AttendanceExam(
+        id=model.id,
+        attendance_id=model.attendance_id,
+        exam_id=model.exam_id,
+        exam_code=model.exam_code,
+        exam_name=model.exam_name,
+        price_base=model.price_base,
+        quantity=model.quantity,
+        discount_amount=model.discount_amount,
+        surcharge_amount=model.surcharge_amount,
+        override_reason=model.override_reason,
+        override_by=model.override_by,
+        status=AttendanceExamStatus(model.status),
+    )
 
 
 def _to_domain(model: AttendanceModel) -> AttendanceRecord:
@@ -24,6 +51,16 @@ def _to_domain(model: AttendanceModel) -> AttendanceRecord:
         service_date=model.service_date,
         notes=model.notes,
         status=AttendanceStatus(model.status),
+        items=[_item_to_domain(item) for item in model.items],
+        billing_competence=model.billing_competence,
+        subtotal=model.subtotal,
+        discount_total=model.discount_total,
+        surcharge_total=model.surcharge_total,
+        grand_total=model.grand_total,
+        protocol_year=model.protocol_year,
+        protocol_sequence=model.protocol_sequence,
+        protocol_number=model.protocol_number,
+        monthly_closure_id=model.monthly_closure_id,
         created_by=model.created_by,
         updated_by=model.updated_by,
         created_at=model.created_at,
@@ -37,7 +74,11 @@ class SqlAlchemyAttendanceRepository:
         self._session = session
 
     def get_by_id(self, attendance_id: UUID) -> AttendanceRecord | None:
-        model = self._session.get(AttendanceModel, attendance_id)
+        model = self._session.execute(
+            select(AttendanceModel)
+            .where(AttendanceModel.id == attendance_id)
+            .options(selectinload(AttendanceModel.items))
+        ).scalar_one_or_none()
         return _to_domain(model) if model is not None else None
 
     def add(self, attendance: AttendanceRecord) -> None:
@@ -50,6 +91,15 @@ class SqlAlchemyAttendanceRepository:
                 service_date=attendance.service_date,
                 notes=attendance.notes,
                 status=attendance.status.value,
+                billing_competence=attendance.billing_competence,
+                subtotal=attendance.subtotal,
+                discount_total=attendance.discount_total,
+                surcharge_total=attendance.surcharge_total,
+                grand_total=attendance.grand_total,
+                protocol_year=attendance.protocol_year,
+                protocol_sequence=attendance.protocol_sequence,
+                protocol_number=attendance.protocol_number,
+                monthly_closure_id=attendance.monthly_closure_id,
                 created_by=attendance.created_by,
                 updated_by=attendance.updated_by,
                 created_at=attendance.created_at,
@@ -57,6 +107,50 @@ class SqlAlchemyAttendanceRepository:
                 row_version=attendance.row_version,
             )
         )
+
+    def update(self, attendance: AttendanceRecord) -> None:
+        model = self._session.execute(
+            select(AttendanceModel)
+            .where(AttendanceModel.id == attendance.id)
+            .options(selectinload(AttendanceModel.items))
+        ).scalar_one_or_none()
+        if model is None:
+            raise LookupError(f"Atendimento {attendance.id} não encontrado para atualização.")
+
+        model.service_date = attendance.service_date
+        model.notes = attendance.notes
+        model.status = attendance.status.value
+        model.billing_competence = attendance.billing_competence
+        model.subtotal = attendance.subtotal
+        model.discount_total = attendance.discount_total
+        model.surcharge_total = attendance.surcharge_total
+        model.grand_total = attendance.grand_total
+        model.protocol_year = attendance.protocol_year
+        model.protocol_sequence = attendance.protocol_sequence
+        model.protocol_number = attendance.protocol_number
+        model.monthly_closure_id = attendance.monthly_closure_id
+        model.updated_by = attendance.updated_by
+        model.updated_at = attendance.updated_at
+        model.row_version = attendance.row_version + 1
+
+        for item in attendance.items:
+            model.items.append(
+                AttendanceExamModel(
+                    id=item.id,
+                    attendance_id=attendance.id,
+                    exam_id=item.exam_id,
+                    exam_code=item.exam_code,
+                    exam_name=item.exam_name,
+                    price_base=item.price_base,
+                    quantity=item.quantity,
+                    discount_amount=item.discount_amount,
+                    surcharge_amount=item.surcharge_amount,
+                    total_amount=item.total_amount,
+                    override_reason=item.override_reason,
+                    override_by=item.override_by,
+                    status=item.status.value,
+                )
+            )
 
     def list_page(
         self,
@@ -79,7 +173,11 @@ class SqlAlchemyAttendanceRepository:
             conditions.append(AttendanceModel.status == status.value)
 
         count_stmt = select(func.count()).select_from(AttendanceModel)
-        list_stmt = select(AttendanceModel).order_by(AttendanceModel.created_at.desc())
+        list_stmt = (
+            select(AttendanceModel)
+            .options(selectinload(AttendanceModel.items))
+            .order_by(AttendanceModel.created_at.desc())
+        )
         for condition in conditions:
             count_stmt = count_stmt.where(condition)
             list_stmt = list_stmt.where(condition)
@@ -88,3 +186,28 @@ class SqlAlchemyAttendanceRepository:
         list_stmt = list_stmt.offset((page - 1) * page_size).limit(page_size)
         models = self._session.execute(list_stmt).scalars().all()
         return [_to_domain(model) for model in models], total
+
+
+class SqlAlchemyAttendanceSequenceRepository:
+    """`SELECT ... FOR UPDATE` on the counter row for the year, inside the
+    caller's transaction — never `MAX + 1` (`.claude/rules/database.md`).
+    """
+
+    def __init__(self, session: SqlAlchemySession) -> None:
+        self._session = session
+
+    def next_sequence(self, year: int) -> int:
+        model = self._session.execute(
+            select(AttendanceSequenceModel)
+            .where(AttendanceSequenceModel.year == year)
+            .with_for_update()
+        ).scalar_one_or_none()
+
+        if model is None:
+            model = AttendanceSequenceModel(year=year, last_sequence=0)
+            self._session.add(model)
+            self._session.flush()
+            self._session.refresh(model, with_for_update=True)
+
+        model.last_sequence += 1
+        return model.last_sequence

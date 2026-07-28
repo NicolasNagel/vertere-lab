@@ -3,9 +3,25 @@ raw across the module boundary (rule: .claude/rules/backend.md)."""
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import date, datetime
+from decimal import Decimal
 from uuid import UUID
+
+
+@dataclass(frozen=True, kw_only=True)
+class AttendanceExamDTO:
+    id: UUID
+    exam_id: UUID
+    exam_code: str
+    exam_name: str
+    price_base: Decimal
+    quantity: int
+    discount_amount: Decimal
+    surcharge_amount: Decimal
+    total_amount: Decimal
+    override_reason: str | None
+    status: str
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -17,6 +33,13 @@ class AttendanceDTO:
     service_date: date | None
     notes: str | None
     status: str
+    items: list[AttendanceExamDTO] = field(default_factory=list)
+    billing_competence: date | None = None
+    subtotal: Decimal = Decimal("0")
+    discount_total: Decimal = Decimal("0")
+    surcharge_total: Decimal = Decimal("0")
+    grand_total: Decimal = Decimal("0")
+    protocol_number: str | None = None
     created_at: datetime
     updated_at: datetime
     row_version: int

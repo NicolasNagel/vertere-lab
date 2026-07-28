@@ -15,6 +15,18 @@ export function pluralize(count: number, singular: string, plural: string): stri
   return count === 1 ? singular : plural
 }
 
+const _currencyFormatter = new Intl.NumberFormat('pt-BR', {
+  style: 'currency',
+  currency: 'BRL',
+})
+
+/** API sends money as a decimal string (never a JSON number — rule:
+ * .claude/rules/globals.md, "dinheiro nunca é float"). This only formats
+ * for display; the canonical value stays the string from the API. */
+export function formatCurrencyBRL(value: string): string {
+  return _currencyFormatter.format(Number(value))
+}
+
 /** Datas do backend chegam em UTC (`TIMESTAMPTZ`) — formatação usa o
  * timezone do navegador do usuário, nunca assume UTC na exibição (rule:
  * .claude/rules/frontend.md, "apresenta em pt-BR com o timezone

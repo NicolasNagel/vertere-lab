@@ -1,10 +1,10 @@
 """Attendances API — thin routers, no business rule (rule:
 .claude/rules/backend.md).
 
-Only draft creation + read endpoints exist in this slice
-(`POST /attendances/drafts`, `GET /attendances`, `GET /attendances/{id}`) —
-no `/confirm`, `/cancel`, `PATCH` or `/timeline` yet (those need protocol,
-pricing and items, out of scope here — see ADR complement for this slice).
+`POST /attendances/{id}/confirm` has no `Idempotency-Key` in this slice —
+see `.claude/rules/attendence.md` deviation note in
+`application/confirm_attendance.py`. `/cancel`, `PATCH` and `/timeline`
+remain out of scope.
 """
 
 from __future__ import annotations
@@ -17,16 +17,24 @@ from sqlalchemy.orm import Session as SqlAlchemySession
 
 from app.api.dependencies import get_session, get_unit_of_work
 from app.modules.attendances.api.schemas import (
+    AttendanceConfirmRequest,
     AttendanceDraftCreateRequest,
+    AttendanceExamRead,
+    AttendanceExamStatusLiteral,
     AttendanceListResponse,
     AttendanceRead,
     AttendanceStatusLiteral,
+)
+from app.modules.attendances.application.confirm_attendance import (
+    ConfirmAttendanceCommand,
+    ConfirmAttendanceItemInput,
+    ConfirmAttendanceUseCase,
 )
 from app.modules.attendances.application.create_attendance_draft import (
     CreateAttendanceDraftCommand,
     CreateAttendanceDraftUseCase,
 )
-from app.modules.attendances.application.dtos import AttendanceDTO
+from app.modules.attendances.application.dtos import AttendanceDTO, AttendanceExamDTO
 from app.modules.attendances.application.get_attendance import (
     GetAttendanceQuery,
     GetAttendanceUseCase,
@@ -36,8 +44,12 @@ from app.modules.attendances.application.list_attendances import (
     ListAttendancesUseCase,
 )
 from app.modules.attendances.domain.entities import AttendanceStatus
-from app.modules.attendances.infrastructure.repositories import SqlAlchemyAttendanceRepository
+from app.modules.attendances.infrastructure.repositories import (
+    SqlAlchemyAttendanceRepository,
+    SqlAlchemyAttendanceSequenceRepository,
+)
 from app.modules.audit.infrastructure.repositories import SqlAlchemyAuditLogWriter
+from app.modules.catalog.infrastructure.repositories import SqlAlchemyExamRepository
 from app.modules.clinics.infrastructure.repositories import SqlAlchemyClinicRepository
 from app.modules.identity.api.dependencies import require_permission
 from app.modules.identity.application.dtos import AuthenticatedUserDTO
@@ -52,6 +64,22 @@ from app.shared.infrastructure.uow import SqlAlchemyUnitOfWork
 router = APIRouter(prefix="/attendances", tags=["attendances"])
 
 
+def _attendance_exam_read(dto: AttendanceExamDTO) -> AttendanceExamRead:
+    return AttendanceExamRead(
+        id=dto.id,
+        exam_id=dto.exam_id,
+        exam_code=dto.exam_code,
+        exam_name=dto.exam_name,
+        price_base=dto.price_base,
+        quantity=dto.quantity,
+        discount_amount=dto.discount_amount,
+        surcharge_amount=dto.surcharge_amount,
+        total_amount=dto.total_amount,
+        override_reason=dto.override_reason,
+        status=cast(AttendanceExamStatusLiteral, dto.status),
+    )
+
+
 def _attendance_read(dto: AttendanceDTO) -> AttendanceRead:
     return AttendanceRead(
         id=dto.id,
@@ -61,6 +89,13 @@ def _attendance_read(dto: AttendanceDTO) -> AttendanceRead:
         service_date=dto.service_date,
         notes=dto.notes,
         status=cast(AttendanceStatusLiteral, dto.status),
+        items=[_attendance_exam_read(item) for item in dto.items],
+        billing_competence=dto.billing_competence,
+        subtotal=dto.subtotal,
+        discount_total=dto.discount_total,
+        surcharge_total=dto.surcharge_total,
+        grand_total=dto.grand_total,
+        protocol_number=dto.protocol_number,
         created_at=dto.created_at,
         updated_at=dto.updated_at,
         row_version=dto.row_version,
@@ -133,6 +168,44 @@ def create_attendance_draft(
                 patient_id=payload.patient_id,
                 service_date=payload.service_date,
                 notes=payload.notes,
+            )
+        )
+        uow.commit()
+    return _attendance_read(result)
+
+
+@router.post("/{attendance_id}/confirm", response_model=AttendanceRead)
+def confirm_attendance(
+    attendance_id: UUID,
+    payload: AttendanceConfirmRequest,
+    uow: SqlAlchemyUnitOfWork = Depends(get_unit_of_work),
+    current_user: AuthenticatedUserDTO = Depends(require_permission("attendances.update")),
+) -> AttendanceRead:
+    with uow:
+        use_case = ConfirmAttendanceUseCase(
+            attendances=SqlAlchemyAttendanceRepository(uow.session),
+            attendance_sequences=SqlAlchemyAttendanceSequenceRepository(uow.session),
+            clinics=SqlAlchemyClinicRepository(uow.session),
+            veterinarians=SqlAlchemyVeterinarianRepository(uow.session),
+            veterinarian_clinics=SqlAlchemyVeterinarianClinicLinkRepository(uow.session),
+            patients=SqlAlchemyPatientRepository(uow.session),
+            exams=SqlAlchemyExamRepository(uow.session),
+            audit=SqlAlchemyAuditLogWriter(uow.session),
+            clock=SystemClock(),
+        )
+        result = use_case.execute(
+            ConfirmAttendanceCommand(
+                actor=current_user,
+                attendance_id=attendance_id,
+                items=[
+                    ConfirmAttendanceItemInput(
+                        exam_id=item.exam_id,
+                        quantity=item.quantity,
+                        discount_amount=item.discount_amount,
+                        override_reason=item.override_reason,
+                    )
+                    for item in payload.items
+                ],
             )
         )
         uow.commit()

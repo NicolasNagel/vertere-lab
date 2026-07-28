@@ -6,10 +6,13 @@ pure use-case test is not the repository-under-test, so this is fine per
 from __future__ import annotations
 
 from datetime import UTC, datetime
+from decimal import Decimal
 from uuid import UUID
 
 from app.modules.attendances.domain.entities import AttendanceRecord, AttendanceStatus
 from app.modules.audit.domain.entities import AuditEntry
+from app.modules.catalog.domain.entities import Exam, ExamStatus
+from app.modules.catalog.domain.value_objects import ExamCode, PlantaoSurcharge
 from app.modules.clinics.domain.entities import Clinic, ClinicStatus
 from app.modules.patients.domain.entities import Patient, PatientSex, PatientStatus
 from app.modules.veterinarian_clinics.domain.entities import VeterinarianClinicLink
@@ -40,6 +43,9 @@ class FakeAttendanceRepository:
         self._attendances: dict[UUID, AttendanceRecord] = {}
 
     def add(self, attendance: AttendanceRecord) -> None:
+        self._attendances[attendance.id] = attendance
+
+    def update(self, attendance: AttendanceRecord) -> None:
         self._attendances[attendance.id] = attendance
 
     def get_by_id(self, attendance_id: UUID) -> AttendanceRecord | None:
@@ -80,6 +86,12 @@ class FakeClinicRepository:
     def get_by_tax_id(self, tax_id: str) -> Clinic | None:
         raise NotImplementedError
 
+    def get_by_name(self, name: str) -> Clinic | None:
+        raise NotImplementedError
+
+    def list_all_names(self) -> dict[str, UUID]:
+        raise NotImplementedError
+
     def add(self, clinic: Clinic) -> None:
         raise NotImplementedError
 
@@ -107,6 +119,9 @@ class FakeVeterinarianRepository:
         return self._veterinarians.get(veterinarian_id)
 
     def get_by_crmv(self, crmv: str) -> Veterinarian | None:
+        raise NotImplementedError
+
+    def get_by_name(self, name: str) -> Veterinarian | None:
         raise NotImplementedError
 
     def add(self, veterinarian: Veterinarian) -> None:
@@ -172,6 +187,9 @@ class FakePatientRepository:
     def get_by_id(self, patient_id: UUID) -> Patient | None:
         return self._patients.get(patient_id)
 
+    def get_by_owner_and_name(self, *, owner_name: str, name: str) -> Patient | None:
+        raise NotImplementedError
+
     def add(self, patient: Patient) -> None:
         raise NotImplementedError
 
@@ -187,6 +205,44 @@ class FakePatientRepository:
         search: str | None,
     ) -> tuple[list[Patient], int]:
         raise NotImplementedError
+
+
+class FakeExamRepository:
+    def __init__(self, exams: list[Exam] | None = None) -> None:
+        self._exams: dict[UUID, Exam] = {exam.id: exam for exam in (exams or [])}
+
+    def get_by_id(self, exam_id: UUID) -> Exam | None:
+        return self._exams.get(exam_id)
+
+    def get_by_code(self, code: str) -> Exam | None:
+        raise NotImplementedError
+
+    def add(self, exam: Exam) -> None:
+        raise NotImplementedError
+
+    def save(self, exam: Exam) -> None:
+        raise NotImplementedError
+
+    def list_page(
+        self,
+        *,
+        page: int,
+        page_size: int,
+        status: ExamStatus | None,
+        category_id: UUID | None,
+        species_id: UUID | None,
+        search: str | None,
+    ) -> tuple[list[Exam], int]:
+        raise NotImplementedError
+
+
+class FakeAttendanceSequenceRepository:
+    def __init__(self) -> None:
+        self._last_by_year: dict[int, int] = {}
+
+    def next_sequence(self, year: int) -> int:
+        self._last_by_year[year] = self._last_by_year.get(year, 0) + 1
+        return self._last_by_year[year]
 
 
 def make_clinic(*, clinic_id: UUID, status: ClinicStatus = ClinicStatus.ACTIVE) -> Clinic:
@@ -224,6 +280,26 @@ def make_patient(*, patient_id: UUID, status: PatientStatus = PatientStatus.ACTI
         owner_phone=None,
         owner_document=None,
         notes=None,
+        status=status,
+        created_at=_SEED_AT,
+        updated_at=_SEED_AT,
+    )
+
+
+def make_exam(
+    *,
+    exam_id: UUID,
+    price_base: Decimal = Decimal("100.00"),
+    status: ExamStatus = ExamStatus.ACTIVE,
+) -> Exam:
+    return Exam(
+        id=exam_id,
+        code=ExamCode("EX-001"),
+        name="Hemograma",
+        category_id=UUID(int=2),
+        price_base=price_base,
+        plantao_surcharge=PlantaoSurcharge(),
+        species_ids=frozenset({UUID(int=1)}),
         status=status,
         created_at=_SEED_AT,
         updated_at=_SEED_AT,
