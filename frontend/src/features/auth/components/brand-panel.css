@@ -4,7 +4,7 @@
   flex: 0 0 43.75%;
   background: var(--color-brand-ink);
   color: #ffffff;
-  padding: 4rem 3.5rem;
+  padding: 2.5rem 3rem;
   display: flex;
   flex-direction: column;
   justify-content: space-between;
@@ -41,7 +41,7 @@
 
 .brand-panel__logo {
   width: 100%;
-  max-width: 21.25rem; /* 340px */
+  max-width: 13.75rem; /* 220px */
   height: auto;
   display: block;
   margin: 0 auto;
@@ -52,9 +52,9 @@
   text-transform: uppercase;
   letter-spacing: 0.02em;
   font-weight: 800;
-  font-size: 2.875rem; /* 46px */
+  font-size: 2.25rem; /* 36px */
   line-height: 1.08;
-  margin: 5rem 0 0; /* 80px */
+  margin: 2rem 0 0;
   max-width: 27.5rem; /* 440px */
 }
 
