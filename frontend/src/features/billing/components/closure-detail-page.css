@@ -41,16 +41,21 @@
 }
 
 .closure-reopen-modal label,
-.closure-reopen-modal textarea {
+.closure-reopen-modal textarea,
+.closure-reopen-modal input,
+.closure-reopen-modal select {
   display: block;
   width: 100%;
 }
 
-.closure-reopen-modal textarea {
+.closure-reopen-modal textarea,
+.closure-reopen-modal input,
+.closure-reopen-modal select {
   margin: 0.5rem 0 1rem;
   padding: 0.75rem;
-  resize: vertical;
 }
+
+.closure-reopen-modal textarea { resize: vertical; }
 
 .closure-reopen-modal__actions {
   justify-content: flex-end;

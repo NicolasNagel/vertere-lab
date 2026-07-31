@@ -134,6 +134,19 @@ export interface MonthlyClosureItem {
   totalAmount: string
 }
 
+export type FinancialAdjustmentKind = 'CREDIT' | 'DEBIT'
+
+export interface FinancialAdjustment {
+  id: string
+  monthlyClosureId: string
+  monthlyClosureItemId: string | null
+  kind: FinancialAdjustmentKind
+  amount: string
+  reason: string
+  createdBy: string | null
+  createdAt: string
+}
+
 export interface MonthlyClosure {
   id: string
   clinicId: string
@@ -154,6 +167,7 @@ export interface MonthlyClosure {
   reopenedAt: string | null
   version: number
   items: MonthlyClosureItem[]
+  adjustments: FinancialAdjustment[]
 }
 
 export interface MonthlyClosureSummary {
@@ -212,6 +226,18 @@ interface ApiMonthlyClosure {
   reopened_at: string | null
   version: number
   items: ApiMonthlyClosureItem[]
+  adjustments: ApiFinancialAdjustment[]
+}
+
+interface ApiFinancialAdjustment {
+  id: string
+  monthly_closure_id: string
+  monthly_closure_item_id: string | null
+  kind: FinancialAdjustmentKind
+  amount: string
+  reason: string
+  created_by: string | null
+  created_at: string
 }
 
 interface ApiMonthlyClosureSummary {
@@ -273,6 +299,20 @@ function fromApiMonthlyClosure(closure: ApiMonthlyClosure): MonthlyClosure {
     reopenedAt: closure.reopened_at,
     version: closure.version,
     items: closure.items.map(fromApiMonthlyClosureItem),
+    adjustments: (closure.adjustments ?? []).map(fromApiFinancialAdjustment),
+  }
+}
+
+function fromApiFinancialAdjustment(adjustment: ApiFinancialAdjustment): FinancialAdjustment {
+  return {
+    id: adjustment.id,
+    monthlyClosureId: adjustment.monthly_closure_id,
+    monthlyClosureItemId: adjustment.monthly_closure_item_id,
+    kind: adjustment.kind,
+    amount: adjustment.amount,
+    reason: adjustment.reason,
+    createdBy: adjustment.created_by,
+    createdAt: adjustment.created_at,
   }
 }
 
@@ -355,6 +395,32 @@ export async function reopenMonthlyClosure(id: string, reason: string): Promise<
   })
   await throwIfNotOk(response)
   return fromApiMonthlyClosure((await response.json()) as ApiMonthlyClosure)
+}
+
+export interface AddFinancialAdjustmentParams {
+  monthlyClosureItemId: string | null
+  kind: FinancialAdjustmentKind
+  amount: string
+  reason: string
+}
+
+export async function addFinancialAdjustment(
+  closureId: string,
+  params: AddFinancialAdjustmentParams,
+): Promise<FinancialAdjustment> {
+  const response = await fetch(`${API_BASE}/closures/${closureId}/adjustments`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    credentials: 'include',
+    body: JSON.stringify({
+      monthly_closure_item_id: params.monthlyClosureItemId,
+      kind: params.kind,
+      amount: params.amount,
+      reason: params.reason,
+    }),
+  })
+  await throwIfNotOk(response)
+  return fromApiFinancialAdjustment((await response.json()) as ApiFinancialAdjustment)
 }
 
 export function monthlyClosureExportUrl(id: string): string {

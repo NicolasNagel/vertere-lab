@@ -62,6 +62,26 @@ class ReopenMonthlyClosureRequest(BaseModel):
     reason: str = Field(min_length=10, max_length=1000)
 
 
+class FinancialAdjustmentCreateRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    monthly_closure_item_id: UUID | None = None
+    kind: str = Field(pattern="^(CREDIT|DEBIT)$")
+    amount: Decimal = Field(gt=0, max_digits=14, decimal_places=2)
+    reason: str = Field(min_length=10, max_length=1000)
+
+
+class FinancialAdjustmentRead(BaseModel):
+    id: UUID
+    monthly_closure_id: UUID
+    monthly_closure_item_id: UUID | None
+    kind: str
+    amount: Decimal
+    reason: str
+    created_by: UUID | None
+    created_at: datetime
+
+
 class MonthlyClosureItemRead(BaseModel):
     id: UUID
     attendance_id: UUID
@@ -96,6 +116,7 @@ class MonthlyClosureRead(BaseModel):
     reopened_at: datetime | None
     version: int
     items: list[MonthlyClosureItemRead]
+    adjustments: list[FinancialAdjustmentRead] = Field(default_factory=list)
 
 
 class MonthlyClosureSummaryRead(BaseModel):

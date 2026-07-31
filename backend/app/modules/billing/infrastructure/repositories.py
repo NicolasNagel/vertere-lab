@@ -19,13 +19,19 @@ from sqlalchemy.orm import selectinload
 
 from app.modules.attendances.infrastructure.models import AttendanceExamModel, AttendanceModel
 from app.modules.billing.domain.entities import (
+    AdjustmentKind,
     ClosureCandidateItem,
     ClosureStatus,
     CompetencePeriod,
+    FinancialAdjustment,
     MonthlyClosure,
     MonthlyClosureItem,
 )
-from app.modules.billing.infrastructure.models import MonthlyClosureItemModel, MonthlyClosureModel
+from app.modules.billing.infrastructure.models import (
+    FinancialAdjustmentModel,
+    MonthlyClosureItemModel,
+    MonthlyClosureModel,
+)
 from app.modules.patients.infrastructure.models import PatientModel
 
 
@@ -127,6 +133,19 @@ def _item_to_domain(model: MonthlyClosureItemModel) -> MonthlyClosureItem:
     )
 
 
+def _adjustment_to_domain(model: FinancialAdjustmentModel) -> FinancialAdjustment:
+    return FinancialAdjustment(
+        id=model.id,
+        monthly_closure_id=model.monthly_closure_id,
+        monthly_closure_item_id=model.monthly_closure_item_id,
+        kind=AdjustmentKind(model.kind),
+        amount=model.amount,
+        reason=model.reason,
+        created_by=model.created_by,
+        created_at=model.created_at,
+    )
+
+
 def _closure_to_domain(model: MonthlyClosureModel) -> MonthlyClosure:
     return MonthlyClosure(
         id=model.id,
@@ -149,6 +168,7 @@ def _closure_to_domain(model: MonthlyClosureModel) -> MonthlyClosure:
         version=model.version,
         integrity_hash=model.integrity_hash,
         items=[_item_to_domain(item) for item in model.items],
+        adjustments=[_adjustment_to_domain(item) for item in model.adjustments],
     )
 
 
@@ -180,6 +200,7 @@ class SqlAlchemyMonthlyClosureRepository:
         model = self._session.execute(
             select(MonthlyClosureModel)
             .options(selectinload(MonthlyClosureModel.items))
+            .options(selectinload(MonthlyClosureModel.adjustments))
             .where(
                 MonthlyClosureModel.clinic_id == clinic_id,
                 MonthlyClosureModel.competence_year == year,
@@ -235,6 +256,7 @@ class SqlAlchemyMonthlyClosureRepository:
         model = self._session.execute(
             select(MonthlyClosureModel)
             .options(selectinload(MonthlyClosureModel.items))
+            .options(selectinload(MonthlyClosureModel.adjustments))
             .where(MonthlyClosureModel.id == closure_id)
         ).scalar_one_or_none()
         return _closure_to_domain(model) if model is not None else None
@@ -243,6 +265,7 @@ class SqlAlchemyMonthlyClosureRepository:
         model = self._session.execute(
             select(MonthlyClosureModel)
             .options(selectinload(MonthlyClosureModel.items))
+            .options(selectinload(MonthlyClosureModel.adjustments))
             .where(MonthlyClosureModel.id == closure_id)
             .with_for_update()
         ).scalar_one_or_none()
@@ -254,6 +277,7 @@ class SqlAlchemyMonthlyClosureRepository:
         model = self._session.execute(
             select(MonthlyClosureModel)
             .options(selectinload(MonthlyClosureModel.items))
+            .options(selectinload(MonthlyClosureModel.adjustments))
             .where(
                 MonthlyClosureModel.clinic_id == clinic_id,
                 MonthlyClosureModel.competence_year == year,
@@ -271,10 +295,25 @@ class SqlAlchemyMonthlyClosureRepository:
             .values(status=closure.status.value, reopened_at=closure.reopened_at)
         )
 
+    def add_adjustment(self, adjustment: FinancialAdjustment) -> None:
+        self._session.add(
+            FinancialAdjustmentModel(
+                id=adjustment.id,
+                monthly_closure_id=adjustment.monthly_closure_id,
+                monthly_closure_item_id=adjustment.monthly_closure_item_id,
+                kind=adjustment.kind.value,
+                amount=adjustment.amount,
+                reason=adjustment.reason,
+                created_by=adjustment.created_by,
+                created_at=adjustment.created_at,
+            )
+        )
+
     def list_page(
         self, *, clinic_id: UUID | None, page: int, page_size: int
     ) -> tuple[list[MonthlyClosure], int]:
         stmt = select(MonthlyClosureModel).options(selectinload(MonthlyClosureModel.items))
+        stmt = stmt.options(selectinload(MonthlyClosureModel.adjustments))
         count_stmt = select(func.count()).select_from(MonthlyClosureModel)
         if clinic_id is not None:
             stmt = stmt.where(MonthlyClosureModel.clinic_id == clinic_id)

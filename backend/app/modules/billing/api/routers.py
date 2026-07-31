@@ -23,11 +23,17 @@ from app.modules.billing.api.schemas import (
     ClosurePreviewBlockedItemRead,
     ClosurePreviewItemRead,
     ClosurePreviewResponse,
+    FinancialAdjustmentCreateRequest,
+    FinancialAdjustmentRead,
     MonthlyClosureItemRead,
     MonthlyClosureListResponse,
     MonthlyClosureRead,
     MonthlyClosureSummaryRead,
     ReopenMonthlyClosureRequest,
+)
+from app.modules.billing.application.add_financial_adjustment import (
+    AddFinancialAdjustmentCommand,
+    AddFinancialAdjustmentUseCase,
 )
 from app.modules.billing.application.close_monthly_period import (
     CloseMonthlyPeriodCommand,
@@ -35,6 +41,7 @@ from app.modules.billing.application.close_monthly_period import (
 )
 from app.modules.billing.application.dtos import (
     ClosurePreviewDTO,
+    FinancialAdjustmentDTO,
     MonthlyClosureDTO,
     MonthlyClosurePageDTO,
 )
@@ -55,6 +62,7 @@ from app.modules.billing.application.reopen_monthly_closure import (
     ReopenMonthlyClosureCommand,
     ReopenMonthlyClosureUseCase,
 )
+from app.modules.billing.domain.entities import AdjustmentKind
 from app.modules.billing.infrastructure.repositories import (
     SqlAlchemyClosurePreviewRepository,
     SqlAlchemyMonthlyClosureRepository,
@@ -69,6 +77,19 @@ from app.shared.infrastructure.uow import SqlAlchemyUnitOfWork
 from app.shared.outbox.infrastructure.repositories import SqlAlchemyOutboxEventRepository
 
 router = APIRouter(prefix="/closures", tags=["billing"])
+
+
+def _financial_adjustment_read(dto: FinancialAdjustmentDTO) -> FinancialAdjustmentRead:
+    return FinancialAdjustmentRead(
+        id=dto.id,
+        monthly_closure_id=dto.monthly_closure_id,
+        monthly_closure_item_id=dto.monthly_closure_item_id,
+        kind=dto.kind,
+        amount=dto.amount,
+        reason=dto.reason,
+        created_by=dto.created_by,
+        created_at=dto.created_at,
+    )
 
 
 def _closure_preview_read(dto: ClosurePreviewDTO) -> ClosurePreviewResponse:
@@ -148,6 +169,7 @@ def _monthly_closure_read(dto: MonthlyClosureDTO) -> MonthlyClosureRead:
             )
             for item in dto.items
         ],
+        adjustments=[_financial_adjustment_read(item) for item in dto.adjustments],
     )
 
 
@@ -302,6 +324,39 @@ def reopen_monthly_closure(
             )
         )
         response = _monthly_closure_read(result)
+        uow.commit()
+    return response
+
+
+@router.post(
+    "/{closure_id}/adjustments",
+    response_model=FinancialAdjustmentRead,
+    status_code=201,
+)
+def add_financial_adjustment(
+    closure_id: UUID,
+    payload: FinancialAdjustmentCreateRequest,
+    uow: SqlAlchemyUnitOfWork = Depends(get_unit_of_work),
+    current_user: AuthenticatedUserDTO = Depends(require_permission("closures.adjust")),
+) -> FinancialAdjustmentRead:
+    with uow:
+        use_case = AddFinancialAdjustmentUseCase(
+            closures=SqlAlchemyMonthlyClosureRepository(uow.session),
+            audit=SqlAlchemyAuditLogWriter(uow.session),
+            outbox=SqlAlchemyOutboxEventRepository(uow.session),
+            clock=SystemClock(),
+        )
+        result = use_case.execute(
+            AddFinancialAdjustmentCommand(
+                actor=current_user,
+                closure_id=closure_id,
+                closure_item_id=payload.monthly_closure_item_id,
+                kind=AdjustmentKind(payload.kind),
+                amount=payload.amount,
+                reason=payload.reason,
+            )
+        )
+        response = _financial_adjustment_read(result)
         uow.commit()
     return response
 

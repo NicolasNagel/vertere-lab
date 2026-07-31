@@ -7,8 +7,10 @@ import { useAuth } from '../../auth/auth-context'
 import { useClinicQuery } from '../../clinics/api/use-clinic-query'
 import { monthlyClosureExportUrl } from '../api/closures-api'
 import { useMonthlyClosureQuery } from '../api/use-monthly-closure-query'
+import { useAddFinancialAdjustmentMutation } from '../api/use-add-financial-adjustment-mutation'
 import { useReopenMonthlyClosureMutation } from '../api/use-reopen-monthly-closure-mutation'
 import { ClosureReopenModal } from './closure-reopen-modal'
+import { FinancialAdjustmentModal } from './financial-adjustment-modal'
 import { MonthlyClosureStatusBadge } from './monthly-closure-status-badge'
 import './closure-detail-page.css'
 
@@ -17,7 +19,9 @@ export function ClosureDetailPage() {
   const { user } = useAuth()
   const canRead = user?.permissions.includes('closures.read') ?? false
   const canReopen = user?.permissions.includes('closures.reopen') ?? false
+  const canAdjust = user?.permissions.includes('closures.adjust') ?? false
   const [showReopenModal, setShowReopenModal] = useState(false)
+  const [showAdjustmentModal, setShowAdjustmentModal] = useState(false)
 
   const closureQuery = useMonthlyClosureQuery(canRead ? (closureId ?? null) : null)
   const clinicQuery = useClinicQuery(closureQuery.data?.clinicId ?? null)
@@ -28,6 +32,7 @@ export function ClosureDetailPage() {
 
   const closure = closureQuery.data
   const reopenMutation = useReopenMonthlyClosureMutation(closureId ?? '')
+  const adjustmentMutation = useAddFinancialAdjustmentMutation(closureId ?? '')
 
   return (
     <div className="closure-detail-page">
@@ -40,6 +45,15 @@ export function ClosureDetailPage() {
         </div>
         {closure && (
           <div className="closure-detail-page__actions">
+            {canAdjust && closure.status === 'CLOSED' && (
+              <button
+                className="button button--ghost"
+                type="button"
+                onClick={() => setShowAdjustmentModal(true)}
+              >
+                Adicionar ajuste
+              </button>
+            )}
             {canReopen && closure.status === 'CLOSED' && (
               <button
                 className="button button--ghost"
@@ -112,6 +126,29 @@ export function ClosureDetailPage() {
             </section>
 
             <section className="closure-detail-page__section">
+              <h2 className="closure-detail-page__section-title">
+                Ajustes ({closure.adjustments.length})
+              </h2>
+              {closure.adjustments.length === 0 ? (
+                <p className="closure-detail-page__value">Nenhum ajuste registrado.</p>
+              ) : (
+                <ul className="closure-detail-page__items">
+                  {closure.adjustments.map((adjustment) => (
+                    <li key={adjustment.id} className="closure-detail-page__item">
+                      <span>
+                        {adjustment.kind === 'DEBIT' ? 'Débito' : 'Crédito'} · {adjustment.reason}
+                      </span>
+                      <span className="closure-detail-page__mono">
+                        {adjustment.kind === 'CREDIT' ? '−' : '+'}
+                        {formatCurrencyBRL(adjustment.amount)}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </section>
+
+            <section className="closure-detail-page__section">
               <h2 className="closure-detail-page__section-title">Itens ({closure.itemCount})</h2>
               {closure.items.length === 0 ? (
                 <p className="closure-detail-page__value">Nenhum item associado.</p>
@@ -167,6 +204,20 @@ export function ClosureDetailPage() {
           }}
           onConfirm={(reason) =>
             reopenMutation.mutate(reason, { onSuccess: () => setShowReopenModal(false) })
+          }
+        />
+      )}
+      {showAdjustmentModal && (
+        <FinancialAdjustmentModal
+          isPending={adjustmentMutation.isPending}
+          error={adjustmentMutation.error}
+          onCancel={() => {
+            if (!adjustmentMutation.isPending) setShowAdjustmentModal(false)
+          }}
+          onConfirm={(params) =>
+            adjustmentMutation.mutate(params, {
+              onSuccess: () => setShowAdjustmentModal(false),
+            })
           }
         />
       )}

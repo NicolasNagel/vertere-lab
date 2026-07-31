@@ -74,6 +74,9 @@ class MonthlyClosureModel(Base):
     items: Mapped[list[MonthlyClosureItemModel]] = relationship(
         back_populates="monthly_closure", cascade="all, delete-orphan"
     )
+    adjustments: Mapped[list[FinancialAdjustmentModel]] = relationship(
+        back_populates="monthly_closure"
+    )
 
 
 class MonthlyClosureItemModel(Base):
@@ -109,3 +112,33 @@ class MonthlyClosureItemModel(Base):
     total_amount: Mapped[Decimal] = mapped_column(nullable=False)
 
     monthly_closure: Mapped[MonthlyClosureModel] = relationship(back_populates="items")
+
+
+class FinancialAdjustmentModel(Base):
+    __tablename__ = "financial_adjustments"
+    __table_args__ = (
+        CheckConstraint("kind IN ('CREDIT','DEBIT')", name="ck_financial_adjustments_kind"),
+        CheckConstraint("amount > 0", name="ck_financial_adjustments_amount_positive"),
+        Index(
+            "ix_financial_adjustments_closure_created_at",
+            "monthly_closure_id",
+            "created_at",
+        ),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
+    monthly_closure_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("monthly_closures.id", ondelete="RESTRICT"), nullable=False
+    )
+    monthly_closure_item_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("monthly_closure_items.id", ondelete="RESTRICT"), nullable=True
+    )
+    kind: Mapped[str] = mapped_column(nullable=False)
+    amount: Mapped[Decimal] = mapped_column(nullable=False)
+    reason: Mapped[str] = mapped_column(nullable=False)
+    created_by: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("users.id", ondelete="SET NULL"), nullable=True
+    )
+    created_at: Mapped[datetime] = mapped_column(nullable=False, server_default=func.now())
+
+    monthly_closure: Mapped[MonthlyClosureModel] = relationship(back_populates="adjustments")

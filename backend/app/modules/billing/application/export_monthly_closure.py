@@ -45,4 +45,16 @@ def monthly_closure_to_csv(closure: MonthlyClosureDTO) -> str:
                 str(item.total_amount),
             )
         )
+    if closure.adjustments:
+        writer.writerow(())
+        writer.writerow(("ajustes", "tipo", "valor", "motivo"))
+        for adjustment in closure.adjustments:
+            writer.writerow(
+                (
+                    str(adjustment.id),
+                    adjustment.kind,
+                    str(adjustment.amount),
+                    adjustment.reason,
+                )
+            )
     return buffer.getvalue()

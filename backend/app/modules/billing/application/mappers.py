@@ -4,6 +4,7 @@ from app.modules.billing.application.dtos import (
     ClosurePreviewBlockedItemDTO,
     ClosurePreviewDTO,
     ClosurePreviewItemDTO,
+    FinancialAdjustmentDTO,
     MonthlyClosureDTO,
     MonthlyClosureItemDTO,
 )
@@ -11,6 +12,7 @@ from app.modules.billing.domain.entities import (
     ClosurePreview,
     ClosurePreviewBlockedItem,
     ClosurePreviewItem,
+    FinancialAdjustment,
     MonthlyClosure,
     MonthlyClosureItem,
 )
@@ -75,6 +77,19 @@ def _closure_item_to_dto(item: MonthlyClosureItem) -> MonthlyClosureItemDTO:
     )
 
 
+def financial_adjustment_to_dto(adjustment: FinancialAdjustment) -> FinancialAdjustmentDTO:
+    return FinancialAdjustmentDTO(
+        id=adjustment.id,
+        monthly_closure_id=adjustment.monthly_closure_id,
+        monthly_closure_item_id=adjustment.monthly_closure_item_id,
+        kind=adjustment.kind.value,
+        amount=adjustment.amount,
+        reason=adjustment.reason,
+        created_by=adjustment.created_by,
+        created_at=adjustment.created_at,
+    )
+
+
 def monthly_closure_to_dto(closure: MonthlyClosure) -> MonthlyClosureDTO:
     return MonthlyClosureDTO(
         id=closure.id,
@@ -96,4 +111,5 @@ def monthly_closure_to_dto(closure: MonthlyClosure) -> MonthlyClosureDTO:
         reopened_at=closure.reopened_at,
         version=closure.version,
         items=[_closure_item_to_dto(item) for item in closure.items],
+        adjustments=[financial_adjustment_to_dto(item) for item in closure.adjustments],
     )

@@ -124,6 +124,27 @@ class ClosureStatus(StrEnum):
     REOPENED = "REOPENED"
 
 
+class AdjustmentKind(StrEnum):
+    CREDIT = "CREDIT"
+    DEBIT = "DEBIT"
+
+
+@dataclass(frozen=True, kw_only=True)
+class FinancialAdjustment:
+    id: UUID
+    monthly_closure_id: UUID
+    monthly_closure_item_id: UUID | None
+    kind: AdjustmentKind
+    amount: Decimal
+    reason: str
+    created_by: UUID | None
+    created_at: datetime
+
+    def __post_init__(self) -> None:
+        if self.amount <= 0:
+            raise ValidationError("O valor do ajuste deve ser maior que zero.")
+
+
 @dataclass(kw_only=True)
 class MonthlyClosureItem:
     """One snapshotted `AttendanceExam` inside a closure — carries the full
@@ -183,6 +204,7 @@ class MonthlyClosure:
     version: int = 1
     integrity_hash: str | None = None
     items: list[MonthlyClosureItem] = field(default_factory=list)
+    adjustments: list[FinancialAdjustment] = field(default_factory=list)
 
     def __post_init__(self) -> None:
         if self.subtotal < 0 or self.discount_total < 0 or self.surcharge_total < 0:

@@ -65,6 +65,18 @@ class MonthlyClosureItemDTO:
 
 
 @dataclass(frozen=True, kw_only=True)
+class FinancialAdjustmentDTO:
+    id: UUID
+    monthly_closure_id: UUID
+    monthly_closure_item_id: UUID | None
+    kind: str
+    amount: Decimal
+    reason: str
+    created_by: UUID | None
+    created_at: datetime
+
+
+@dataclass(frozen=True, kw_only=True)
 class MonthlyClosureDTO:
     id: UUID
     clinic_id: UUID
@@ -85,6 +97,7 @@ class MonthlyClosureDTO:
     reopened_at: datetime | None
     version: int
     items: list[MonthlyClosureItemDTO] = field(default_factory=list)
+    adjustments: list[FinancialAdjustmentDTO] = field(default_factory=list)
 
 
 @dataclass(frozen=True, kw_only=True)

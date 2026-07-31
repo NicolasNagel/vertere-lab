@@ -13,6 +13,7 @@ from app.modules.billing.domain.entities import (
     ClosureCandidateItem,
     ClosureStatus,
     CompetencePeriod,
+    FinancialAdjustment,
     MonthlyClosure,
 )
 from app.modules.clinics.domain.entities import Clinic, ClinicStatus
@@ -103,6 +104,7 @@ class FakeMonthlyClosureRepository:
         self.added: list[MonthlyClosure] = []
         self.lock_calls: list[tuple[UUID, int, int]] = []
         self.updated: list[MonthlyClosure] = []
+        self.adjustments: list[FinancialAdjustment] = []
 
     def acquire_active_lock(self, *, clinic_id: UUID, year: int, month: int) -> None:
         self.lock_calls.append((clinic_id, year, month))
@@ -138,6 +140,9 @@ class FakeMonthlyClosureRepository:
 
     def update_status(self, closure: MonthlyClosure) -> None:
         self.updated.append(closure)
+
+    def add_adjustment(self, adjustment: FinancialAdjustment) -> None:
+        self.adjustments.append(adjustment)
 
     def list_page(
         self, *, clinic_id: UUID | None, page: int, page_size: int

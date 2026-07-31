@@ -74,6 +74,7 @@ def _reset_data(session_factory: sessionmaker[Session]) -> None:
     with session_factory() as session:
         session.execute(text("DELETE FROM outbox_events"))
         session.execute(text("DELETE FROM idempotency_keys"))
+        session.execute(text("DELETE FROM financial_adjustments"))
         session.execute(text("DELETE FROM monthly_closure_items"))
         # Attendances hold a RESTRICT FK to monthly_closures — must be
         # nulled out before the closure rows themselves can be deleted.
@@ -650,3 +651,92 @@ async def test_reopen_rejects_short_reason_and_second_attempt(
     assert first.status_code == 200
     assert second.status_code == 409
     assert second.json()["error"]["code"] == "INVALID_STATE_TRANSITION"
+
+
+async def test_adjustment_is_append_only_visible_in_detail_and_export(
+    client: httpx.AsyncClient, session_factory: sessionmaker[Session]
+) -> None:
+    await _login_admin(client, session_factory)
+    clinic_id, _attendance = await _setup_clinic_with_confirmed_attendance(
+        client, session_factory, service_date="2026-01-10"
+    )
+    closed = await client.post(
+        "/api/v1/closures",
+        json={"clinic_id": clinic_id, "year": 2026, "month": 1},
+        headers=_close_headers("close-before-adjustment"),
+    )
+    closure = closed.json()
+    original_total = closure["grand_total"]
+
+    adjusted = await client.post(
+        f"/api/v1/closures/{closure['id']}/adjustments",
+        json={
+            "monthly_closure_item_id": closure["items"][0]["id"],
+            "kind": "DEBIT",
+            "amount": "15.25",
+            "reason": "Cobrança complementar autorizada.",
+        },
+    )
+    assert adjusted.status_code == 201
+    assert adjusted.json()["amount"] == "15.25"
+
+    detail = await client.get(f"/api/v1/closures/{closure['id']}")
+    assert detail.status_code == 200
+    assert detail.json()["grand_total"] == original_total
+    assert detail.json()["adjustments"][0]["kind"] == "DEBIT"
+
+    exported = await client.get(f"/api/v1/closures/{closure['id']}/export")
+    assert exported.status_code == 200
+    assert "ajustes,tipo,valor,motivo" in exported.text
+    assert "DEBIT,15.25" in exported.text
+
+    with session_factory() as session:
+        count = session.execute(
+            text(
+                "SELECT COUNT(*) FROM financial_adjustments WHERE monthly_closure_id = :closure_id"
+            ),
+            {"closure_id": closure["id"]},
+        ).scalar_one()
+        stored_total = session.execute(
+            text("SELECT grand_total FROM monthly_closures WHERE id = :id"),
+            {"id": closure["id"]},
+        ).scalar_one()
+        assert count == 1
+        assert str(stored_total) == original_total
+
+
+async def test_adjustment_rejects_mass_assignment_and_foreign_item(
+    client: httpx.AsyncClient, session_factory: sessionmaker[Session]
+) -> None:
+    await _login_admin(client, session_factory)
+    clinic_id, _attendance = await _setup_clinic_with_confirmed_attendance(
+        client, session_factory, service_date="2026-01-10"
+    )
+    closed = await client.post(
+        "/api/v1/closures",
+        json={"clinic_id": clinic_id, "year": 2026, "month": 1},
+        headers=_close_headers("close-before-invalid-adjustment"),
+    )
+    closure_id = closed.json()["id"]
+
+    mass_assignment = await client.post(
+        f"/api/v1/closures/{closure_id}/adjustments",
+        json={
+            "kind": "CREDIT",
+            "amount": "10.00",
+            "reason": "Correção autorizada pelo financeiro.",
+            "grand_total": "0.01",
+        },
+    )
+    assert mass_assignment.status_code == 422
+
+    foreign_item = await client.post(
+        f"/api/v1/closures/{closure_id}/adjustments",
+        json={
+            "monthly_closure_item_id": str(uuid4()),
+            "kind": "CREDIT",
+            "amount": "10.00",
+            "reason": "Correção autorizada pelo financeiro.",
+        },
+    )
+    assert foreign_item.status_code == 422
