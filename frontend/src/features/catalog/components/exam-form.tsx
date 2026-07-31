@@ -162,6 +162,17 @@ export function ExamForm({
     }
   }, [exam, missingCategoryQuery.data, setValue])
 
+  // Same root cause again, for the plain (active-category) edit case: if
+  // categoriesQuery is still loading at mount, its <option>s don't exist yet,
+  // so register()'s initial value assignment is a no-op — the select is left
+  // unselected even though exam.categoryId is valid. Re-apply once the
+  // matching option actually appears in the loaded list.
+  useEffect(() => {
+    if (exam && categoriesQuery.data?.some((category) => category.id === exam.categoryId)) {
+      setValue('categoryId', exam.categoryId)
+    }
+  }, [exam, categoriesQuery.data, setValue])
+
   function toggleSpecies(speciesId: string) {
     setSpeciesIds((current) =>
       current.includes(speciesId)

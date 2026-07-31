@@ -6,6 +6,7 @@
   padding: 1.75rem 0; /* 28px */
   display: flex;
   flex-direction: column;
+  min-height: 0;
 }
 
 .sidebar__brand {
@@ -39,6 +40,8 @@
 .sidebar__nav {
   padding: 1.5rem 0; /* 24px 0 */
   flex: 1;
+  min-height: 0;
+  overflow-y: auto;
   display: flex;
   flex-direction: column;
   gap: 2px;

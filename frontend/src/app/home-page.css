@@ -1,0 +1,7 @@
+.home-page {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  background: var(--color-surface-cream);
+  padding: 1.5rem 1.75rem;
+}

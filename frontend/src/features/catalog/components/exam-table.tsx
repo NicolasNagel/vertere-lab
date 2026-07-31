@@ -104,10 +104,14 @@ export function ExamTable({
                     : undefined
                 }
               >
-                <div className="exam-table__code">{exam.code}</div>
+                <div className="exam-table__code" title={exam.code}>
+                  {exam.code}
+                </div>
                 <div>
                   <div className="exam-table__name">
-                    {exam.name}
+                    <span className="exam-table__name-text" title={exam.name}>
+                      {exam.name}
+                    </span>
                     <span className="exam-table__status" data-status={exam.status}>
                       {STATUS_LABELS[exam.status]}
                     </span>

@@ -37,6 +37,14 @@
   background: #fdf6f2;
 }
 
+.closure-preview-items-table__patient,
+.closure-preview-items-table__exam {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .closure-preview-items-table__badge {
   font-size: 0.5625rem;
   padding: 0.1875rem 0.5rem;

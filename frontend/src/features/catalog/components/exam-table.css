@@ -39,7 +39,9 @@
 .exam-table__header,
 .exam-table__row {
   display: grid;
-  grid-template-columns: 3.125rem 2.4fr 1.2fr 0.9fr 0.9fr 60px;
+  grid-template-columns:
+    minmax(2.5rem, 3.125rem) minmax(0, 2.4fr) minmax(0, 1.2fr) minmax(0, 0.9fr)
+    minmax(3.75rem, 60px);
   gap: 0.5rem;
   align-items: center;
   padding: 0.8125rem 1rem; /* 13px 16px */
@@ -47,7 +49,9 @@
 
 .exam-table__header[data-price-visible='true'],
 .exam-table__row[data-price-visible='true'] {
-  grid-template-columns: 3.125rem 2.4fr 1.2fr 0.9fr 0.9fr 0.9fr 60px;
+  grid-template-columns:
+    minmax(2.5rem, 3.125rem) minmax(0, 2.4fr) minmax(0, 1.2fr) minmax(0, 0.9fr)
+    minmax(0, 0.9fr) minmax(0, 0.9fr) minmax(3.75rem, 60px);
 }
 
 .exam-table__header {
@@ -83,6 +87,10 @@
   font-family: var(--font-mono);
   color: var(--color-text-secondary);
   font-size: 0.6875rem;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .exam-table__name {
@@ -91,6 +99,14 @@
   display: flex;
   align-items: center;
   gap: 0.5rem;
+  min-width: 0;
+}
+
+.exam-table__name-text {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .exam-table__description {

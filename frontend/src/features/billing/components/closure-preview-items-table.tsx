@@ -54,8 +54,12 @@ export function ClosurePreviewItemsTable({
           <div className="closure-preview-items-table__protocol">
             {row.item.protocolNumber ?? '—'}
           </div>
-          <div>{row.item.patientName}</div>
-          <div>{row.item.examName}</div>
+          <div className="closure-preview-items-table__patient" title={row.item.patientName}>
+            {row.item.patientName}
+          </div>
+          <div className="closure-preview-items-table__exam" title={row.item.examName}>
+            {row.item.examName}
+          </div>
           <div className="closure-preview-items-table__reason">
             {row.kind === 'blocked' ? row.item.reason : '—'}
           </div>
