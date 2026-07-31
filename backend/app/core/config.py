@@ -31,6 +31,12 @@ class Settings(BaseSettings):
     session_ttl_minutes: int = 30
     session_ttl_remember_me_days: int = 30
     session_renewal_threshold_minutes: int = 10
+    # Default only covers local dev. **Production must set
+    # TRUSTED_BROWSER_ORIGINS to the real frontend domain(s)** (JSON array,
+    # e.g. '["https://app.vertere.com.br"]") — `api/middleware.py`'s
+    # Origin-based CSRF guard rejects every authenticated mutation with 403
+    # CSRF_ORIGIN_FORBIDDEN otherwise, login included (docs/04-arquitetura.md
+    # §15 "Backend" — found in real QA during Incremento 4.2).
     trusted_browser_origins: tuple[str, ...] = ("http://localhost:5173",)
 
     # Consulta de CEP (autofill de endereço) — sem chave, mas configurável para

@@ -321,7 +321,13 @@ Métricas:
 - migrations executadas por job controlado fora da inicialização da aplicação;
 - health endpoint sem consulta pesada;
 - rollback de aplicação separado de rollback de dados;
-- região alinhada ao PostgreSQL.
+- região alinhada ao PostgreSQL;
+- **`TRUSTED_BROWSER_ORIGINS` configurada com o(s) domínio(s) reais do frontend em produção**
+  (`backend/app/core/config.py`) — o default só cobre `http://localhost:5173` (dev). Sem essa
+  variável setada corretamente, o middleware de proteção CSRF por Origin
+  (`backend/app/api/middleware.py`) rejeita **toda** mutação autenticada com `403
+  CSRF_ORIGIN_FORBIDDEN`, inclusive login — achado em QA real durante o Incremento 4.2. Formato
+  esperado: lista JSON de origens, ex. `["https://app.vertere.com.br"]`.
 
 ### Banco
 
