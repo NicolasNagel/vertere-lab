@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { useParams } from 'react-router-dom'
+import { useParams } from 'react-router'
 
 import { ApiError } from '../../../shared/api/errors'
 import { formatCompetence, formatCurrencyBRL, formatDateTime } from '../../../shared/lib/formatters'

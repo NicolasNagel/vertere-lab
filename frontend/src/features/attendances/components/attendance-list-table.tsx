@@ -1,4 +1,4 @@
-import { Link } from 'react-router-dom'
+import { Link } from 'react-router'
 
 import { formatCurrencyBRL, formatDateTime } from '../../../shared/lib/formatters'
 import type { Attendance } from '../api/attendances-api'

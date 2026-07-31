@@ -1,4 +1,4 @@
-import { useNavigate, useParams } from 'react-router-dom'
+import { useNavigate, useParams } from 'react-router'
 
 import { Button } from '../../../shared/ui/button'
 import { useCreateExamMutation } from '../api/use-create-exam-mutation'

@@ -4,7 +4,7 @@ import userEvent from '@testing-library/user-event'
 import { http, HttpResponse } from 'msw'
 import { setupServer } from 'msw/node'
 import type { ReactNode } from 'react'
-import { createMemoryRouter, RouterProvider } from 'react-router-dom'
+import { createMemoryRouter, RouterProvider } from 'react-router'
 import { afterAll, afterEach, beforeAll, expect, test, vi } from 'vitest'
 
 import { AuthProvider } from '../../auth/auth-provider'

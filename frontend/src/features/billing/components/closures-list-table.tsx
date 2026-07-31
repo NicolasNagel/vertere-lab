@@ -1,4 +1,4 @@
-import { Link } from 'react-router-dom'
+import { Link } from 'react-router'
 
 import { formatCompetence, formatCurrencyBRL, formatDate } from '../../../shared/lib/formatters'
 import type { MonthlyClosureSummary } from '../api/closures-api'

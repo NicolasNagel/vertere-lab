@@ -1,4 +1,4 @@
-import { useNavigate } from 'react-router-dom'
+import { useNavigate } from 'react-router'
 
 import { useAuth } from '../../auth/auth-context'
 import { AttendanceDraftForm } from './attendance-draft-form'

@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link } from 'react-router'
 
 import { ApiError } from '../../../shared/api/errors'
 import { PlusIcon } from '../../../shared/ui/icons'
