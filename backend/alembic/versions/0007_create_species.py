@@ -14,7 +14,7 @@ manageable resource in this slice — decided in `/planejar-fatia` instead of
 a mockup, since no screen in `assets/features/screens/` covers it.
 
 Seed values are a literal list, not app code (rule:
-.claude/rules/database.md — "migration não importa código de aplicação
+.claude/rules/03-database.md — "migration não importa código de aplicação
 instável").
 """
 

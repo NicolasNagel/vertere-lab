@@ -1,0 +1,35 @@
+.create-patient-modal__backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(26, 45, 69, 0.55);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100;
+  padding: 1rem;
+  overflow-y: auto;
+}
+
+.create-patient-modal {
+  background: #ffffff;
+  max-width: 34rem;
+  width: 100%;
+  padding: 1.75rem; /* 28px */
+  margin: auto;
+}
+
+.create-patient-modal__title {
+  font-family: var(--font-display);
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+  font-size: 1.375rem;
+  font-weight: 600;
+  color: #1f3450;
+  margin: 0 0 0.25rem;
+}
+
+.create-patient-modal__hint {
+  font-size: 0.8125rem;
+  color: var(--color-text-secondary);
+  margin: 0 0 1rem;
+}

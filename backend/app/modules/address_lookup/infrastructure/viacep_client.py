@@ -1,7 +1,7 @@
 """ViaCEP adapter — the only provider for CEP lookup today.
 
 One adapter per provider, explicit timeout, no retry (rule:
-.claude/rules/integrations-fields.md). A new client instance per call is
+.claude/rules/07-integrations-files-reports.md). A new client instance per call is
 deliberate: call volume here is one lookup per form fill, so a persistent
 pool is an optimization with no measured need yet (rule: performance —
 "meça antes de otimizar").

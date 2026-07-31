@@ -14,6 +14,7 @@ from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
 from fastapi import APIRouter, FastAPI
+from fastapi.openapi.utils import get_openapi
 
 from app.api.error_handlers import register_error_handlers
 from app.api.middleware import RequestContextMiddleware
@@ -54,7 +55,10 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         lifespan=lifespan,
     )
     app.state.settings = app_settings
-    app.add_middleware(RequestContextMiddleware)
+    app.add_middleware(
+        RequestContextMiddleware,
+        trusted_browser_origins=app_settings.trusted_browser_origins,
+    )
     register_error_handlers(app)
 
     api_router = APIRouter(prefix=API_PREFIX)
@@ -71,4 +75,18 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     api_router.include_router(billing_router)
     api_router.include_router(imports_router)
     app.include_router(api_router)
+
+    def custom_openapi() -> dict[str, object]:
+        if app.openapi_schema is None:
+            schema = get_openapi(
+                title=app.title,
+                version=app.version,
+                routes=app.routes,
+            )
+            security_schemes = schema["components"]["securitySchemes"]
+            security_schemes["SessionCookie"]["name"] = app_settings.session_cookie_name
+            app.openapi_schema = schema
+        return app.openapi_schema
+
+    app.openapi = custom_openapi  # type: ignore[method-assign]
     return app

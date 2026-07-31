@@ -1,5 +1,5 @@
 """Pydantic schemas for the veterinarians API — create/update/read/filter
-kept separate; never the SQLAlchemy model (rule: .claude/rules/backend.md)."""
+kept separate; never the SQLAlchemy model (rule: .claude/rules/02-backend.md)."""
 
 from __future__ import annotations
 

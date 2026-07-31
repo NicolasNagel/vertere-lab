@@ -1,7 +1,7 @@
 """SQLAlchemy implementation of the catalog repository protocols.
 
 Domain entities are the only thing that crosses back out of this module;
-ORM models never leak past this file (rule: .claude/rules/database.md).
+ORM models never leak past this file (rule: .claude/rules/03-database.md).
 """
 
 from __future__ import annotations
@@ -156,6 +156,10 @@ class SqlAlchemyExamRepository:
             select(ExamModel).where(ExamModel.code == code)
         ).scalar_one_or_none()
         return self._to_domain(model) if model is not None else None
+
+    def list_all_names(self) -> dict[str, UUID]:
+        rows = self._session.execute(select(ExamModel.id, ExamModel.name)).all()
+        return {name.lower(): id_ for id_, name in rows}
 
     def add(self, exam: Exam) -> None:
         self._session.add(

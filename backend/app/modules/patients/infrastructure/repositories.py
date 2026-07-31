@@ -1,7 +1,7 @@
 """SQLAlchemy implementation of the species repository protocol.
 
 Domain entities are the only thing that crosses back out of this module;
-ORM models never leak past this file (rule: .claude/rules/database.md).
+ORM models never leak past this file (rule: .claude/rules/03-database.md).
 """
 
 from __future__ import annotations
@@ -57,6 +57,19 @@ class SqlAlchemyPatientRepository:
 
     def get_by_id(self, patient_id: UUID) -> Patient | None:
         model = self._session.get(PatientModel, patient_id)
+        return _patient_to_domain(model) if model is not None else None
+
+    def get_by_owner_and_name(self, *, owner_name: str, name: str) -> Patient | None:
+        model = (
+            self._session.execute(
+                select(PatientModel).where(
+                    func.lower(PatientModel.owner_name) == owner_name.lower(),
+                    func.lower(PatientModel.name) == name.lower(),
+                )
+            )
+            .scalars()
+            .first()
+        )
         return _patient_to_domain(model) if model is not None else None
 
     def add(self, patient: Patient) -> None:

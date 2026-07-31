@@ -1,5 +1,5 @@
 """Closure preview — read-only, never persists, never blocks anything
-(`.claude/rules/monthly-closure.md`). Uses the exact same eligibility rule
+(`.claude/rules/13-monthly-closure.md`). Uses the exact same eligibility rule
 Incremento 4.2 will reuse (`domain/eligibility.py`).
 """
 

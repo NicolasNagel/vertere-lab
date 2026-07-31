@@ -13,6 +13,7 @@ import logging
 from fastapi import FastAPI, status
 from fastapi.exceptions import RequestValidationError
 from sqlalchemy.exc import IntegrityError
+from sqlalchemy.orm.exc import StaleDataError
 from starlette.exceptions import HTTPException as StarletteHTTPException
 from starlette.requests import Request
 from starlette.responses import JSONResponse
@@ -96,13 +97,26 @@ async def handle_integrity_error(request: Request, exc: IntegrityError) -> JSONR
     # Last-resort net: a use case that skipped an explicit existence/
     # uniqueness check (or lost a race under real concurrency) hits a
     # DB constraint directly. Never leak table/column/constraint names to
-    # the client (rule: .claude/rules/globals.md, "erro não expõe detalhe
+    # the client (rule: .claude/rules/00-global.md, "erro não expõe detalhe
     # interno") — the safe fix belongs in the use case, this only prevents
     # a raw 500.
     logger.warning("integrity_error", extra={"path": request.url.path})
     return error_response(
         ErrorCode.CONFLICT,
         "A operação não pôde ser concluída porque conflita com dados existentes.",
+    )
+
+
+async def handle_stale_data_error(request: Request, exc: StaleDataError) -> JSONResponse:
+    # Raised by SQLAlchemy's `version_id_col` optimistic locking
+    # (`app/modules/attendances/infrastructure/models.py`) when a concurrent
+    # write already changed the row — never a 500, the client should
+    # reload and retry (rule: .claude/rules/12-attendance.md, "conflito de
+    # versão retorna HTTP 409").
+    logger.warning("stale_data_error", extra={"path": request.url.path})
+    return error_response(
+        ErrorCode.CONFLICT,
+        "O registro foi alterado por outra operação. Recarregue e tente novamente.",
     )
 
 
@@ -119,4 +133,5 @@ def register_error_handlers(app: FastAPI) -> None:
     app.add_exception_handler(RequestValidationError, handle_validation_error)  # type: ignore[arg-type]
     app.add_exception_handler(StarletteHTTPException, handle_http_exception)  # type: ignore[arg-type]
     app.add_exception_handler(IntegrityError, handle_integrity_error)  # type: ignore[arg-type]
+    app.add_exception_handler(StaleDataError, handle_stale_data_error)  # type: ignore[arg-type]
     app.add_exception_handler(Exception, handle_unexpected_error)

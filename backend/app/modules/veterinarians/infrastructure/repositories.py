@@ -1,7 +1,7 @@
 """SQLAlchemy implementation of the veterinarians repository protocol.
 
 Domain entities are the only thing that crosses back out of this module;
-ORM models never leak past this file (rule: .claude/rules/database.md).
+ORM models never leak past this file (rule: .claude/rules/03-database.md).
 """
 
 from __future__ import annotations
@@ -11,6 +11,7 @@ from uuid import UUID
 from sqlalchemy import ColumnElement, func, or_, select
 from sqlalchemy.orm import Session as SqlAlchemySession
 
+from app.modules.veterinarian_clinics.infrastructure.models import VeterinarianClinicModel
 from app.modules.veterinarians.domain.entities import Veterinarian, VeterinarianStatus
 from app.modules.veterinarians.domain.value_objects import Crmv
 from app.modules.veterinarians.infrastructure.models import VeterinarianModel
@@ -46,6 +47,16 @@ class SqlAlchemyVeterinarianRepository:
         model = self._session.execute(
             select(VeterinarianModel).where(VeterinarianModel.crmv == crmv)
         ).scalar_one_or_none()
+        return _to_domain(model) if model is not None else None
+
+    def get_by_name(self, name: str) -> Veterinarian | None:
+        model = (
+            self._session.execute(
+                select(VeterinarianModel).where(func.lower(VeterinarianModel.name) == name.lower())
+            )
+            .scalars()
+            .first()
+        )
         return _to_domain(model) if model is not None else None
 
     def add(self, veterinarian: Veterinarian) -> None:
@@ -96,6 +107,7 @@ class SqlAlchemyVeterinarianRepository:
         status: VeterinarianStatus | None,
         is_autonomous: bool | None,
         search: str | None,
+        available_for_clinic_id: UUID | None = None,
     ) -> tuple[list[Veterinarian], int]:
         conditions: list[ColumnElement[bool]] = []
         if status is not None:
@@ -108,6 +120,19 @@ class SqlAlchemyVeterinarianRepository:
                 or_(
                     func.lower(VeterinarianModel.name).like(like_pattern),
                     func.lower(VeterinarianModel.crmv).like(like_pattern),
+                )
+            )
+        if available_for_clinic_id is not None:
+            # Mesma regra que /confirm revalida (`.claude/rules/12-attendance.md`):
+            # autônomo serve qualquer clínica; não-autônomo só a(s) que ele
+            # está vinculado.
+            linked_ids = select(VeterinarianClinicModel.veterinarian_id).where(
+                VeterinarianClinicModel.clinic_id == available_for_clinic_id
+            )
+            conditions.append(
+                or_(
+                    VeterinarianModel.is_autonomous.is_(True),
+                    VeterinarianModel.id.in_(linked_ids),
                 )
             )
 

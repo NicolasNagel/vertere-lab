@@ -31,6 +31,7 @@ class Settings(BaseSettings):
     session_ttl_minutes: int = 30
     session_ttl_remember_me_days: int = 30
     session_renewal_threshold_minutes: int = 10
+    trusted_browser_origins: tuple[str, ...] = ("http://localhost:5173",)
 
     # Consulta de CEP (autofill de endereço) — sem chave, mas configurável para
     # apontar a um stub em ambiente de teste sem tocar código.
@@ -40,7 +41,7 @@ class Settings(BaseSettings):
     # Rate limit de login — achado em teste manual adversarial (ADR-007): sem
     # isso, o endpoint aceitava tentativas de senha ilimitadas. Persistido no
     # PostgreSQL (login_failures), nunca em memória de processo — a app roda
-    # como Function stateless (rule: CLAUDE.md, "Vercel é stateless").
+    # como Function stateless (rule: AGENTS.md, "Vercel é stateless").
     login_rate_limit_max_attempts: int = 5
     login_rate_limit_window_minutes: int = 15
 

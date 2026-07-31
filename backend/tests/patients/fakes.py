@@ -1,7 +1,7 @@
 """In-memory fakes for the patients module repository protocols — used by
 unit tests for use cases (rule: mock only at an external boundary; a fake
 repository backing a pure use-case test is not the repository-under-test,
-so this is fine per .claude/rules/testing.md)."""
+so this is fine per .claude/rules/08-testing.md)."""
 
 from __future__ import annotations
 
@@ -49,6 +49,15 @@ class FakePatientRepository:
 
     def get_by_id(self, patient_id: UUID) -> Patient | None:
         return self._patients.get(patient_id)
+
+    def get_by_owner_and_name(self, *, owner_name: str, name: str) -> Patient | None:
+        for patient in self._patients.values():
+            if (
+                patient.owner_name.lower() == owner_name.lower()
+                and patient.name.lower() == name.lower()
+            ):
+                return patient
+        return None
 
     def list_page(
         self,

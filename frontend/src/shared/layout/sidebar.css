@@ -3,14 +3,15 @@
   flex-shrink: 0;
   background: var(--color-brand-ink-deep);
   color: #ffffff;
-  padding: 1.75rem 0; /* 28px */
+  padding: 1.25rem 0; /* 20px */
   display: flex;
   flex-direction: column;
   min-height: 0;
+  overflow: hidden;
 }
 
 .sidebar__brand {
-  padding: 0 1.5rem 1.75rem; /* 0 24px 28px */
+  padding: 0 1.5rem 1.25rem; /* 0 24px 20px */
   border-bottom: 1px solid rgba(255, 255, 255, 0.08);
   display: flex;
   align-items: center;
@@ -38,7 +39,7 @@
 }
 
 .sidebar__nav {
-  padding: 1.5rem 0; /* 24px 0 */
+  padding: 1rem 0; /* 16px 0 */
   flex: 1;
   min-height: 0;
   overflow-y: auto;
@@ -48,8 +49,8 @@
 }
 
 .sidebar__section-label {
-  margin-top: 1.5rem; /* 24px */
-  padding: 0.5rem 1.5rem; /* 8px 24px */
+  margin-top: 0.625rem; /* 10px */
+  padding: 0.25rem 1.5rem; /* 4px 24px */
   font-family: var(--font-mono);
   font-size: 0.625rem; /* 10px */
   letter-spacing: 0.18em;
@@ -58,7 +59,7 @@
 }
 
 .sidebar-nav-item {
-  padding: 0.6875rem 1.5rem; /* 11px 24px */
+  padding: 0.5rem 1.5rem; /* 8px 24px */
   font-size: 0.8125rem; /* 13px */
   color: rgba(255, 255, 255, 0.7);
   display: flex;
@@ -89,7 +90,7 @@
 }
 
 .sidebar__footer {
-  padding: 1rem 1.5rem; /* 16px 24px */
+  padding: 0.75rem 1.5rem; /* 12px 24px */
   border-top: 1px solid rgba(255, 255, 255, 0.08);
   display: flex;
   align-items: center;

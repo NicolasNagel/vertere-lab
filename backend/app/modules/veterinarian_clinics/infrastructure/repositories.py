@@ -2,7 +2,7 @@
 protocol.
 
 Domain entities are the only thing that crosses back out of this module;
-ORM models never leak past this file (rule: .claude/rules/database.md).
+ORM models never leak past this file (rule: .claude/rules/03-database.md).
 """
 
 from __future__ import annotations

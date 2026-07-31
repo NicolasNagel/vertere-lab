@@ -1,4 +1,4 @@
-"""Clinics API — thin routers, no business rule (rule: .claude/rules/backend.md).
+"""Clinics API — thin routers, no business rule (rule: .claude/rules/02-backend.md).
 
 Every mutating endpoint owns its transaction via the shared unit of work;
 read-only endpoints reuse the request-scoped session from

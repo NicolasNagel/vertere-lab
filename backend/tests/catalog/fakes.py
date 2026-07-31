@@ -1,7 +1,7 @@
 """In-memory fakes for the catalog module repository protocols — used by
 unit tests for use cases (rule: mock only at an external boundary; a fake
 repository backing a pure use-case test is not the repository-under-test,
-so this is fine per .claude/rules/testing.md)."""
+so this is fine per .claude/rules/08-testing.md)."""
 
 from __future__ import annotations
 
@@ -88,6 +88,9 @@ class FakeExamRepository:
             if str(exam.code) == code:
                 return exam
         return None
+
+    def list_all_names(self) -> dict[str, UUID]:
+        return {exam.name.casefold(): exam.id for exam in self._exams.values()}
 
     def list_page(
         self,

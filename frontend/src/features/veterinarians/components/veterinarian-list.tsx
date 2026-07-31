@@ -86,16 +86,14 @@ export function VeterinarianList({
           >
             <div className="veterinarian-list__row-header">
               <span className="veterinarian-list__row-name">{veterinarian.name}</span>
-              {veterinarian.isAutonomous ? (
-                <span className="veterinarian-list__row-autonomous">Autônomo</span>
-              ) : (
-                <span
-                  className="veterinarian-list__row-status"
-                  data-status={veterinarian.status}
-                >
+              <span className="veterinarian-list__row-badges">
+                {veterinarian.isAutonomous && (
+                  <span className="veterinarian-list__row-autonomous">Autônomo</span>
+                )}
+                <span className="veterinarian-list__row-status" data-status={veterinarian.status}>
                   {STATUS_LABELS[veterinarian.status]}
                 </span>
-              )}
+              </span>
             </div>
             <div className="veterinarian-list__row-crmv">{veterinarian.crmv}</div>
             {(veterinarian.phone || veterinarian.email) && (

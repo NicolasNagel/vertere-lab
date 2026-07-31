@@ -20,8 +20,8 @@ autor da mudança.
    fizer sentido. Identifique as áreas tocadas (`backend/app/modules/*`, `backend/alembic`,
    `frontend/src/features/*`, `backend/tests`).
 2. **Carregue o padrão da área:** leia `.claude/rules/00-global.md`, `01-product-domain.md`,
-   `02-definicao-de-pronto.md` e a(s) rule(s) técnica(s) da área tocada.
-3. **Cheque os invariantes não negociáveis do `CLAUDE.md` (bloqueante se violado):**
+   `11-definition-of-done.md` e a(s) rule(s) técnica(s) da área tocada.
+3. **Cheque os invariantes não negociáveis do `AGENTS.md` (bloqueante se violado):**
    - Dinheiro em `Decimal`/`NUMERIC` — nunca `float`.
    - Protocolo gerado por transação/lock — nunca `SELECT MAX + 1`.
    - Preço do atendimento é snapshot — reajuste de tabela não altera atendimento já confirmado.

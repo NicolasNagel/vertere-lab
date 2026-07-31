@@ -61,8 +61,8 @@ existe para verificar cada um contra o diff, na ordem de risco declarada. Você 
 4. **Confira a transação:** a operação crítica (confirmar atendimento, fechar competência) está
    numa única transação com lock, ou espalhada em múltiplos commits que podem deixar estado
    parcial?
-5. **Aponte o teste que falta:** cada achado deve indicar qual teste do `09-testing.md`,
-   `12-attendance.md`, `13-monthly-closure.md` ou `11-data-migration.md` o teria pego.
+5. **Aponte o teste que falta:** cada achado deve indicar qual teste do `08-testing.md`,
+   `12-attendance.md`, `13-monthly-closure.md` ou `10-data-migration.md` o teria pego.
 
 ## O que devolver
 - **Veredito:** `aprovado` · `aprovado com ressalvas` · `bloqueado`.

@@ -1,7 +1,7 @@
 """SQLAlchemy implementations of the identity repository protocols.
 
 Domain entities are the only thing that crosses back out of this module;
-ORM models never leak past this file (rule: .claude/rules/database.md).
+ORM models never leak past this file (rule: .claude/rules/03-database.md).
 """
 
 from __future__ import annotations
@@ -95,7 +95,7 @@ class SqlAlchemyUserRepository:
         # Flush já: sem `relationship()` entre User e LabMembership/Session, o
         # unit of work do SQLAlchemy não infere a ordem de FK entre eles — o
         # flush garante que o usuário já existe antes de quem referencia seu id
-        # na mesma transação (rule: .claude/rules/database.md).
+        # na mesma transação (rule: .claude/rules/03-database.md).
         self._session.flush()
 
     def save(self, user: User) -> None:
@@ -355,6 +355,25 @@ class SqlAlchemyLabMembershipRepository:
                 granted_by=membership.granted_by,
                 revoked_at=membership.revoked_at,
             )
+        )
+
+    def get_active_by_user_id(self, user_id: UUID) -> LabMembership | None:
+        model = self._session.execute(
+            select(LabMembershipModel).where(
+                LabMembershipModel.user_id == user_id,
+                LabMembershipModel.is_active.is_(True),
+                LabMembershipModel.revoked_at.is_(None),
+            )
+        ).scalar_one_or_none()
+        if model is None:
+            return None
+        return LabMembership(
+            id=model.id,
+            user_id=model.user_id,
+            is_active=model.is_active,
+            granted_at=model.granted_at,
+            granted_by=model.granted_by,
+            revoked_at=model.revoked_at,
         )
 
 

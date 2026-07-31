@@ -1,6 +1,6 @@
 """Catalog domain entities (exam categories and exams).
 
-No FastAPI/SQLAlchemy import here (rule: .claude/rules/globals.md — domain
+No FastAPI/SQLAlchemy import here (rule: .claude/rules/00-global.md — domain
 layer). Mutation happens through named methods, never by callers poking at
 fields directly, so invariants stay enforced in one place.
 """
@@ -114,5 +114,18 @@ class Exam:
         if self.status == ExamStatus.INACTIVE:
             return
         self.status = ExamStatus.INACTIVE
+        self.updated_by = updated_by
+        self.updated_at = now
+
+    def update_price_base(
+        self, *, price_base: Decimal, updated_by: UUID | None, now: datetime
+    ) -> None:
+        """Targeted price-only update — used by the price-table import, which never touches
+        code/name/category/species. `update_details` requires re-specifying every field, which
+        would risk silently reverting one of those on a price-only source (never true of this
+        entity: mutation only happens through a named method, so a caller can't drift it)."""
+        if price_base <= 0:
+            raise ValueError("Preço base do exame deve ser maior que zero.")
+        self.price_base = price_base
         self.updated_by = updated_by
         self.updated_at = now

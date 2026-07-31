@@ -1,0 +1,20 @@
+# Payloads de XSS para teste manual/automatizado em campo de texto renderizado depois
+# (nome de proprietário, observação de atendimento, motivo de ajuste, etc.)
+# Uso: colar cada linha num campo de texto da tela, salvar, e verificar se o payload executa
+# ao ser exibido de novo (na mesma tela, na timeline, num relatório, em outra sessão/usuário).
+# Um "PASS" aqui é o payload aparecer como TEXTO LITERAL na tela, nunca executar ou quebrar o layout.
+
+<script>alert('xss')</script>
+<img src=x onerror=alert('xss')>
+<svg onload=alert('xss')>
+"><script>alert('xss')</script>
+javascript:alert('xss')
+<a href="javascript:alert('xss')">click</a>
+<input onfocus=alert('xss') autofocus>
+{{7*7}}
+${7*7}
+<iframe src="javascript:alert('xss')"></iframe>
+'"--></style></script><script>alert('xss')</script>
+<div style="background:url(javascript:alert('xss'))">
+<marquee onstart=alert('xss')>
+Ção com acento e emoji 🐶 e null byte simulado \x00 no meio do texto

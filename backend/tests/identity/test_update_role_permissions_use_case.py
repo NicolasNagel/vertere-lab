@@ -55,7 +55,9 @@ def _actor(permission_codes: frozenset[str]) -> AuthenticatedUserDTO:
 def test_update_role_permissions_succeeds_and_bumps_row_version() -> None:
     roles, permissions, users, role = _setup()
     audit = FakeAuditLogWriter()
-    use_case = UpdateRolePermissionsUseCase(roles=roles, permissions=permissions, users=users, audit=audit)
+    use_case = UpdateRolePermissionsUseCase(
+        roles=roles, permissions=permissions, users=users, audit=audit
+    )
     actor = _actor(frozenset({"roles.manage"}))
 
     result = use_case.execute(

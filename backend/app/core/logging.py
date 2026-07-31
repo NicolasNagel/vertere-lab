@@ -1,7 +1,7 @@
 """Structured JSON logging with request correlation.
 
 Stdlib only: a JSON formatter is trivial and the project forbids adding a
-dependency for it (.claude/rules/globals.md).
+dependency for it (.claude/rules/00-global.md).
 """
 
 from __future__ import annotations

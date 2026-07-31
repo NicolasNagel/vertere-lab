@@ -1,6 +1,6 @@
 """Repository protocols for the attendances module.
 
-Interface lives in `domain` (per .claude/rules/backend.md); implementation
+Interface lives in `domain` (per .claude/rules/02-backend.md); implementation
 lives in `infrastructure`. The repository never commits — the unit of work
 does.
 """
@@ -34,7 +34,7 @@ class AttendanceRepository(Protocol):
 
 class AttendanceSequenceRepository(Protocol):
     """Transactional protocol sequence — `MAX + 1` is forbidden
-    (`.claude/rules/database.md`). Implementation locks the counter row for
+    (`.claude/rules/03-database.md`). Implementation locks the counter row for
     the given year within the caller's transaction.
     """
 

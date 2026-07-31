@@ -14,7 +14,7 @@ disso — não burocratize o trivial.
 
 ## Como planejar
 1. **Localize a fase do roadmap** (`docs/05-roadmap-backlog.md`) que a feature pertence — não
-   aceite trabalho fora da ordem de prioridade do `CLAUDE.md` sem sinalizar isso explicitamente.
+   aceite trabalho fora da ordem de prioridade do `AGENTS.md` sem sinalizar isso explicitamente.
 2. **Releia o gate da fase** — a lista de "Gate:" daquela fase é o critério de "fatia terminou
    de verdade", não só "compilou".
 3. **Quebre em fatias na ordem de dependência real**, cada uma:

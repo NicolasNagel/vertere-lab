@@ -1,14 +1,14 @@
 """Pydantic schemas for the attendances API — create/update/read kept
-separate; never the SQLAlchemy model (rule: .claude/rules/backend.md)."""
+separate; never the SQLAlchemy model (rule: .claude/rules/02-backend.md)."""
 
 from __future__ import annotations
 
 from datetime import date, datetime
 from decimal import Decimal
-from typing import Literal
+from typing import Any, Literal
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 
 AttendanceStatusLiteral = Literal[
     "DRAFT", "CONFIRMED", "IN_PROGRESS", "COMPLETED", "CANCELLED", "ON_HOLD"
@@ -45,6 +45,7 @@ class AttendanceRead(BaseModel):
     surcharge_total: Decimal
     grand_total: Decimal
     protocol_number: str | None
+    cancel_reason: str | None
     created_at: datetime
     updated_at: datetime
     row_version: int
@@ -80,3 +81,73 @@ class AttendanceConfirmRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     items: list[AttendanceConfirmItemRequest]
+
+
+class AttendanceCancelRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    reason: str = Field(min_length=1, max_length=500)
+
+
+class AttendanceUpdateRequest(BaseModel):
+    """`row_version` is required — the client must say which version it is
+    editing, so a stale edit gets a clean `409` instead of silently
+    overwriting a change it never saw (`.claude/rules/05-frontend-web-mobile.md`).
+
+    Every other field is optional and `None` means "not provided, leave
+    unchanged" — including `notes`, which this slice has no way to clear
+    back to empty via PATCH (send a non-null replacement instead); a
+    deliberate simplification, documented in
+    `application/update_attendance.py`.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    row_version: int = Field(ge=1)
+    clinic_id: UUID | None = None
+    veterinarian_id: UUID | None = None
+    patient_id: UUID | None = None
+    service_date: date | None = None
+    notes: str | None = Field(default=None, max_length=2000)
+
+
+class AttendanceTimelineEntryRead(BaseModel):
+    """`before_state`/`after_state` are a generic diff — their keys vary by
+    `action` (`attendances.confirmed`, `attendances.cancelled`,
+    `attendances.updated`, ...), so `dict[str, Any]` here is the contract
+    itself, not a shortcut around one (rule: .claude/rules/00-global.md —
+    "dict[str, Any] como contrato sem necessidade" is about avoiding a
+    generic escape hatch where a concrete shape exists; there isn't one
+    here, by design, across heterogeneous audit actions)."""
+
+    id: UUID
+    occurred_at: datetime
+    actor_user_id: UUID | None
+    action: str
+    before_state: dict[str, Any] | None
+    after_state: dict[str, Any] | None
+    reason: str | None
+
+
+class AttendanceTimelineResponse(BaseModel):
+    items: list[AttendanceTimelineEntryRead]
+    total: int
+    page: int
+    page_size: int
+
+
+class AttendancePreviewResponse(BaseModel):
+    """Dry-run projection — no `id`/`protocol_number`/`row_version`:
+    nothing is persisted (`.claude/rules/02-backend.md`: schemas de
+    create/update/read/filter separados)."""
+
+    attendance_id: UUID
+    clinic_id: UUID
+    veterinarian_id: UUID
+    patient_id: UUID
+    service_date: date
+    items: list[AttendanceExamRead]
+    subtotal: Decimal
+    discount_total: Decimal
+    surcharge_total: Decimal
+    grand_total: Decimal

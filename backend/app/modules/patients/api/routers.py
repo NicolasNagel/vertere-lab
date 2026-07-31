@@ -1,5 +1,5 @@
 """Patients API — thin routers, no business rule (rule:
-.claude/rules/backend.md).
+.claude/rules/02-backend.md).
 
 Two routers live here: `species_router` (read-only reference list) and
 `patients_router` (full CRUD). Both are mounted separately in `app.main`.

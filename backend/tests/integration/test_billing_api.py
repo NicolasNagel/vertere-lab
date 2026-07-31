@@ -2,7 +2,7 @@
 ponta a ponta via HTTPX/ASGI.
 
 Esta fatia cobre só a prévia (Incremento 4.1) — read-only, sem persistência
-(`.claude/rules/monthly-closure.md`).
+(`.claude/rules/13-monthly-closure.md`).
 """
 
 from __future__ import annotations
@@ -224,6 +224,7 @@ async def _confirm_attendance(
     confirm_response = await client.post(
         f"/api/v1/attendances/{attendance_id}/confirm",
         json={"items": [{"exam_id": exam_id, "quantity": quantity}]},
+        headers={"Idempotency-Key": f"confirm-{attendance_id}"},
     )
     assert confirm_response.status_code == 200
     body: dict[str, object] = confirm_response.json()

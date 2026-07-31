@@ -6,11 +6,11 @@ Create Date: 2026-07-27
 
 Achado em teste manual adversarial (ADR-007): o endpoint de login não tinha
 nenhuma proteção contra força bruta — 15 tentativas de senha errada em
-paralelo, todas 401, sem throttling. `.claude/rules/auth-security-lgpd.md`
+paralelo, todas 401, sem throttling. `.claude/rules/06-auth-security-lgpd.md`
 já exigia "rate limit em login" explicitamente.
 
 Persistido no PostgreSQL, não em memória de processo nem Redis: a app roda
-como Function stateless (`CLAUDE.md` — "Vercel é stateless"), e Redis só
+como Function stateless (`AGENTS.md` — "Vercel é stateless"), e Redis só
 entra com justificativa medida — uma tabela simples com um índice já resolve
 sem introduzir peça de infra nova.
 

@@ -28,7 +28,10 @@ def _setup() -> tuple[FakeUserRepository, FakeRoleRepository, User, Role]:
     users = FakeUserRepository(roles=roles)
 
     admin_role = Role(
-        id=uuid4(), name="LAB_ADMIN", scope=RoleScope.LAB, permission_codes=frozenset({"users.activate"})
+        id=uuid4(),
+        name="LAB_ADMIN",
+        scope=RoleScope.LAB,
+        permission_codes=frozenset({"users.activate"}),
     )
     roles.add(admin_role)
 
@@ -72,7 +75,9 @@ def test_activate_user_reactivates_and_audits() -> None:
 
 def test_activate_user_without_permission_is_forbidden() -> None:
     users, roles, target, _admin_role = _setup()
-    powerless_role = Role(id=uuid4(), name="RECEPTION", scope=RoleScope.LAB, permission_codes=frozenset())
+    powerless_role = Role(
+        id=uuid4(), name="RECEPTION", scope=RoleScope.LAB, permission_codes=frozenset()
+    )
     roles.add(powerless_role)
     audit = FakeAuditLogWriter()
     use_case = ActivateUserUseCase(users=users, roles=roles, audit=audit, clock=FakeClock(_NOW))

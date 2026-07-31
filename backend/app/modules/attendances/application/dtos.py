@@ -1,5 +1,5 @@
 """Application-layer DTOs — never ORM objects, never domain entities leaked
-raw across the module boundary (rule: .claude/rules/backend.md)."""
+raw across the module boundary (rule: .claude/rules/02-backend.md)."""
 
 from __future__ import annotations
 
@@ -25,6 +25,24 @@ class AttendanceExamDTO:
 
 
 @dataclass(frozen=True, kw_only=True)
+class AttendancePreviewDTO:
+    """Dry-run projection — deliberately has no `id`/`protocol_number`/
+    `row_version`: nothing is persisted, so there is no attendance-exam
+    identity or protocol yet (`preview_attendance.py`)."""
+
+    attendance_id: UUID
+    clinic_id: UUID
+    veterinarian_id: UUID
+    patient_id: UUID
+    service_date: date
+    items: list[AttendanceExamDTO]
+    subtotal: Decimal
+    discount_total: Decimal
+    surcharge_total: Decimal
+    grand_total: Decimal
+
+
+@dataclass(frozen=True, kw_only=True)
 class AttendanceDTO:
     id: UUID
     clinic_id: UUID
@@ -40,6 +58,7 @@ class AttendanceDTO:
     surcharge_total: Decimal = Decimal("0")
     grand_total: Decimal = Decimal("0")
     protocol_number: str | None = None
+    cancel_reason: str | None = None
     created_at: datetime
     updated_at: datetime
     row_version: int

@@ -1,5 +1,5 @@
 """Centralized currency rounding — the single point in the domain that
-rounds money (rule: .claude/rules/attendence.md, "moeda e arredondamento
+rounds money (rule: .claude/rules/12-attendance.md, "moeda e arredondamento
 centralizados em um único ponto do domínio")."""
 
 from __future__ import annotations

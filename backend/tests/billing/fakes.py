@@ -1,15 +1,21 @@
 """In-memory fakes for the billing module — used by unit tests for use
 cases (rule: mock only at an external boundary; a fake repository backing a
 pure use-case test is not the repository-under-test, so this is fine per
-.claude/rules/testing.md)."""
+.claude/rules/08-testing.md)."""
 
 from __future__ import annotations
 
 from datetime import UTC, datetime
 from uuid import UUID
 
-from app.modules.billing.domain.entities import ClosureCandidateItem, CompetencePeriod
+from app.modules.audit.domain.entities import AuditEntry
+from app.modules.billing.domain.entities import (
+    ClosureCandidateItem,
+    CompetencePeriod,
+    MonthlyClosure,
+)
 from app.modules.clinics.domain.entities import Clinic, ClinicStatus
+from app.shared.outbox.domain.entities import OutboxEvent
 
 _SEED_AT = datetime(2026, 1, 1, tzinfo=UTC)
 
@@ -63,6 +69,69 @@ class FakeClosurePreviewRepository:
         self, *, clinic_id: UUID, period: CompetencePeriod
     ) -> list[ClosureCandidateItem]:
         return list(self._candidates)
+
+
+class FakeClosureCandidateLockRepository:
+    """Also records calls, so a test can assert the use case actually
+    associated the right attendances with the closure — the fake IS allowed
+    to hold that extra assertion state precisely because it isn't the
+    repository under test (`.claude/rules/08-testing.md`)."""
+
+    def __init__(self, candidates: list[ClosureCandidateItem] | None = None) -> None:
+        self._candidates = candidates or []
+        self.marked_attendance_ids: set[UUID] = set()
+        self.marked_closure_id: UUID | None = None
+
+    def list_candidates_for_update(
+        self, *, clinic_id: UUID, period: CompetencePeriod
+    ) -> list[ClosureCandidateItem]:
+        return list(self._candidates)
+
+    def mark_associated_with_closure(self, *, attendance_ids: set[UUID], closure_id: UUID) -> None:
+        self.marked_attendance_ids |= attendance_ids
+        self.marked_closure_id = closure_id
+
+
+class FakeMonthlyClosureRepository:
+    def __init__(self, active: MonthlyClosure | None = None) -> None:
+        self._active = active
+        self.added: list[MonthlyClosure] = []
+        self.lock_calls: list[tuple[UUID, int, int]] = []
+
+    def acquire_active_lock(self, *, clinic_id: UUID, year: int, month: int) -> None:
+        self.lock_calls.append((clinic_id, year, month))
+
+    def get_active_for_clinic_and_period(
+        self, *, clinic_id: UUID, year: int, month: int
+    ) -> MonthlyClosure | None:
+        return self._active
+
+    def add(self, closure: MonthlyClosure) -> None:
+        self.added.append(closure)
+
+    def get_by_id(self, closure_id: UUID) -> MonthlyClosure | None:
+        return next((c for c in self.added if c.id == closure_id), None)
+
+    def list_page(
+        self, *, clinic_id: UUID | None, page: int, page_size: int
+    ) -> tuple[list[MonthlyClosure], int]:
+        return list(self.added), len(self.added)
+
+
+class FakeAuditLogWriter:
+    def __init__(self) -> None:
+        self.entries: list[AuditEntry] = []
+
+    def record(self, entry: AuditEntry) -> None:
+        self.entries.append(entry)
+
+
+class FakeOutboxEventRepository:
+    def __init__(self) -> None:
+        self.events: list[OutboxEvent] = []
+
+    def add(self, event: OutboxEvent) -> None:
+        self.events.append(event)
 
 
 def make_clinic(*, clinic_id: UUID, status: ClinicStatus = ClinicStatus.ACTIVE) -> Clinic:

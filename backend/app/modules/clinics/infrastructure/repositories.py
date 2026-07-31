@@ -1,7 +1,7 @@
 """SQLAlchemy implementation of the clinics repository protocol.
 
 Domain entities are the only thing that crosses back out of this module;
-ORM models never leak past this file (rule: .claude/rules/database.md).
+ORM models never leak past this file (rule: .claude/rules/03-database.md).
 """
 
 from __future__ import annotations
@@ -53,6 +53,16 @@ class SqlAlchemyClinicRepository:
             select(ClinicModel).where(ClinicModel.tax_id == tax_id)
         ).scalar_one_or_none()
         return _to_domain(model) if model is not None else None
+
+    def get_by_name(self, name: str) -> Clinic | None:
+        model = self._session.execute(
+            select(ClinicModel).where(func.lower(ClinicModel.name) == name.lower())
+        ).scalar_one_or_none()
+        return _to_domain(model) if model is not None else None
+
+    def list_all_names(self) -> dict[str, UUID]:
+        rows = self._session.execute(select(ClinicModel.id, ClinicModel.name)).all()
+        return {name.lower(): id_ for id_, name in rows}
 
     def add(self, clinic: Clinic) -> None:
         self._session.add(

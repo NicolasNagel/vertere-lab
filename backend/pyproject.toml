@@ -14,6 +14,7 @@ dependencies = [
     "email-validator>=2.2",
     "httpx>=0.28",
     "python-multipart>=0.0.32",
+    "pdfplumber>=0.11",
 ]
 
 [build-system]

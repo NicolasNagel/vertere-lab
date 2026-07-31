@@ -1,14 +1,19 @@
-"""Billing domain entities — Incremento 4.1 (Prévia de Fechamento) only.
+"""Billing domain entities.
 
-No FastAPI/SQLAlchemy import here (rule: .claude/rules/globals.md — domain
+No FastAPI/SQLAlchemy import here (rule: .claude/rules/00-global.md — domain
 layer).
 
-The preview is derived in memory, never persisted
-(`.claude/rules/monthly-closure.md`: "não fecha nem bloqueia nada — é só
-leitura"). `MonthlyClosure`/`MonthlyClosureItem` as persistent tables only
-arrive with Incremento 4.2 — these `ClosurePreview*` names are deliberately
-distinct so they don't collide with the persistent entities reserved for
-that increment.
+`ClosurePreview*` (Incremento 4.1): derived in memory, never persisted
+(`.claude/rules/13-monthly-closure.md`: "não fecha nem bloqueia nada — é só
+leitura"). Deliberately named apart from `MonthlyClosure`/`MonthlyClosureItem`
+below so the two never collide.
+
+`MonthlyClosure`/`MonthlyClosureItem` (Incremento 4.2): persistent snapshot
+created by `POST /closures`. This slice only ever creates them with
+`status=CLOSED` directly — there is no persisted "draft closure" step (the
+preview above stays in-memory-only), so `DRAFT`/`CANCELLED` from the abstract
+state diagram in `docs/03-modelo-de-dominio.md` §6 are not reachable here.
+`REOPENED` is reserved for Incremento 4.3.
 """
 
 from __future__ import annotations
@@ -16,6 +21,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from datetime import date, datetime
 from decimal import Decimal
+from enum import StrEnum
 from uuid import UUID
 
 from app.shared.domain.errors import ValidationError
@@ -111,3 +117,77 @@ class ClosurePreview:
     eligible_items: list[ClosurePreviewItem] = field(default_factory=list)
     blocked_items: list[ClosurePreviewBlockedItem] = field(default_factory=list)
     generated_at: datetime
+
+
+class ClosureStatus(StrEnum):
+    CLOSED = "CLOSED"
+    REOPENED = "REOPENED"
+
+
+@dataclass(kw_only=True)
+class MonthlyClosureItem:
+    """One snapshotted `AttendanceExam` inside a closure — carries the full
+    money breakdown, not just `total_amount`, so exportação and a future
+    ajuste (Incremento 4.3) never need to re-read the live attendance
+    (`.claude/rules/03-database.md`: "snapshot contém valor suficiente para
+    reprodução total sem consultar o atendimento original")."""
+
+    id: UUID
+    monthly_closure_id: UUID
+    attendance_id: UUID
+    attendance_exam_id: UUID
+    protocol_number: str | None
+    patient_name: str
+    exam_name: str
+    price_base: Decimal
+    quantity: int
+    discount_amount: Decimal
+    surcharge_amount: Decimal
+    total_amount: Decimal
+
+    def __post_init__(self) -> None:
+        if self.quantity <= 0:
+            raise ValidationError("Quantidade do item de fechamento deve ser maior que zero.")
+        if self.discount_amount < 0 or self.surcharge_amount < 0 or self.total_amount < 0:
+            raise ValidationError(
+                "Valores financeiros do item de fechamento não podem ser negativos."
+            )
+
+
+@dataclass(kw_only=True)
+class MonthlyClosure:
+    """Persistent, immutable-once-created record of a closed competence
+    (`.claude/rules/13-monthly-closure.md`: "fechamento fechado é imutável").
+    Construction here mirrors exactly what the close use case just computed
+    — this class does not recompute anything, it only enforces that the
+    header totals agree with what was passed in (defense in depth on top of
+    the use case's own pre-commit check)."""
+
+    id: UUID
+    clinic_id: UUID
+    competence_year: int
+    competence_month: int
+    period_start: date
+    period_end: date
+    status: ClosureStatus
+    item_count: int
+    subtotal: Decimal
+    discount_total: Decimal
+    surcharge_total: Decimal
+    grand_total: Decimal
+    generated_by: UUID | None
+    closed_by: UUID | None
+    generated_at: datetime
+    closed_at: datetime
+    reopened_at: datetime | None = None
+    version: int = 1
+    integrity_hash: str | None = None
+    items: list[MonthlyClosureItem] = field(default_factory=list)
+
+    def __post_init__(self) -> None:
+        if self.subtotal < 0 or self.discount_total < 0 or self.surcharge_total < 0:
+            raise ValidationError("Totais do fechamento não podem ser negativos.")
+        if self.grand_total < 0:
+            raise ValidationError("Total do fechamento não pode ser negativo.")
+        if self.item_count != len(self.items):
+            raise ValidationError("Contagem de itens não confere com os itens do fechamento.")

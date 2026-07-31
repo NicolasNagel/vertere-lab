@@ -1,7 +1,7 @@
 """Create an empty DRAFT AttendanceRecord.
 
 Every referenced id is validated here — and must be revalidated again at
-confirmation time (`.claude/rules/attendence.md`: "Todo ID é revalidado no
+confirmation time (`.claude/rules/12-attendance.md`: "Todo ID é revalidado no
 momento da confirmação, mesmo que já tenha sido validado ao selecionar").
 This use case only covers the draft creation step.
 """
@@ -14,20 +14,20 @@ from uuid import UUID, uuid4
 
 from app.modules.attendances.application.dtos import AttendanceDTO
 from app.modules.attendances.application.mappers import attendance_to_dto
+from app.modules.attendances.application.party_validation import (
+    validate_clinic_veterinarian_patient,
+)
 from app.modules.attendances.domain.entities import AttendanceRecord, AttendanceStatus
 from app.modules.attendances.domain.repositories import AttendanceRepository
 from app.modules.audit.domain.entities import ActorScope, AuditEntry
 from app.modules.audit.domain.repositories import AuditLogWriter
-from app.modules.clinics.domain.entities import ClinicStatus
 from app.modules.clinics.domain.repositories import ClinicRepository
 from app.modules.identity.application.dtos import AuthenticatedUserDTO
-from app.modules.patients.domain.entities import PatientStatus
 from app.modules.patients.domain.repositories import PatientRepository
 from app.modules.veterinarian_clinics.domain.repositories import VeterinarianClinicLinkRepository
-from app.modules.veterinarians.domain.entities import VeterinarianStatus
 from app.modules.veterinarians.domain.repositories import VeterinarianRepository
 from app.shared.application.clock import Clock
-from app.shared.domain.errors import ForbiddenError, NotFoundError, ValidationError
+from app.shared.domain.errors import ForbiddenError
 
 _REQUIRED_PERMISSION = "attendances.create"
 
@@ -66,27 +66,15 @@ class CreateAttendanceDraftUseCase:
         if _REQUIRED_PERMISSION not in command.actor.permissions:
             raise ForbiddenError(f"Permissão ausente: {_REQUIRED_PERMISSION}")
 
-        clinic = self._clinics.get_by_id(command.clinic_id)
-        if clinic is None:
-            raise NotFoundError("Clínica não encontrada.")
-        if clinic.status != ClinicStatus.ACTIVE:
-            raise ValidationError("Clínica não está ativa.")
-
-        veterinarian = self._veterinarians.get_by_id(command.veterinarian_id)
-        if veterinarian is None:
-            raise NotFoundError("Veterinário não encontrado.")
-        if veterinarian.status != VeterinarianStatus.ACTIVE:
-            raise ValidationError("Veterinário não está ativo.")
-        if not veterinarian.is_autonomous:
-            link = self._veterinarian_clinics.get(command.veterinarian_id, command.clinic_id)
-            if link is None:
-                raise ValidationError("Veterinário não está vinculado a esta clínica.")
-
-        patient = self._patients.get_by_id(command.patient_id)
-        if patient is None:
-            raise NotFoundError("Paciente não encontrado.")
-        if patient.status != PatientStatus.ACTIVE:
-            raise ValidationError("Paciente não está ativo.")
+        validate_clinic_veterinarian_patient(
+            clinic_id=command.clinic_id,
+            veterinarian_id=command.veterinarian_id,
+            patient_id=command.patient_id,
+            clinics=self._clinics,
+            veterinarians=self._veterinarians,
+            veterinarian_clinics=self._veterinarian_clinics,
+            patients=self._patients,
+        )
 
         now = self._clock.now()
         attendance = AttendanceRecord(

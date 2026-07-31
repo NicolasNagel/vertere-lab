@@ -62,7 +62,7 @@ export function ClinicsPage() {
         )}
       </div>
 
-      <div className="clinics-page__body">
+      <div className="clinics-page__body" data-mode={mode}>
         <ClinicList
           clinics={clinics}
           activeCount={activeCount}

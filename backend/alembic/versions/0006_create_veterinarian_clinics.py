@@ -7,7 +7,7 @@ Create Date: 2026-07-25
 Pure join table between `veterinarians` and `clinics` (docs/05-roadmap-backlog.md
 §4 item 3, "vínculo veterinário-clínica"). `ON DELETE CASCADE` on both FKs is
 safe here even though the product rule is "inativar em vez de apagar"
-(docs/.claude/rules/product-domain.md): `veterinarians`/`clinics` rows are
+(docs/.claude/rules/01-product-domain.md): `veterinarians`/`clinics` rows are
 never hard-deleted in this system, only soft-inactivated, so the cascade
 never actually fires against real history — it only guards against orphaned
 link rows if a hard delete is ever done on a draft record.

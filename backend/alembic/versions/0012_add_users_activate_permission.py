@@ -9,7 +9,7 @@ Create Date: 2026-07-26
 `users.deactivate` for both directions) keeps the audit trail and the
 authorization check honest about which action was actually taken. 0002
 already ran, so this is a new migration rather than an edit to it (rule:
-.claude/rules/database.md — "nunca edite migration já aplicada"). Granted to
+.claude/rules/03-database.md — "nunca edite migration já aplicada"). Granted to
 SUPER_ADMIN and LAB_ADMIN, the only roles that hold `users.deactivate` today.
 
 `PERMISSION_CODES` in `infrastructure/seed.py` now also lists

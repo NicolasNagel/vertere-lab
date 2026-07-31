@@ -6,9 +6,9 @@ Create Date: 2026-07-27
 
 Expand-only migration for the confirmation slice announced in
 `app/modules/attendances/domain/entities.py` (0011's docstring) and
-`.claude/rules/attendence.md`. All new columns on `attendances` are
+`.claude/rules/12-attendance.md`. All new columns on `attendances` are
 nullable or carry a default — no backfill needed, no existing row breaks
-(`.claude/rules/database.md`: "expand → backfill → contract").
+(`.claude/rules/03-database.md`: "expand → backfill → contract").
 
 `monthly_closure_id` has no FK yet — `monthly_closures` only appears in
 Incremento 4.2. The column exists now because "item já em fechamento é
@@ -17,7 +17,7 @@ respect (`docs/03-modelo-de-dominio.md` §6).
 
 `attendance_sequences` backs the transactional protocol counter — the
 repository uses `SELECT ... FOR UPDATE`, never `MAX + 1`
-(`.claude/rules/database.md`).
+(`.claude/rules/03-database.md`).
 """
 
 from __future__ import annotations

@@ -1,6 +1,6 @@
 """Repository protocols for the identity module.
 
-Interfaces live in `domain` (per .claude/rules/backend.md); implementations
+Interfaces live in `domain` (per .claude/rules/02-backend.md); implementations
 live in `infrastructure`. Repositories never commit — the unit of work does.
 """
 
@@ -56,7 +56,7 @@ class RoleRepository(Protocol):
         `ConflictError`. Must be a single conditional UPDATE, not a
         read-then-write pair: two concurrent calls reading the same version
         first would otherwise both pass and silently drop one edit (rule:
-        .claude/rules/database.md — "edição crítica usa versão... conflito
+        .claude/rules/03-database.md — "edição crítica usa versão... conflito
         retorna 409")."""
         ...
 
@@ -82,13 +82,15 @@ class SessionRepository(Protocol):
 class LabMembershipRepository(Protocol):
     def add(self, membership: LabMembership) -> None: ...
 
+    def get_active_by_user_id(self, user_id: UUID) -> LabMembership | None: ...
+
 
 class LoginFailureRepository(Protocol):
     """Backs login rate limiting — deliberately PostgreSQL, not an in-memory
     counter or Redis: the app runs as stateless Vercel Functions with no
     process-local memory shared across invocations, and this project's
     default is "PostgreSQL é a única fonte de verdade" unless a measured
-    case justifies Redis (rule: CLAUDE.md)."""
+    case justifies Redis (rule: AGENTS.md)."""
 
     def record_failure(self, login: str, *, occurred_at: datetime) -> None: ...
 

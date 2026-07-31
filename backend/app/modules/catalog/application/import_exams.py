@@ -7,7 +7,7 @@ keeps "linhas válidas não são interrompidas pelas inválidas" (spec's
 acceptance criterion) true without needing per-row rollback.
 
 CSV parsing itself lives in the router (IO belongs there); this use case
-only receives structured `ExamImportRow`s (rule: .claude/rules/backend.md,
+only receives structured `ExamImportRow`s (rule: .claude/rules/02-backend.md,
 "router só valida protocolo HTTP e delega").
 """
 

@@ -5,8 +5,10 @@ from datetime import timedelta
 
 from app.modules.identity.application.dtos import AuthenticatedUserDTO
 from app.modules.identity.application.session_tokens import SessionTokenGenerator
+from app.modules.identity.domain.entities import RoleScope
 from app.modules.identity.domain.errors import AccountInactiveError, SessionExpiredError
 from app.modules.identity.domain.repositories import (
+    LabMembershipRepository,
     RoleRepository,
     SessionRepository,
     UserRepository,
@@ -33,6 +35,7 @@ class ResolveSessionUseCase:
         sessions: SessionRepository,
         users: UserRepository,
         roles: RoleRepository,
+        memberships: LabMembershipRepository,
         token_generator: SessionTokenGenerator,
         clock: Clock,
         session_ttl: timedelta,
@@ -42,6 +45,7 @@ class ResolveSessionUseCase:
         self._sessions = sessions
         self._users = users
         self._roles = roles
+        self._memberships = memberships
         self._token_generator = token_generator
         self._clock = clock
         self._session_ttl = session_ttl
@@ -63,6 +67,12 @@ class ResolveSessionUseCase:
         role = self._roles.get_by_id(user.role_id)
         if role is None:
             raise RuntimeError(f"Papel {user.role_id} não encontrado para o usuário {user.id}.")
+
+        if (
+            role.scope is RoleScope.CLINIC
+            or self._memberships.get_active_by_user_id(user.id) is None
+        ):
+            raise SessionExpiredError("Sessão expirada. Faça login novamente.")
 
         if session.expires_at - now < self._renewal_threshold:
             ttl = self._session_ttl_remember_me if session.remember_me else self._session_ttl

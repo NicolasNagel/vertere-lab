@@ -6,9 +6,10 @@ export function patientsQueryKey(params: PatientListParams) {
   return ['patients', params] as const
 }
 
-export function usePatientsQuery(params: PatientListParams = {}) {
+export function usePatientsQuery(params: PatientListParams | null = {}) {
   return useQuery({
-    queryKey: patientsQueryKey(params),
-    queryFn: () => fetchPatients(params),
+    queryKey: params ? patientsQueryKey(params) : ['patients', 'idle'],
+    queryFn: () => fetchPatients(params as PatientListParams),
+    enabled: params !== null,
   })
 }

@@ -4,14 +4,14 @@ argument-hint: "[--issue <N>]"
 ---
 # /handoff — passagem de bastão
 Atualize o `HANDOFF.md` da raiz para que **a próxima sessão (ou outra pessoa) continue sem
-arqueologia**. É o item 10 da [Definição de Pronto](../rules/definicao-de-pronto.md). Fonte da
+arqueologia**. É o item 10 da [Definição de Pronto](../rules/11-definition-of-done.md). Fonte da
 verdade = git + estado do gate; a conversa só complementa.
 
 ## 1. Colete o estado real
 - `git status` e `git diff --stat` — o que está commitado vs. pendente.
 - `git log --oneline -10` — o que foi entregue nesta sessão.
 - Último resultado do gate (`/validar`): verde ou vermelho, e onde falha.
-- Vereditos de `revisor-codigo` / `auditor-seguranca` emitidos na sessão, se houver.
+- Vereditos de `revisor-codigo` / `auditor-integridade` emitidos na sessão, se houver.
 
 ## 2. Sobrescreva o `HANDOFF.md` neste formato
 ```

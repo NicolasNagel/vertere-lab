@@ -3,7 +3,7 @@
 Previously duplicated as a private `_CONTROL_PERMISSIONS` in
 `assign_role.py` and `deactivate_user.py` — a third use case
 (`update_role_permissions.py`) needed the same set, which is the DRY
-threshold this project uses to extract (rule: .claude/rules/globals.md,
+threshold this project uses to extract (rule: .claude/rules/00-global.md,
 "duplicou 2x+, extraia").
 """
 

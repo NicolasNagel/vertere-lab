@@ -1,5 +1,5 @@
 """Application-layer DTOs — never ORM objects, never domain entities leaked
-raw across the module boundary (rule: .claude/rules/backend.md)."""
+raw across the module boundary (rule: .claude/rules/02-backend.md)."""
 
 from __future__ import annotations
 

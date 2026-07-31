@@ -8,7 +8,7 @@ not necessarily `patients.read`. It is static, non-sensitive reference
 data with no independent screen or action, so gating it per-consumer
 permission would just keep growing the list without protecting anything
 real — any authenticated user can read it (rule:
-.claude/rules/backend.md, "autorização... nunca implícita" still holds:
+.claude/rules/02-backend.md, "autorização... nunca implícita" still holds:
 this is an explicit decision, not a bypass).
 """
 

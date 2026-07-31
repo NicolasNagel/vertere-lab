@@ -1,0 +1,12 @@
+.attendance-list-filters {
+  display: flex;
+  gap: 1rem;
+  padding: 0.875rem 2rem; /* 14px 32px */
+  background: #ffffff;
+  border-bottom: 1px solid var(--color-border);
+  flex-wrap: wrap;
+}
+
+.attendance-list-filters__field {
+  min-width: 11rem;
+}

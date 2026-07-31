@@ -1,5 +1,5 @@
 """SQLAlchemy mapping for the identity module — separate from domain
-entities (rule: .claude/rules/database.md, "não é Active Record")."""
+entities (rule: .claude/rules/03-database.md, "não é Active Record")."""
 
 from __future__ import annotations
 
@@ -112,7 +112,7 @@ class SessionModel(Base):
 class LoginFailureModel(Base):
     """One row per failed login attempt, keyed by the normalized login the
     caller typed — not a FK to `users` because an attempt against an unknown
-    e-mail must still be throttled (rule: .claude/rules/auth-security-lgpd.md,
+    e-mail must still be throttled (rule: .claude/rules/06-auth-security-lgpd.md,
     "proteção contra enumeração de usuário")."""
 
     __tablename__ = "login_failures"

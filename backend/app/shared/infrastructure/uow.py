@@ -1,7 +1,7 @@
 """SQLAlchemy unit of work.
 
 Owns commit/rollback for a use case; repositories receive the session and
-never commit (rule: .claude/rules/backend.md).
+never commit (rule: .claude/rules/02-backend.md).
 """
 
 from __future__ import annotations

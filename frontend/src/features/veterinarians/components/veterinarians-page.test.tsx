@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { render, screen, waitFor } from '@testing-library/react'
+import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { http, HttpResponse } from 'msw'
 import { setupServer } from 'msw/node'
@@ -204,6 +204,43 @@ test('filters by autonomous type', async () => {
 
   expect(await screen.findByText('Karin Witt')).toBeInTheDocument()
   expect(screen.queryByText('Dra. Fabianna Garcia')).not.toBeInTheDocument()
+})
+
+test('shows inactive status in the list even for an autonomous veterinarian', async () => {
+  // Regression: the row badge used to be an if/else (Autônomo *or* status), so an inactive
+  // autonomous vet displayed identically to an active one in the list — only the detail panel
+  // showed both. Found via manual QA against real imported data ("Aline Cabral Silva").
+  server.use(
+    meHandler(['veterinarians.read']),
+    http.get('/api/v1/veterinarians', () =>
+      HttpResponse.json({
+        items: [
+          {
+            id: 'v9',
+            name: 'Aline Cabral Silva',
+            crmv: '13552',
+            phone: null,
+            email: null,
+            is_autonomous: true,
+            status: 'INACTIVE',
+            notes: null,
+            created_at: '2026-01-01T00:00:00Z',
+            updated_at: '2026-01-01T00:00:00Z',
+            row_version: 1,
+          },
+        ],
+        total: 1,
+        page: 1,
+        page_size: 100,
+      }),
+    ),
+  )
+  renderWithProviders(<VeterinariansPage />)
+
+  const name = await screen.findByText('Aline Cabral Silva')
+  const row = name.closest('[role="listitem"]') as HTMLElement
+  expect(within(row).getByText('Autônomo')).toBeInTheDocument()
+  expect(within(row).getByText('Inativo')).toBeInTheDocument()
 })
 
 test('blocks create for a non-autonomous veterinarian without a linked clinic', async () => {

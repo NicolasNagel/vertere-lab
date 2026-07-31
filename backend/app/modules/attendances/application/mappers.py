@@ -36,6 +36,7 @@ def attendance_to_dto(attendance: AttendanceRecord) -> AttendanceDTO:
         surcharge_total=attendance.surcharge_total,
         grand_total=attendance.grand_total,
         protocol_number=attendance.protocol_number,
+        cancel_reason=attendance.cancel_reason,
         created_at=attendance.created_at,
         updated_at=attendance.updated_at,
         row_version=attendance.row_version,

@@ -108,6 +108,13 @@
   color: #1f3450;
 }
 
+.veterinarian-list__row-badges {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem; /* 4px */
+  flex-shrink: 0;
+}
+
 .veterinarian-list__row-status {
   font-size: 0.625rem;
   padding: 0.125rem 0.4375rem;

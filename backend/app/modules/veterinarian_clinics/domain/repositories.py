@@ -1,6 +1,6 @@
 """Repository protocol for the veterinarian-clinic link module.
 
-Interface lives in `domain` (per .claude/rules/backend.md); implementation
+Interface lives in `domain` (per .claude/rules/02-backend.md); implementation
 lives in `infrastructure`. The repository never commits — the unit of work
 does.
 """

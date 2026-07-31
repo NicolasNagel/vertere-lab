@@ -1,7 +1,7 @@
 """In-memory fakes for the veterinarian-clinic link module — used by unit
 tests for use cases (rule: mock only at an external boundary; a fake
 repository backing a pure use-case test is not the repository-under-test,
-so this is fine per .claude/rules/testing.md)."""
+so this is fine per .claude/rules/08-testing.md)."""
 
 from __future__ import annotations
 
@@ -46,6 +46,12 @@ class FakeVeterinarianRepository:
                 return veterinarian
         return None
 
+    def get_by_name(self, name: str) -> Veterinarian | None:
+        for veterinarian in self._veterinarians.values():
+            if veterinarian.name.lower() == name.lower():
+                return veterinarian
+        return None
+
     def save(self, veterinarian: Veterinarian) -> None:
         self._veterinarians[veterinarian.id] = veterinarian
 
@@ -66,6 +72,15 @@ class FakeClinicRepository:
 
     def get_by_tax_id(self, tax_id: str) -> Clinic | None:
         return None
+
+    def get_by_name(self, name: str) -> Clinic | None:
+        for clinic in self._clinics.values():
+            if clinic.name.lower() == name.lower():
+                return clinic
+        return None
+
+    def list_all_names(self) -> dict[str, UUID]:
+        return {clinic.name.lower(): clinic.id for clinic in self._clinics.values()}
 
     def save(self, clinic: Clinic) -> None:
         self._clinics[clinic.id] = clinic

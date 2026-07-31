@@ -1,5 +1,5 @@
 """Catalog API — thin routers, no business rule (rule:
-.claude/rules/backend.md).
+.claude/rules/02-backend.md).
 
 Two routers live here: `exam_categories_router` and `exams_router`, mounted
 separately in `app.main`.

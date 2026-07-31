@@ -36,6 +36,10 @@ export interface VeterinarianListParams {
   search?: string
   status?: VeterinarianStatus
   isAutonomous?: boolean
+  /** Autônomo OU vinculado a esta clínica — mesma regra que `/confirm`
+   * revalida no backend. Resolvido no servidor porque a listagem nunca
+   * carrega `clinics` por item (só o endpoint de detalhe carrega). */
+  availableForClinicId?: string
   page?: number
   pageSize?: number
 }
@@ -116,6 +120,9 @@ export async function fetchVeterinarians(
   if (params.search) query.set('search', params.search)
   if (params.status) query.set('status', params.status)
   if (params.isAutonomous !== undefined) query.set('is_autonomous', String(params.isAutonomous))
+  if (params.availableForClinicId) {
+    query.set('available_for_clinic_id', params.availableForClinicId)
+  }
   query.set('page', String(params.page ?? 1))
   query.set('page_size', String(params.pageSize ?? 20))
 

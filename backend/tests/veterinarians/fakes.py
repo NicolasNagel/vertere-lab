@@ -1,7 +1,7 @@
 """In-memory fakes for the veterinarians repository protocol — used by unit
 tests for use cases (rule: mock only at an external boundary; a fake
 repository backing a pure use-case test is not the repository-under-test,
-so this is fine per .claude/rules/testing.md)."""
+so this is fine per .claude/rules/08-testing.md)."""
 
 from __future__ import annotations
 
@@ -48,6 +48,12 @@ class FakeVeterinarianRepository:
                 return veterinarian
         return None
 
+    def get_by_name(self, name: str) -> Veterinarian | None:
+        for veterinarian in self._veterinarians.values():
+            if veterinarian.name.lower() == name.lower():
+                return veterinarian
+        return None
+
     def list_page(
         self,
         *,
@@ -56,6 +62,7 @@ class FakeVeterinarianRepository:
         status: VeterinarianStatus | None,
         is_autonomous: bool | None,
         search: str | None,
+        available_for_clinic_id: UUID | None = None,
     ) -> tuple[list[Veterinarian], int]:
         veterinarians = list(self._veterinarians.values())
         if status is not None:
@@ -65,4 +72,7 @@ class FakeVeterinarianRepository:
         if search:
             needle = search.lower()
             veterinarians = [v for v in veterinarians if needle in v.name.lower()]
+        # `available_for_clinic_id` não é modelado neste fake (não há
+        # vínculos de clínica aqui) — cobertura real do filtro fica para o
+        # teste de integração com Postgres real.
         return veterinarians, len(veterinarians)

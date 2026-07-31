@@ -23,7 +23,7 @@ class DeactivateExamCategoryCommand:
 
 class DeactivateExamCategoryUseCase:
     """Soft delete only — inactivating a category must never erase catalog
-    history (rule: .claude/rules/product-domain.md, "Inative em vez de
+    history (rule: .claude/rules/01-product-domain.md, "Inative em vez de
     apagar")."""
 
     def __init__(

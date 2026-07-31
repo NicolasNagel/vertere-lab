@@ -1,7 +1,7 @@
 """In-memory fakes for the attendances module — used by unit tests for use
 cases (rule: mock only at an external boundary; a fake repository backing a
 pure use-case test is not the repository-under-test, so this is fine per
-.claude/rules/testing.md)."""
+.claude/rules/08-testing.md)."""
 
 from __future__ import annotations
 
@@ -31,11 +31,26 @@ class FakeClock:
 
 
 class FakeAuditLogWriter:
+    """Also implements `AuditLogReader` — same in-memory store backs both
+    sides in tests, unlike production where writer/reader are separate
+    SQLAlchemy classes over the same table."""
+
     def __init__(self) -> None:
         self.entries: list[AuditEntry] = []
 
     def record(self, entry: AuditEntry) -> None:
         self.entries.append(entry)
+
+    def list_for_entity(
+        self, *, entity_type: str, entity_id: str, page: int, page_size: int
+    ) -> tuple[list[AuditEntry], int]:
+        matches = [
+            e for e in self.entries if e.entity_type == entity_type and e.entity_id == entity_id
+        ]
+        matches.sort(key=lambda e: e.occurred_at, reverse=True)
+        total = len(matches)
+        start = (page - 1) * page_size
+        return matches[start : start + page_size], total
 
 
 class FakeAttendanceRepository:
@@ -138,6 +153,7 @@ class FakeVeterinarianRepository:
         status: VeterinarianStatus | None,
         is_autonomous: bool | None,
         search: str | None,
+        available_for_clinic_id: UUID | None = None,
     ) -> tuple[list[Veterinarian], int]:
         raise NotImplementedError
 
@@ -216,6 +232,9 @@ class FakeExamRepository:
 
     def get_by_code(self, code: str) -> Exam | None:
         raise NotImplementedError
+
+    def list_all_names(self) -> dict[str, UUID]:
+        return {exam.name.casefold(): exam.id for exam in self._exams.values()}
 
     def add(self, exam: Exam) -> None:
         raise NotImplementedError

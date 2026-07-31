@@ -1,7 +1,7 @@
 """SQLAlchemy implementation of the attendances repository protocols.
 
 Domain entities are the only thing that crosses back out of this module;
-ORM models never leak past this file (rule: .claude/rules/database.md).
+ORM models never leak past this file (rule: .claude/rules/03-database.md).
 """
 
 from __future__ import annotations
@@ -61,6 +61,7 @@ def _to_domain(model: AttendanceModel) -> AttendanceRecord:
         protocol_sequence=model.protocol_sequence,
         protocol_number=model.protocol_number,
         monthly_closure_id=model.monthly_closure_id,
+        cancel_reason=model.cancel_reason,
         created_by=model.created_by,
         updated_by=model.updated_by,
         created_at=model.created_at,
@@ -100,6 +101,7 @@ class SqlAlchemyAttendanceRepository:
                 protocol_sequence=attendance.protocol_sequence,
                 protocol_number=attendance.protocol_number,
                 monthly_closure_id=attendance.monthly_closure_id,
+                cancel_reason=attendance.cancel_reason,
                 created_by=attendance.created_by,
                 updated_by=attendance.updated_by,
                 created_at=attendance.created_at,
@@ -117,6 +119,9 @@ class SqlAlchemyAttendanceRepository:
         if model is None:
             raise LookupError(f"Atendimento {attendance.id} não encontrado para atualização.")
 
+        model.clinic_id = attendance.clinic_id
+        model.veterinarian_id = attendance.veterinarian_id
+        model.patient_id = attendance.patient_id
         model.service_date = attendance.service_date
         model.notes = attendance.notes
         model.status = attendance.status.value
@@ -129,11 +134,24 @@ class SqlAlchemyAttendanceRepository:
         model.protocol_sequence = attendance.protocol_sequence
         model.protocol_number = attendance.protocol_number
         model.monthly_closure_id = attendance.monthly_closure_id
+        model.cancel_reason = attendance.cancel_reason
         model.updated_by = attendance.updated_by
         model.updated_at = attendance.updated_at
-        model.row_version = attendance.row_version + 1
+        # `row_version` is NOT set here on purpose — `version_id_col` on
+        # `AttendanceModel` (models.py) owns it: it compares the value this
+        # `select()` just loaded against the DB at UPDATE time and bumps it
+        # by one atomically. Assigning it manually would fight that check.
 
+        # `update()` is called both right after items were freshly built
+        # (confirm — `model.items` still empty) and when nothing about the
+        # items changed at all (cancel — `attendance.items` is just what
+        # was already loaded from the DB). Only append ids not already
+        # persisted, or a cancel would re-insert the same rows and collide
+        # on the primary key.
+        existing_item_ids = {item.id for item in model.items}
         for item in attendance.items:
+            if item.id in existing_item_ids:
+                continue
             model.items.append(
                 AttendanceExamModel(
                     id=item.id,
@@ -151,6 +169,17 @@ class SqlAlchemyAttendanceRepository:
                     status=item.status.value,
                 )
             )
+
+        # Force the UPDATE (and `version_id_col`'s bump) to run now, then
+        # read the real post-write version back onto the domain object.
+        # Without this, `attendance.row_version` stays whatever `get_by_id`
+        # loaded before this write — the caller would hand a stale version
+        # back to the client, who would then fail every subsequent edit
+        # with a false `409` (`.claude/rules/05-frontend-web-mobile.md`: the version a
+        # response carries must be the version that response actually
+        # produced, not the one the request started from).
+        self._session.flush()
+        attendance.row_version = model.row_version
 
     def list_page(
         self,
@@ -190,7 +219,7 @@ class SqlAlchemyAttendanceRepository:
 
 class SqlAlchemyAttendanceSequenceRepository:
     """`SELECT ... FOR UPDATE` on the counter row for the year, inside the
-    caller's transaction — never `MAX + 1` (`.claude/rules/database.md`).
+    caller's transaction — never `MAX + 1` (`.claude/rules/03-database.md`).
     """
 
     def __init__(self, session: SqlAlchemySession) -> None:

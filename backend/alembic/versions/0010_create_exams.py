@@ -8,7 +8,7 @@ Create Date: 2026-07-25
 already in the permission catalog seeded by 0002 and already granted where
 relevant — no permission grant migration needed alongside this one.
 
-Price uses `NUMERIC(14,2)` (`.claude/rules/globals.md`, "Dinheiro: Python
+Price uses `NUMERIC(14,2)` (`.claude/rules/00-global.md`, "Dinheiro: Python
 Decimal; PostgreSQL NUMERIC(14,2). Nunca float.") — a deliberate divergence
 from the "cents" integer naming in the spec's example payload
 (`assets/features/screens/spec-pages.md`, "Tela de Cadastro de Exames &
@@ -18,7 +18,7 @@ matching "percentual ou valor fixo" from the spec.
 
 One migration for both tables: `exam_species` only exists to support
 `exams`, so together they are a single coherent change (rule:
-.claude/rules/database.md, "uma mudança coerente por migration").
+.claude/rules/03-database.md, "uma mudança coerente por migration").
 """
 
 from __future__ import annotations

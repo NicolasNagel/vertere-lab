@@ -274,7 +274,7 @@ async def test_create_exam_without_permission_is_forbidden(
         session_factory, email="admin@vertere.local", password="s3nhaForte!", role_id=ROLE_LAB_ADMIN
     )
     await _login(client, email="admin@vertere.local", password="s3nhaForte!")
-    species_id = _get_species_id(session_factory, name="Cão")
+    species_id = _get_species_id(session_factory, name="Canino")
     category_id = await _create_category(client)
 
     _create_user(
@@ -306,7 +306,7 @@ async def test_create_and_get_exam_with_price_visible_to_pricing_read(
         session_factory, email="admin@vertere.local", password="s3nhaForte!", role_id=ROLE_LAB_ADMIN
     )
     await _login(client, email="admin@vertere.local", password="s3nhaForte!")
-    species_id = _get_species_id(session_factory, name="Cão")
+    species_id = _get_species_id(session_factory, name="Canino")
     category_id = await _create_category(client)
 
     create_response = await client.post(
@@ -338,7 +338,7 @@ async def test_exam_price_hidden_without_pricing_read(
         session_factory, email="admin@vertere.local", password="s3nhaForte!", role_id=ROLE_LAB_ADMIN
     )
     await _login(client, email="admin@vertere.local", password="s3nhaForte!")
-    species_id = _get_species_id(session_factory, name="Cão")
+    species_id = _get_species_id(session_factory, name="Canino")
     category_id = await _create_category(client)
     create_response = await client.post(
         "/api/v1/exams",
@@ -376,7 +376,7 @@ async def test_create_exam_with_duplicate_code_conflicts(
         session_factory, email="admin@vertere.local", password="s3nhaForte!", role_id=ROLE_LAB_ADMIN
     )
     await _login(client, email="admin@vertere.local", password="s3nhaForte!")
-    species_id = _get_species_id(session_factory, name="Cão")
+    species_id = _get_species_id(session_factory, name="Canino")
     category_id = await _create_category(client)
     payload = {
         "code": "HEM001",
@@ -400,7 +400,7 @@ async def test_create_exam_with_both_surcharge_types_is_rejected(
         session_factory, email="admin@vertere.local", password="s3nhaForte!", role_id=ROLE_LAB_ADMIN
     )
     await _login(client, email="admin@vertere.local", password="s3nhaForte!")
-    species_id = _get_species_id(session_factory, name="Cão")
+    species_id = _get_species_id(session_factory, name="Canino")
     category_id = await _create_category(client)
 
     response = await client.post(
@@ -426,7 +426,7 @@ async def test_deactivate_exam_preserves_record(
         session_factory, email="admin@vertere.local", password="s3nhaForte!", role_id=ROLE_LAB_ADMIN
     )
     await _login(client, email="admin@vertere.local", password="s3nhaForte!")
-    species_id = _get_species_id(session_factory, name="Cão")
+    species_id = _get_species_id(session_factory, name="Canino")
     category_id = await _create_category(client)
     create_response = await client.post(
         "/api/v1/exams",
@@ -458,7 +458,9 @@ async def test_import_exams_without_permission_is_forbidden(
     )
     await _login(client, email="technical@vertere.local", password="s3nhaForte!")
 
-    csv_content = "code,name,category,price_base,species\nHEM001,Hemograma,Hematologia,85.00,Cão\n"
+    csv_content = (
+        "code,name,category,price_base,species\nHEM001,Hemograma,Hematologia,85.00,Canino\n"
+    )
     response = await client.post(
         "/api/v1/exams/import",
         files={"file": ("exams.csv", csv_content, "text/csv")},
@@ -478,8 +480,8 @@ async def test_import_exams_partial_success_reports_row_errors(
 
     csv_content = (
         "code,name,category,price_base,species\n"
-        "HEM001,Hemograma completo,Hematologia,85.00,Cão\n"
-        "HEM002,Bioquímico,Categoria Inexistente,120.00,Gato\n"
+        "HEM001,Hemograma completo,Hematologia,85.00,Canino\n"
+        "HEM002,Bioquímico,Categoria Inexistente,120.00,Felino\n"
     )
     response = await client.post(
         "/api/v1/exams/import",
@@ -520,8 +522,8 @@ async def test_filter_exams_by_species(
         session_factory, email="admin@vertere.local", password="s3nhaForte!", role_id=ROLE_LAB_ADMIN
     )
     await _login(client, email="admin@vertere.local", password="s3nhaForte!")
-    dog_id = _get_species_id(session_factory, name="Cão")
-    cat_id = _get_species_id(session_factory, name="Gato")
+    dog_id = _get_species_id(session_factory, name="Canino")
+    cat_id = _get_species_id(session_factory, name="Felino")
     category_id = await _create_category(client)
 
     await client.post(

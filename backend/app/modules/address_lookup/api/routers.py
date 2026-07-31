@@ -1,5 +1,5 @@
 """Address-lookup API — thin router, no business rule
-(rule: .claude/rules/backend.md).
+(rule: .claude/rules/02-backend.md).
 
 Authenticated but not permission-scoped: the data is public and nothing in
 the clinic/owner/patient domain is read or written here, so there is no

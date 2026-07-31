@@ -26,6 +26,7 @@ from app.main import create_app
 from app.modules.audit.infrastructure.models import AuditLogModel
 from app.modules.identity.infrastructure.models import LabMembershipModel, RoleModel, UserModel
 from app.modules.identity.infrastructure.seed import (
+    ROLE_CLINIC_ADMIN,
     ROLE_LAB_ADMIN,
     ROLE_RECEPTION,
     ROLE_SUPER_ADMIN,
@@ -71,7 +72,7 @@ def session_factory(postgres_url: str) -> Iterator[sessionmaker[Session]]:
 def _reset_user_data(session_factory: sessionmaker[Session]) -> None:
     # O container Postgres é module-scoped (mais rápido); sem isso, usuários
     # de um teste vazariam para o próximo e quebrariam premissas como "único
-    # admin ativo" (rule: .claude/rules/testing.md — teste determinístico).
+    # admin ativo" (rule: .claude/rules/08-testing.md — teste determinístico).
     # DELETE (não TRUNCATE ... CASCADE): TRUNCATE CASCADE arrastaria também
     # `role_permissions` (tem FK nullable para `users`), apagando o catálogo
     # seedado. DELETE respeita ON DELETE CASCADE/SET NULL já definidos nas FKs.
@@ -171,6 +172,63 @@ async def test_login_active_user_succeeds_and_audits(
             .all()
         )
     assert len(entries) == 1
+
+
+async def test_login_rejects_clinic_role_until_client_access_exists(
+    client: httpx.AsyncClient, session_factory: sessionmaker[Session]
+) -> None:
+    _create_user(
+        session_factory,
+        email="clinic-client@vertere.local",
+        password="s3nhaForte!",
+        role_id=ROLE_CLINIC_ADMIN,
+    )
+
+    response = await client.post(
+        "/api/v1/auth/login",
+        json={
+            "login": "clinic-client@vertere.local",
+            "password": "s3nhaForte!",
+            "remember_me": False,
+        },
+    )
+
+    assert response.status_code == 401
+    assert "vertere_session" not in response.cookies
+    assert response.json()["error"]["code"] == "UNAUTHENTICATED"
+
+
+async def test_revoked_lab_membership_invalidates_an_existing_session(
+    client: httpx.AsyncClient, session_factory: sessionmaker[Session]
+) -> None:
+    user = _create_user(
+        session_factory,
+        email="revoked-membership@vertere.local",
+        password="s3nhaForte!",
+        role_id=ROLE_RECEPTION,
+    )
+    login_response = await client.post(
+        "/api/v1/auth/login",
+        json={
+            "login": "revoked-membership@vertere.local",
+            "password": "s3nhaForte!",
+            "remember_me": False,
+        },
+    )
+    assert login_response.status_code == 200
+
+    with session_factory() as session:
+        membership = session.execute(
+            select(LabMembershipModel).where(LabMembershipModel.user_id == user.id)
+        ).scalar_one()
+        membership.is_active = False
+        membership.revoked_at = datetime.now(UTC)
+        session.commit()
+
+    response = await client.get("/api/v1/auth/me")
+
+    assert response.status_code == 401
+    assert response.json()["error"]["code"] == "UNAUTHENTICATED"
 
 
 async def test_login_inactive_user_is_rejected_after_password_matches(
@@ -304,14 +362,17 @@ async def test_concurrent_permission_updates_on_the_same_profile_reject_the_lose
     row_version = reception["row_version"]
 
     # Duas requisições disparadas de verdade em paralelo (asyncio.gather),
-    # não sequenciais fingindo concorrência (rule: .claude/rules/testing.md)
+    # não sequenciais fingindo concorrência (rule: .claude/rules/08-testing.md)
     # — ambas leem o mesmo `row_version` e tentam gravar por cima uma da
     # outra. Só uma pode vencer; a perdedora precisa de 409, nunca um
     # "last write wins" silencioso.
     responses = await asyncio.gather(
         client.patch(
             f"/api/v1/permission-profiles/{reception['id']}",
-            json={"permissions": ["clinics.read", "clinics.manage"], "expected_row_version": row_version},
+            json={
+                "permissions": ["clinics.read", "clinics.manage"],
+                "expected_row_version": row_version,
+            },
         ),
         client.patch(
             f"/api/v1/permission-profiles/{reception['id']}",
@@ -360,7 +421,11 @@ async def test_deactivating_a_user_revokes_their_active_session(
 
         admin_login = await admin_client.post(
             "/api/v1/auth/login",
-            json={"login": "lab-admin2@vertere.local", "password": "s3nhaForte!", "remember_me": False},
+            json={
+                "login": "lab-admin2@vertere.local",
+                "password": "s3nhaForte!",
+                "remember_me": False,
+            },
         )
         assert admin_login.status_code == 200
 
@@ -402,9 +467,7 @@ async def test_activate_user_reactivates_and_audits(
     assert response.json()["is_active"] is True
     with session_factory() as session:
         entries = (
-            session.execute(
-                select(AuditLogModel).where(AuditLogModel.action == "users.activated")
-            )
+            session.execute(select(AuditLogModel).where(AuditLogModel.action == "users.activated"))
             .scalars()
             .all()
         )
@@ -533,7 +596,11 @@ async def test_user_full_name_over_the_length_limit_is_rejected(
 async def test_login_payload_over_the_length_limit_is_rejected(client: httpx.AsyncClient) -> None:
     response = await client.post(
         "/api/v1/auth/login",
-        json={"login": "a" * 100_000 + "@vertere.local", "password": "whatever", "remember_me": False},
+        json={
+            "login": "a" * 100_000 + "@vertere.local",
+            "password": "whatever",
+            "remember_me": False,
+        },
     )
 
     assert response.status_code == 422

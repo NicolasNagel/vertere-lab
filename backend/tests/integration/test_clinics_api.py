@@ -206,6 +206,36 @@ async def test_create_clinic_with_duplicate_tax_id_conflicts(
     assert second.status_code == 409
 
 
+@pytest.mark.parametrize(
+    ("field", "value"),
+    [
+        ("tax_id", "123"),
+        ("address_state", "Santa Catarina"),
+    ],
+)
+async def test_create_clinic_rejects_malformed_fields_without_internal_error(
+    client: httpx.AsyncClient,
+    session_factory: sessionmaker[Session],
+    field: str,
+    value: str,
+) -> None:
+    _create_user(
+        session_factory,
+        email="admin@vertere.local",
+        password="s3nhaForte!",
+        role_id=ROLE_LAB_ADMIN,
+    )
+    await _login(client, email="admin@vertere.local", password="s3nhaForte!")
+
+    response = await client.post(
+        "/api/v1/clinics",
+        json={"name": "Clínica Inválida", field: value},
+    )
+
+    assert response.status_code == 422
+    assert response.json()["error"]["code"] == "VALIDATION_ERROR"
+
+
 async def test_update_clinic_with_stale_row_version_conflicts(
     client: httpx.AsyncClient, session_factory: sessionmaker[Session]
 ) -> None:

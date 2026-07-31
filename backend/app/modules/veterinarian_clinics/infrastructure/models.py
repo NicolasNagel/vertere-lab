@@ -1,5 +1,5 @@
 """SQLAlchemy mapping for the veterinarian-clinic link module — separate
-from domain entities (rule: .claude/rules/database.md, "não é Active
+from domain entities (rule: .claude/rules/03-database.md, "não é Active
 Record")."""
 
 from __future__ import annotations

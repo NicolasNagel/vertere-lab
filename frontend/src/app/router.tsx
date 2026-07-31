@@ -1,5 +1,8 @@
 import { createBrowserRouter } from 'react-router-dom'
 
+import { AttendanceDetailPage } from '../features/attendances/components/attendance-detail-page'
+import { AttendanceDraftPage } from '../features/attendances/components/attendance-draft-page'
+import { AttendanceListPage } from '../features/attendances/components/attendance-list-page'
 import { LoginPage } from '../features/auth/components/login-page'
 import { ProtectedRoute } from '../features/auth/protected-route'
 import { ClosurePreviewPage } from '../features/billing/components/closure-preview-page'
@@ -26,6 +29,9 @@ export const router = createBrowserRouter([
     ),
     children: [
       { path: '/', element: <HomePage /> },
+      { path: '/operacao', element: <AttendanceListPage /> },
+      { path: '/operacao/novo', element: <AttendanceDraftPage /> },
+      { path: '/operacao/:attendanceId', element: <AttendanceDetailPage /> },
       { path: '/cadastros/clinicas', element: <ClinicsPage /> },
       { path: '/cadastros/veterinarios', element: <VeterinariansPage /> },
       { path: '/pacientes', element: <PatientsPage /> },

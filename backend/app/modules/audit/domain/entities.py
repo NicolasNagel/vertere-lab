@@ -1,7 +1,7 @@
 """Audit domain: append-only record of security/business-critical actions.
 
 Shared across modules (identity today, attendances/billing later) — see
-docs/03-modelo-de-dominio.md §8 and CLAUDE.md's "audit_log append-only".
+docs/03-modelo-de-dominio.md §8 and AGENTS.md's "audit_log append-only".
 Never carries a password, token, cookie or raw payload with PII.
 """
 

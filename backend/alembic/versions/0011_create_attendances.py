@@ -15,7 +15,7 @@ This is the smallest possible slice of `AttendanceRecord`
 already eliminated the `Owner` aggregate, so there is nothing to reference;
 the tutor is read from `patients` at snapshot time in a later slice. No
 protocol columns, no money columns, no `service_type_id`/
-`collection_method_id` — `.claude/rules/attendence.md` is explicit that
+`collection_method_id` — `.claude/rules/12-attendance.md` is explicit that
 "confirmação gera protocolo" and "nenhum atendimento confirmado existe sem
 item", so a draft-only slice has none of that yet. These arrive via an
 additive (expand) migration when the confirmation slice needs them —

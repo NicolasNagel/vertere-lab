@@ -13,18 +13,38 @@ import { useDebouncedValue } from '../../../shared/lib/use-debounced-value'
 import type { Clinic, ClinicFormValues, ClinicStatus } from '../api/clinics-api'
 import './clinic-form.css'
 
+const optionalEmail = z.union([
+  z.literal(''),
+  z.email('Informe um e-mail válido.'),
+])
+
 const clinicSchema = z.object({
   name: z.string().trim().min(1, 'Informe o nome da clínica.'),
-  taxId: z.string().trim(),
+  taxId: z
+    .string()
+    .trim()
+    .refine(
+      (value) => value === '' || value.replace(/\D/g, '').length === 14,
+      'Informe um CNPJ com 14 dígitos.',
+    ),
   phone: z.string().trim(),
-  email: z.string().trim(),
+  email: optionalEmail,
   status: z.enum(['ACTIVE', 'INACTIVE', 'DELINQUENT', 'SPECIAL']),
-  addressZipCode: z.string().trim(),
+  addressZipCode: z
+    .string()
+    .trim()
+    .refine(
+      (value) => value === '' || value.replace(/\D/g, '').length === 8,
+      'Informe um CEP com 8 dígitos.',
+    ),
   addressStreet: z.string().trim(),
   addressNumber: z.string().trim(),
   addressNeighborhood: z.string().trim(),
   addressCity: z.string().trim(),
-  addressState: z.string().trim(),
+  addressState: z
+    .string()
+    .trim()
+    .refine((value) => value === '' || /^[A-Za-z]{2}$/.test(value), 'Informe uma UF válida.'),
   addressComplement: z.string().trim(),
   notes: z.string().trim(),
 })
@@ -151,7 +171,13 @@ export function ClinicForm({
       />
 
       <div className="clinic-form__row">
-        <TextField id="clinic-tax-id" label="CNPJ" disabled={submitting} {...register('taxId')} />
+        <TextField
+          id="clinic-tax-id"
+          label="CNPJ"
+          disabled={submitting}
+          errorMessage={errors.taxId?.message}
+          {...register('taxId')}
+        />
         {clinic && (
           <SelectField
             id="clinic-status"
@@ -170,7 +196,13 @@ export function ClinicForm({
           disabled={submitting}
           {...register('phone')}
         />
-        <TextField id="clinic-email" label="E-mail" disabled={submitting} {...register('email')} />
+        <TextField
+          id="clinic-email"
+          label="E-mail"
+          disabled={submitting}
+          errorMessage={errors.email?.message}
+          {...register('email')}
+        />
       </div>
 
       <p className="clinic-form__section-title">Endereço</p>
@@ -180,6 +212,7 @@ export function ClinicForm({
           id="clinic-zip"
           label="CEP"
           disabled={submitting}
+          errorMessage={errors.addressZipCode?.message}
           {...register('addressZipCode')}
         />
         <TextField
@@ -223,6 +256,7 @@ export function ClinicForm({
           label="UF"
           maxLength={2}
           disabled={submitting}
+          errorMessage={errors.addressState?.message}
           {...register('addressState')}
         />
       </div>

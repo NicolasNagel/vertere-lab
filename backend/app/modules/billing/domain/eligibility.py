@@ -1,6 +1,6 @@
 """Single source of truth for closure item eligibility.
 
-`.claude/rules/monthly-closure.md`: "usa a mesma regra de elegibilidade do
+`.claude/rules/13-monthly-closure.md`: "usa a mesma regra de elegibilidade do
 fechamento de verdade (nunca uma versão simplificada que depois diverge)".
 Incremento 4.2 (fechar de fato) must reuse this exact function — never
 reimplement the rule.

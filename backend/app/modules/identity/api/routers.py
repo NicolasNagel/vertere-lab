@@ -1,4 +1,4 @@
-"""Identity API — thin routers, no business rule (rule: .claude/rules/backend.md).
+"""Identity API — thin routers, no business rule (rule: .claude/rules/02-backend.md).
 
 Every mutating endpoint owns its transaction via the shared unit of work;
 read-only endpoints reuse the request-scoped session from
@@ -118,6 +118,7 @@ def login(
             users=SqlAlchemyUserRepository(uow.session),
             roles=SqlAlchemyRoleRepository(uow.session),
             sessions=SqlAlchemySessionRepository(uow.session),
+            memberships=SqlAlchemyLabMembershipRepository(uow.session),
             login_failures=SqlAlchemyLoginFailureRepository(uow.session),
             password_hasher=Argon2PasswordHasher(),
             token_generator=OpaqueSessionTokens(),

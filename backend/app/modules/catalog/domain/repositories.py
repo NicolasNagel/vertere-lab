@@ -1,6 +1,6 @@
 """Repository protocols for the catalog module.
 
-Interfaces live in `domain` (per .claude/rules/backend.md); implementations
+Interfaces live in `domain` (per .claude/rules/02-backend.md); implementations
 live in `infrastructure`. Repositories never commit — the unit of work
 does.
 """
@@ -38,6 +38,12 @@ class ExamRepository(Protocol):
     def get_by_id(self, exam_id: UUID) -> Exam | None: ...
 
     def get_by_code(self, code: str) -> Exam | None: ...
+
+    def list_all_names(self) -> dict[str, UUID]:
+        """Case-insensitive name -> id, for bulk name resolution (import).
+        Not paginated on purpose: callers need the *whole* set to resolve a
+        batch of rows without one query per row."""
+        ...
 
     def add(self, exam: Exam) -> None: ...
 

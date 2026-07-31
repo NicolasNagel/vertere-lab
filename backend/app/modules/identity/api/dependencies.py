@@ -12,7 +12,8 @@ from __future__ import annotations
 from collections.abc import Callable
 from datetime import timedelta
 
-from fastapi import Depends, Request
+from fastapi import Depends, Request, Security
+from fastapi.security import APIKeyCookie
 from sqlalchemy.orm import Session as SqlAlchemySession
 
 from app.api.dependencies import get_session
@@ -23,6 +24,7 @@ from app.modules.identity.application.get_current_user import (
     ResolveSessionUseCase,
 )
 from app.modules.identity.infrastructure.repositories import (
+    SqlAlchemyLabMembershipRepository,
     SqlAlchemyRoleRepository,
     SqlAlchemySessionRepository,
     SqlAlchemyUserRepository,
@@ -31,13 +33,22 @@ from app.modules.identity.infrastructure.session_tokens import OpaqueSessionToke
 from app.shared.domain.errors import ForbiddenError, UnauthenticatedError
 from app.shared.infrastructure.clock import SystemClock
 
+session_cookie_scheme = APIKeyCookie(
+    name="vertere_session",
+    scheme_name="SessionCookie",
+    auto_error=False,
+)
+
 
 def _settings(request: Request) -> Settings:
     settings: Settings = request.app.state.settings
     return settings
 
 
-def get_session_token(request: Request) -> str | None:
+def get_session_token(
+    request: Request,
+    _documented_token: str | None = Security(session_cookie_scheme),
+) -> str | None:
     settings = _settings(request)
     return request.cookies.get(settings.session_cookie_name)
 
@@ -55,6 +66,7 @@ def get_current_user(
         sessions=SqlAlchemySessionRepository(session),
         users=SqlAlchemyUserRepository(session),
         roles=SqlAlchemyRoleRepository(session),
+        memberships=SqlAlchemyLabMembershipRepository(session),
         token_generator=OpaqueSessionTokens(),
         clock=SystemClock(),
         session_ttl=timedelta(minutes=settings.session_ttl_minutes),

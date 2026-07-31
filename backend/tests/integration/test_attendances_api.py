@@ -5,6 +5,7 @@ e autorização, ponta a ponta via HTTPX/ASGI.
 
 from __future__ import annotations
 
+import asyncio
 from collections.abc import AsyncIterator, Iterator
 from datetime import UTC, datetime
 from decimal import Decimal
@@ -284,7 +285,7 @@ async def test_create_attendance_draft_with_unknown_clinic_is_not_found(
 async def test_create_attendance_draft_with_non_autonomous_veterinarian_not_linked_conflicts(
     client: httpx.AsyncClient, session_factory: sessionmaker[Session]
 ) -> None:
-    """`.claude/rules/attendence.md`: todo id é revalidado — um veterinário
+    """`.claude/rules/12-attendance.md`: todo id é revalidado — um veterinário
     não autônomo sem vínculo com a clínica escolhida não pode originar
     atendimento ali (ADR-003)."""
     await _login_admin(client, session_factory)
@@ -436,6 +437,10 @@ async def _create_exam(
     return str(response.json()["id"])
 
 
+def _idempotency_header(key: str) -> dict[str, str]:
+    return {"Idempotency-Key": key}
+
+
 async def _create_confirmable_draft(
     client: httpx.AsyncClient, session_factory: sessionmaker[Session]
 ) -> tuple[str, str]:
@@ -469,6 +474,139 @@ async def _create_confirmable_draft(
     return draft_response.json()["id"], exam_id
 
 
+async def test_preview_attendance_succeeds_without_persisting(
+    client: httpx.AsyncClient, session_factory: sessionmaker[Session]
+) -> None:
+    await _login_admin(client, session_factory)
+    attendance_id, exam_id = await _create_confirmable_draft(client, session_factory)
+
+    response = await client.post(
+        f"/api/v1/attendances/{attendance_id}/preview",
+        json={"items": [{"exam_id": exam_id, "quantity": 2}]},
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["attendance_id"] == attendance_id
+    assert Decimal(body["grand_total"]) == Decimal("200.00")
+    assert Decimal(body["subtotal"]) == Decimal("200.00")
+    assert "protocol_number" not in body
+    assert "status" not in body
+
+    get_response = await client.get(f"/api/v1/attendances/{attendance_id}")
+    assert get_response.json()["status"] == "DRAFT"
+    assert get_response.json()["items"] == []
+
+    with session_factory() as session:
+        count = session.execute(
+            text("SELECT COUNT(*) FROM attendance_exams WHERE attendance_id = :id"),
+            {"id": attendance_id},
+        ).scalar_one()
+        assert count == 0
+        sequence_count = session.execute(
+            text("SELECT COUNT(*) FROM attendance_sequences")
+        ).scalar_one()
+        assert sequence_count == 0
+        audit_count = session.execute(
+            text("SELECT COUNT(*) FROM audit_log WHERE entity_id = :id"), {"id": attendance_id}
+        ).scalar_one()
+        assert audit_count == 1  # only the draft_created entry, nothing from preview
+
+
+async def test_preview_attendance_matches_confirm_totals(
+    client: httpx.AsyncClient, session_factory: sessionmaker[Session]
+) -> None:
+    await _login_admin(client, session_factory)
+    attendance_id, exam_id = await _create_confirmable_draft(client, session_factory)
+    payload = {"items": [{"exam_id": exam_id, "quantity": 3}]}
+
+    preview_response = await client.post(
+        f"/api/v1/attendances/{attendance_id}/preview", json=payload
+    )
+    confirm_response = await client.post(
+        f"/api/v1/attendances/{attendance_id}/confirm",
+        json=payload,
+        headers=_idempotency_header("preview-then-confirm"),
+    )
+
+    assert preview_response.status_code == 200
+    assert confirm_response.status_code == 200
+    assert preview_response.json()["grand_total"] == confirm_response.json()["grand_total"]
+    assert preview_response.json()["subtotal"] == confirm_response.json()["subtotal"]
+
+
+async def test_preview_attendance_without_permission_is_forbidden(
+    client: httpx.AsyncClient, session_factory: sessionmaker[Session]
+) -> None:
+    await _login_admin(client, session_factory)
+    attendance_id, exam_id = await _create_confirmable_draft(client, session_factory)
+
+    await client.post("/api/v1/auth/logout")
+    _create_user(
+        session_factory,
+        email="finance@vertere.local",
+        password="s3nhaForte!",
+        role_id=ROLE_FINANCE,
+    )
+    await _login(client, email="finance@vertere.local", password="s3nhaForte!")
+
+    response = await client.post(
+        f"/api/v1/attendances/{attendance_id}/preview",
+        json={"items": [{"exam_id": exam_id, "quantity": 1}]},
+    )
+
+    assert response.status_code == 403
+
+
+async def test_preview_attendance_does_not_require_idempotency_key(
+    client: httpx.AsyncClient, session_factory: sessionmaker[Session]
+) -> None:
+    """Preview is read-only — it is not one of the "criação/confirmação/
+    fechamento" POSTs the Idempotency-Key rule targets
+    (`.claude/rules/02-backend.md`)."""
+    await _login_admin(client, session_factory)
+    attendance_id, exam_id = await _create_confirmable_draft(client, session_factory)
+
+    response = await client.post(
+        f"/api/v1/attendances/{attendance_id}/preview",
+        json={"items": [{"exam_id": exam_id, "quantity": 1}]},
+    )
+
+    assert response.status_code == 200
+
+
+async def test_preview_attendance_unknown_attendance_is_not_found(
+    client: httpx.AsyncClient, session_factory: sessionmaker[Session]
+) -> None:
+    await _login_admin(client, session_factory)
+
+    response = await client.post(
+        f"/api/v1/attendances/{uuid4()}/preview",
+        json={"items": [{"exam_id": str(uuid4()), "quantity": 1}]},
+    )
+
+    assert response.status_code == 404
+
+
+async def test_preview_attendance_already_confirmed_is_invalid(
+    client: httpx.AsyncClient, session_factory: sessionmaker[Session]
+) -> None:
+    await _login_admin(client, session_factory)
+    attendance_id, exam_id = await _create_confirmable_draft(client, session_factory)
+    await client.post(
+        f"/api/v1/attendances/{attendance_id}/confirm",
+        json={"items": [{"exam_id": exam_id, "quantity": 1}]},
+        headers=_idempotency_header("preview-already-confirmed"),
+    )
+
+    response = await client.post(
+        f"/api/v1/attendances/{attendance_id}/preview",
+        json={"items": [{"exam_id": exam_id, "quantity": 1}]},
+    )
+
+    assert response.status_code == 422
+
+
 async def test_confirm_attendance_succeeds_with_protocol_and_totals(
     client: httpx.AsyncClient, session_factory: sessionmaker[Session]
 ) -> None:
@@ -478,6 +616,7 @@ async def test_confirm_attendance_succeeds_with_protocol_and_totals(
     response = await client.post(
         f"/api/v1/attendances/{attendance_id}/confirm",
         json={"items": [{"exam_id": exam_id, "quantity": 2}]},
+        headers=_idempotency_header("confirm-1"),
     )
 
     assert response.status_code == 200
@@ -518,6 +657,7 @@ async def test_confirm_attendance_without_permission_is_forbidden(
     response = await client.post(
         f"/api/v1/attendances/{attendance_id}/confirm",
         json={"items": [{"exam_id": exam_id, "quantity": 1}]},
+        headers=_idempotency_header("confirm-forbidden"),
     )
 
     assert response.status_code == 403
@@ -526,20 +666,130 @@ async def test_confirm_attendance_without_permission_is_forbidden(
 async def test_confirm_attendance_twice_is_invalid(
     client: httpx.AsyncClient, session_factory: sessionmaker[Session]
 ) -> None:
+    """Two DIFFERENT Idempotency-Keys, same attendance: this must fail on
+    the domain state machine (already CONFIRMED), not be swallowed by
+    idempotency replay — that behavior is covered separately by
+    ``test_confirm_attendance_same_key_and_payload_replays_previous_response``.
+    """
     await _login_admin(client, session_factory)
     attendance_id, exam_id = await _create_confirmable_draft(client, session_factory)
 
     first = await client.post(
         f"/api/v1/attendances/{attendance_id}/confirm",
         json={"items": [{"exam_id": exam_id, "quantity": 1}]},
+        headers=_idempotency_header("confirm-twice-1"),
     )
     assert first.status_code == 200
 
     second = await client.post(
         f"/api/v1/attendances/{attendance_id}/confirm",
         json={"items": [{"exam_id": exam_id, "quantity": 1}]},
+        headers=_idempotency_header("confirm-twice-2"),
     )
     assert second.status_code == 422
+
+
+async def test_confirm_attendance_same_key_and_payload_replays_previous_response(
+    client: httpx.AsyncClient, session_factory: sessionmaker[Session]
+) -> None:
+    await _login_admin(client, session_factory)
+    attendance_id, exam_id = await _create_confirmable_draft(client, session_factory)
+    payload = {"items": [{"exam_id": exam_id, "quantity": 1}]}
+
+    first = await client.post(
+        f"/api/v1/attendances/{attendance_id}/confirm",
+        json=payload,
+        headers=_idempotency_header("confirm-replay"),
+    )
+    second = await client.post(
+        f"/api/v1/attendances/{attendance_id}/confirm",
+        json=payload,
+        headers=_idempotency_header("confirm-replay"),
+    )
+
+    assert first.status_code == 200
+    assert second.status_code == 200
+    assert first.json() == second.json()
+
+    with session_factory() as session:
+        count = session.execute(
+            text("SELECT COUNT(*) FROM attendance_exams WHERE attendance_id = :id"),
+            {"id": attendance_id},
+        ).scalar_one()
+        assert count == 1
+
+
+async def test_confirm_attendance_same_key_different_payload_is_conflict(
+    client: httpx.AsyncClient, session_factory: sessionmaker[Session]
+) -> None:
+    await _login_admin(client, session_factory)
+    attendance_id, exam_id = await _create_confirmable_draft(client, session_factory)
+
+    first = await client.post(
+        f"/api/v1/attendances/{attendance_id}/confirm",
+        json={"items": [{"exam_id": exam_id, "quantity": 1}]},
+        headers=_idempotency_header("confirm-conflict"),
+    )
+    assert first.status_code == 200
+
+    second = await client.post(
+        f"/api/v1/attendances/{attendance_id}/confirm",
+        json={"items": [{"exam_id": exam_id, "quantity": 2}]},
+        headers=_idempotency_header("confirm-conflict"),
+    )
+
+    assert second.status_code == 409
+    assert second.json()["error"]["code"] == "IDEMPOTENCY_CONFLICT"
+
+
+async def test_confirm_attendance_without_idempotency_key_is_validation_error(
+    client: httpx.AsyncClient, session_factory: sessionmaker[Session]
+) -> None:
+    await _login_admin(client, session_factory)
+    attendance_id, exam_id = await _create_confirmable_draft(client, session_factory)
+
+    response = await client.post(
+        f"/api/v1/attendances/{attendance_id}/confirm",
+        json={"items": [{"exam_id": exam_id, "quantity": 1}]},
+    )
+
+    assert response.status_code == 422
+
+
+async def test_confirm_attendance_concurrent_same_key_confirms_exactly_once(
+    client: httpx.AsyncClient, session_factory: sessionmaker[Session]
+) -> None:
+    """Real concurrency (`.claude/rules/08-testing.md`: "concorrência real
+    testada de verdade") — double-click sends the same Idempotency-Key
+    twice at once. Exactly one CONFIRMED attendance with one protocol must
+    result; the loser gets either the replayed 200 or a safe 409, never a
+    second protocol number or a 500.
+    """
+    await _login_admin(client, session_factory)
+    attendance_id, exam_id = await _create_confirmable_draft(client, session_factory)
+    payload = {"items": [{"exam_id": exam_id, "quantity": 1}]}
+    headers = _idempotency_header("confirm-concurrent")
+
+    responses = await asyncio.gather(
+        client.post(f"/api/v1/attendances/{attendance_id}/confirm", json=payload, headers=headers),
+        client.post(f"/api/v1/attendances/{attendance_id}/confirm", json=payload, headers=headers),
+    )
+
+    statuses = sorted(response.status_code for response in responses)
+    assert statuses in ([200, 200], [200, 409])
+
+    with session_factory() as session:
+        row = session.execute(
+            text("SELECT status, protocol_number FROM attendances WHERE id = :id"),
+            {"id": attendance_id},
+        ).one()
+        assert row.status == "CONFIRMED"
+        assert row.protocol_number == "2026/000001"
+        item_count = session.execute(
+            text("SELECT COUNT(*) FROM attendance_exams WHERE attendance_id = :id"),
+            {"id": attendance_id},
+        ).scalar_one()
+        assert item_count == 1
 
 
 async def test_confirm_attendance_without_items_is_invalid(
@@ -548,7 +798,11 @@ async def test_confirm_attendance_without_items_is_invalid(
     await _login_admin(client, session_factory)
     attendance_id, _exam_id = await _create_confirmable_draft(client, session_factory)
 
-    response = await client.post(f"/api/v1/attendances/{attendance_id}/confirm", json={"items": []})
+    response = await client.post(
+        f"/api/v1/attendances/{attendance_id}/confirm",
+        json={"items": []},
+        headers=_idempotency_header("confirm-no-items"),
+    )
 
     assert response.status_code == 422
 
@@ -561,6 +815,7 @@ async def test_confirm_attendance_unknown_attendance_is_not_found(
     response = await client.post(
         f"/api/v1/attendances/{uuid4()}/confirm",
         json={"items": [{"exam_id": str(uuid4()), "quantity": 1}]},
+        headers=_idempotency_header("confirm-unknown"),
     )
 
     assert response.status_code == 404
@@ -579,11 +834,426 @@ async def test_confirm_attendance_protocol_sequence_increments_across_clinics(
     first = await client.post(
         f"/api/v1/attendances/{first_attendance_id}/confirm",
         json={"items": [{"exam_id": first_exam_id, "quantity": 1}]},
+        headers=_idempotency_header("confirm-seq-1"),
     )
     second = await client.post(
         f"/api/v1/attendances/{second_attendance_id}/confirm",
         json={"items": [{"exam_id": second_exam_id, "quantity": 1}]},
+        headers=_idempotency_header("confirm-seq-2"),
     )
 
     assert first.json()["protocol_number"] == "2026/000001"
     assert second.json()["protocol_number"] == "2026/000002"
+
+
+async def test_cancel_draft_attendance_succeeds_and_audits(
+    client: httpx.AsyncClient, session_factory: sessionmaker[Session]
+) -> None:
+    await _login_admin(client, session_factory)
+    attendance_id, _exam_id = await _create_confirmable_draft(client, session_factory)
+
+    response = await client.post(
+        f"/api/v1/attendances/{attendance_id}/cancel",
+        json={"reason": "Tutor desmarcou o exame"},
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["status"] == "CANCELLED"
+    assert body["cancel_reason"] == "Tutor desmarcou o exame"
+
+    with session_factory() as session:
+        row = session.execute(
+            text(
+                "SELECT action, entity_id, reason FROM audit_log "
+                "WHERE action = 'attendances.cancelled' ORDER BY occurred_at DESC LIMIT 1"
+            )
+        ).one()
+        assert row.entity_id == attendance_id
+        assert row.reason == "Tutor desmarcou o exame"
+
+
+async def test_cancel_confirmed_attendance_succeeds(
+    client: httpx.AsyncClient, session_factory: sessionmaker[Session]
+) -> None:
+    await _login_admin(client, session_factory)
+    attendance_id, exam_id = await _create_confirmable_draft(client, session_factory)
+    confirm_response = await client.post(
+        f"/api/v1/attendances/{attendance_id}/confirm",
+        json={"items": [{"exam_id": exam_id, "quantity": 1}]},
+        headers=_idempotency_header("cancel-after-confirm"),
+    )
+    assert confirm_response.status_code == 200
+
+    response = await client.post(
+        f"/api/v1/attendances/{attendance_id}/cancel",
+        json={"reason": "Erro de cadastro"},
+    )
+
+    assert response.status_code == 200
+    assert response.json()["status"] == "CANCELLED"
+
+
+async def test_cancel_attendance_without_permission_is_forbidden(
+    client: httpx.AsyncClient, session_factory: sessionmaker[Session]
+) -> None:
+    await _login_admin(client, session_factory)
+    attendance_id, _exam_id = await _create_confirmable_draft(client, session_factory)
+
+    await client.post("/api/v1/auth/logout")
+    _create_user(
+        session_factory,
+        email="finance-cancel@vertere.local",
+        password="s3nhaForte!",
+        role_id=ROLE_FINANCE,
+    )
+    await _login(client, email="finance-cancel@vertere.local", password="s3nhaForte!")
+
+    response = await client.post(
+        f"/api/v1/attendances/{attendance_id}/cancel",
+        json={"reason": "Tentativa sem permissão"},
+    )
+
+    assert response.status_code == 403
+
+
+async def test_cancel_attendance_unknown_is_not_found(
+    client: httpx.AsyncClient, session_factory: sessionmaker[Session]
+) -> None:
+    await _login_admin(client, session_factory)
+
+    response = await client.post(
+        f"/api/v1/attendances/{uuid4()}/cancel",
+        json={"reason": "Não deveria existir"},
+    )
+
+    assert response.status_code == 404
+
+
+async def test_cancel_attendance_without_reason_is_validation_error(
+    client: httpx.AsyncClient, session_factory: sessionmaker[Session]
+) -> None:
+    await _login_admin(client, session_factory)
+    attendance_id, _exam_id = await _create_confirmable_draft(client, session_factory)
+
+    response = await client.post(
+        f"/api/v1/attendances/{attendance_id}/cancel",
+        json={"reason": ""},
+    )
+
+    assert response.status_code == 422
+
+
+async def test_cancel_attendance_twice_is_conflict(
+    client: httpx.AsyncClient, session_factory: sessionmaker[Session]
+) -> None:
+    await _login_admin(client, session_factory)
+    attendance_id, _exam_id = await _create_confirmable_draft(client, session_factory)
+    first = await client.post(
+        f"/api/v1/attendances/{attendance_id}/cancel",
+        json={"reason": "Primeiro cancelamento"},
+    )
+    assert first.status_code == 200
+
+    second = await client.post(
+        f"/api/v1/attendances/{attendance_id}/cancel",
+        json={"reason": "Segundo cancelamento"},
+    )
+
+    assert second.status_code == 409
+
+
+async def test_cancel_attendance_rejects_mass_assignment(
+    client: httpx.AsyncClient, session_factory: sessionmaker[Session]
+) -> None:
+    await _login_admin(client, session_factory)
+    attendance_id, _exam_id = await _create_confirmable_draft(client, session_factory)
+
+    response = await client.post(
+        f"/api/v1/attendances/{attendance_id}/cancel",
+        json={"reason": "Motivo válido", "status": "CONFIRMED", "grand_total": "0.00"},
+    )
+
+    assert response.status_code == 422
+
+
+async def test_update_draft_attendance_notes_succeeds_and_audits(
+    client: httpx.AsyncClient, session_factory: sessionmaker[Session]
+) -> None:
+    await _login_admin(client, session_factory)
+    attendance_id, _exam_id = await _create_confirmable_draft(client, session_factory)
+
+    response = await client.patch(
+        f"/api/v1/attendances/{attendance_id}",
+        json={"row_version": 1, "notes": "Paciente agitado"},
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["notes"] == "Paciente agitado"
+    assert body["row_version"] == 2
+
+    with session_factory() as session:
+        row = session.execute(
+            text(
+                "SELECT action, entity_id FROM audit_log "
+                "WHERE action = 'attendances.updated' ORDER BY occurred_at DESC LIMIT 1"
+            )
+        ).one()
+        assert row.entity_id == attendance_id
+
+
+async def test_update_attendance_wrong_row_version_is_conflict(
+    client: httpx.AsyncClient, session_factory: sessionmaker[Session]
+) -> None:
+    await _login_admin(client, session_factory)
+    attendance_id, _exam_id = await _create_confirmable_draft(client, session_factory)
+
+    response = await client.patch(
+        f"/api/v1/attendances/{attendance_id}",
+        json={"row_version": 999, "notes": "Não deveria passar"},
+    )
+
+    assert response.status_code == 409
+
+
+async def test_update_attendance_uses_current_row_version_after_first_edit(
+    client: httpx.AsyncClient, session_factory: sessionmaker[Session]
+) -> None:
+    """Two sequential edits with a stale `row_version` each: the second
+    must be rejected even though it isn't a truly concurrent write —
+    `expected_row_version` in the request body catches this
+    (`.claude/rules/05-frontend-web-mobile.md`: "conflito de versão oferece recarregar,
+    nunca sobrescreve silenciosamente")."""
+    await _login_admin(client, session_factory)
+    attendance_id, _exam_id = await _create_confirmable_draft(client, session_factory)
+
+    first = await client.patch(
+        f"/api/v1/attendances/{attendance_id}",
+        json={"row_version": 1, "notes": "Primeira edição"},
+    )
+    assert first.status_code == 200
+    assert first.json()["row_version"] == 2
+
+    stale_retry = await client.patch(
+        f"/api/v1/attendances/{attendance_id}",
+        json={"row_version": 1, "notes": "Edição com versão desatualizada"},
+    )
+    assert stale_retry.status_code == 409
+
+    second = await client.patch(
+        f"/api/v1/attendances/{attendance_id}",
+        json={"row_version": 2, "notes": "Segunda edição, com a versão certa"},
+    )
+    assert second.status_code == 200
+    assert second.json()["notes"] == "Segunda edição, com a versão certa"
+    assert second.json()["row_version"] == 3
+
+
+async def test_update_confirmed_attendance_clinic_is_rejected(
+    client: httpx.AsyncClient, session_factory: sessionmaker[Session]
+) -> None:
+    await _login_admin(client, session_factory)
+    attendance_id, exam_id = await _create_confirmable_draft(client, session_factory)
+    confirm_response = await client.post(
+        f"/api/v1/attendances/{attendance_id}/confirm",
+        json={"items": [{"exam_id": exam_id, "quantity": 1}]},
+        headers=_idempotency_header("update-confirmed-clinic"),
+    )
+    assert confirm_response.status_code == 200
+    row_version = confirm_response.json()["row_version"]
+
+    response = await client.patch(
+        f"/api/v1/attendances/{attendance_id}",
+        json={"row_version": row_version, "clinic_id": str(uuid4())},
+    )
+
+    assert response.status_code == 422
+
+
+async def test_update_confirmed_attendance_notes_succeeds(
+    client: httpx.AsyncClient, session_factory: sessionmaker[Session]
+) -> None:
+    await _login_admin(client, session_factory)
+    attendance_id, exam_id = await _create_confirmable_draft(client, session_factory)
+    confirm_response = await client.post(
+        f"/api/v1/attendances/{attendance_id}/confirm",
+        json={"items": [{"exam_id": exam_id, "quantity": 1}]},
+        headers=_idempotency_header("update-confirmed-notes"),
+    )
+    assert confirm_response.status_code == 200
+    row_version = confirm_response.json()["row_version"]
+
+    response = await client.patch(
+        f"/api/v1/attendances/{attendance_id}",
+        json={"row_version": row_version, "notes": "Retorno em 7 dias"},
+    )
+
+    assert response.status_code == 200
+    assert response.json()["notes"] == "Retorno em 7 dias"
+    assert response.json()["status"] == "CONFIRMED"
+
+
+async def test_update_attendance_without_permission_is_forbidden(
+    client: httpx.AsyncClient, session_factory: sessionmaker[Session]
+) -> None:
+    await _login_admin(client, session_factory)
+    attendance_id, _exam_id = await _create_confirmable_draft(client, session_factory)
+
+    await client.post("/api/v1/auth/logout")
+    _create_user(
+        session_factory,
+        email="finance-update@vertere.local",
+        password="s3nhaForte!",
+        role_id=ROLE_FINANCE,
+    )
+    await _login(client, email="finance-update@vertere.local", password="s3nhaForte!")
+
+    response = await client.patch(
+        f"/api/v1/attendances/{attendance_id}",
+        json={"row_version": 1, "notes": "Tentativa sem permissão"},
+    )
+
+    assert response.status_code == 403
+
+
+async def test_update_attendance_unknown_is_not_found(
+    client: httpx.AsyncClient, session_factory: sessionmaker[Session]
+) -> None:
+    await _login_admin(client, session_factory)
+
+    response = await client.patch(
+        f"/api/v1/attendances/{uuid4()}",
+        json={"row_version": 1, "notes": "Não deveria existir"},
+    )
+
+    assert response.status_code == 404
+
+
+async def test_update_attendance_rejects_mass_assignment(
+    client: httpx.AsyncClient, session_factory: sessionmaker[Session]
+) -> None:
+    await _login_admin(client, session_factory)
+    attendance_id, _exam_id = await _create_confirmable_draft(client, session_factory)
+
+    response = await client.patch(
+        f"/api/v1/attendances/{attendance_id}",
+        json={"row_version": 1, "notes": "Ok", "grand_total": "0.00", "status": "CONFIRMED"},
+    )
+
+    assert response.status_code == 422
+
+
+async def test_update_cancelled_attendance_is_conflict(
+    client: httpx.AsyncClient, session_factory: sessionmaker[Session]
+) -> None:
+    await _login_admin(client, session_factory)
+    attendance_id, _exam_id = await _create_confirmable_draft(client, session_factory)
+    cancel_response = await client.post(
+        f"/api/v1/attendances/{attendance_id}/cancel",
+        json={"reason": "Motivo do cancelamento"},
+    )
+    assert cancel_response.status_code == 200
+    row_version = cancel_response.json()["row_version"]
+
+    response = await client.patch(
+        f"/api/v1/attendances/{attendance_id}",
+        json={"row_version": row_version, "notes": "Não deveria passar"},
+    )
+
+    assert response.status_code == 409
+
+
+async def test_get_attendance_timeline_lists_actions_most_recent_first(
+    client: httpx.AsyncClient, session_factory: sessionmaker[Session]
+) -> None:
+    await _login_admin(client, session_factory)
+    attendance_id, exam_id = await _create_confirmable_draft(client, session_factory)
+
+    confirm_response = await client.post(
+        f"/api/v1/attendances/{attendance_id}/confirm",
+        json={"items": [{"exam_id": exam_id, "quantity": 1}]},
+        headers=_idempotency_header("timeline-confirm"),
+    )
+    assert confirm_response.status_code == 200
+    row_version = confirm_response.json()["row_version"]
+
+    update_response = await client.patch(
+        f"/api/v1/attendances/{attendance_id}",
+        json={"row_version": row_version, "notes": "Retorno agendado"},
+    )
+    assert update_response.status_code == 200
+
+    response = await client.get(f"/api/v1/attendances/{attendance_id}/timeline")
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["total"] == 3
+    actions = [item["action"] for item in body["items"]]
+    assert actions == ["attendances.updated", "attendances.confirmed", "attendances.draft_created"]
+    assert body["items"][0]["after_state"] == {"notes": "Retorno agendado"}
+    assert body["items"][0]["reason"] is None
+
+
+async def test_get_attendance_timeline_paginates(
+    client: httpx.AsyncClient, session_factory: sessionmaker[Session]
+) -> None:
+    await _login_admin(client, session_factory)
+    attendance_id, _exam_id = await _create_confirmable_draft(client, session_factory)
+    row_version = 1
+    for i in range(3):
+        r = await client.patch(
+            f"/api/v1/attendances/{attendance_id}",
+            json={"row_version": row_version, "notes": f"Edição {i}"},
+        )
+        assert r.status_code == 200
+        row_version = r.json()["row_version"]
+
+    response = await client.get(
+        f"/api/v1/attendances/{attendance_id}/timeline", params={"page": 1, "page_size": 2}
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["total"] == 4  # draft_created + 3 updates
+    assert len(body["items"]) == 2
+    assert body["page"] == 1
+    assert body["page_size"] == 2
+
+
+async def test_get_attendance_timeline_only_includes_this_attendance(
+    client: httpx.AsyncClient, session_factory: sessionmaker[Session]
+) -> None:
+    await _login_admin(client, session_factory)
+    attendance_a, _exam_a = await _create_confirmable_draft(client, session_factory)
+    attendance_b, _exam_b = await _create_confirmable_draft(client, session_factory)
+
+    response = await client.get(f"/api/v1/attendances/{attendance_a}/timeline")
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["total"] == 1
+    assert body["items"][0]["action"] == "attendances.draft_created"
+    assert attendance_a != attendance_b
+
+
+async def test_get_attendance_timeline_unknown_attendance_is_not_found(
+    client: httpx.AsyncClient, session_factory: sessionmaker[Session]
+) -> None:
+    await _login_admin(client, session_factory)
+
+    response = await client.get(f"/api/v1/attendances/{uuid4()}/timeline")
+
+    assert response.status_code == 404
+
+
+async def test_get_attendance_timeline_without_authentication_is_unauthenticated(
+    client: httpx.AsyncClient, session_factory: sessionmaker[Session]
+) -> None:
+    await _login_admin(client, session_factory)
+    attendance_id, _exam_id = await _create_confirmable_draft(client, session_factory)
+    await client.post("/api/v1/auth/logout")
+
+    response = await client.get(f"/api/v1/attendances/{attendance_id}/timeline")
+
+    assert response.status_code == 401

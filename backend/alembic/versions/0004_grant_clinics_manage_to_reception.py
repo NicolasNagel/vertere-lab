@@ -10,7 +10,7 @@ only got `clinics.read` there — a gap now that Clinic actually exists:
 docs/07-nucleo-v1.md §2.1 describes RECEPTION's purpose as "cadastros e
 atendimentos", which includes registering clinics, not just reading them.
 0002 already ran, so this is a new migration rather than an edit to it (rule:
-.claude/rules/database.md — "nunca edite migration já aplicada").
+.claude/rules/03-database.md — "nunca edite migration já aplicada").
 """
 
 from __future__ import annotations

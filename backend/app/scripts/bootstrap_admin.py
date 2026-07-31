@@ -1,7 +1,7 @@
 """One-time bootstrap: create the first SUPER_ADMIN user for an environment.
 
 Run manually, never automatically from CI/deploy (rule:
-.claude/rules/observability-performance-devops.md — migrations/bootstrap are
+.claude/rules/09-observability-performance-devops.md — migrations/bootstrap are
 a controlled, single step, not a cold-start side effect).
 
 Usage (from `backend/`):

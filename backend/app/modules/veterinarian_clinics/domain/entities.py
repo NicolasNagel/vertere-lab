@@ -1,6 +1,6 @@
 """Veterinarian-clinic link domain entity.
 
-No FastAPI/SQLAlchemy import here (rule: .claude/rules/globals.md — domain
+No FastAPI/SQLAlchemy import here (rule: .claude/rules/00-global.md — domain
 layer). This is a pure join between two peer aggregates (`Veterinarian`,
 `Clinic`) — it lives in its own module instead of inside either one so
 neither `veterinarians` nor `clinics` has to depend on the other

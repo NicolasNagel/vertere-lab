@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from uuid import UUID
 
 from app.modules.identity.application.dtos import AuthenticatedUserDTO
 from app.modules.veterinarians.application.dtos import VeterinarianDTO
@@ -21,6 +22,7 @@ class ListVeterinariansQuery:
     status: VeterinarianStatus | None = None
     is_autonomous: bool | None = None
     search: str | None = None
+    available_for_clinic_id: UUID | None = None
 
 
 class ListVeterinariansUseCase:
@@ -37,6 +39,7 @@ class ListVeterinariansUseCase:
             status=query.status,
             is_autonomous=query.is_autonomous,
             search=query.search,
+            available_for_clinic_id=query.available_for_clinic_id,
         )
         return PageDTO(
             items=[veterinarian_to_dto(veterinarian) for veterinarian in veterinarians],

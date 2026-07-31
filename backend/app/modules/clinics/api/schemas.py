@@ -1,15 +1,25 @@
 """Pydantic schemas for the clinics API — create/update/read/filter kept
-separate; never the SQLAlchemy model (rule: .claude/rules/backend.md)."""
+separate; never the SQLAlchemy model (rule: .claude/rules/02-backend.md)."""
 
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Literal
+from typing import Annotated, Literal
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import AfterValidator, BaseModel, ConfigDict, Field
+
+from app.modules.clinics.domain.value_objects import TaxId
 
 ClinicStatusLiteral = Literal["ACTIVE", "INACTIVE", "DELINQUENT", "SPECIAL"]
+
+
+def _valid_tax_id(value: str) -> str:
+    TaxId(value)
+    return value
+
+
+ClinicTaxId = Annotated[str, AfterValidator(_valid_tax_id)]
 
 
 class ClinicRead(BaseModel):
@@ -54,7 +64,7 @@ class ClinicCreateRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     name: str = Field(min_length=1)
-    tax_id: str | None = None
+    tax_id: ClinicTaxId | None = None
     phone: str | None = None
     email: str | None = None
     address_zip_code: str | None = None
@@ -62,7 +72,7 @@ class ClinicCreateRequest(BaseModel):
     address_number: str | None = None
     address_neighborhood: str | None = None
     address_city: str | None = None
-    address_state: str | None = None
+    address_state: str | None = Field(default=None, pattern=r"^[A-Za-z]{2}$")
     address_complement: str | None = None
     notes: str | None = None
 
@@ -71,7 +81,7 @@ class ClinicUpdateRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     name: str = Field(min_length=1)
-    tax_id: str | None = None
+    tax_id: ClinicTaxId | None = None
     phone: str | None = None
     email: str | None = None
     status: ClinicStatusLiteral
@@ -80,7 +90,7 @@ class ClinicUpdateRequest(BaseModel):
     address_number: str | None = None
     address_neighborhood: str | None = None
     address_city: str | None = None
-    address_state: str | None = None
+    address_state: str | None = Field(default=None, pattern=r"^[A-Za-z]{2}$")
     address_complement: str | None = None
     notes: str | None = None
     expected_row_version: int

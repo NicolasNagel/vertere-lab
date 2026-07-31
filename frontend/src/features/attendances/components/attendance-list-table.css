@@ -1,0 +1,76 @@
+.attendance-list-table {
+  background: #ffffff;
+  overflow-x: auto;
+}
+
+.attendance-list-table__empty {
+  padding: 1.5rem 2rem;
+  font-size: 0.8125rem;
+  color: var(--color-text-secondary);
+}
+
+.attendance-list-table__header,
+.attendance-list-table__row {
+  display: grid;
+  grid-template-columns: 7rem 6.5rem 8rem 9rem 1.3fr 1.3fr 8rem 6.5rem;
+  gap: 0.5rem;
+  align-items: center;
+  padding: 0.875rem; /* 14px */
+  min-width: 60rem;
+}
+
+.attendance-list-table__header {
+  background: #f4f1ea;
+  font-family: var(--font-mono);
+  font-size: 0.625rem; /* 10px */
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--color-text-secondary);
+  font-weight: 600;
+}
+
+.attendance-list-table__value-header {
+  text-align: right;
+}
+
+.attendance-list-table__row {
+  border-bottom: 1px solid #f0ede5;
+  font-size: 0.8125rem;
+  color: inherit;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.attendance-list-table__row:hover,
+.attendance-list-table__row:focus-visible {
+  background: var(--color-surface-cream);
+}
+
+.attendance-list-table__protocol {
+  font-family: var(--font-mono);
+  font-weight: 700;
+  color: var(--color-brand-ink);
+}
+
+.attendance-list-table__muted {
+  color: var(--color-text-secondary);
+}
+
+.attendance-list-table__patient-name {
+  font-weight: 600;
+}
+
+.attendance-list-table__clinic,
+.attendance-list-table__veterinarian,
+.attendance-list-table__patient {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.attendance-list-table__value {
+  font-family: var(--font-mono);
+  font-weight: 600;
+  text-align: right;
+}

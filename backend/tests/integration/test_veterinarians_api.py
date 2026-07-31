@@ -316,3 +316,48 @@ async def test_list_veterinarians_without_session_is_unauthenticated(
 ) -> None:
     response = await client.get("/api/v1/veterinarians")
     assert response.status_code == 401
+
+
+async def test_list_veterinarians_available_for_clinic_includes_autonomous_and_linked(
+    client: httpx.AsyncClient, session_factory: sessionmaker[Session]
+) -> None:
+    """Regression: `GET /veterinarians` list responses never carried
+    `clinics`, so a client-side "linked to this clinic" filter always saw
+    an empty link list — this must be server-side, same rule `/confirm`
+    revalidates (`.claude/rules/12-attendance.md`)."""
+    _create_user(
+        session_factory, email="admin@vertere.local", password="s3nhaForte!", role_id=ROLE_LAB_ADMIN
+    )
+    await _login(client, email="admin@vertere.local", password="s3nhaForte!")
+
+    clinic_a = (await client.post("/api/v1/clinics", json={"name": "Clinica A"})).json()
+    clinic_b = (await client.post("/api/v1/clinics", json={"name": "Clinica B"})).json()
+
+    await client.post(
+        "/api/v1/veterinarians",
+        json={"name": "Dra. Autonoma", "crmv": "CRMV-SC 09001", "is_autonomous": True},
+    )
+    linked_to_a = (
+        await client.post(
+            "/api/v1/veterinarians",
+            json={
+                "name": "Dr. Vinculado A",
+                "crmv": "CRMV-SC 09002",
+                "is_autonomous": False,
+                "clinic_ids": [clinic_a["id"]],
+            },
+        )
+    ).json()
+
+    response_a = await client.get(
+        "/api/v1/veterinarians", params={"available_for_clinic_id": clinic_a["id"]}
+    )
+    names_a = {item["name"] for item in response_a.json()["items"]}
+    assert names_a == {"Dra. Autonoma", "Dr. Vinculado A"}
+
+    response_b = await client.get(
+        "/api/v1/veterinarians", params={"available_for_clinic_id": clinic_b["id"]}
+    )
+    names_b = {item["name"] for item in response_b.json()["items"]}
+    assert names_b == {"Dra. Autonoma"}
+    assert linked_to_a["id"] not in {item["id"] for item in response_b.json()["items"]}

@@ -9,9 +9,10 @@ from app.modules.audit.domain.repositories import AuditLogWriter
 from app.modules.identity.application.dtos import AuthenticatedUserDTO, SessionIssuedDTO
 from app.modules.identity.application.password_hasher import PasswordHasher
 from app.modules.identity.application.session_tokens import SessionTokenGenerator
-from app.modules.identity.domain.entities import Session
+from app.modules.identity.domain.entities import RoleScope, Session
 from app.modules.identity.domain.errors import AccountInactiveError, InvalidCredentialsError
 from app.modules.identity.domain.repositories import (
+    LabMembershipRepository,
     LoginFailureRepository,
     RoleRepository,
     SessionRepository,
@@ -38,6 +39,7 @@ class LoginUseCase:
         users: UserRepository,
         roles: RoleRepository,
         sessions: SessionRepository,
+        memberships: LabMembershipRepository,
         login_failures: LoginFailureRepository,
         password_hasher: PasswordHasher,
         token_generator: SessionTokenGenerator,
@@ -51,6 +53,7 @@ class LoginUseCase:
         self._users = users
         self._roles = roles
         self._sessions = sessions
+        self._memberships = memberships
         self._login_failures = login_failures
         self._password_hasher = password_hasher
         self._token_generator = token_generator
@@ -67,7 +70,7 @@ class LoginUseCase:
 
         # Checado por login normalizado, não por IP: bloqueia quem está
         # tentando adivinhar a senha de UMA conta específica, inclusive
-        # contra e-mail inexistente (rule: .claude/rules/auth-security-lgpd.md
+        # contra e-mail inexistente (rule: .claude/rules/06-auth-security-lgpd.md
         # — "proteção contra enumeração"). Antes de verificar a senha, não
         # depois: sem isso o Argon2 roda a cada tentativa mesmo já bloqueada,
         # o próprio hash vira o custo que o rate limit deveria evitar.
@@ -128,6 +131,23 @@ class LoginUseCase:
         role = self._roles.get_by_id(user.role_id)
         if role is None:
             raise RuntimeError(f"Papel {user.role_id} não encontrado para o usuário {user.id}.")
+
+        membership = self._memberships.get_active_by_user_id(user.id)
+        if role.scope is RoleScope.CLINIC or membership is None:
+            self._login_failures.record_failure(normalized_login, occurred_at=now)
+            self._audit.record(
+                AuditEntry(
+                    actor_user_id=user.id,
+                    actor_scope=ActorScope.ANONYMOUS,
+                    action="auth.login_failed",
+                    entity_type="user",
+                    entity_id=str(user.id),
+                    after_state={"reason": "internal_access_unavailable"},
+                    ip_address=command.ip_address,
+                    request_id=command.request_id,
+                )
+            )
+            raise InvalidCredentialsError("Usuário ou senha inválidos.")
 
         self._login_failures.clear(normalized_login)
         ttl = self._session_ttl_remember_me if command.remember_me else self._session_ttl

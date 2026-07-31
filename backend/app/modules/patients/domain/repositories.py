@@ -1,6 +1,6 @@
 """Repository protocol for the patients module (species slice).
 
-Interface lives in `domain` (per .claude/rules/backend.md); implementation
+Interface lives in `domain` (per .claude/rules/02-backend.md); implementation
 lives in `infrastructure`.
 """
 
@@ -18,6 +18,13 @@ class SpeciesRepository(Protocol):
 
 class PatientRepository(Protocol):
     def get_by_id(self, patient_id: UUID) -> Patient | None: ...
+
+    def get_by_owner_and_name(self, *, owner_name: str, name: str) -> Patient | None:
+        """Case-insensitive match on (owner_name, name) — the closest thing
+        to a natural key this entity has, since it carries no clinic
+        reference (import idempotency and cross-clinic-collision detection
+        both key off this pair)."""
+        ...
 
     def add(self, patient: Patient) -> None: ...
 

@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 
 /** Delays reflecting `value` until it stops changing for `delayMs` — used to
- * avoid firing a request on every keystroke (rule: .claude/rules/frontend.md,
+ * avoid firing a request on every keystroke (rule: .claude/rules/05-frontend-web-mobile.md,
  * "debounce em busca sem atrasar a seleção"). */
 export function useDebouncedValue<T>(value: T, delayMs: number): T {
   const [debounced, setDebounced] = useState(value)

@@ -2,12 +2,13 @@
 description: Gate rápido de validação — ruff + mypy + pytest (+ lint/tsc/test do frontend se tocado). Rode antes de cada commit.
 ---
 # /validar — gate rápido
-Rode o gate de validação do time e **conserte até passar**. Este é o mesmo gate que o hook de
-`Stop` aplica automaticamente; rode-o explicitamente antes de commitar uma fatia.
+Rode o gate de validação do time e **conserte até passar**. O hook de `Stop` executa apenas o
+subconjunto rápido de Ruff, format e mypy; pytest, frontend e migrações dependem deste comando
+explícito antes de commitar uma fatia.
 
 ## Backend (sempre)
 ```bash
-uv run ruff check --fix backend && uv run mypy backend && uv run pytest -q
+uv run ruff check backend && uv run ruff format --check backend && uv run mypy backend && uv run pytest -q
 ```
 - Se **ruff** acusar: deixe o autofix resolver o que dá e corrija o resto à mão.
 - Se **mypy** acusar: conserte a tipagem; não silencie com `# type: ignore` sem justificar.
@@ -21,7 +22,7 @@ Schema mudou sem migração no diff = vermelho. Migração que não sobe do zero
 
 ## Frontend (se o diff tocou `frontend/`)
 ```bash
-cd frontend && npm run lint && npm run typecheck && npm run test
+cd frontend && npm run lint && npm run typecheck && npm run test && npm run build
 ```
 - Erro de tipo não se resolve com `as any` — conserte o tipo ou o schema Zod de origem.
 

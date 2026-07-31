@@ -1,101 +1,143 @@
-# Handoff — 2026-07-23 · Fase 1 do roadmap (identidade) · sem issue formal
+# Handoff — 2026-07-30 · fatias 1–7 · worktree não commitado
 
-## Feito nesta sessão
+## Estado consolidado
 
-- Módulo `backend/app/modules/identity/` completo (domain/application/infrastructure/api):
-  `User`, `Role`, `Permission`, `RolePermission`, `LabMembership`, `Session`. Casos de uso: login,
-  logout, resolução de sessão (com renovação deslizante), criação de usuário, atribuição de papel,
-  desativação, listagens, criação/edição de perfil de permissão.
-- Módulo `backend/app/modules/audit/` (compartilhado) com `AuditLogWriter` — gravado em
-  `auth.login_succeeded`/`auth.login_failed`, `users.created`, `users.role_changed`,
-  `users.deactivated`, `roles.permissions_updated`.
-- Sessão opaca revogável em PostgreSQL + Argon2id para senha — decisão registrada em
-  `docs/adr/001-autenticacao-sessao-opaca-argon2.md`.
-- Endpoints `/api/v1/auth/{login,logout,me}`, `/api/v1/users`, `/api/v1/users/{id}/role`,
-  `/api/v1/users/{id}/deactivate`, `/api/v1/permission-profiles*`, `/api/v1/permissions`.
-- Migrations `backend/alembic/versions/0001_create_identity_and_audit_schema.py` e
-  `0002_seed_identity_catalog.py` (catálogo de papéis/permissões de `docs/07-nucleo-v1.md` §2,
-  mais `roles.manage` — desvio pequeno e documentado no docstring da migration/seed).
-- Script de bootstrap `backend/app/scripts/bootstrap_admin.py` (cria o primeiro `SUPER_ADMIN`
-  manualmente, nunca em CI/deploy).
-- Testes: `backend/tests/identity/` (unitário, fakes) + `backend/tests/integration/test_identity_api.py`
-  (Postgres real via Testcontainers — login, auditoria, 401/403/409, autoexclusão de controle).
-- Frontend: tela de Login fiel ao `assets/features/screens/1-login.html` +
-  `assets/features/screens/spec-pages.md`, com `AuthProvider`/`ProtectedRoute`, estado de
-  "sessão expirada" (heurística client-side via `sessionStorage`), ação "Esqueci a senha" (com
-  aviso explícito de não implementado, não some silenciosamente), link `mailto` para suporte.
-  Componentes extraídos para `frontend/src/shared/ui/` (`TextField`, `PasswordField`, `Checkbox`,
-  `Button`, ícones) para reuso nas próximas telas.
-- Saudações neutralizadas ("Bem-vindo", "Manter conectado") a pedido do usuário.
-- `docs/adr/001-autenticacao-sessao-opaca-argon2.md` escrito.
+O `main` permanece em `eb97cda`. Todo o trabalho descrito abaixo está no worktree e ainda não foi
+commitado. Alterações preexistentes foram preservadas; não usar reset/checkout sobre este estado.
 
-## Estado do gate
+- **Fatia 1 — identidade e autorização:** sessão opaca, usuários, papéis, permissões e auditoria.
+- **Fatia 2 — clínicas:** cadastro, ativação/inativação e endereços.
+- **Fatia 3 — veterinários:** cadastro, autonomia e vínculo N:N com clínicas.
+- **Fatia 4 — pacientes:** espécies, paciente e tutor embutido.
+- **Fatia 5 — catálogo:** categorias, exames, preço embutido e importação CSV.
+- **Fatia 6 — núcleo de atendimento:** rascunho/listagem/detalhe, confirmação, itens, protocolo,
+  idempotência, cancelamento/edição/timeline e prévia de fechamento.
+- **Fatia 7 — abertura operacional:** `/operacao/novo` com permissão `attendances.create`, clínica
+  ativa, veterinário ativo autônomo ou vinculado à clínica, busca paginada de pacientes ativos,
+  aviso de possível duplicidade, criação rápida condicionada a `patients.manage` preservando o
+  formulário, data, observações, envio a `POST /api/v1/attendances/drafts` e retorno a `/operacao`.
+  Exames, preços, plantão e método de coleta não fazem parte desta fatia.
 
-- **Backend**: verde. `ruff check` + `ruff format --check` + `mypy` limpos; `alembic upgrade head`
-  aplica 0001→0002 sem erro (Postgres real, `docker-compose up -d postgres`); `pytest -q` → 29
-  passed (18 unitário + 11 integração com Testcontainers/Postgres real).
-- **Frontend**: verde. `tsc -b`, `oxlint` (1 warning informativo de fast-refresh, não é erro),
-  `vitest run` → 12 passed, `vite build` → build de produção ok.
-- **Migrações**: `head` = `0002`. Testado em banco vazio (Testcontainers) e no Postgres local do
-  `docker-compose.yml`.
-- CI (`.github/workflows/ci.yml`) já cobre esse pipeline — ainda não rodou de verdade porque este
-  código nunca foi empurrado (ver "Pendências fora do código").
+O worktree também contém o pipeline de importação da planilha, migrations 0016–0021 e mudanças de
+domínio/backend iniciadas antes desta revisão. Esses arquivos não foram refeitos nem descartados.
 
-## Em andamento (não finalizado)
+## Harness compartilhado
 
-- Nada pela metade neste exato ponto — a fatia de identidade (backend completo + tela de Login)
-  está fechada conforme o plano aprovado. O que falta é o **próximo incremento**, não uma sobra
-  deste: tela "Usuários & Permissões" (`assets/features/screens/9-usuarios-permissoes.html`), que
-  já tem API pronta esperando por ela.
+- `AGENTS.md` é a fonte canônica. `CLAUDE.md` é um adaptador mínimo com `@AGENTS.md`.
+- Rules padronizadas como `00-global.md` a `13-monthly-closure.md`; `/testar-app` foi movido para
+  `.claude/commands/testar-app.md`; `system-design/SKILL.md` teve o casing corrigido.
+- `.agents/skills/` contém wrappers mínimos para descoberta nativa pelo Codex; a fonte continua em
+  `.claude/skills/`.
+- Hooks não dependem mais de `jq`: `.claude/hooks/read-hook-json.py` lê payloads Edit/Stop. O Stop
+  executa Ruff, Ruff format-check e mypy.
+- `/validar`, hooks e CI usam os mesmos gates; o cache do CI aponta para `uv.lock` na raiz.
+- Busca em referências ativas não encontrou nomes antigos; ADRs e o plano histórico foram mantidos.
 
-## Armadilhas conhecidas
+## Validações executadas nesta sessão
 
-- **`@fontsource/big-shoulders-display` não tem a entrada `"./*.css"` no `exports` do
-  `package.json`** (outras famílias, tipo Manrope, têm) — importar com `.css` explícito quebra a
-  resolução do Node/Vite/Rolldown. Solução: importar sem extensão
-  (`import '@fontsource/big-shoulders-display/800'`) e declarar o módulo em
-  `frontend/src/fontsource.d.ts` pro TypeScript não reclamar. Se atualizar a lib e o bug upstream
-  for corrigido, dá pra simplificar isso.
-- **Vite dev precisa de proxy `/api` → backend** (`frontend/vite.config.ts`) pra o cookie
-  `HttpOnly` de sessão funcionar em dev (front e back em portas diferentes = same-origin quebra
-  sem proxy).
-- **Inserir `User` e depois algo que referencia `user.id` na mesma transação exige `session.flush()`
-  explícito** — sem `relationship()` do SQLAlchemy entre `User` e `LabMembership`/`Session`, o
-  unit of work não infere a ordem de FK sozinho e a segunda inserção falha por violação de FK.
-  Já corrigido em `SqlAlchemyUserRepository.add()`, mas vale lembrar se criar mais entidades
-  dependentes de `User` na mesma transação.
-- **`TRUNCATE ... CASCADE` em teste de integração arrasta tabelas que você não queria limpar**
-  (ex.: truncar `users` em cascade também truncava `role_permissions`, porque essa tabela tem FK
-  nullable pra `users`). Testes de integração usam `DELETE` explícito em vez de `TRUNCATE CASCADE`
-  por isso (`backend/tests/integration/test_identity_api.py`).
-- Testes de integração compartilham um único container Postgres por módulo (`scope="module"`,
-  mais rápido) — por isso há um fixture `_reset_user_data` (autouse) limpando `users`/`sessions`/
-  `audit_log` entre testes, senão premissas como "único admin ativo" vazam de um teste pro outro.
+- `uv run ruff check backend`: **verde**.
+- `uv run ruff format --check backend`: **verde**, 340 arquivos. Quatro testes de identidade que
+  já estavam fora do formato foram corrigidos.
+- `uv run mypy backend`: **verde**, 340 arquivos.
+- Alembic em PostgreSQL descartável limpo, via `backend/tests/integration/test_database.py`:
+  **3 passed**.
+- Pytest completo: **423 passed** e **1 erro exclusivamente no teardown do Testcontainers** após
+  11m24s; o Docker Desktop excedeu 60s ao remover um container. Reexecução isolada de
+  `test_billing_api.py`: **9 passed**. Não houve falha funcional/de asserção.
+- Frontend: oxlint **sem erros** (2 warnings preexistentes de fast refresh), TypeScript **verde**,
+  Vitest **21 arquivos / 107 testes passed**, build Vite **verde**.
+- Build: chunk principal **543,87 KB** (gzip 155,41 KB), mantendo o alerta >500 KB.
+- Hooks: payloads Edit/Stop funcionaram com `jq` ausente; o hook Python formatou o arquivo temporário
+  correto (`x=  1` → `x = 1`), removido após o teste.
 
-## Próximo passo recomendado
+## QA real e arquivos temporários
 
-1. Fazer o push desta sessão pro GitHub (branch `main`, sem PR — projeto solo) e confirmar que o
-   CI (`.github/workflows/ci.yml`) passa de verdade em ambiente limpo, não só localmente.
-2. Preencher `.env.example` com as novas variáveis de sessão (`SESSION_COOKIE_NAME`,
-   `SESSION_COOKIE_SECURE`, `SESSION_TTL_MINUTES`, `SESSION_TTL_REMEMBER_ME_DAYS`,
-   `SESSION_RENEWAL_THRESHOLD_MINUTES`, `BOOTSTRAP_ADMIN_EMAIL`/`_FULL_NAME`/`_PASSWORD`) — não
-   consegui editar esse arquivo por bloqueio de sandbox nesta sessão.
-3. Próximo incremento: tela "Usuários & Permissões" (frontend) consumindo a API de identidade que
-   já está pronta (`/users`, `/permission-profiles*`, `/permissions`).
+Outra sessão Claude retomou QA durante esta revisão e iniciou backend em `127.0.0.1:8123` e Vite em
+`localhost:5183`, criando `backend/alembic.ini.qa` e `frontend/vite.qa.config.ts`. Esses processos e
+arquivos foram preservados. Esta sessão não recebeu o relatório final do navegador; portanto não
+afirma como verificados os itens visuais/responsivos ou a inspeção direta do banco. Capturar o
+resultado da sessão Claude antes de remover qualquer auxiliar de QA.
 
-## Pendências fora do código
+## Bloqueadores e backlog priorizado
 
-- **`.env.example`** não atualizado (bloqueio de acesso na sandbox desta sessão — precisa ser
-  feito manualmente ou em outra sessão sem essa restrição).
-- **E-mail de suporte real**: hoje `suporte@vertere.local` é placeholder em
-  `frontend/src/shared/config/app-info.ts` — falta confirmar o endereço real com o time antes de
-  produção.
-- **Recuperação de senha**: não existe endpoint nem tela — a ação "Esqueci a senha" da spec está
-  na UI só com aviso de "ainda não disponível", não é fluxo funcional.
-- **Estado "usuário bloqueado"** (spec da tela de login) não tem suporte no backend — não existe
-  rate limit/bloqueio de tentativas ainda; dívida técnica sinalizada, não implementada.
-- **Nome do endpoint de criação de usuário**: implementei `POST /api/v1/users`; a spec da tela 9
-  (`assets/features/screens/9-usuarios-permissoes.html`) usa `POST /api/v1/users/invite`.
-  Decidir no próximo incremento se vira alias ou se o frontend se adapta ao nome atual.
-- Nenhum segredo real está neste handoff nem no diff — credenciais do `docker-compose.yml` são
-  dev-only e já eram públicas no repo antes desta sessão.
+1. **Bloqueador de produção — segurança/tenant:** isolamento por clínica/membership ainda não está
+   implementado; consultas de atendimento não restringem tenant. Abrir uma fatia própria e não
+   corrigir silenciosamente dentro da Fatia 7.
+2. **Performance backend/frontend:** listagem monta nomes com múltiplos joins client-side e limita
+   cadastros auxiliares aos primeiros 100 registros.
+3. **Performance frontend:** aplicar lazy loading/code splitting e revisar imports/assets de fontes;
+   o bundle principal medido está em 543,87 KB.
+4. **Infra de testes:** o conjunto completo leva ~11 minutos por criar containers por módulo e pode
+   falhar no teardown do Docker Desktop. Consolidar fixtures/containers sem reduzir cobertura.
+5. **Verificação de interoperabilidade:** abrir uma sessão nova de Codex e conferir a descoberta de
+   `AGENTS.md`/wrappers; no Claude, confirmar `/memory` apontando `AGENTS.md`. Não foi possível
+   provar isso de dentro desta mesma sessão.
+
+## Próximo passo
+
+Capturar/concluir o QA real já iniciado, resolver qualquer achado sem ampliar o contrato do backend,
+reexecutar os gates afetados e então seguir para a **Fatia 8** (itens/exames da abertura de
+
+---
+
+## Addendum — 2026-07-31 · tela de confirmação/detalhe de atendimento (fatias separadas)
+
+> Sessão distinta da acima (numeração de fatia própria: 1–7 já cobriam identidade/cadastros/
+> atendimento-núcleo; esta trilha tratou especificamente da tela `/operacao/:attendanceId`).
+> Não reconcilia com a numeração da seção anterior deste arquivo — mantido como registro aditivo,
+> sem reescrever o que já estava documentado acima.
+
+**Feito nesta trilha, em ordem:**
+1. Tela de confirmação de atendimento (`AttendanceConfirmationForm`) — seleção de exame, total
+   calculado no backend via `/preview`, confirmação com `Idempotency-Key`.
+2. Ações de cancelar/editar observações/timeline na tela de detalhe
+   (`AttendanceDetailPage`/`AttendanceReadonlyDetail`) — `POST /cancel`, `PATCH` (notas em
+   `CONFIRMED`), `GET /timeline` paginado.
+3. **Gap fechado**: edição completa do cabeçalho (clínica/veterinário/paciente/data) enquanto o
+   atendimento está `DRAFT` — endpoint `PATCH` já suportava desde a fatia de backend; só não havia
+   UI. Componente novo: `attendance-header-details.tsx` — some/leitura sempre (clínica, veterinário,
+   paciente, data), edição completa só quando `status === 'DRAFT'` **e** `attendances.update`;
+   read-only sempre em `CONFIRMED`/demais estados, reforçado pelo próprio backend
+   (`AttendanceRecord.update_fields`: fora de `DRAFT`, só `notes` é aceito — testado em QA real via
+   `curl`, retorna `422 VALIDATION_ERROR`).
+   - `attendances-api.ts`: função `updateAttendanceNotes` generalizada para `updateAttendance(id,
+     rowVersion, input)`, aceitando qualquer subconjunto de campos — usada tanto pelo editor de
+     observações (`CONFIRMED`) quanto pelo editor completo (`DRAFT`).
+   - Hook único `use-update-attendance-mutation.ts` substituiu o hook específico de notas.
+   - Reutiliza `PatientPicker`, `SelectField` e os hooks de clínica/veterinário já existentes do
+     formulário de rascunho — sem endpoint novo no backend.
+   - **Pendência sinalizada, não corrigida nesta fatia**: `PatientPicker` dentro do editor de
+     cabeçalho não oferece criação rápida de paciente (`canCreate={false}`) — só troca entre
+     pacientes já cadastrados. Criar paciente novo durante a edição do cabeçalho de um atendimento
+     já existente fica para uma fatia futura, se necessário.
+
+**Bug encontrado e corrigido durante QA real (não relacionado ao gap acima):**
+`formatDate()` em `shared/lib/formatters.ts` interpretava string de data pura (`"2026-07-01"`,
+sem componente de hora) como meia-noite UTC — em fuso atrás de UTC (America/Sao_Paulo), exibia o
+dia anterior (`billing_competence: "2026-07-01"` aparecia como "30 de jun."). Corrigido: string
+`YYYY-MM-DD` sem hora é lida como data de calendário local, não como instante UTC. Teste de
+regressão em `formatters.test.ts`.
+
+**Gate final desta trilha:** tsc limpo, oxlint sem erros novos (2 warnings pré-existentes de fast
+refresh, não tocados), Vitest **124 testes / 21 arquivos passed**, `vite build` verde. QA real
+executada contra Postgres descartável + backend real (algumas etapas via `curl` direto quando o
+Chrome/Docker Desktop caíram no meio da sessão) — cobertura confirmada: fluxo de confirmação,
+cancelamento (incluindo bloqueio de recancelar/editar após `CANCELLED`), edição de observações
+com conflito de `row_version` (`409`), timeline com diff de auditoria, edição completa do
+cabeçalho em `DRAFT` (clínica → filtra veterinário vinculado, troca de paciente, data), bloqueio
+de edição de cabeçalho pós-confirmação reforçado no backend, negação de permissão (`403`) para
+usuário sem `attendances.cancel`/`attendances.update`.
+
+**Pendências não-bloqueantes acumuladas (todas as fatias desta trilha):**
+- Viewport mobile/responsivo nunca testado nas telas de atendimento.
+- Criação rápida de paciente indisponível no editor de cabeçalho de atendimento já existente
+  (só no formulário de rascunho novo).
+- Preço nulo para usuário sem `pricing.read` não foi reverificado nesta trilha (padrão herdado,
+  não uma regressão encontrada).
+- Isolamento de tenant por clínica/membership (já registrado como bloqueador de produção na seção
+  anterior deste arquivo) segue em aberto — não tocado por esta trilha.
+
+**Próximo passo desta trilha:** planejar o Incremento 4.2 do fechamento mensal (`POST
+/closures`, lock, snapshot, imutabilidade, auditoria, exportação simples) — ainda não iniciado.
+atendimento). Antes de declarar o núcleo pronto para produção, executar a fatia separada de
+isolamento por tenant.

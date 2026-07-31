@@ -1,7 +1,7 @@
 name: CI
 
 # Espelha o gate do /validar (.claude/commands/validar.md) e a pipeline mínima definida em
-# .claude/rules/10-observability-performance-devops.md. Se um dia divergir de qualquer um dos
+# .claude/rules/09-observability-performance-devops.md. Se um dia divergir de qualquer um dos
 # dois, um dos três está desatualizado — conserte os três juntos.
 on:
   push:
@@ -41,7 +41,7 @@ jobs:
         uses: astral-sh/setup-uv@v3
         with:
           enable-cache: true
-          cache-dependency-glob: "backend/uv.lock"
+          cache-dependency-glob: "uv.lock"
 
       - name: Instalar Python 3.12
         run: uv python install 3.12
@@ -113,7 +113,7 @@ jobs:
       - uses: actions/checkout@v4
       # TODO ao implementar o núcleo: subir backend (uvicorn) + frontend (preview build) e
       # rodar `npx playwright test` contra os 7 passos do cenário E2E mínimo do
-      # .claude/rules/09-testing.md. Deixado como TODO proposital — não inventar passo de E2E
+      # .claude/rules/08-testing.md. Deixado como TODO proposital — não inventar passo de E2E
       # antes de o fluxo existir de verdade.
       - name: Placeholder — implementar quando o núcleo (atendimento + fechamento) existir
         run: echo "E2E crítico ainda não implementado — ver TODO neste arquivo."

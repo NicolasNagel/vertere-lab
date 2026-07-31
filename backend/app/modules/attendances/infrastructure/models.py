@@ -1,5 +1,5 @@
 """SQLAlchemy mapping for the attendances module — separate from domain
-entities (rule: .claude/rules/database.md, "não é Active Record")."""
+entities (rule: .claude/rules/03-database.md, "não é Active Record")."""
 
 from __future__ import annotations
 
@@ -14,6 +14,17 @@ from app.shared.infrastructure.database import Base
 
 
 class AttendanceModel(Base):
+    """`version_id_col=row_version` makes every `UPDATE` carry `WHERE
+    row_version = <value loaded by this session>` and auto-increments it —
+    a second transaction racing on the same row (e.g. two concurrent
+    `/cancel` calls) finds 0 rows affected and SQLAlchemy raises
+    `StaleDataError`, mapped to `409 CONFLICT` in `api/error_handlers.py`.
+    Without this, two concurrent reads-before-either-commits both pass the
+    domain's in-memory state check and both `UPDATE` "successfully" — the
+    lost-update race a plain `SELECT` + `UPDATE` can never rule out on its
+    own (`.claude/rules/12-attendance.md`: "toda edição usa row version").
+    """
+
     __tablename__ = "attendances"
     __table_args__ = (
         CheckConstraint(
@@ -50,8 +61,10 @@ class AttendanceModel(Base):
     protocol_year: Mapped[int | None] = mapped_column(nullable=True)
     protocol_sequence: Mapped[int | None] = mapped_column(nullable=True)
     protocol_number: Mapped[str | None] = mapped_column(nullable=True)
-    # No FK yet — `monthly_closures` only exists from Incremento 4.2 on.
-    monthly_closure_id: Mapped[uuid.UUID | None] = mapped_column(nullable=True)
+    monthly_closure_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("monthly_closures.id", ondelete="RESTRICT"), nullable=True
+    )
+    cancel_reason: Mapped[str | None] = mapped_column(nullable=True)
     created_by: Mapped[uuid.UUID | None] = mapped_column(
         ForeignKey("users.id", ondelete="SET NULL"), nullable=True
     )
@@ -67,6 +80,8 @@ class AttendanceModel(Base):
     items: Mapped[list[AttendanceExamModel]] = relationship(
         back_populates="attendance", cascade="all, delete-orphan"
     )
+
+    __mapper_args__ = {"version_id_col": row_version}  # noqa: RUF012
 
 
 class AttendanceExamModel(Base):
@@ -108,7 +123,7 @@ class AttendanceExamModel(Base):
 
 class AttendanceSequenceModel(Base):
     """Transactional protocol counter, one row per year — `SELECT ... FOR
-    UPDATE` in the repository, never `MAX + 1` (`.claude/rules/database.md`).
+    UPDATE` in the repository, never `MAX + 1` (`.claude/rules/03-database.md`).
     """
 
     __tablename__ = "attendance_sequences"

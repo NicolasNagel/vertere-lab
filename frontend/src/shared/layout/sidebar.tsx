@@ -15,9 +15,11 @@ import {
 import { SidebarNavItem, type SidebarNavItemProps } from './sidebar-nav-item'
 import './sidebar.css'
 
-const mainNavEntries: SidebarNavItemProps[] = [
+const baseMainNavEntries: SidebarNavItemProps[] = [
   { icon: <DashboardIcon />, label: 'Dashboard', to: '/' },
-  { icon: <OperationIcon />, label: 'Operação', to: null },
+]
+
+const afterOperationNavEntries: SidebarNavItemProps[] = [
   { icon: <LaudosIcon />, label: 'Laudos', to: null },
   { icon: <PatientsIcon />, label: 'Pacientes', to: '/pacientes' },
 ]
@@ -42,7 +44,7 @@ export function Sidebar() {
   const permissions = user?.permissions ?? []
 
   // Item oculto sem a permissão correspondente (não checa nome de papel —
-  // regra do domínio: `.claude/rules/product-domain.md`). Esconder é UX, a
+  // regra do domínio: `.claude/rules/01-product-domain.md`). Esconder é UX, a
   // autoridade continua sendo o backend em cada página.
   const adminNavEntries: SidebarNavItemProps[] = [
     ...(permissions.includes('users.read')
@@ -57,6 +59,16 @@ export function Sidebar() {
   const financeNavEntries: SidebarNavItemProps[] = permissions.includes('closures.preview')
     ? [{ icon: <BillingIcon />, label: 'Fechamento', to: '/financeiro/fechamento' }]
     : []
+
+  const mainNavEntries: SidebarNavItemProps[] = [
+    ...baseMainNavEntries,
+    {
+      icon: <OperationIcon />,
+      label: 'Operação',
+      to: permissions.includes('attendances.read') ? '/operacao' : null,
+    },
+    ...afterOperationNavEntries,
+  ]
 
   return (
     <div className="sidebar">

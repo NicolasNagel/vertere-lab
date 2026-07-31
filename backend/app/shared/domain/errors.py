@@ -75,3 +75,15 @@ class ExternalServiceUnavailableError(DomainError):
 
 class RateLimitedError(DomainError):
     code = ErrorCode.RATE_LIMITED
+
+
+class IdempotencyConflictError(DomainError):
+    code = ErrorCode.IDEMPOTENCY_CONFLICT
+
+
+class AttendanceAlreadyClosedError(DomainError):
+    code = ErrorCode.ATTENDANCE_ALREADY_CLOSED
+
+
+class ClosureAlreadyExistsError(DomainError):
+    code = ErrorCode.CLOSURE_ALREADY_EXISTS

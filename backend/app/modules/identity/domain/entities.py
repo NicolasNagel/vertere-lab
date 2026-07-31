@@ -1,6 +1,6 @@
 """Identity domain entities.
 
-No FastAPI/SQLAlchemy import here (rule: .claude/rules/globals.md — domain
+No FastAPI/SQLAlchemy import here (rule: .claude/rules/00-global.md — domain
 layer). Mutation happens through named methods, never by callers poking at
 fields directly, so invariants stay enforced in one place.
 """

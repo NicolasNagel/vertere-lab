@@ -53,7 +53,8 @@ React has no inheritance model for components. Compose with `children`, render p
 
 ## Hooks Discipline
 
-See [rules/react/hooks.md](../../rules/react/hooks.md) for the full ruleset. Highlights:
+See the project's [frontend rule](../../rules/05-frontend-web-mobile.md) for the canonical
+ruleset. Highlights:
 
 - Top-level only, never conditional
 - Cleanup every subscription, interval, listener
@@ -250,8 +251,8 @@ Wrap a component in `React.memo` only when:
 - Every interactive element must be reachable by keyboard
 - Form inputs need labels — `<label htmlFor>` or `aria-label` if visually labeled by an icon
 - Manage focus on route changes and modal open/close
-- Run `axe` in component tests (see [skills/react-testing](../react-testing/SKILL.md))
-- Cross-link: [skills/accessibility/SKILL.md](../accessibility/SKILL.md) covers WCAG criteria and pattern libraries
+- Run `axe` in component and browser tests as required by the
+  [testing rule](../../rules/08-testing.md).
 
 ## Routing
 
@@ -265,10 +266,11 @@ This skill is router-agnostic. The patterns above work with React Router, TanSta
 
 ## Related
 
-- Rules: [rules/react/](../../rules/react/) — coding-style, hooks, patterns, security, testing
-- Skills: [react-performance](../react-performance/SKILL.md) for the Vercel-derived performance ruleset, [frontend-patterns](../frontend-patterns/SKILL.md) for cross-framework UI concerns, [accessibility](../accessibility/SKILL.md), [angular-developer](../angular-developer/SKILL.md) for framework comparison
-- Agents: `react-reviewer` for code review, `react-build-resolver` for build/bundler errors
-- Commands: `/react-review`, `/react-build`, `/react-test`
+- Rules: [frontend](../../rules/05-frontend-web-mobile.md),
+  [security](../../rules/06-auth-security-lgpd.md), and
+  [testing](../../rules/08-testing.md).
+- Project review agent: `revisor-codigo`.
+- Project validation commands: `/validar` and `/testar-app`.
 
 ## Examples
 

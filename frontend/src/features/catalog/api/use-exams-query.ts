@@ -6,9 +6,10 @@ export function examsQueryKey(params: ExamListParams) {
   return ['exams', params] as const
 }
 
-export function useExamsQuery(params: ExamListParams = {}) {
+export function useExamsQuery(params: ExamListParams | null = {}) {
   return useQuery({
-    queryKey: examsQueryKey(params),
-    queryFn: () => fetchExams(params),
+    queryKey: params ? examsQueryKey(params) : ['exams', 'idle'],
+    queryFn: () => fetchExams(params as ExamListParams),
+    enabled: params !== null,
   })
 }

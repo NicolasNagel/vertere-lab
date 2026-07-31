@@ -6,7 +6,7 @@ import { shouldRetry } from './providers'
 // Achado em teste manual: sem essa regra, uma query que falha com 403 fica
 // presa em `status: 'pending'` esperando a segunda tentativa nunca resolver
 // (retry pausado pelo QueryObserver), e a tela nunca chega a mostrar a
-// mensagem de "sem permissão" — ver .claude/rules/frontend.md, "401 e 403
+// mensagem de "sem permissão" — ver .claude/rules/05-frontend-web-mobile.md, "401 e 403
 // tratados como casos diferentes na UI" pressupõe que o estado de erro
 // realmente é alcançado.
 test('never retries a 4xx client error (permission/validation/not-found)', () => {

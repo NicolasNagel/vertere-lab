@@ -1,5 +1,5 @@
 """Pydantic schemas for the catalog API — create/update/read/filter kept
-separate; never the SQLAlchemy model (rule: .claude/rules/backend.md)."""
+separate; never the SQLAlchemy model (rule: .claude/rules/02-backend.md)."""
 
 from __future__ import annotations
 
@@ -60,7 +60,7 @@ class ExamRead(BaseModel):
     updated_at: datetime
     row_version: int
     # Omitted (null) entirely when the actor lacks `pricing.read` — never a
-    # frontend-only hide (rule: .claude/rules/backend.md, "autoridade final
+    # frontend-only hide (rule: .claude/rules/02-backend.md, "autoridade final
     # é o backend").
     price_base: Decimal | None
     plantao_surcharge_fixed: Decimal | None

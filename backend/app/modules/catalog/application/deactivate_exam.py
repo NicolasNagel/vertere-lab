@@ -25,7 +25,7 @@ class DeactivateExamCommand:
 class DeactivateExamUseCase:
     """Soft delete only — inactivating an exam must never erase catalog
     history or the price a past attendance already snapshotted (rule:
-    .claude/rules/product-domain.md, "Inative em vez de apagar")."""
+    .claude/rules/01-product-domain.md, "Inative em vez de apagar")."""
 
     def __init__(
         self,

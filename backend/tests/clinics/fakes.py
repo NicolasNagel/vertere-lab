@@ -1,7 +1,7 @@
 """In-memory fakes for the clinics repository protocol — used by unit
 tests for use cases (rule: mock only at an external boundary; a fake
 repository backing a pure use-case test is not the repository-under-test,
-so this is fine per .claude/rules/testing.md)."""
+so this is fine per .claude/rules/08-testing.md)."""
 
 from __future__ import annotations
 
@@ -47,6 +47,15 @@ class FakeClinicRepository:
             if clinic.tax_id is not None and str(clinic.tax_id) == tax_id:
                 return clinic
         return None
+
+    def get_by_name(self, name: str) -> Clinic | None:
+        for clinic in self._clinics.values():
+            if clinic.name.lower() == name.lower():
+                return clinic
+        return None
+
+    def list_all_names(self) -> dict[str, UUID]:
+        return {clinic.name.lower(): clinic.id for clinic in self._clinics.values()}
 
     def list_page(
         self, *, page: int, page_size: int, status: ClinicStatus | None, search: str | None

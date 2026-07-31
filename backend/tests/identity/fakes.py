@@ -1,7 +1,7 @@
 """In-memory fakes for the identity repository protocols — used by unit
 tests for use cases (rule: mock only at an external boundary; a fake
 repository backing a pure use-case test is not the repository-under-test,
-so this is fine per .claude/rules/testing.md)."""
+so this is fine per .claude/rules/08-testing.md)."""
 
 from __future__ import annotations
 
@@ -182,6 +182,18 @@ class FakeLabMembershipRepository:
     def add(self, membership: LabMembership) -> None:
         self.memberships.append(membership)
 
+    def get_active_by_user_id(self, user_id: UUID) -> LabMembership | None:
+        return next(
+            (
+                membership
+                for membership in self.memberships
+                if membership.user_id == user_id
+                and membership.is_active
+                and membership.revoked_at is None
+            ),
+            None,
+        )
+
 
 class FakeLoginFailureRepository:
     def __init__(self) -> None:
@@ -191,7 +203,9 @@ class FakeLoginFailureRepository:
         self._failures.append((login, occurred_at))
 
     def count_recent_failures(self, login: str, *, since: datetime) -> int:
-        return sum(1 for stored_login, when in self._failures if stored_login == login and when >= since)
+        return sum(
+            1 for stored_login, when in self._failures if stored_login == login and when >= since
+        )
 
     def clear(self, login: str) -> None:
         self._failures = [item for item in self._failures if item[0] != login]

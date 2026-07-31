@@ -1,5 +1,11 @@
 # Análise da Planilha Operacional do Vertere Lab
 
+> Recalculado em 2026-07-28 contra `PLANILHA DE CONTROLE 2026 - VERTERE LAB (4).xlsx` (a versão
+> (3), com 1.794 registros, foi a base da análise original — o usuário atualizou o arquivo com
+> mais atendimentos desde então). Estrutura das abas e problemas de qualidade descritos abaixo
+> continuam os mesmos; os números de volume foram atualizados para a versão (4). Se o arquivo for
+> atualizado de novo, recalcule antes de usar estes números como alvo de reconciliação.
+
 ## 1. Visão geral
 
 A planilha atual funciona como cadastro mestre e livro operacional de atendimentos. Ela cumpre o papel de um sistema transacional, mas sem garantias de integridade, histórico, autorização, rastreabilidade ou colaboração simultânea segura.
@@ -9,25 +15,25 @@ A planilha atual funciona como cadastro mestre e livro operacional de atendiment
 | Aba | Finalidade | Volume observado |
 |---|---|---:|
 | Cadastro Clínicas | Cadastro de clientes institucionais | 40 clínicas |
-| Cadastro Veterinários | Profissionais vinculados a clínicas ou autônomos | 147 veterinários |
-| Dados | Registro de protocolos, pacientes, exames e valores | 1.794 registros operacionais válidos |
+| Cadastro Veterinários | Profissionais vinculados a clínicas ou autônomos | 150 veterinários |
+| Dados | Registro de protocolos, pacientes, exames e valores | 2.497 registros operacionais válidos |
 | Suporte | Listas auxiliares | 5 grupos de domínio |
 
 ### Período analisado
 
 - primeiro atendimento: 03/01/2026;
-- último atendimento preenchido: 30/05/2026;
-- dias com movimento: 145;
-- média: aproximadamente 12,4 registros por dia ativo;
-- pico observado: 29 registros em um dia.
+- último atendimento preenchido: 19/07/2026;
+- dias com movimento: 193;
+- média: aproximadamente 12,9 registros por dia ativo;
+- pico observado: 35 registros em um dia.
 
 ### Volume e concentração
 
-- 27 clínicas tiveram movimento no período;
-- 86 veterinários aparecem nos atendimentos;
-- aproximadamente 1.564 combinações distintas de paciente e proprietário;
-- as duas clínicas de maior volume concentram cerca de 67% dos registros;
-- a clínica de maior volume sozinha representa aproximadamente 52%.
+- 28 clínicas tiveram movimento no período;
+- 91 veterinários aparecem nos atendimentos;
+- aproximadamente 2.102 combinações distintas de paciente e proprietário;
+- as duas clínicas de maior volume concentram cerca de 65% dos registros;
+- a clínica de maior volume sozinha representa aproximadamente 50%.
 
 Esse padrão exige que o sistema suporte picos e grande assimetria de uso entre clientes, sem permitir que uma clínica acesse dados de outra.
 
@@ -98,7 +104,7 @@ O preço não deve ficar apenas no cadastro atual do exame. Cada item do protoco
 
 ### 2.6 Total financeiro inconsistente
 
-A soma dos 1.794 registros operacionais válidos é R$ 185.017,00. O total exibido na planilha é R$ 185.117,00. A diferença de R$ 100,00 vem de um valor residual em uma linha sem atendimento.
+A soma dos 2.497 registros operacionais válidos é R$ 250.060,00. O total exibido na planilha é R$ 250.160,00. A diferença de R$ 100,00 vem de um valor residual em uma linha sem atendimento — o mesmo problema descrito abaixo, reproduzido de forma idêntica na versão atualizada do arquivo.
 
 O novo sistema deve impedir esse cenário por meio de:
 
@@ -160,9 +166,96 @@ Todo domínio finito deve usar enumeração controlada, tabela de domínio ou ca
 A migração só será aceita quando:
 
 - 100% das linhas válidas tiverem estado final conhecido;
-- a soma financeira dos registros importados corresponder à soma validada de R$ 185.017,00, salvo ajustes aprovados;
+- a soma financeira dos registros importados corresponder à soma validada de R$ 250.060,00, salvo ajustes aprovados;
 - nenhuma clínica ou veterinário for criado silenciosamente por aproximação incerta;
 - todo conflito estiver em relatório de exceções;
 - protocolos forem únicos;
 - relatórios de duplicidade e campos ausentes forem entregues;
 - o lote puder ser reprocessado sem duplicar dados.
+
+## 6. Fase 4 — Migração do histórico de atendimentos (spec, ainda não implementada)
+
+> Escrito em 2026-07-29. As Fases 1–3 (cadastros estruturantes: clínicas, veterinários, catálogo
+> de exames, pacientes/proprietário) e a Fase 2b (tabela de preços vigente via PDF) já estão
+> implementadas no módulo `backend/app/modules/imports/`. Esta seção é **só especificação** —
+> importar o histórico financeiro completo da aba `Dados` como `AttendanceRecord` continua fora
+> de ordem enquanto o fechamento mensal (`MonthlyClosure`) não tiver `close`/`adjust`/`reopen`
+> implementados (`AGENTS.md` § "Prioridade de implementação" — atendimento e fechamento vêm antes
+> de migração).
+
+### 6.1 O que já existe hoje que muda o desenho original
+
+Quando o plano desta fatia foi escrito, `AttendanceRecord` era só um rascunho (`DRAFT`, sem
+itens, sem protocolo). Isso não é mais verdade: `app/modules/attendances/domain/entities.py` já
+tem `AttendanceRecord.confirm()` funcional — snapshot de `AttendanceExam` (preço/nome
+imutáveis), `protocol_year`/`protocol_sequence`/`protocol_number` transacionais,
+`billing_competence` derivado de `service_date`, e um campo `monthly_closure_id` (ainda sempre
+`None`, reservado para quando o fechamento existir). O que **ainda não existe**:
+`MonthlyClosure.close()`/ajuste/reabertura (`app/modules/billing/` só tem `preview_closure.py` —
+prévia, não fechamento de verdade) e nenhum endpoint que ligue um `AttendanceRecord` confirmado a
+uma competência fechada. É esse último ponto que continua bloqueando a Fase 4 — não a falta de
+snapshot ou protocolo, que já existem.
+
+### 6.2 Transformação linha → `AttendanceRecord` + `AttendanceExam`
+
+- Cada linha válida da aba `Dados` (linhas 5–2501, 2.497 registros na versão (4) — confirmado
+  linha a linha nesta sessão via `xlsx_reader.read_workbook`, mesma ferramenta que já lê a
+  planilha para as Fases 1–3) vira **um** `AttendanceRecord` com `status = COMPLETED` (o
+  atendimento já aconteceu; não é um rascunho a confirmar por um usuário).
+- Cada linha simples (sem `+`) vira um único `AttendanceExam`; linha combinada (`"Check-up 2 +
+  Urinálise"`, ~191 ocorrências na versão (3), proporção equivalente esperada na (4)) vira **N**
+  `AttendanceExam`, um por componente do split (ver 6.3).
+- `exam_code`/`exam_name`/`price_base` do item são o snapshot **da tabela vigente na Fase 2b/2 no
+  momento da importação**, não recalculado depois — mesma regra de qualquer outro
+  `AttendanceExam` (`.claude/rules/12-attendance.md`).
+- `protocol_number` da planilha (`Nº`/`Protocolo`, ex. `1/2026`) é preservado como referência
+  histórica **num campo separado** (ex. `legacy_protocol_reference`) — nunca reaproveitado como o
+  `protocol_year`/`protocol_sequence` transacional real, que deve ser gerado pela mesma sequência
+  de banco usada por atendimento novo (senão dois protocolos "1/2026" existiriam: o legado e um
+  novo, colidindo).
+- `billing_competence` da linha migrada é a competência **real da data do atendimento**
+  (`service_date.replace(day=1)`), não inferida de outra forma — mesma regra do atendimento
+  normal.
+
+### 6.3 Exame combinado — split proporcional (decisão já confirmada com o usuário nesta sessão)
+
+Regra: separar a string por `+`, buscar `price_base` **atual** de cada exame componente no
+catálogo, ratear o valor total da linha proporcionalmente ao peso de cada `price_base` (ajuste de
+arredondamento centavo a centavo na última parcela, nunca deixando a soma dos itens divergir do
+total original da linha — mesma invariante `grand_total = Σ item.total_amount` de qualquer
+`AttendanceRecord`). Se qualquer componente do split não existir no catálogo (fora do que a Fase
+2/2b já importou), a linha inteira cai em exceção manual — nunca cria exame novo nem improvisa
+preço.
+
+### 6.4 Casos especiais já identificados nesta análise
+
+- **Linha `TOTAIS` / resíduo de R$ 100,00**: nunca vira item financeiro — é a causa raiz já
+  documentada da divergência R$ 250.060,00 × R$ 250.160,00 (§2.6). Excluída explicitamente do
+  range de linhas válidas (a exclusão já é natural: linha `TOTAIS` não tem `Clínica` real, então
+  cai fora do filtro "linha com clínica válida" que Fase 1-3 já usa).
+- **Linha 406 (versão (4) — confirmado via leitura direta do arquivo nesta sessão; era a linha
+  402 na versão (3), só deslocada)**: `Valor - Desconto + Adicional ≠ Valor Total` (`Valor=113,00`,
+  `Desconto=0`, `Adicional=0`, `Total=135,00` — diferença de R$ 22,00 sem explicação nos dados).
+  Cai em exceção manual, nunca "consertada" assumindo qual dos dois números está certo.
+- **Zero ou preço ausente na ocorrência**: mesmo tratamento já usado na Fase 2 (`price <= 0` vira
+  "sem preço"), mas aqui o item individual da linha cai em exceção, não a linha inteira, já que
+  as outras linhas do mesmo `AttendanceRecord` (se combinado) podem estar corretas.
+
+### 6.5 Fechamento do período migrado
+
+- Nenhum `MonthlyClosure` é criado como efeito colateral da importação — fechamento histórico só
+  é criado **depois** da reconciliação completa (§5) e aprovação humana explícita, exatamente como
+  qualquer fechamento novo.
+- A soma dos `AttendanceExam.total_amount` de todos os registros migrados de uma competência deve
+  bater com a soma validada daquele mês; toda diferença exige exceção formal aprovada.
+
+### 6.6 Testes obrigatórios quando esta fatia for implementada
+
+Além dos gates gerais (`.claude/rules/08-testing.md`) e dos específicos de atendimento
+(`.claude/rules/12-attendance.md` — duplicidade por retry, protocolo sob concorrência real,
+isolamento de tenant, snapshot, auditoria): idempotência do lote completo (reprocessar não
+duplica `AttendanceRecord`/`AttendanceExam`), unicidade de protocolo novo mesmo com 2.497 linhas
+concorrendo pela mesma sequência transacional, split proporcional fechando exatamente com o total
+original da linha (property-based test — `Hypothesis`, mesmo padrão de `.claude/rules/08-testing.md`
+para invariante financeira), linha 406 e linha `TOTAIS` caindo em exceção e nunca em dado
+financeiro, e reconciliação de competência batendo com a soma validada por mês.

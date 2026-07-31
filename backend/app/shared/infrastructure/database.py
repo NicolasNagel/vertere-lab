@@ -1,7 +1,7 @@
 """Engine, session factory and declarative base.
 
 Every constraint gets an explicit name via the naming convention — required
-for reviewable Alembic migrations (see .claude/rules/database.md).
+for reviewable Alembic migrations (see .claude/rules/03-database.md).
 """
 
 from __future__ import annotations

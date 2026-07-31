@@ -1,5 +1,5 @@
 """Pydantic schemas for the identity API — create/update/read/filter kept
-separate; never the SQLAlchemy model (rule: .claude/rules/backend.md)."""
+separate; never the SQLAlchemy model (rule: .claude/rules/02-backend.md)."""
 
 from __future__ import annotations
 
@@ -15,7 +15,7 @@ class LoginRequest(BaseModel):
 
     # Sem limite superior, um payload arbitrariamente grande vira trabalho de
     # hash Argon2 sobre lixo antes mesmo de rejeitar a credencial — DoS
-    # barato (rule: .claude/rules/auth-security-lgpd.md, "limite de tamanho
+    # barato (rule: .claude/rules/06-auth-security-lgpd.md, "limite de tamanho
     # de payload"). 254 é o teto de e-mail do RFC 5321; 200 já é generoso
     # para qualquer senha real.
     login: str = Field(min_length=1, max_length=254)
@@ -97,7 +97,7 @@ class RoleCreateRequest(BaseModel):
     description: str = Field(default="", max_length=1000)
     # max_length no limite da lista, não só no texto de cada item: sem isso,
     # um array com milhões de códigos-lixo ainda chega inteiro até a query
-    # `all_codes_exist` (rule: .claude/rules/auth-security-lgpd.md, "limite
+    # `all_codes_exist` (rule: .claude/rules/06-auth-security-lgpd.md, "limite
     # de tamanho de payload"). O catálogo real tem ~30 códigos; 200 sobra
     # margem sem ser ilimitado.
     permissions: list[str] = Field(default_factory=list, max_length=200)

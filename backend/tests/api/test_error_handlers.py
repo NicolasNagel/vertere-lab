@@ -37,6 +37,6 @@ def test_integrity_error_maps_to_409_without_leaking_details() -> None:
     body = response.json()
     assert body["error"]["code"] == "CONFLICT"
     # Never leak table/column/constraint names or the raw SQL to the client
-    # (rule: .claude/rules/globals.md, "erro não expõe detalhe interno").
+    # (rule: .claude/rules/00-global.md, "erro não expõe detalhe interno").
     assert "exams" not in body["error"]["message"]
     assert "constraint" not in body["error"]["message"]

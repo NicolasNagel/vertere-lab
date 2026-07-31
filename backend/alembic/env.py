@@ -17,8 +17,11 @@ from alembic import context
 # so their tables register on `Base.metadata` before autogenerate compares
 # it against the database.
 from app.modules.audit.infrastructure import models as audit_models  # noqa: F401
+from app.modules.billing.infrastructure import models as billing_models  # noqa: F401
 from app.modules.identity.infrastructure import models as identity_models  # noqa: F401
+from app.modules.imports.infrastructure import models as imports_models  # noqa: F401
 from app.shared.infrastructure.database import Base
+from app.shared.outbox.infrastructure import models as outbox_models  # noqa: F401
 
 target_metadata = Base.metadata
 

@@ -1,0 +1,139 @@
+.patient-picker {
+  position: relative;
+}
+
+.patient-picker__label {
+  display: block;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--color-text-secondary);
+  margin-bottom: 0.375rem;
+}
+
+.patient-picker__selected {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.6875rem 0.875rem; /* 11px 14px */
+  border: 1px solid var(--color-brand-ink);
+  background: #ffffff;
+}
+
+.patient-picker__selected-name {
+  font-size: 0.84375rem;
+  font-weight: 600;
+  color: #1f3450;
+}
+
+.patient-picker__selected-owner {
+  font-size: 0.75rem;
+  color: var(--color-text-secondary);
+  margin-top: 0.125rem;
+}
+
+.patient-picker__change-button {
+  border: none;
+  background: none;
+  color: var(--color-brand-ink);
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  cursor: pointer;
+  padding: 0;
+}
+
+.patient-picker__results {
+  margin-top: 0.375rem;
+  border: 1px solid var(--color-border);
+  background: #ffffff;
+  max-height: 16rem;
+  overflow-y: auto;
+}
+
+.patient-picker__hint {
+  padding: 0.75rem 0.875rem;
+  font-size: 0.8125rem;
+  color: var(--color-text-secondary);
+  margin: 0;
+}
+
+.patient-picker__result {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  width: 100%;
+  padding: 0.625rem 0.875rem;
+  border: none;
+  border-bottom: 1px solid #f0ede5;
+  background: none;
+  text-align: left;
+  cursor: pointer;
+}
+
+.patient-picker__result:hover,
+.patient-picker__result:focus-visible {
+  background: var(--color-surface-cream);
+}
+
+.patient-picker__result-name {
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: #1f3450;
+}
+
+.patient-picker__result-owner {
+  font-size: 0.75rem;
+  color: var(--color-text-secondary);
+}
+
+.patient-picker__create {
+  padding: 0.625rem 0.875rem;
+}
+
+.patient-picker__duplicate-hint {
+  font-size: 0.75rem;
+  color: #a06d2c;
+  margin: 0 0 0.5rem;
+}
+
+.patient-picker__create-button {
+  border: 1px dashed #c7ccd4;
+  background: none;
+  color: var(--color-text-secondary);
+  font-size: 0.8125rem;
+  padding: 0.625rem;
+  width: 100%;
+  cursor: pointer;
+}
+
+.patient-picker__create-button:hover,
+.patient-picker__create-button:focus-visible {
+  border-color: var(--color-brand-ink);
+  color: var(--color-brand-ink);
+}
+
+.patient-picker__pagination {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.625rem 0.875rem;
+  border-top: 1px solid #f0ede5;
+  font-size: 0.75rem;
+  color: var(--color-text-secondary);
+}
+
+.patient-picker__pagination button {
+  border: 0;
+  background: none;
+  color: var(--color-brand-ink);
+  cursor: pointer;
+  font: inherit;
+  font-weight: 600;
+}
+
+.patient-picker__pagination button:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+}

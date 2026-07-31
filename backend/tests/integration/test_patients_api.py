@@ -178,7 +178,7 @@ async def test_reception_lists_seeded_species(
     assert response.status_code == 200
     names = [item["name"] for item in response.json()["items"]]
     assert names == sorted(names)
-    assert {"Cão", "Gato", "Ave", "Outro"} <= set(names)
+    assert {"Canino", "Felino", "Bovino", "Equino", "Coelho", "Caprino"} <= set(names)
 
 
 async def test_create_patient_without_permission_is_forbidden(
@@ -191,7 +191,7 @@ async def test_create_patient_without_permission_is_forbidden(
         role_id=ROLE_FINANCE,
     )
     await _login(client, email="finance@vertere.local", password="s3nhaForte!")
-    species_id = _get_species_id(session_factory, name="Cão")
+    species_id = _get_species_id(session_factory, name="Canino")
 
     response = await client.post(
         "/api/v1/patients",
@@ -213,7 +213,7 @@ async def test_create_and_get_patient(
         session_factory, email="admin@vertere.local", password="s3nhaForte!", role_id=ROLE_LAB_ADMIN
     )
     await _login(client, email="admin@vertere.local", password="s3nhaForte!")
-    species_id = _get_species_id(session_factory, name="Gato")
+    species_id = _get_species_id(session_factory, name="Felino")
 
     create_response = await client.post(
         "/api/v1/patients",
@@ -269,7 +269,7 @@ async def test_create_patient_allows_duplicate_owner_name(
         session_factory, email="admin@vertere.local", password="s3nhaForte!", role_id=ROLE_LAB_ADMIN
     )
     await _login(client, email="admin@vertere.local", password="s3nhaForte!")
-    species_id = _get_species_id(session_factory, name="Cão")
+    species_id = _get_species_id(session_factory, name="Canino")
     payload = {
         "name": "Rex",
         "species_id": species_id,
@@ -290,7 +290,7 @@ async def test_update_patient_with_stale_row_version_conflicts(
         session_factory, email="admin@vertere.local", password="s3nhaForte!", role_id=ROLE_LAB_ADMIN
     )
     await _login(client, email="admin@vertere.local", password="s3nhaForte!")
-    species_id = _get_species_id(session_factory, name="Cão")
+    species_id = _get_species_id(session_factory, name="Canino")
 
     create_response = await client.post(
         "/api/v1/patients",
@@ -325,7 +325,7 @@ async def test_deactivate_patient_preserves_record(
         session_factory, email="admin@vertere.local", password="s3nhaForte!", role_id=ROLE_LAB_ADMIN
     )
     await _login(client, email="admin@vertere.local", password="s3nhaForte!")
-    species_id = _get_species_id(session_factory, name="Cão")
+    species_id = _get_species_id(session_factory, name="Canino")
 
     create_response = await client.post(
         "/api/v1/patients",
@@ -352,7 +352,7 @@ async def test_search_patients_by_owner_name(
         session_factory, email="admin@vertere.local", password="s3nhaForte!", role_id=ROLE_LAB_ADMIN
     )
     await _login(client, email="admin@vertere.local", password="s3nhaForte!")
-    species_id = _get_species_id(session_factory, name="Cão")
+    species_id = _get_species_id(session_factory, name="Canino")
 
     await client.post(
         "/api/v1/patients",

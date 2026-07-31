@@ -1,5 +1,5 @@
 """Provider dependency, isolated so tests can override it without a real
-network call (rule: .claude/rules/testing.md — mock only at the external
+network call (rule: .claude/rules/08-testing.md — mock only at the external
 boundary, never the thing under test)."""
 
 from __future__ import annotations

@@ -44,6 +44,32 @@ test('requires a name before allowing submit', async () => {
   expect(onSubmitCreate).not.toHaveBeenCalled()
 })
 
+test('rejects malformed clinic identifiers and contact fields before submit', async () => {
+  const user = userEvent.setup()
+  const onSubmitCreate = vi.fn()
+  renderForm(
+    <ClinicForm
+      clinic={null}
+      submitting={false}
+      onCancel={() => {}}
+      onSubmitCreate={onSubmitCreate}
+    />,
+  )
+
+  await user.type(screen.getByLabelText('Nome da clínica'), 'Dados inválidos')
+  await user.type(screen.getByLabelText('CNPJ'), 'abc')
+  await user.type(screen.getByLabelText('E-mail'), 'sem-arroba')
+  await user.type(screen.getByLabelText('CEP'), '123')
+  await user.type(screen.getByLabelText('UF'), 'Z')
+  await user.click(screen.getByRole('button', { name: 'Salvar' }))
+
+  expect(await screen.findByText('Informe um CNPJ com 14 dígitos.')).toBeInTheDocument()
+  expect(screen.getByText('Informe um e-mail válido.')).toBeInTheDocument()
+  expect(screen.getByText('Informe um CEP com 8 dígitos.')).toBeInTheDocument()
+  expect(screen.getByText('Informe uma UF válida.')).toBeInTheDocument()
+  expect(onSubmitCreate).not.toHaveBeenCalled()
+})
+
 test('submits create values with empty optional fields as null', async () => {
   const user = userEvent.setup()
   const onSubmitCreate = vi.fn()

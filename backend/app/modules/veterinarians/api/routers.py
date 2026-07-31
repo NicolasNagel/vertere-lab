@@ -1,5 +1,5 @@
 """Veterinarians API — thin routers, no business rule (rule:
-.claude/rules/backend.md).
+.claude/rules/02-backend.md).
 
 Every mutating endpoint owns its transaction via the shared unit of work;
 read-only endpoints reuse the request-scoped session from
@@ -96,6 +96,7 @@ def list_veterinarians(
     status: VeterinarianStatus | None = Query(None),
     is_autonomous: bool | None = Query(None),
     search: str | None = Query(None),
+    available_for_clinic_id: UUID | None = Query(None),
     session: SqlAlchemySession = Depends(get_session),
     current_user: AuthenticatedUserDTO = Depends(require_permission("veterinarians.read")),
 ) -> VeterinarianListResponse:
@@ -108,6 +109,7 @@ def list_veterinarians(
             status=status,
             is_autonomous=is_autonomous,
             search=search,
+            available_for_clinic_id=available_for_clinic_id,
         )
     )
     return VeterinarianListResponse(

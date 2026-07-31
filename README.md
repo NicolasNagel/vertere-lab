@@ -58,6 +58,6 @@ O `AttendanceRecord` — Registro de Atendimento — é a espinha dorsal do sist
 6. `docs/06-estrategia-qa.md` — estratégia de qualidade baseada em risco;
 7. `docs/07-nucleo-v1.md` — especificação detalhada de usuários, permissões, atendimentos e fechamento;
 8. `docs/adr/` — decisões arquiteturais registradas;
-9. `CLAUDE.md` — contrato central para agentes de IA;
+9. `AGENTS.md` — contrato central para agentes de IA;
 10. `.claude/rules/*.md` — regras minuciosas por disciplina;
 11. `docs/VERTERE_LAB_PLANO_COMPLETO.md` — consolidação de todos os documentos.

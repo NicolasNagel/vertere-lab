@@ -47,4 +47,4 @@ formal, correção de alias, ou reprocessamento).
 
 ## Honestidade
 Divergência sem explicação nunca é "provavelmente arredondamento" — é bloqueante até virar
-exceção formal aprovada por humano, conforme `.claude/rules/11-data-migration.md`.
+exceção formal aprovada por humano, conforme `.claude/rules/10-data-migration.md`.
