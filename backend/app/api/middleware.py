@@ -18,6 +18,7 @@ logger = logging.getLogger("app.access")
 REQUEST_ID_HEADER = "X-Request-ID"
 SECURITY_HEADERS = {
     "Cache-Control": "no-store",
+    "Content-Security-Policy": "default-src 'none'; frame-ancestors 'none'; base-uri 'none'",
     "Permissions-Policy": "camera=(), geolocation=(), microphone=()",
     "Referrer-Policy": "no-referrer",
     "X-Content-Type-Options": "nosniff",
@@ -27,8 +28,15 @@ SAFE_METHODS = frozenset({"GET", "HEAD", "OPTIONS", "TRACE"})
 
 
 class RequestContextMiddleware(BaseHTTPMiddleware):
-    def __init__(self, app: ASGIApp, *, trusted_browser_origins: tuple[str, ...] = ()) -> None:
+    def __init__(
+        self,
+        app: ASGIApp,
+        *,
+        trusted_browser_origins: tuple[str, ...] = (),
+        enable_hsts: bool = False,
+    ) -> None:
         super().__init__(app)
+        self._enable_hsts = enable_hsts
         self._trusted_browser_origins = frozenset(
             origin.rstrip("/") for origin in trusted_browser_origins
         )
@@ -59,6 +67,11 @@ class RequestContextMiddleware(BaseHTTPMiddleware):
         response.headers[REQUEST_ID_HEADER] = request_id
         for header, value in SECURITY_HEADERS.items():
             response.headers.setdefault(header, value)
+        if self._enable_hsts:
+            response.headers.setdefault(
+                "Strict-Transport-Security",
+                "max-age=31536000; includeSubDomains",
+            )
         logger.info(
             "request",
             extra={

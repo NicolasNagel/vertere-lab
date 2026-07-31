@@ -58,6 +58,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.add_middleware(
         RequestContextMiddleware,
         trusted_browser_origins=app_settings.trusted_browser_origins,
+        enable_hsts=app_settings.env == "prod",
     )
     register_error_handlers(app)
 

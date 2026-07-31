@@ -10,6 +10,9 @@ async def test_health_returns_ok(client: httpx.AsyncClient) -> None:
     assert response.json() == {"status": "ok"}
     assert response.headers["X-Request-ID"]
     assert response.headers["Cache-Control"] == "no-store"
+    assert response.headers["Content-Security-Policy"] == (
+        "default-src 'none'; frame-ancestors 'none'; base-uri 'none'"
+    )
     assert response.headers["Permissions-Policy"] == "camera=(), geolocation=(), microphone=()"
     assert response.headers["Referrer-Policy"] == "no-referrer"
     assert response.headers["X-Content-Type-Options"] == "nosniff"
