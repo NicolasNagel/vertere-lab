@@ -1,4 +1,5 @@
 import { SearchIcon } from '../../../shared/ui/icons'
+import { Pagination } from '../../../shared/ui/pagination'
 import { formatTaxId, pluralize } from '../../../shared/lib/formatters'
 import type { Clinic } from '../api/clinics-api'
 import './clinic-list.css'
@@ -18,6 +19,10 @@ interface ClinicListProps {
   isLoading: boolean
   onSearchChange: (value: string) => void
   onSelect: (id: string) => void
+  page?: number
+  pageSize?: number
+  total?: number
+  onPageChange?: (page: number) => void
 }
 
 export function ClinicList({
@@ -28,6 +33,10 @@ export function ClinicList({
   isLoading,
   onSearchChange,
   onSelect,
+  page,
+  pageSize,
+  total,
+  onPageChange,
 }: ClinicListProps) {
   return (
     <div className="clinic-list">
@@ -80,6 +89,15 @@ export function ClinicList({
           </button>
         ))}
       </div>
+      {page && pageSize && total !== undefined && onPageChange && (
+        <Pagination
+          itemLabel={['clínica', 'clínicas']}
+          page={page}
+          pageSize={pageSize}
+          total={total}
+          onPageChange={onPageChange}
+        />
+      )}
     </div>
   )
 }

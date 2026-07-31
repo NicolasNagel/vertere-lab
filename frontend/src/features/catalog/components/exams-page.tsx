@@ -5,6 +5,7 @@ import { useAuth } from '../../auth/auth-provider'
 import { useSpeciesQuery } from '../../patients/api/use-species-query'
 import { Button } from '../../../shared/ui/button'
 import { PlusIcon } from '../../../shared/ui/icons'
+import { Pagination } from '../../../shared/ui/pagination'
 import { useActiveExamCategoriesQuery } from '../api/use-active-exam-categories-query'
 import { useDeactivateExamMutation } from '../api/use-deactivate-exam-mutation'
 import { useExamsQuery } from '../api/use-exams-query'
@@ -23,11 +24,18 @@ export function ExamsPage() {
   const [search, setSearch] = useState('')
   const [categoryId, setCategoryId] = useState<string | null>(null)
   const [speciesId, setSpeciesId] = useState<string | null>(null)
+  const [page, setPage] = useState(1)
 
   // Página inteira cabe em 100 itens hoje (ver pendência documentada no
   // plano) — contagens por categoria/espécie e filtro refletem essa página
   // carregada, não uma agregação de servidor.
-  const listQuery = useExamsQuery({ search: search || undefined, pageSize: 100 })
+  const listQuery = useExamsQuery({
+    search: search || undefined,
+    categoryId: categoryId ?? undefined,
+    speciesId: speciesId ?? undefined,
+    page,
+    pageSize: 25,
+  })
   const categoriesQuery = useActiveExamCategoriesQuery()
   const speciesQuery = useSpeciesQuery()
   const deactivateMutation = useDeactivateExamMutation()
@@ -106,10 +114,16 @@ export function ExamsPage() {
           categoryCounts={categoryCounts}
           totalCount={allExams.length}
           selectedCategoryId={categoryId}
-          onSelectCategory={setCategoryId}
+          onSelectCategory={(value) => {
+            setCategoryId(value)
+            setPage(1)
+          }}
           species={species}
           selectedSpeciesId={speciesId}
-          onSelectSpecies={setSpeciesId}
+          onSelectSpecies={(value) => {
+            setSpeciesId(value)
+            setPage(1)
+          }}
         />
 
         <div className="exams-page__main">
@@ -127,9 +141,19 @@ export function ExamsPage() {
             canManage={canManage}
             priceVisible={priceVisible}
             search={search}
-            onSearchChange={setSearch}
+            onSearchChange={(value) => {
+              setSearch(value)
+              setPage(1)
+            }}
             onRowClick={(examId) => navigate(`/cadastros/exames/${examId}/editar`)}
             onDeactivate={(examId) => deactivateMutation.mutate(examId)}
+          />
+          <Pagination
+            itemLabel={['exame', 'exames']}
+            page={listQuery.data?.page ?? page}
+            pageSize={listQuery.data?.pageSize ?? 25}
+            total={listQuery.data?.total ?? 0}
+            onPageChange={setPage}
           />
         </div>
       </div>

@@ -28,12 +28,13 @@ export function UsersPage() {
   const canActivate = user?.permissions.includes('users.activate') ?? false
 
   const [search, setSearch] = useState('')
+  const [page, setPage] = useState(1)
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [mode, setMode] = useState<PanelMode>('view')
   const [isAssigningRole, setIsAssigningRole] = useState(false)
   const [createdUser, setCreatedUser] = useState<CreatedUser | null>(null)
 
-  const listQuery = useUsersQuery({ search: search || undefined, pageSize: 100 })
+  const listQuery = useUsersQuery({ search: search || undefined, page, pageSize: 25 })
   // Fase 2 ainda não tem `ClinicMembership` real: perfis de escopo CLINIC
   // (CLINIC_ADMIN/VETERINARIAN/CLINIC_STAFF) não têm permissão nem vínculo
   // funcional, então ficam fora da lista de perfis atribuíveis aqui.
@@ -104,8 +105,15 @@ export function UsersPage() {
             selectedId={mode === 'create' ? null : selectedId}
             search={search}
             isLoading={listQuery.isLoading}
-            onSearchChange={setSearch}
+            onSearchChange={(value) => {
+              setSearch(value)
+              setPage(1)
+            }}
             onSelect={handleSelect}
+            page={listQuery.data?.page ?? page}
+            pageSize={listQuery.data?.pageSize ?? 25}
+            total={listQuery.data?.total ?? 0}
+            onPageChange={setPage}
           />
 
           {mode === 'create' ? (

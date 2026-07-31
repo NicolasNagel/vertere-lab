@@ -1,4 +1,5 @@
 import { SearchIcon } from '../../../shared/ui/icons'
+import { Pagination } from '../../../shared/ui/pagination'
 import { pluralize } from '../../../shared/lib/formatters'
 import type { Veterinarian } from '../api/veterinarians-api'
 import './veterinarian-list.css'
@@ -26,6 +27,10 @@ interface VeterinarianListProps {
   onSearchChange: (value: string) => void
   onTypeFilterChange: (value: VeterinarianTypeFilter) => void
   onSelect: (id: string) => void
+  page?: number
+  pageSize?: number
+  total?: number
+  onPageChange?: (page: number) => void
 }
 
 export function VeterinarianList({
@@ -38,6 +43,10 @@ export function VeterinarianList({
   onSearchChange,
   onTypeFilterChange,
   onSelect,
+  page,
+  pageSize,
+  total,
+  onPageChange,
 }: VeterinarianListProps) {
   return (
     <div className="veterinarian-list">
@@ -104,6 +113,15 @@ export function VeterinarianList({
           </button>
         ))}
       </div>
+      {page && pageSize && total !== undefined && onPageChange && (
+        <Pagination
+          itemLabel={['veterinário', 'veterinários']}
+          page={page}
+          pageSize={pageSize}
+          total={total}
+          onPageChange={onPageChange}
+        />
+      )}
     </div>
   )
 }

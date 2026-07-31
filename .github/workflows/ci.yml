@@ -96,39 +96,42 @@ jobs:
   e2e-critico:
     needs: [backend, frontend]
     runs-on: ubuntu-latest
-    services:
-      postgres:
-        image: postgres:16
-        env:
-          POSTGRES_USER: vertere
-          POSTGRES_PASSWORD: vertere
-          POSTGRES_DB: vertere_e2e
-        ports: ["5432:5432"]
-        options: >-
-          --health-cmd "pg_isready -U vertere"
-          --health-interval 5s
-          --health-timeout 5s
-          --health-retries 10
+    defaults:
+      run:
+        working-directory: frontend
     steps:
       - uses: actions/checkout@v4
-      # TODO ao implementar o núcleo: subir backend (uvicorn) + frontend (preview build) e
-      # rodar `npx playwright test` contra os 7 passos do cenário E2E mínimo do
-      # .claude/rules/08-testing.md. Deixado como TODO proposital — não inventar passo de E2E
-      # antes de o fluxo existir de verdade.
-      - name: Placeholder — implementar quando o núcleo (atendimento + fechamento) existir
-        run: echo "E2E crítico ainda não implementado — ver TODO neste arquivo."
+
+      - name: Instalar Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Instalar dependencias
+        run: npm ci
+
+      - name: Instalar Chromium
+        run: npx playwright install --with-deps chromium
+
+      - name: Build
+        run: npm run build
+
+      - name: Playwright e axe
+        run: npm run test:e2e
 
   # Nunca falha silenciosamente: se algum job acima quebrar, este também falha — serve como
   # único check obrigatório em branch protection.
   gate:
-    needs: [backend, frontend]
+    needs: [backend, frontend, e2e-critico]
     runs-on: ubuntu-latest
     if: always()
     steps:
       - name: Checar resultado dos jobs
         run: |
-          if [[ "${{ needs.backend.result }}" != "success" || "${{ needs.frontend.result }}" != "success" ]]; then
-            echo "Gate vermelho — backend: ${{ needs.backend.result }}, frontend: ${{ needs.frontend.result }}"
+          if [[ "${{ needs.backend.result }}" != "success" || "${{ needs.frontend.result }}" != "success" || "${{ needs.e2e-critico.result }}" != "success" ]]; then
+            echo "Gate vermelho — backend: ${{ needs.backend.result }}, frontend: ${{ needs.frontend.result }}, e2e: ${{ needs.e2e-critico.result }}"
             exit 1
           fi
           echo "Gate verde."

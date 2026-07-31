@@ -20,6 +20,7 @@ export function VeterinariansPage() {
   const canManage = user?.permissions.includes('veterinarians.manage') ?? false
 
   const [search, setSearch] = useState('')
+  const [page, setPage] = useState(1)
   const [typeFilter, setTypeFilter] = useState<VeterinarianTypeFilter>('all')
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [mode, setMode] = useState<PanelMode>('view')
@@ -33,7 +34,8 @@ export function VeterinariansPage() {
   const listQuery = useVeterinariansQuery({
     search: search || undefined,
     isAutonomous,
-    pageSize: 100,
+    page,
+    pageSize: 25,
   })
   const detailQuery = useVeterinarianQuery(mode === 'create' ? null : selectedId)
 
@@ -85,9 +87,19 @@ export function VeterinariansPage() {
           search={search}
           typeFilter={typeFilter}
           isLoading={listQuery.isLoading}
-          onSearchChange={setSearch}
-          onTypeFilterChange={setTypeFilter}
+          onSearchChange={(value) => {
+            setSearch(value)
+            setPage(1)
+          }}
+          onTypeFilterChange={(value) => {
+            setTypeFilter(value)
+            setPage(1)
+          }}
           onSelect={handleSelect}
+          page={listQuery.data?.page ?? page}
+          pageSize={listQuery.data?.pageSize ?? 25}
+          total={listQuery.data?.total ?? 0}
+          onPageChange={setPage}
         />
 
         {mode === 'create' ? (

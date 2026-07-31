@@ -155,7 +155,7 @@ exatamente o que ficou sem validação — nunca afirme que um comando passou se
 | DRY | Duplicou 2x+, extraia |
 | KISS | A solução mais simples que resolve, não a mais genérica |
 | YAGNI | Não construa para um caso de uso que ninguém pediu (P1/P2 fora de ordem) |
- 
+
 - **Função pequena e de responsabilidade única**; guard clauses em vez de aninhar `if`; poucos
   argumentos (agrupe em objeto/schema quando passar de 3).
 - **Composição em vez de herança profunda.**

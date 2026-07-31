@@ -30,7 +30,7 @@
   font-weight: 500;
   text-transform: none;
   letter-spacing: normal;
-  color: var(--color-accent-mist);
+  color: #52777a;
 }
 
 .login-form__row {

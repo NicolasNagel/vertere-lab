@@ -12,6 +12,8 @@ htmlcov/
 node_modules/
 frontend/dist/
 frontend/coverage/
+frontend/playwright-report/
+frontend/test-results/
 
 # Environment — secrets never enter the repository
 .env

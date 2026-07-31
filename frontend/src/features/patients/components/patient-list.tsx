@@ -1,4 +1,5 @@
 import { SearchIcon } from '../../../shared/ui/icons'
+import { Pagination } from '../../../shared/ui/pagination'
 import { pluralize } from '../../../shared/lib/formatters'
 import type { Patient } from '../api/patients-api'
 import './patient-list.css'
@@ -16,6 +17,10 @@ interface PatientListProps {
   isLoading: boolean
   onSearchChange: (value: string) => void
   onSelect: (id: string) => void
+  page?: number
+  pageSize?: number
+  total?: number
+  onPageChange?: (page: number) => void
 }
 
 export function PatientList({
@@ -26,6 +31,10 @@ export function PatientList({
   isLoading,
   onSearchChange,
   onSelect,
+  page,
+  pageSize,
+  total,
+  onPageChange,
 }: PatientListProps) {
   return (
     <div className="patient-list">
@@ -68,6 +77,15 @@ export function PatientList({
           </button>
         ))}
       </div>
+      {page && pageSize && total !== undefined && onPageChange && (
+        <Pagination
+          itemLabel={['paciente', 'pacientes']}
+          page={page}
+          pageSize={pageSize}
+          total={total}
+          onPageChange={onPageChange}
+        />
+      )}
     </div>
   )
 }

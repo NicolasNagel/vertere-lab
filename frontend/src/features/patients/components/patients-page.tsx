@@ -20,10 +20,11 @@ export function PatientsPage() {
   const canManage = user?.permissions.includes('patients.manage') ?? false
 
   const [search, setSearch] = useState('')
+  const [page, setPage] = useState(1)
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [mode, setMode] = useState<PanelMode>('view')
 
-  const listQuery = usePatientsQuery({ search: search || undefined, pageSize: 100 })
+  const listQuery = usePatientsQuery({ search: search || undefined, page, pageSize: 25 })
   const detailQuery = usePatientQuery(mode === 'create' ? null : selectedId)
 
   const createMutation = useCreatePatientMutation()
@@ -69,8 +70,15 @@ export function PatientsPage() {
           selectedId={mode === 'create' ? null : selectedId}
           search={search}
           isLoading={listQuery.isLoading}
-          onSearchChange={setSearch}
+          onSearchChange={(value) => {
+            setSearch(value)
+            setPage(1)
+          }}
           onSelect={handleSelect}
+          page={listQuery.data?.page ?? page}
+          pageSize={listQuery.data?.pageSize ?? 25}
+          total={listQuery.data?.total ?? 0}
+          onPageChange={setPage}
         />
 
         {mode === 'create' ? (

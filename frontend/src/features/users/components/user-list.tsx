@@ -1,4 +1,5 @@
 import { SearchIcon } from '../../../shared/ui/icons'
+import { Pagination } from '../../../shared/ui/pagination'
 import { pluralize } from '../../../shared/lib/formatters'
 import type { User } from '../api/users-api'
 import './user-list.css'
@@ -18,6 +19,10 @@ interface UserListProps {
   isLoading: boolean
   onSearchChange: (value: string) => void
   onSelect: (id: string) => void
+  page?: number
+  pageSize?: number
+  total?: number
+  onPageChange?: (page: number) => void
 }
 
 export function UserList({
@@ -28,6 +33,10 @@ export function UserList({
   isLoading,
   onSearchChange,
   onSelect,
+  page,
+  pageSize,
+  total,
+  onPageChange,
 }: UserListProps) {
   return (
     <div className="user-list">
@@ -84,6 +93,15 @@ export function UserList({
           </button>
         ))}
       </div>
+      {page && pageSize && total !== undefined && onPageChange && (
+        <Pagination
+          itemLabel={['usuário', 'usuários']}
+          page={page}
+          pageSize={pageSize}
+          total={total}
+          onPageChange={onPageChange}
+        />
+      )}
     </div>
   )
 }

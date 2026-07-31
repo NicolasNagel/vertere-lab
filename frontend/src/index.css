@@ -1,9 +1,15 @@
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
 :root {
   /* Paleta da marca — assets/features/screens/1-login.html */
   --color-brand-ink: #2c4768;
   --color-brand-ink-deep: #1f3450;
   --color-text-primary: #1a2d45;
-  --color-text-secondary: #6b7b8c;
+  --color-text-secondary: #596979;
   --color-surface-cream: #eeeae0;
   --color-surface-form: #fbfaf6;
   --color-border: #e5e2db;

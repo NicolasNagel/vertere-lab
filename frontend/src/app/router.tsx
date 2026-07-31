@@ -1,25 +1,14 @@
 import { createBrowserRouter } from 'react-router-dom'
 
-import { AttendanceDetailPage } from '../features/attendances/components/attendance-detail-page'
-import { AttendanceDraftPage } from '../features/attendances/components/attendance-draft-page'
-import { AttendanceListPage } from '../features/attendances/components/attendance-list-page'
-import { LoginPage } from '../features/auth/components/login-page'
 import { ProtectedRoute } from '../features/auth/protected-route'
-import { ClosurePreviewPage } from '../features/billing/components/closure-preview-page'
-import { ExamFormPage } from '../features/catalog/components/exam-form-page'
-import { ExamsPage } from '../features/catalog/components/exams-page'
-import { ClinicsPage } from '../features/clinics/components/clinics-page'
-import { PatientsPage } from '../features/patients/components/patients-page'
-import { RolesPage } from '../features/roles/components/roles-page'
-import { UsersPage } from '../features/users/components/users-page'
-import { VeterinariansPage } from '../features/veterinarians/components/veterinarians-page'
 import { AppShell } from '../shared/layout/app-shell'
-import { HomePage } from './home-page'
 
 export const router = createBrowserRouter([
   {
     path: '/login',
-    element: <LoginPage />,
+    lazy: async () => ({
+      Component: (await import('../features/auth/components/login-page')).LoginPage,
+    }),
   },
   {
     element: (
@@ -28,19 +17,87 @@ export const router = createBrowserRouter([
       </ProtectedRoute>
     ),
     children: [
-      { path: '/', element: <HomePage /> },
-      { path: '/operacao', element: <AttendanceListPage /> },
-      { path: '/operacao/novo', element: <AttendanceDraftPage /> },
-      { path: '/operacao/:attendanceId', element: <AttendanceDetailPage /> },
-      { path: '/cadastros/clinicas', element: <ClinicsPage /> },
-      { path: '/cadastros/veterinarios', element: <VeterinariansPage /> },
-      { path: '/pacientes', element: <PatientsPage /> },
-      { path: '/cadastros/exames', element: <ExamsPage /> },
-      { path: '/cadastros/exames/novo', element: <ExamFormPage /> },
-      { path: '/cadastros/exames/:examId/editar', element: <ExamFormPage /> },
-      { path: '/administracao/usuarios', element: <UsersPage /> },
-      { path: '/administracao/perfis', element: <RolesPage /> },
-      { path: '/financeiro/fechamento', element: <ClosurePreviewPage /> },
+      {
+        path: '/',
+        lazy: async () => ({ Component: (await import('./home-page')).HomePage }),
+      },
+      {
+        path: '/operacao',
+        lazy: async () => ({
+          Component: (await import('../features/attendances/components/attendance-list-page'))
+            .AttendanceListPage,
+        }),
+      },
+      {
+        path: '/operacao/novo',
+        lazy: async () => ({
+          Component: (await import('../features/attendances/components/attendance-draft-page'))
+            .AttendanceDraftPage,
+        }),
+      },
+      {
+        path: '/operacao/:attendanceId',
+        lazy: async () => ({
+          Component: (await import('../features/attendances/components/attendance-detail-page'))
+            .AttendanceDetailPage,
+        }),
+      },
+      {
+        path: '/cadastros/clinicas',
+        lazy: async () => ({
+          Component: (await import('../features/clinics/components/clinics-page')).ClinicsPage,
+        }),
+      },
+      {
+        path: '/cadastros/veterinarios',
+        lazy: async () => ({
+          Component: (await import('../features/veterinarians/components/veterinarians-page'))
+            .VeterinariansPage,
+        }),
+      },
+      {
+        path: '/pacientes',
+        lazy: async () => ({
+          Component: (await import('../features/patients/components/patients-page')).PatientsPage,
+        }),
+      },
+      {
+        path: '/cadastros/exames',
+        lazy: async () => ({
+          Component: (await import('../features/catalog/components/exams-page')).ExamsPage,
+        }),
+      },
+      {
+        path: '/cadastros/exames/novo',
+        lazy: async () => ({
+          Component: (await import('../features/catalog/components/exam-form-page')).ExamFormPage,
+        }),
+      },
+      {
+        path: '/cadastros/exames/:examId/editar',
+        lazy: async () => ({
+          Component: (await import('../features/catalog/components/exam-form-page')).ExamFormPage,
+        }),
+      },
+      {
+        path: '/administracao/usuarios',
+        lazy: async () => ({
+          Component: (await import('../features/users/components/users-page')).UsersPage,
+        }),
+      },
+      {
+        path: '/administracao/perfis',
+        lazy: async () => ({
+          Component: (await import('../features/roles/components/roles-page')).RolesPage,
+        }),
+      },
+      {
+        path: '/financeiro/fechamento',
+        lazy: async () => ({
+          Component: (await import('../features/billing/components/closure-preview-page'))
+            .ClosurePreviewPage,
+        }),
+      },
     ],
   },
 ])
