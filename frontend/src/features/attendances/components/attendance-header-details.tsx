@@ -8,11 +8,11 @@ import { Button } from '../../../shared/ui/button'
 import { SelectField, type SelectOption } from '../../../shared/ui/select'
 import { TextField } from '../../../shared/ui/text-field'
 import { useClinicQuery } from '../../clinics/api/use-clinic-query'
-import { useClinicsQuery } from '../../clinics/api/use-clinics-query'
+import { useAllClinicsQuery } from '../../clinics/api/use-clinics-query'
 import type { Patient } from '../../patients/api/patients-api'
 import { usePatientQuery } from '../../patients/api/use-patient-query'
 import { useVeterinarianQuery } from '../../veterinarians/api/use-veterinarian-query'
-import { useVeterinariansQuery } from '../../veterinarians/api/use-veterinarians-query'
+import { useAllVeterinariansQuery } from '../../veterinarians/api/use-veterinarians-query'
 import { attendanceQueryKey } from '../api/use-attendance-query'
 import { useUpdateAttendanceMutation } from '../api/use-update-attendance-mutation'
 import type { Attendance } from '../api/attendances-api'
@@ -42,16 +42,15 @@ export function AttendanceHeaderDetails({ attendance, editable }: AttendanceHead
   const veterinarianQuery = useVeterinarianQuery(attendance.veterinarianId)
   const patientQuery = usePatientQuery(attendance.patientId)
 
-  // `useClinicsQuery`/`useVeterinariansQuery` have no null-disable pattern
+  // The all-pages queries keep the current selection available in large datasets.
   // (unlike the other hooks in this feature) — same as
   // `attendance-draft-form.tsx`, which already fetches both unconditionally
   // for the same reason: these lists are small and TanStack Query caches
   // them, so gating behind `editing` would only add a loading flicker on
   // first "Editar dados" click, not save a real request in practice.
-  const clinicsQuery = useClinicsQuery({ status: 'ACTIVE', pageSize: 100 })
-  const veterinariansQuery = useVeterinariansQuery({
+  const clinicsQuery = useAllClinicsQuery({ status: 'ACTIVE' })
+  const veterinariansQuery = useAllVeterinariansQuery({
     status: 'ACTIVE',
-    pageSize: 100,
     availableForClinicId: clinicId || undefined,
   })
   const updateMutation = useUpdateAttendanceMutation()

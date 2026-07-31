@@ -3,7 +3,7 @@ import { useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { z } from 'zod'
 
-import { useClinicsQuery } from '../../clinics/api/use-clinics-query'
+import { useAllClinicsQuery } from '../../clinics/api/use-clinics-query'
 import { Button } from '../../../shared/ui/button'
 import { Checkbox } from '../../../shared/ui/checkbox'
 import { SelectField } from '../../../shared/ui/select'
@@ -96,7 +96,7 @@ export function VeterinarianForm({
   const isAutonomous = watch('isAutonomous')
   const [selectedClinicIds, setSelectedClinicIds] = useState<string[]>([])
   const [clinicsError, setClinicsError] = useState<string | null>(null)
-  const clinicsQuery = useClinicsQuery({ status: 'ACTIVE', pageSize: 100 })
+  const clinicsQuery = useAllClinicsQuery({ status: 'ACTIVE' })
   const activeClinics = clinicsQuery.data?.items ?? []
 
   function toggleClinic(clinicId: string) {

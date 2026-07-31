@@ -5,7 +5,7 @@ import { formatCompetence, formatCurrencyBRL } from '../../../shared/lib/formatt
 import { Button } from '../../../shared/ui/button'
 import type { SelectOption } from '../../../shared/ui/select'
 import { useAuth } from '../../auth/auth-context'
-import { useClinicsQuery } from '../../clinics/api/use-clinics-query'
+import { useAllClinicsQuery } from '../../clinics/api/use-clinics-query'
 import { useClosurePreviewQuery } from '../api/use-closure-preview-query'
 import type { MonthlyClosure } from '../api/closures-api'
 import { ClosureCloseModal } from './closure-close-modal'
@@ -27,7 +27,7 @@ export function ClosurePreviewPage() {
   const [showCloseModal, setShowCloseModal] = useState(false)
   const [justClosed, setJustClosed] = useState<MonthlyClosure | null>(null)
 
-  const clinicsQuery = useClinicsQuery({ pageSize: 100 })
+  const clinicsQuery = useAllClinicsQuery()
   const clinicOptions: SelectOption[] = (clinicsQuery.data?.items ?? []).map((clinic) => ({
     value: clinic.id,
     label: clinic.name,

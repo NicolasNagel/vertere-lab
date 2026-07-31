@@ -5,7 +5,7 @@ import { Button } from '../../../shared/ui/button'
 import { PlusIcon } from '../../../shared/ui/icons'
 import type { SelectOption } from '../../../shared/ui/select'
 import { useAuth } from '../../auth/auth-context'
-import { useRolesQuery } from '../../roles/api/use-roles-query'
+import { useAllRolesQuery } from '../../roles/api/use-roles-query'
 import { useActivateUserMutation } from '../api/use-activate-user-mutation'
 import { useAssignRoleMutation } from '../api/use-assign-role-mutation'
 import { useCreateUserMutation } from '../api/use-create-user-mutation'
@@ -38,7 +38,7 @@ export function UsersPage() {
   // Fase 2 ainda não tem `ClinicMembership` real: perfis de escopo CLINIC
   // (CLINIC_ADMIN/VETERINARIAN/CLINIC_STAFF) não têm permissão nem vínculo
   // funcional, então ficam fora da lista de perfis atribuíveis aqui.
-  const rolesQuery = useRolesQuery({ pageSize: 100 })
+  const rolesQuery = useAllRolesQuery()
 
   const createMutation = useCreateUserMutation()
   const assignRoleMutation = useAssignRoleMutation()

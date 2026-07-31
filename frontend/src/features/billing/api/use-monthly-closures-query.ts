@@ -6,9 +6,10 @@ export function monthlyClosuresQueryKey(params: MonthlyClosureListParams) {
   return ['monthly-closures', params] as const
 }
 
-export function useMonthlyClosuresQuery(params: MonthlyClosureListParams) {
+export function useMonthlyClosuresQuery(params: MonthlyClosureListParams | null) {
   return useQuery({
-    queryKey: monthlyClosuresQueryKey(params),
-    queryFn: () => fetchMonthlyClosures(params),
+    queryKey: params ? monthlyClosuresQueryKey(params) : ['monthly-closures', 'idle'],
+    queryFn: () => fetchMonthlyClosures(params as MonthlyClosureListParams),
+    enabled: params !== null,
   })
 }

@@ -105,6 +105,13 @@ export const router = createBrowserRouter([
             .ClosurePreviewPage,
         }),
       },
+      {
+        path: '/financeiro/fechamentos/:closureId',
+        lazy: async () => ({
+          Component: (await import('../features/billing/components/closure-detail-page'))
+            .ClosureDetailPage,
+        }),
+      },
     ],
   },
 ])

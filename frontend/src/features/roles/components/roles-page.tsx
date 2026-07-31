@@ -4,10 +4,10 @@ import { ApiError } from '../../../shared/api/errors'
 import { Button } from '../../../shared/ui/button'
 import { PlusIcon } from '../../../shared/ui/icons'
 import { useAuth } from '../../auth/auth-context'
-import { useUsersQuery } from '../../users/api/use-users-query'
+import { useAllUsersQuery } from '../../users/api/use-users-query'
 import { useCreateRoleMutation } from '../api/use-create-role-mutation'
 import { usePermissionsQuery } from '../api/use-permissions-query'
-import { useRolesQuery } from '../api/use-roles-query'
+import { useAllRolesQuery } from '../api/use-roles-query'
 import { useUpdateRoleMutation } from '../api/use-update-role-mutation'
 import { RoleCreateForm } from './role-create-form'
 import { RoleDetailPanel } from './role-detail-panel'
@@ -23,9 +23,9 @@ export function RolesPage() {
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [mode, setMode] = useState<PanelMode>('view')
 
-  const rolesQuery = useRolesQuery({ pageSize: 100 })
+  const rolesQuery = useAllRolesQuery()
   const permissionsQuery = usePermissionsQuery()
-  const usersQuery = useUsersQuery({ pageSize: 100 })
+  const usersQuery = useAllUsersQuery()
 
   const createMutation = useCreateRoleMutation()
   const updateMutation = useUpdateRoleMutation()

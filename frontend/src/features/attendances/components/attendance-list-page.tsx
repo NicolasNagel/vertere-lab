@@ -5,10 +5,10 @@ import { ApiError } from '../../../shared/api/errors'
 import { PlusIcon } from '../../../shared/ui/icons'
 import type { SelectOption } from '../../../shared/ui/select'
 import { useAuth } from '../../auth/auth-context'
-import { useClinicsQuery } from '../../clinics/api/use-clinics-query'
-import { usePatientsQuery } from '../../patients/api/use-patients-query'
+import { useAllClinicsQuery } from '../../clinics/api/use-clinics-query'
+import { useAllPatientsQuery } from '../../patients/api/use-patients-query'
 import { useSpeciesQuery } from '../../patients/api/use-species-query'
-import { useVeterinariansQuery } from '../../veterinarians/api/use-veterinarians-query'
+import { useAllVeterinariansQuery } from '../../veterinarians/api/use-veterinarians-query'
 import type { AttendanceStatus } from '../api/attendances-api'
 import { useAttendancesQuery } from '../api/use-attendances-query'
 import { AttendanceListFilters } from './attendance-list-filters'
@@ -28,9 +28,9 @@ export function AttendanceListPage() {
   const [clinicId, setClinicId] = useState('')
   const [veterinarianId, setVeterinarianId] = useState('')
 
-  const clinicsQuery = useClinicsQuery({ pageSize: 100 })
-  const veterinariansQuery = useVeterinariansQuery({ pageSize: 100 })
-  const patientsQuery = usePatientsQuery({ pageSize: 100 })
+  const clinicsQuery = useAllClinicsQuery()
+  const veterinariansQuery = useAllVeterinariansQuery()
+  const patientsQuery = useAllPatientsQuery()
   const speciesQuery = useSpeciesQuery()
 
   const attendancesQuery = useAttendancesQuery(

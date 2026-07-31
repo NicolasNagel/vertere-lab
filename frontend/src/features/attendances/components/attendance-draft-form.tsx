@@ -5,9 +5,9 @@ import { Button } from '../../../shared/ui/button'
 import { SelectField, type SelectOption } from '../../../shared/ui/select'
 import { TextField } from '../../../shared/ui/text-field'
 import { useAuth } from '../../auth/auth-context'
-import { useClinicsQuery } from '../../clinics/api/use-clinics-query'
+import { useAllClinicsQuery } from '../../clinics/api/use-clinics-query'
 import type { Patient } from '../../patients/api/patients-api'
-import { useVeterinariansQuery } from '../../veterinarians/api/use-veterinarians-query'
+import { useAllVeterinariansQuery } from '../../veterinarians/api/use-veterinarians-query'
 import { useCreateAttendanceDraftMutation } from '../api/use-create-attendance-draft-mutation'
 import type { Attendance } from '../api/attendances-api'
 import { CreatePatientModal } from './create-patient-modal'
@@ -36,16 +36,15 @@ export function AttendanceDraftForm({ onCreated, onCancel }: AttendanceDraftForm
   const [notes, setNotes] = useState('')
   const [creatingPatientWithName, setCreatingPatientWithName] = useState<string | null>(null)
 
-  const clinicsQuery = useClinicsQuery({ status: 'ACTIVE', pageSize: 100 })
+  const clinicsQuery = useAllClinicsQuery({ status: 'ACTIVE' })
   // Autônomo aparece pra qualquer clínica; vinculado só aparece pra quem
   // ele está de fato vinculado — mesma regra que o backend revalida em
   // /confirm (`.claude/rules/12-attendance.md`). Filtrado no servidor: a
   // listagem de veterinários não carrega os vínculos de clínica por item
   // (só o endpoint de detalhe carrega), então isso não dá pra fazer no
   // cliente.
-  const veterinariansQuery = useVeterinariansQuery({
+  const veterinariansQuery = useAllVeterinariansQuery({
     status: 'ACTIVE',
-    pageSize: 100,
     availableForClinicId: clinicId || undefined,
   })
   const createDraftMutation = useCreateAttendanceDraftMutation()

@@ -1,6 +1,6 @@
 import { useState } from 'react'
 
-import { useClinicsQuery } from '../../clinics/api/use-clinics-query'
+import { useAllClinicsQuery } from '../../clinics/api/use-clinics-query'
 import { Button } from '../../../shared/ui/button'
 import { KebabMenu, type KebabMenuItem } from '../../../shared/ui/kebab-menu'
 import { SelectField } from '../../../shared/ui/select'
@@ -30,7 +30,7 @@ interface VeterinarianClinicsCardProps {
 
 function VeterinarianClinicsCard({ veterinarian, canManage }: VeterinarianClinicsCardProps) {
   const [selectedClinicId, setSelectedClinicId] = useState('')
-  const clinicsQuery = useClinicsQuery({ status: 'ACTIVE', pageSize: 100 })
+  const clinicsQuery = useAllClinicsQuery({ status: 'ACTIVE' })
   const linkMutation = useLinkVeterinarianClinicMutation()
   const unlinkMutation = useUnlinkVeterinarianClinicMutation()
 

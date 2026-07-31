@@ -3,7 +3,7 @@ import { useState } from 'react'
 import { ApiError } from '../../../shared/api/errors'
 import { SelectField, type SelectOption } from '../../../shared/ui/select'
 import { useAuth } from '../../auth/auth-context'
-import { useClinicsQuery } from '../../clinics/api/use-clinics-query'
+import { useAllClinicsQuery } from '../../clinics/api/use-clinics-query'
 import { useMonthlyClosuresQuery } from '../api/use-monthly-closures-query'
 import { ClosuresListPagination } from './closures-list-pagination'
 import { ClosuresListTable } from './closures-list-table'
@@ -18,7 +18,7 @@ export function ClosuresListPage() {
   const [page, setPage] = useState(1)
   const [clinicId, setClinicId] = useState('')
 
-  const clinicsQuery = useClinicsQuery({ pageSize: 100 })
+  const clinicsQuery = useAllClinicsQuery()
   const clinicOptions: SelectOption[] = (clinicsQuery.data?.items ?? []).map((clinic) => ({
     value: clinic.id,
     label: clinic.name,
@@ -28,7 +28,7 @@ export function ClosuresListPage() {
   )
 
   const closuresQuery = useMonthlyClosuresQuery(
-    canRead ? { clinicId: clinicId || undefined, page, pageSize: PAGE_SIZE } : { page: 1, pageSize: 0 },
+    canRead ? { clinicId: clinicId || undefined, page, pageSize: PAGE_SIZE } : null,
   )
 
   const isForbidden = closuresQuery.error instanceof ApiError && closuresQuery.error.status === 403
