@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { render, screen, waitFor } from '@testing-library/react'
+import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { http, HttpResponse, delay } from 'msw'
 import { setupServer } from 'msw/node'
@@ -244,4 +244,129 @@ test('switching clinics does not leave the previous clinic data visible during l
   await user.selectOptions(screen.getByLabelText('Clínica'), 'clinic-b')
 
   await waitFor(() => expect(screen.queryByText('Rex')).not.toBeInTheDocument())
+})
+
+test('hides the close button for a user without closures.close', async () => {
+  const user = userEvent.setup()
+  server.use(
+    meHandler(['closures.preview']),
+    clinicsListHandler(),
+    http.get('/api/v1/closures/preview', () => HttpResponse.json(previewResponseBody())),
+  )
+  renderWithProviders(<ClosurePreviewPage />)
+
+  await user.selectOptions(await screen.findByLabelText('Clínica'), 'clinic-a')
+
+  await screen.findByText('Rex')
+  expect(screen.queryByRole('button', { name: 'Fechar competência' })).not.toBeInTheDocument()
+})
+
+test('disables the close button when there is nothing eligible', async () => {
+  const user = userEvent.setup()
+  server.use(
+    meHandler(['closures.preview', 'closures.close']),
+    clinicsListHandler(),
+    http.get('/api/v1/closures/preview', () =>
+      HttpResponse.json(
+        previewResponseBody({ item_count: 0, eligible_items: [], blocked_items: [] }),
+      ),
+    ),
+  )
+  renderWithProviders(<ClosurePreviewPage />)
+
+  await user.selectOptions(await screen.findByLabelText('Clínica'), 'clinic-a')
+
+  expect(await screen.findByRole('button', { name: 'Fechar competência' })).toBeDisabled()
+})
+
+test('closes the competence after explicit confirmation and shows a success banner', async () => {
+  const user = userEvent.setup()
+  let closedBody: Record<string, unknown> | null = null
+  server.use(
+    meHandler(['closures.preview', 'closures.close']),
+    clinicsListHandler(),
+    http.get('/api/v1/closures/preview', () => HttpResponse.json(previewResponseBody())),
+    http.post('/api/v1/closures', async ({ request }) => {
+      closedBody = (await request.json()) as Record<string, unknown>
+      expect(request.headers.get('Idempotency-Key')).toBeTruthy()
+      return HttpResponse.json(
+        {
+          id: 'closure-1',
+          clinic_id: 'clinic-a',
+          competence_year: 2026,
+          competence_month: 1,
+          period_start: '2026-01-01',
+          period_end: '2026-01-31',
+          status: 'CLOSED',
+          item_count: 1,
+          subtotal: '100.00',
+          discount_total: '0.00',
+          surcharge_total: '0.00',
+          grand_total: '100.00',
+          generated_by: 'u1',
+          closed_by: 'u1',
+          generated_at: '2026-01-15T12:00:00Z',
+          closed_at: '2026-01-15T12:00:00Z',
+          reopened_at: null,
+          version: 1,
+          items: [],
+        },
+        { status: 201 },
+      )
+    }),
+  )
+  renderWithProviders(<ClosurePreviewPage />)
+
+  await user.selectOptions(await screen.findByLabelText('Clínica'), 'clinic-a')
+  await user.click(await screen.findByRole('button', { name: 'Fechar competência' }))
+
+  const dialog = within(await screen.findByRole('dialog'))
+  expect(dialog.getByText('Schweitzer')).toBeInTheDocument()
+  // The confirm button stays disabled until the checkbox is explicitly checked.
+  const confirmButton = dialog.getByRole('button', { name: 'Fechar competência' })
+  expect(confirmButton).toBeDisabled()
+
+  await user.click(dialog.getByRole('checkbox'))
+  expect(confirmButton).toBeEnabled()
+  await user.click(confirmButton)
+
+  await waitFor(() => expect(closedBody).not.toBeNull())
+  expect(closedBody).toMatchObject({ clinic_id: 'clinic-a', year: 2026, month: 1 })
+  expect(
+    await screen.findByText('Competência janeiro de 2026 fechada com sucesso — total R$ 100,00.'),
+  ).toBeInTheDocument()
+  expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+})
+
+test('shows a clear message when the competence was already closed', async () => {
+  const user = userEvent.setup()
+  server.use(
+    meHandler(['closures.preview', 'closures.close']),
+    clinicsListHandler(),
+    http.get('/api/v1/closures/preview', () => HttpResponse.json(previewResponseBody())),
+    http.post('/api/v1/closures', () =>
+      HttpResponse.json(
+        {
+          error: {
+            code: 'CLOSURE_ALREADY_EXISTS',
+            message: 'Já existe um fechamento ativo para esta clínica e competência.',
+            details: [],
+          },
+        },
+        { status: 409 },
+      ),
+    ),
+  )
+  renderWithProviders(<ClosurePreviewPage />)
+
+  await user.selectOptions(await screen.findByLabelText('Clínica'), 'clinic-a')
+  await user.click(await screen.findByRole('button', { name: 'Fechar competência' }))
+  const dialog = within(await screen.findByRole('dialog'))
+  await user.click(dialog.getByRole('checkbox'))
+  await user.click(dialog.getByRole('button', { name: 'Fechar competência' }))
+
+  expect(
+    await dialog.findByText(/Já existe um fechamento ativo para esta clínica e competência\./),
+  ).toBeInTheDocument()
+  expect(dialog.getByText(/Recarregue a prévia/)).toBeInTheDocument()
 })

@@ -4,13 +4,16 @@
 `GET /closures/preview` is read-only, no UoW. `POST /closures` (Incremento
 4.2) is the first writer — wrapped in a unit of work and an
 `Idempotency-Key` guard, same shape as `POST /attendances/{id}/confirm`.
+`GET /closures`, `GET /closures/{id}` and `GET /closures/{id}/export`
+(Fatia C) are read-only again — always from the persisted snapshot, never
+recomputed.
 """
 
 from __future__ import annotations
 
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, Header, Query
+from fastapi import APIRouter, Depends, Header, Query, Response
 from sqlalchemy.orm import Session as SqlAlchemySession
 
 from app.api.dependencies import get_session, get_unit_of_work
@@ -21,13 +24,28 @@ from app.modules.billing.api.schemas import (
     ClosurePreviewItemRead,
     ClosurePreviewResponse,
     MonthlyClosureItemRead,
+    MonthlyClosureListResponse,
     MonthlyClosureRead,
+    MonthlyClosureSummaryRead,
 )
 from app.modules.billing.application.close_monthly_period import (
     CloseMonthlyPeriodCommand,
     CloseMonthlyPeriodUseCase,
 )
-from app.modules.billing.application.dtos import ClosurePreviewDTO, MonthlyClosureDTO
+from app.modules.billing.application.dtos import (
+    ClosurePreviewDTO,
+    MonthlyClosureDTO,
+    MonthlyClosurePageDTO,
+)
+from app.modules.billing.application.export_monthly_closure import monthly_closure_to_csv
+from app.modules.billing.application.get_monthly_closure import (
+    GetMonthlyClosureQuery,
+    GetMonthlyClosureUseCase,
+)
+from app.modules.billing.application.list_monthly_closures import (
+    ListMonthlyClosuresQuery,
+    ListMonthlyClosuresUseCase,
+)
 from app.modules.billing.application.preview_closure import (
     PreviewClosureQuery,
     PreviewClosureUseCase,
@@ -128,6 +146,32 @@ def _monthly_closure_read(dto: MonthlyClosureDTO) -> MonthlyClosureRead:
     )
 
 
+def _monthly_closure_summary_read(dto: MonthlyClosureDTO) -> MonthlyClosureSummaryRead:
+    return MonthlyClosureSummaryRead(
+        id=dto.id,
+        clinic_id=dto.clinic_id,
+        competence_year=dto.competence_year,
+        competence_month=dto.competence_month,
+        period_start=dto.period_start,
+        period_end=dto.period_end,
+        status=dto.status,
+        item_count=dto.item_count,
+        grand_total=dto.grand_total,
+        closed_by=dto.closed_by,
+        closed_at=dto.closed_at,
+        version=dto.version,
+    )
+
+
+def _monthly_closure_page_read(dto: MonthlyClosurePageDTO) -> MonthlyClosureListResponse:
+    return MonthlyClosureListResponse(
+        items=[_monthly_closure_summary_read(item) for item in dto.items],
+        total=dto.total,
+        page=dto.page,
+        page_size=dto.page_size,
+    )
+
+
 @router.get("/preview", response_model=ClosurePreviewResponse)
 def preview_closure(
     clinic_id: UUID = Query(...),
@@ -200,3 +244,48 @@ def close_monthly_period(
         )
         uow.commit()
     return response
+
+
+@router.get("", response_model=MonthlyClosureListResponse)
+def list_monthly_closures(
+    clinic_id: UUID | None = Query(None),
+    page: int = Query(1, ge=1),
+    page_size: int = Query(20, ge=1, le=100),
+    session: SqlAlchemySession = Depends(get_session),
+    current_user: AuthenticatedUserDTO = Depends(require_permission("closures.read")),
+) -> MonthlyClosureListResponse:
+    use_case = ListMonthlyClosuresUseCase(closures=SqlAlchemyMonthlyClosureRepository(session))
+    result = use_case.execute(
+        ListMonthlyClosuresQuery(
+            actor=current_user, clinic_id=clinic_id, page=page, page_size=page_size
+        )
+    )
+    return _monthly_closure_page_read(result)
+
+
+@router.get("/{closure_id}", response_model=MonthlyClosureRead)
+def get_monthly_closure(
+    closure_id: UUID,
+    session: SqlAlchemySession = Depends(get_session),
+    current_user: AuthenticatedUserDTO = Depends(require_permission("closures.read")),
+) -> MonthlyClosureRead:
+    use_case = GetMonthlyClosureUseCase(closures=SqlAlchemyMonthlyClosureRepository(session))
+    result = use_case.execute(GetMonthlyClosureQuery(actor=current_user, closure_id=closure_id))
+    return _monthly_closure_read(result)
+
+
+@router.get("/{closure_id}/export")
+def export_monthly_closure(
+    closure_id: UUID,
+    session: SqlAlchemySession = Depends(get_session),
+    current_user: AuthenticatedUserDTO = Depends(require_permission("closures.read")),
+) -> Response:
+    use_case = GetMonthlyClosureUseCase(closures=SqlAlchemyMonthlyClosureRepository(session))
+    result = use_case.execute(GetMonthlyClosureQuery(actor=current_user, closure_id=closure_id))
+    csv_content = monthly_closure_to_csv(result)
+    filename = f"fechamento-{result.competence_year}-{result.competence_month:02d}-{result.id}.csv"
+    return Response(
+        content=csv_content,
+        media_type="text/csv",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )

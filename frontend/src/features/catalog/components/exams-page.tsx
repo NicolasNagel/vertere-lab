@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 
-import { useAuth } from '../../auth/auth-provider'
+import { useAuth } from '../../auth/auth-context'
 import { useSpeciesQuery } from '../../patients/api/use-species-query'
 import { Button } from '../../../shared/ui/button'
 import { PlusIcon } from '../../../shared/ui/icons'

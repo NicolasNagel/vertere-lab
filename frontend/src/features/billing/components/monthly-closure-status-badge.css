@@ -1,0 +1,23 @@
+.monthly-closure-status-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem; /* 6px */
+  font-weight: 600;
+  font-size: 0.8125rem;
+  color: var(--color-text-secondary);
+}
+
+.monthly-closure-status-badge__dot {
+  width: 0.375rem;
+  height: 0.375rem;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+.monthly-closure-status-badge[data-status='CLOSED'] {
+  color: #5c8a6b;
+}
+
+.monthly-closure-status-badge[data-status='REOPENED'] {
+  color: #a06d2c;
+}

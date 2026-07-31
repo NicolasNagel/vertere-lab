@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react'
 import { Navigate } from 'react-router-dom'
 
-import { useAuth } from './auth-provider'
+import { useAuth } from './auth-context'
 import { clearSessionFlag, hadActiveSession } from './session-flag'
 import type { LoginRedirectState } from './types'
 

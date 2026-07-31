@@ -1,4 +1,4 @@
-import { useAuth } from '../../features/auth/auth-provider'
+import { useAuth } from '../../features/auth/auth-context'
 import vertereMark from '../assets/vertere-mark.png'
 import {
   BillingIcon,
@@ -56,9 +56,14 @@ export function Sidebar() {
     ...baseAdminNavEntries,
   ]
 
-  const financeNavEntries: SidebarNavItemProps[] = permissions.includes('closures.preview')
-    ? [{ icon: <BillingIcon />, label: 'Fechamento', to: '/financeiro/fechamento' }]
-    : []
+  const financeNavEntries: SidebarNavItemProps[] = [
+    ...(permissions.includes('closures.read')
+      ? [{ icon: <BillingIcon />, label: 'Fechamentos', to: '/financeiro/fechamentos' }]
+      : []),
+    ...(permissions.includes('closures.preview')
+      ? [{ icon: <BillingIcon />, label: 'Novo fechamento', to: '/financeiro/fechamento' }]
+      : []),
+  ]
 
   const mainNavEntries: SidebarNavItemProps[] = [
     ...baseMainNavEntries,

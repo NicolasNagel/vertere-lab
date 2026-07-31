@@ -50,3 +50,18 @@
 .closure-preview-page__error {
   color: #a0492c;
 }
+
+.closure-preview-page__success {
+  font-size: 0.8125rem;
+  color: #2f6b4f;
+  background: #eaf5ee;
+  border: 1px solid #bfe3cc;
+  padding: 0.625rem 0.875rem;
+  margin: 0 0 1rem;
+}
+
+.closure-preview-page__actions {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: 0.875rem;
+}

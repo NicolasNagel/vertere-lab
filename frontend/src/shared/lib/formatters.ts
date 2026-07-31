@@ -57,3 +57,13 @@ export function formatDateTime(isoDateTime: string): string {
     minute: '2-digit',
   }).format(new Date(isoDateTime))
 }
+
+/** `competence_year`/`competence_month` are plain integers (never a date
+ * string), so the UTC-parsing pitfall above doesn't apply here — this just
+ * needs a `Date` for `Intl` to read the month name from, built directly
+ * from the local calendar, day fixed at 1. */
+export function formatCompetence(year: number, month: number): string {
+  return new Intl.DateTimeFormat('pt-BR', { month: 'long', year: 'numeric' }).format(
+    new Date(year, month - 1, 1),
+  )
+}

@@ -1,5 +1,5 @@
 import { formatCurrencyBRL, formatDate } from '../../../shared/lib/formatters'
-import { useAuth } from '../../auth/auth-provider'
+import { useAuth } from '../../auth/auth-context'
 import type { Attendance } from '../api/attendances-api'
 import { AttendanceHeaderDetails } from './attendance-header-details'
 import { AttendanceNotesSection } from './attendance-notes-section'

@@ -1,6 +1,6 @@
 import { Navigate, useLocation } from 'react-router-dom'
 
-import { useAuth } from '../auth-provider'
+import { useAuth } from '../auth-context'
 import type { LoginRedirectState } from '../types'
 import { AuthLayout } from './auth-layout'
 import { LoginForm } from './login-form'

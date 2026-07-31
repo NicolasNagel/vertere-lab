@@ -1,10 +1,16 @@
 from __future__ import annotations
 
+from app.core.config import Settings
 from app.main import create_app
 
 
 def test_openapi_declares_cookie_auth_only_on_authenticated_operations() -> None:
-    schema = create_app().openapi()
+    settings = Settings(
+        _env_file=None,
+        env="test",
+        database_url="postgresql+psycopg://test:test@localhost/test",
+    )
+    schema = create_app(settings).openapi()
 
     cookie_scheme = schema["components"]["securitySchemes"]["SessionCookie"]
     assert cookie_scheme == {

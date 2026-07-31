@@ -1,7 +1,7 @@
 import { expect, test } from 'vitest'
 
 import { ApiError } from '../shared/api/errors'
-import { shouldRetry } from './providers'
+import { shouldRetry } from './query-retry'
 
 // Achado em teste manual: sem essa regra, uma query que falha com 403 fica
 // presa em `status: 'pending'` esperando a segunda tentativa nunca resolver

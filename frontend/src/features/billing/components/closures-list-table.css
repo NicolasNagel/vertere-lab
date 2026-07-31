@@ -1,0 +1,69 @@
+.closures-list-table {
+  background: #ffffff;
+  overflow-x: auto;
+}
+
+.closures-list-table__empty {
+  padding: 1.5rem 2rem;
+  font-size: 0.8125rem;
+  color: var(--color-text-secondary);
+}
+
+.closures-list-table__header,
+.closures-list-table__row {
+  display: grid;
+  grid-template-columns: 9rem 1.3fr 6rem 8rem 9rem 8rem;
+  gap: 0.5rem;
+  align-items: center;
+  padding: 0.875rem; /* 14px */
+  min-width: 50rem;
+}
+
+.closures-list-table__header {
+  background: #f4f1ea;
+  font-family: var(--font-mono);
+  font-size: 0.625rem; /* 10px */
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--color-text-secondary);
+  font-weight: 600;
+}
+
+.closures-list-table__value-header {
+  text-align: right;
+}
+
+.closures-list-table__row {
+  border-bottom: 1px solid #f0ede5;
+  font-size: 0.8125rem;
+  color: inherit;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.closures-list-table__row:hover,
+.closures-list-table__row:focus-visible {
+  background: var(--color-surface-cream);
+}
+
+.closures-list-table__competence {
+  font-weight: 600;
+  text-transform: capitalize;
+}
+
+.closures-list-table__clinic {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.closures-list-table__muted {
+  color: var(--color-text-secondary);
+}
+
+.closures-list-table__value {
+  font-family: var(--font-mono);
+  font-weight: 600;
+  text-align: right;
+}

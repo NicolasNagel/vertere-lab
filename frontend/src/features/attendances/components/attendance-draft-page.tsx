@@ -1,6 +1,6 @@
 import { useNavigate } from 'react-router-dom'
 
-import { useAuth } from '../../auth/auth-provider'
+import { useAuth } from '../../auth/auth-context'
 import { AttendanceDraftForm } from './attendance-draft-form'
 import './attendance-draft-page.css'
 

@@ -3,7 +3,7 @@ import { useParams } from 'react-router-dom'
 
 import { ApiError } from '../../../shared/api/errors'
 import { Button } from '../../../shared/ui/button'
-import { useAuth } from '../../auth/auth-provider'
+import { useAuth } from '../../auth/auth-context'
 import { useAttendanceQuery } from '../api/use-attendance-query'
 import { AttendanceCancelModal } from './attendance-cancel-modal'
 import { AttendanceConfirmationForm } from './attendance-confirmation-form'

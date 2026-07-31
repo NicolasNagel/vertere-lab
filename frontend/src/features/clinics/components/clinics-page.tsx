@@ -1,6 +1,6 @@
 import { useState } from 'react'
 
-import { useAuth } from '../../auth/auth-provider'
+import { useAuth } from '../../auth/auth-context'
 import { Button } from '../../../shared/ui/button'
 import { PlusIcon } from '../../../shared/ui/icons'
 import { useClinicQuery } from '../api/use-clinic-query'

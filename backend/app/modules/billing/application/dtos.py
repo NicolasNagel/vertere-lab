@@ -85,3 +85,11 @@ class MonthlyClosureDTO:
     reopened_at: datetime | None
     version: int
     items: list[MonthlyClosureItemDTO] = field(default_factory=list)
+
+
+@dataclass(frozen=True, kw_only=True)
+class MonthlyClosurePageDTO:
+    items: list[MonthlyClosureDTO]
+    total: int
+    page: int
+    page_size: int

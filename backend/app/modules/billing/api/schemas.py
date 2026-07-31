@@ -90,3 +90,28 @@ class MonthlyClosureRead(BaseModel):
     reopened_at: datetime | None
     version: int
     items: list[MonthlyClosureItemRead]
+
+
+class MonthlyClosureSummaryRead(BaseModel):
+    """List view — no `items` — response contém só o campo que a tela usa
+    (`.claude/rules/12-attendance.md`, mesmo princípio aplicado aqui)."""
+
+    id: UUID
+    clinic_id: UUID
+    competence_year: int
+    competence_month: int
+    period_start: date
+    period_end: date
+    status: Literal["CLOSED", "REOPENED"]
+    item_count: int
+    grand_total: Decimal
+    closed_by: UUID | None
+    closed_at: datetime
+    version: int
+
+
+class MonthlyClosureListResponse(BaseModel):
+    items: list[MonthlyClosureSummaryRead]
+    total: int
+    page: int
+    page_size: int
