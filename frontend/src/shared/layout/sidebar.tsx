@@ -76,7 +76,7 @@ export function Sidebar() {
   ]
 
   return (
-    <div className="sidebar">
+    <aside className="sidebar" aria-label="Navegação principal">
       <div className="sidebar__brand">
         <img className="sidebar__brand-mark" src={vertereMark} alt="" />
         <div>
@@ -119,6 +119,6 @@ export function Sidebar() {
           </div>
         </div>
       )}
-    </div>
+    </aside>
   )
 }

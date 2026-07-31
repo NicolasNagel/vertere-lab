@@ -18,11 +18,16 @@ export function ClosureReopenModal({
 }: ClosureReopenModalProps) {
   const [reason, setReason] = useState('')
   const textareaRef = useRef<HTMLTextAreaElement>(null)
+  const submittedRef = useRef(false)
   const isValid = reason.trim().length >= 10
 
   useEffect(() => {
     textareaRef.current?.focus()
   }, [])
+
+  useEffect(() => {
+    if (error) submittedRef.current = false
+  }, [error])
 
   return (
     <div className="closure-reopen-modal__backdrop" role="presentation" onMouseDown={onCancel}>
@@ -60,7 +65,11 @@ export function ClosureReopenModal({
           <Button
             type="button"
             disabled={!isValid || isPending}
-            onClick={() => onConfirm(reason.trim())}
+            onClick={() => {
+              if (submittedRef.current) return
+              submittedRef.current = true
+              onConfirm(reason.trim())
+            }}
           >
             {isPending ? 'Reabrindo…' : 'Confirmar reabertura'}
           </Button>

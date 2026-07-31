@@ -24,12 +24,17 @@ export function FinancialAdjustmentModal({
   const [amount, setAmount] = useState('')
   const [reason, setReason] = useState('')
   const amountRef = useRef<HTMLInputElement>(null)
+  const submittedRef = useRef(false)
   const numericAmount = Number(amount.replace(',', '.'))
   const isValid = Number.isFinite(numericAmount) && numericAmount > 0 && reason.trim().length >= 10
 
   useEffect(() => {
     amountRef.current?.focus()
   }, [])
+
+  useEffect(() => {
+    if (error) submittedRef.current = false
+  }, [error])
 
   return (
     <div className="closure-reopen-modal__backdrop" role="presentation" onMouseDown={onCancel}>
@@ -82,14 +87,16 @@ export function FinancialAdjustmentModal({
           <Button
             type="button"
             disabled={!isValid || isPending}
-            onClick={() =>
+            onClick={() => {
+              if (submittedRef.current) return
+              submittedRef.current = true
               onConfirm({
                 monthlyClosureItemId: null,
                 kind,
                 amount: numericAmount.toFixed(2),
                 reason: reason.trim(),
               })
-            }
+            }}
           >
             {isPending ? 'Salvando…' : 'Adicionar ajuste'}
           </Button>

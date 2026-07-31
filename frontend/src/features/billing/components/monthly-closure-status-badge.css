@@ -15,9 +15,9 @@
 }
 
 .monthly-closure-status-badge[data-status='CLOSED'] {
-  color: #5c8a6b;
+  color: #356344;
 }
 
 .monthly-closure-status-badge[data-status='REOPENED'] {
-  color: #a06d2c;
+  color: #79501d;
 }

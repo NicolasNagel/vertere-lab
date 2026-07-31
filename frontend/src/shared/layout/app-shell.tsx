@@ -7,9 +7,9 @@ export function AppShell() {
   return (
     <div className="app-shell">
       <Sidebar />
-      <div className="app-shell__content">
+      <main className="app-shell__content">
         <Outlet />
-      </div>
+      </main>
     </div>
   )
 }

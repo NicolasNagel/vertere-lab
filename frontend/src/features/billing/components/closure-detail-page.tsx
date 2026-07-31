@@ -36,7 +36,7 @@ export function ClosureDetailPage() {
 
   return (
     <div className="closure-detail-page">
-      <div className="closure-detail-page__header">
+      <header className="closure-detail-page__header">
         <div>
           <div className="closure-detail-page__eyebrow">Financeiro · Fechamento</div>
           <h1 className="closure-detail-page__title">
@@ -68,9 +68,13 @@ export function ClosureDetailPage() {
             </a>
           </div>
         )}
-      </div>
+      </header>
 
-      <div className="closure-detail-page__body">
+      <div
+        aria-label="Conteúdo do fechamento"
+        className="closure-detail-page__body"
+        tabIndex={0}
+      >
         {!canRead && (
           <p className="closure-detail-page__forbidden">
             Você não tem permissão para visualizar fechamentos.
