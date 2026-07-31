@@ -202,3 +202,31 @@ def test_records_audit_and_outbox_entries() -> None:
     outbox_event = fixture.outbox.events[0]
     assert outbox_event.event_type == "closures.closed"
     assert outbox_event.payload["closure_id"] == str(result.id)
+
+
+def test_reclose_increments_the_preserved_snapshot_version() -> None:
+    previous = MonthlyClosure(
+        id=uuid4(),
+        clinic_id=_CLINIC_ID,
+        competence_year=2026,
+        competence_month=1,
+        period_start=date(2026, 1, 1),
+        period_end=date(2026, 1, 31),
+        status=ClosureStatus.REOPENED,
+        item_count=0,
+        subtotal=Decimal("0"),
+        discount_total=Decimal("0"),
+        surcharge_total=Decimal("0"),
+        grand_total=Decimal("0"),
+        generated_by=None,
+        closed_by=None,
+        generated_at=_NOW,
+        closed_at=_NOW,
+        version=3,
+    )
+    fixture = _Fixture(candidates=[_candidate()])
+    fixture.closures = FakeMonthlyClosureRepository(previous)
+
+    result = fixture.use_case().execute(_command())
+
+    assert result.version == 4

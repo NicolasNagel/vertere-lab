@@ -572,3 +572,81 @@ async def test_close_requires_idempotency_key_header(
     )
 
     assert response.status_code == 422
+
+
+async def test_reopen_releases_attendance_and_reclose_creates_next_version(
+    client: httpx.AsyncClient, session_factory: sessionmaker[Session]
+) -> None:
+    await _login_admin(client, session_factory)
+    clinic_id, attendance = await _setup_clinic_with_confirmed_attendance(
+        client, session_factory, service_date="2026-01-10"
+    )
+    first = await client.post(
+        "/api/v1/closures",
+        json={"clinic_id": clinic_id, "year": 2026, "month": 1},
+        headers=_close_headers("close-before-reopen"),
+    )
+    assert first.status_code == 201
+
+    reopened = await client.post(
+        f"/api/v1/closures/{first.json()['id']}/reopen",
+        json={"reason": "Correção de competência autorizada."},
+    )
+    assert reopened.status_code == 200
+    assert reopened.json()["status"] == "REOPENED"
+
+    with session_factory() as session:
+        association = session.execute(
+            text("SELECT monthly_closure_id FROM attendances WHERE id = :id"),
+            {"id": attendance["id"]},
+        ).scalar_one()
+        assert association is None
+        audit_reason = session.execute(
+            text(
+                "SELECT reason FROM audit_log "
+                "WHERE action = 'closures.reopened' AND entity_id = :id"
+            ),
+            {"id": first.json()["id"]},
+        ).scalar_one()
+        assert audit_reason == "Correção de competência autorizada."
+
+    second = await client.post(
+        "/api/v1/closures",
+        json={"clinic_id": clinic_id, "year": 2026, "month": 1},
+        headers=_close_headers("close-after-reopen"),
+    )
+    assert second.status_code == 201
+    assert second.json()["version"] == 2
+
+
+async def test_reopen_rejects_short_reason_and_second_attempt(
+    client: httpx.AsyncClient, session_factory: sessionmaker[Session]
+) -> None:
+    await _login_admin(client, session_factory)
+    clinic_id, _attendance_id = await _setup_clinic_with_confirmed_attendance(
+        client, session_factory, service_date="2026-01-10"
+    )
+    closed = await client.post(
+        "/api/v1/closures",
+        json={"clinic_id": clinic_id, "year": 2026, "month": 1},
+        headers=_close_headers("close-invalid-reopen"),
+    )
+    closure_id = closed.json()["id"]
+
+    invalid = await client.post(
+        f"/api/v1/closures/{closure_id}/reopen",
+        json={"reason": "curto"},
+    )
+    assert invalid.status_code == 422
+
+    first = await client.post(
+        f"/api/v1/closures/{closure_id}/reopen",
+        json={"reason": "Primeira reabertura autorizada."},
+    )
+    second = await client.post(
+        f"/api/v1/closures/{closure_id}/reopen",
+        json={"reason": "Segunda tentativa não permitida."},
+    )
+    assert first.status_code == 200
+    assert second.status_code == 409
+    assert second.json()["error"]["code"] == "INVALID_STATE_TRANSITION"

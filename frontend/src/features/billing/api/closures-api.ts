@@ -346,6 +346,17 @@ export async function fetchMonthlyClosure(id: string): Promise<MonthlyClosure> {
   return fromApiMonthlyClosure((await response.json()) as ApiMonthlyClosure)
 }
 
+export async function reopenMonthlyClosure(id: string, reason: string): Promise<MonthlyClosure> {
+  const response = await fetch(`${API_BASE}/closures/${id}/reopen`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    credentials: 'include',
+    body: JSON.stringify({ reason }),
+  })
+  await throwIfNotOk(response)
+  return fromApiMonthlyClosure((await response.json()) as ApiMonthlyClosure)
+}
+
 export function monthlyClosureExportUrl(id: string): string {
   return `${API_BASE}/closures/${id}/export`
 }

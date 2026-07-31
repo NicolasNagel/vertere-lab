@@ -43,6 +43,8 @@ class ClosureCandidateLockRepository(Protocol):
         `AttendanceRecord.cancel()`/`update_fields()`."""
         ...
 
+    def release_from_closure(self, *, closure_id: UUID) -> None: ...
+
 
 class MonthlyClosureRepository(Protocol):
     def acquire_active_lock(self, *, clinic_id: UUID, year: int, month: int) -> None:
@@ -63,6 +65,14 @@ class MonthlyClosureRepository(Protocol):
     def add(self, closure: MonthlyClosure) -> None: ...
 
     def get_by_id(self, closure_id: UUID) -> MonthlyClosure | None: ...
+
+    def get_by_id_for_update(self, closure_id: UUID) -> MonthlyClosure | None: ...
+
+    def get_latest_for_clinic_and_period(
+        self, *, clinic_id: UUID, year: int, month: int
+    ) -> MonthlyClosure | None: ...
+
+    def update_status(self, closure: MonthlyClosure) -> None: ...
 
     def list_page(
         self, *, clinic_id: UUID | None, page: int, page_size: int

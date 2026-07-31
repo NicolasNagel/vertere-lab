@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import { useParams } from 'react-router-dom'
 
 import { ApiError } from '../../../shared/api/errors'
@@ -6,6 +7,8 @@ import { useAuth } from '../../auth/auth-context'
 import { useClinicQuery } from '../../clinics/api/use-clinic-query'
 import { monthlyClosureExportUrl } from '../api/closures-api'
 import { useMonthlyClosureQuery } from '../api/use-monthly-closure-query'
+import { useReopenMonthlyClosureMutation } from '../api/use-reopen-monthly-closure-mutation'
+import { ClosureReopenModal } from './closure-reopen-modal'
 import { MonthlyClosureStatusBadge } from './monthly-closure-status-badge'
 import './closure-detail-page.css'
 
@@ -13,6 +16,8 @@ export function ClosureDetailPage() {
   const { closureId } = useParams<{ closureId: string }>()
   const { user } = useAuth()
   const canRead = user?.permissions.includes('closures.read') ?? false
+  const canReopen = user?.permissions.includes('closures.reopen') ?? false
+  const [showReopenModal, setShowReopenModal] = useState(false)
 
   const closureQuery = useMonthlyClosureQuery(canRead ? (closureId ?? null) : null)
   const clinicQuery = useClinicQuery(closureQuery.data?.clinicId ?? null)
@@ -22,6 +27,7 @@ export function ClosureDetailPage() {
   const isGenericError = closureQuery.isError && !isForbidden && !isNotFound
 
   const closure = closureQuery.data
+  const reopenMutation = useReopenMonthlyClosureMutation(closureId ?? '')
 
   return (
     <div className="closure-detail-page">
@@ -33,13 +39,20 @@ export function ClosureDetailPage() {
           </h1>
         </div>
         {closure && (
-          <a
-            className="button button--ghost"
-            href={monthlyClosureExportUrl(closure.id)}
-            download
-          >
-            Baixar CSV
-          </a>
+          <div className="closure-detail-page__actions">
+            {canReopen && closure.status === 'CLOSED' && (
+              <button
+                className="button button--ghost"
+                type="button"
+                onClick={() => setShowReopenModal(true)}
+              >
+                Reabrir
+              </button>
+            )}
+            <a className="button button--ghost" href={monthlyClosureExportUrl(closure.id)} download>
+              Baixar CSV
+            </a>
+          </div>
         )}
       </div>
 
@@ -145,6 +158,18 @@ export function ClosureDetailPage() {
           </div>
         )}
       </div>
+      {showReopenModal && (
+        <ClosureReopenModal
+          isPending={reopenMutation.isPending}
+          error={reopenMutation.error}
+          onCancel={() => {
+            if (!reopenMutation.isPending) setShowReopenModal(false)
+          }}
+          onConfirm={(reason) =>
+            reopenMutation.mutate(reason, { onSuccess: () => setShowReopenModal(false) })
+          }
+        />
+      )}
     </div>
   )
 }

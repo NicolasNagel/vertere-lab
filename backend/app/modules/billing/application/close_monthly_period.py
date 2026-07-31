@@ -101,6 +101,12 @@ class CloseMonthlyPeriodUseCase:
                 "Já existe um fechamento ativo para esta clínica e competência."
             )
 
+        latest_closure = self._closures.get_latest_for_clinic_and_period(
+            clinic_id=command.clinic_id,
+            year=period.year,
+            month=period.month,
+        )
+
         locked_candidates = self._candidates.list_candidates_for_update(
             clinic_id=command.clinic_id, period=period
         )
@@ -153,6 +159,7 @@ class CloseMonthlyPeriodUseCase:
             closed_by=command.actor.id,
             generated_at=now,
             closed_at=now,
+            version=(latest_closure.version + 1) if latest_closure is not None else 1,
             items=items,
         )
 

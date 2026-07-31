@@ -102,6 +102,13 @@ class SqlAlchemyClosurePreviewRepository:
             .values(monthly_closure_id=closure_id)
         )
 
+    def release_from_closure(self, *, closure_id: UUID) -> None:
+        self._session.execute(
+            update(AttendanceModel)
+            .where(AttendanceModel.monthly_closure_id == closure_id)
+            .values(monthly_closure_id=None)
+        )
+
 
 def _item_to_domain(model: MonthlyClosureItemModel) -> MonthlyClosureItem:
     return MonthlyClosureItem(
@@ -231,6 +238,38 @@ class SqlAlchemyMonthlyClosureRepository:
             .where(MonthlyClosureModel.id == closure_id)
         ).scalar_one_or_none()
         return _closure_to_domain(model) if model is not None else None
+
+    def get_by_id_for_update(self, closure_id: UUID) -> MonthlyClosure | None:
+        model = self._session.execute(
+            select(MonthlyClosureModel)
+            .options(selectinload(MonthlyClosureModel.items))
+            .where(MonthlyClosureModel.id == closure_id)
+            .with_for_update()
+        ).scalar_one_or_none()
+        return _closure_to_domain(model) if model is not None else None
+
+    def get_latest_for_clinic_and_period(
+        self, *, clinic_id: UUID, year: int, month: int
+    ) -> MonthlyClosure | None:
+        model = self._session.execute(
+            select(MonthlyClosureModel)
+            .options(selectinload(MonthlyClosureModel.items))
+            .where(
+                MonthlyClosureModel.clinic_id == clinic_id,
+                MonthlyClosureModel.competence_year == year,
+                MonthlyClosureModel.competence_month == month,
+            )
+            .order_by(MonthlyClosureModel.version.desc())
+            .limit(1)
+        ).scalar_one_or_none()
+        return _closure_to_domain(model) if model is not None else None
+
+    def update_status(self, closure: MonthlyClosure) -> None:
+        self._session.execute(
+            update(MonthlyClosureModel)
+            .where(MonthlyClosureModel.id == closure.id)
+            .values(status=closure.status.value, reopened_at=closure.reopened_at)
+        )
 
     def list_page(
         self, *, clinic_id: UUID | None, page: int, page_size: int

@@ -56,6 +56,12 @@ class CloseMonthlyPeriodRequest(BaseModel):
     month: int = Field(ge=1, le=12)
 
 
+class ReopenMonthlyClosureRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    reason: str = Field(min_length=10, max_length=1000)
+
+
 class MonthlyClosureItemRead(BaseModel):
     id: UUID
     attendance_id: UUID

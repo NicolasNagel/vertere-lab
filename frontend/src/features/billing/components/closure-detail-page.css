@@ -15,6 +15,47 @@
   gap: 1rem;
 }
 
+.closure-detail-page__actions,
+.closure-reopen-modal__actions {
+  display: flex;
+  gap: 0.75rem;
+  align-items: center;
+}
+
+.closure-reopen-modal__backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: grid;
+  place-items: center;
+  padding: 1rem;
+  background: rgb(15 23 42 / 55%);
+}
+
+.closure-reopen-modal {
+  width: min(32rem, 100%);
+  padding: 1.5rem;
+  border-radius: 0.75rem;
+  background: white;
+  box-shadow: 0 1.5rem 4rem rgb(15 23 42 / 25%);
+}
+
+.closure-reopen-modal label,
+.closure-reopen-modal textarea {
+  display: block;
+  width: 100%;
+}
+
+.closure-reopen-modal textarea {
+  margin: 0.5rem 0 1rem;
+  padding: 0.75rem;
+  resize: vertical;
+}
+
+.closure-reopen-modal__actions {
+  justify-content: flex-end;
+}
+
 .closure-detail-page__eyebrow {
   font-family: var(--font-mono);
   font-size: 0.625rem; /* 10px */

@@ -24,7 +24,7 @@ from decimal import Decimal
 from enum import StrEnum
 from uuid import UUID
 
-from app.shared.domain.errors import ValidationError
+from app.shared.domain.errors import InvalidStateTransitionError, ValidationError
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -191,3 +191,9 @@ class MonthlyClosure:
             raise ValidationError("Total do fechamento não pode ser negativo.")
         if self.item_count != len(self.items):
             raise ValidationError("Contagem de itens não confere com os itens do fechamento.")
+
+    def reopen(self, *, reopened_at: datetime) -> None:
+        if self.status is not ClosureStatus.CLOSED:
+            raise InvalidStateTransitionError("Somente um fechamento fechado pode ser reaberto.")
+        self.status = ClosureStatus.REOPENED
+        self.reopened_at = reopened_at

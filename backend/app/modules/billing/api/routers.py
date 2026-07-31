@@ -27,6 +27,7 @@ from app.modules.billing.api.schemas import (
     MonthlyClosureListResponse,
     MonthlyClosureRead,
     MonthlyClosureSummaryRead,
+    ReopenMonthlyClosureRequest,
 )
 from app.modules.billing.application.close_monthly_period import (
     CloseMonthlyPeriodCommand,
@@ -49,6 +50,10 @@ from app.modules.billing.application.list_monthly_closures import (
 from app.modules.billing.application.preview_closure import (
     PreviewClosureQuery,
     PreviewClosureUseCase,
+)
+from app.modules.billing.application.reopen_monthly_closure import (
+    ReopenMonthlyClosureCommand,
+    ReopenMonthlyClosureUseCase,
 )
 from app.modules.billing.infrastructure.repositories import (
     SqlAlchemyClosurePreviewRepository,
@@ -272,6 +277,33 @@ def get_monthly_closure(
     use_case = GetMonthlyClosureUseCase(closures=SqlAlchemyMonthlyClosureRepository(session))
     result = use_case.execute(GetMonthlyClosureQuery(actor=current_user, closure_id=closure_id))
     return _monthly_closure_read(result)
+
+
+@router.post("/{closure_id}/reopen", response_model=MonthlyClosureRead)
+def reopen_monthly_closure(
+    closure_id: UUID,
+    payload: ReopenMonthlyClosureRequest,
+    uow: SqlAlchemyUnitOfWork = Depends(get_unit_of_work),
+    current_user: AuthenticatedUserDTO = Depends(require_permission("closures.reopen")),
+) -> MonthlyClosureRead:
+    with uow:
+        use_case = ReopenMonthlyClosureUseCase(
+            closures=SqlAlchemyMonthlyClosureRepository(uow.session),
+            candidates=SqlAlchemyClosurePreviewRepository(uow.session),
+            audit=SqlAlchemyAuditLogWriter(uow.session),
+            outbox=SqlAlchemyOutboxEventRepository(uow.session),
+            clock=SystemClock(),
+        )
+        result = use_case.execute(
+            ReopenMonthlyClosureCommand(
+                actor=current_user,
+                closure_id=closure_id,
+                reason=payload.reason,
+            )
+        )
+        response = _monthly_closure_read(result)
+        uow.commit()
+    return response
 
 
 @router.get("/{closure_id}/export")

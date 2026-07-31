@@ -11,6 +11,7 @@ from uuid import UUID
 from app.modules.audit.domain.entities import AuditEntry
 from app.modules.billing.domain.entities import (
     ClosureCandidateItem,
+    ClosureStatus,
     CompetencePeriod,
     MonthlyClosure,
 )
@@ -81,6 +82,7 @@ class FakeClosureCandidateLockRepository:
         self._candidates = candidates or []
         self.marked_attendance_ids: set[UUID] = set()
         self.marked_closure_id: UUID | None = None
+        self.released_closure_ids: list[UUID] = []
 
     def list_candidates_for_update(
         self, *, clinic_id: UUID, period: CompetencePeriod
@@ -91,12 +93,16 @@ class FakeClosureCandidateLockRepository:
         self.marked_attendance_ids |= attendance_ids
         self.marked_closure_id = closure_id
 
+    def release_from_closure(self, *, closure_id: UUID) -> None:
+        self.released_closure_ids.append(closure_id)
+
 
 class FakeMonthlyClosureRepository:
     def __init__(self, active: MonthlyClosure | None = None) -> None:
         self._active = active
         self.added: list[MonthlyClosure] = []
         self.lock_calls: list[tuple[UUID, int, int]] = []
+        self.updated: list[MonthlyClosure] = []
 
     def acquire_active_lock(self, *, clinic_id: UUID, year: int, month: int) -> None:
         self.lock_calls.append((clinic_id, year, month))
@@ -104,13 +110,34 @@ class FakeMonthlyClosureRepository:
     def get_active_for_clinic_and_period(
         self, *, clinic_id: UUID, year: int, month: int
     ) -> MonthlyClosure | None:
-        return self._active
+        if self._active is not None and self._active.status is ClosureStatus.CLOSED:
+            return self._active
+        return None
 
     def add(self, closure: MonthlyClosure) -> None:
         self.added.append(closure)
 
     def get_by_id(self, closure_id: UUID) -> MonthlyClosure | None:
-        return next((c for c in self.added if c.id == closure_id), None)
+        candidates = [*self.added, *([self._active] if self._active is not None else [])]
+        return next((closure for closure in candidates if closure.id == closure_id), None)
+
+    def get_by_id_for_update(self, closure_id: UUID) -> MonthlyClosure | None:
+        return self.get_by_id(closure_id)
+
+    def get_latest_for_clinic_and_period(
+        self, *, clinic_id: UUID, year: int, month: int
+    ) -> MonthlyClosure | None:
+        candidates = [
+            closure
+            for closure in [*self.added, *([self._active] if self._active is not None else [])]
+            if closure.clinic_id == clinic_id
+            and closure.competence_year == year
+            and closure.competence_month == month
+        ]
+        return max(candidates, key=lambda closure: closure.version, default=None)
+
+    def update_status(self, closure: MonthlyClosure) -> None:
+        self.updated.append(closure)
 
     def list_page(
         self, *, clinic_id: UUID | None, page: int, page_size: int
