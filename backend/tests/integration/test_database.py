@@ -116,6 +116,11 @@ def test_alembic_upgrade_head_runs_on_empty_database(
             "outbox_events",
             "monthly_closures",
             "monthly_closure_items",
+            "financial_adjustments",
+            # Fatia de isolamento por clínica atualmente em desenvolvimento.
+            # Mantê-la no inventário torna o gate compatível com esse worktree
+            # sem assumir que a implementação concorrente esteja concluída.
+            "clinic_memberships",
         }
         assert "roles" in table_names
     finally:
