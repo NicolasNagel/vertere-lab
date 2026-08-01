@@ -9,8 +9,8 @@ não descoberta, exatamente o problema que este projeto existe para resolver
 (`docs/01-analise-planilha.md`).
 
 ## Números de referência (não são estimativa — são o alvo a bater)
-- **1.794 registros operacionais válidos.**
-- **Soma financeira: R$ 185.017,00.**
+- **2.497 registros operacionais válidos.**
+- **Soma financeira: R$ 250.060,00.**
 - Diferença conhecida de R$ 100,00 vem de um valor residual sem atendimento — **não deve** ter
   sido importado como item financeiro.
 
@@ -18,7 +18,7 @@ não descoberta, exatamente o problema que este projeto existe para resolver
 1. **Contagem de status:** toda linha do lote (`ImportRow`) tem estado final? Liste quantas
    estão em cada status; qualquer linha sem estado final é bloqueante.
 2. **Soma financeira:** some o `grand_total` de todos os `AttendanceRecord` criados por este
-   lote. Bate com R$ 185.017,00? Se não, a diferença precisa estar 100% explicada por exceção
+   lote. Bate com R$ 250.060,00? Se não, a diferença precisa estar 100% explicada por exceção
    aprovada — não por arredondamento silencioso.
 3. **Unicidade de protocolo:** nenhum `protocol_number` duplicado no lote nem colidindo com dado
    já existente.
@@ -36,7 +36,7 @@ não descoberta, exatamente o problema que este projeto existe para resolver
 | Critério | Esperado | Encontrado | Status |
 |---|---|---|---|
 | Linhas com estado final | 100% | ... | ✅/❌ |
-| Soma financeira | R$ 185.017,00 | R$ ... | ✅/❌ |
+| Soma financeira | R$ 250.060,00 | R$ ... | ✅/❌ |
 | Protocolos únicos | sim | ... | ✅/❌ |
 | Cadastro fora do alias aprovado | 0 | ... | ✅/❌ |
 | Valor residual sem atendimento importado | 0 | ... | ✅/❌ |
