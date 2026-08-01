@@ -8,7 +8,7 @@ fields directly, so invariants stay enforced in one place.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import date, datetime
 from decimal import Decimal
 from enum import StrEnum
 from uuid import UUID
@@ -65,6 +65,8 @@ class Exam:
     name: str
     category_id: UUID
     price_base: Decimal
+    price_valid_from: date = date(1900, 1, 1)
+    price_valid_to: date | None = None
     description: str | None = None
     plantao_surcharge: PlantaoSurcharge = field(default_factory=PlantaoSurcharge)
     species_ids: frozenset[UUID] = field(default_factory=frozenset)
@@ -80,6 +82,13 @@ class Exam:
             raise ValueError("Preço base do exame deve ser maior que zero.")
         if not self.species_ids:
             raise ValueError("Exame precisa de ao menos uma espécie atendida.")
+        if self.price_valid_to is not None and self.price_valid_to < self.price_valid_from:
+            raise ValueError("Vigência final do preço não pode anteceder a inicial.")
+
+    def has_price_on(self, service_date: date) -> bool:
+        return self.price_valid_from <= service_date and (
+            self.price_valid_to is None or service_date <= self.price_valid_to
+        )
 
     def update_details(
         self,
@@ -99,6 +108,9 @@ class Exam:
             raise ValueError("Preço base do exame deve ser maior que zero.")
         if not species_ids:
             raise ValueError("Exame precisa de ao menos uma espécie atendida.")
+        if price_base != self.price_base:
+            self.price_valid_from = now.date()
+            self.price_valid_to = None
         self.code = code
         self.name = name
         self.category_id = category_id
@@ -127,5 +139,7 @@ class Exam:
         if price_base <= 0:
             raise ValueError("Preço base do exame deve ser maior que zero.")
         self.price_base = price_base
+        self.price_valid_from = now.date()
+        self.price_valid_to = None
         self.updated_by = updated_by
         self.updated_at = now

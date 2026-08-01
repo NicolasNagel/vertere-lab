@@ -87,3 +87,7 @@ class AttendanceAlreadyClosedError(DomainError):
 
 class ClosureAlreadyExistsError(DomainError):
     code = ErrorCode.CLOSURE_ALREADY_EXISTS
+
+
+class PriceNotAvailableError(DomainError):
+    code = ErrorCode.PRICE_NOT_AVAILABLE

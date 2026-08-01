@@ -124,6 +124,8 @@ class SqlAlchemyExamRepository:
             category_id=model.category_id,
             description=model.description,
             price_base=model.price_base,
+            price_valid_from=model.price_valid_from,
+            price_valid_to=model.price_valid_to,
             plantao_surcharge=PlantaoSurcharge(
                 fixed_amount=model.plantao_surcharge_fixed,
                 percent=model.plantao_surcharge_percent,
@@ -170,6 +172,8 @@ class SqlAlchemyExamRepository:
                 category_id=exam.category_id,
                 description=exam.description,
                 price_base=exam.price_base,
+                price_valid_from=exam.price_valid_from,
+                price_valid_to=exam.price_valid_to,
                 plantao_surcharge_fixed=exam.plantao_surcharge.fixed_amount,
                 plantao_surcharge_percent=exam.plantao_surcharge.percent,
                 status=exam.status.value,
@@ -192,6 +196,8 @@ class SqlAlchemyExamRepository:
         model.category_id = exam.category_id
         model.description = exam.description
         model.price_base = exam.price_base
+        model.price_valid_from = exam.price_valid_from
+        model.price_valid_to = exam.price_valid_to
         model.plantao_surcharge_fixed = exam.plantao_surcharge.fixed_amount
         model.plantao_surcharge_percent = exam.plantao_surcharge.percent
         model.status = exam.status.value

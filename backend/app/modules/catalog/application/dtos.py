@@ -4,7 +4,7 @@ raw across the module boundary (rule: .claude/rules/02-backend.md)."""
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import date, datetime
 from decimal import Decimal
 from uuid import UUID
 
@@ -36,5 +36,7 @@ class ExamDTO:
     # .claude/rules/02-backend.md, "404 pode ocultar recurso" applied here to
     # a field instead of a whole resource).
     price_base: Decimal | None
+    price_valid_from: date | None
+    price_valid_to: date | None
     plantao_surcharge_fixed: Decimal | None
     plantao_surcharge_percent: Decimal | None

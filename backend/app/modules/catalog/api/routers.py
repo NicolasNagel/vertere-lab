@@ -215,6 +215,8 @@ def _exam_read(dto: ExamDTO) -> ExamRead:
         updated_at=dto.updated_at,
         row_version=dto.row_version,
         price_base=dto.price_base,
+        price_valid_from=dto.price_valid_from,
+        price_valid_to=dto.price_valid_to,
         plantao_surcharge_fixed=dto.plantao_surcharge_fixed,
         plantao_surcharge_percent=dto.plantao_surcharge_percent,
     )

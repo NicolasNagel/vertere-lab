@@ -3,7 +3,7 @@ separate; never the SQLAlchemy model (rule: .claude/rules/02-backend.md)."""
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import date, datetime
 from decimal import Decimal
 from typing import Literal
 from uuid import UUID
@@ -63,6 +63,8 @@ class ExamRead(BaseModel):
     # frontend-only hide (rule: .claude/rules/02-backend.md, "autoridade final
     # é o backend").
     price_base: Decimal | None
+    price_valid_from: date | None
+    price_valid_to: date | None
     plantao_surcharge_fixed: Decimal | None
     plantao_surcharge_percent: Decimal | None
 

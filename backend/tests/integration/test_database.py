@@ -127,7 +127,7 @@ def test_alembic_upgrade_head_runs_on_empty_database(
         engine.dispose()
 
 
-def test_attendance_options_migration_backfills_existing_rows(
+def test_additive_migrations_backfill_existing_catalog_and_attendance_rows(
     postgres_url: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     monkeypatch.setenv("DATABASE_URL", postgres_url)
@@ -140,11 +140,28 @@ def test_attendance_options_migration_backfills_existing_rows(
     clinic_id = uuid4()
     veterinarian_id = uuid4()
     patient_id = uuid4()
+    category_id = uuid4()
+    exam_id = uuid4()
     try:
         with engine.begin() as connection:
             species_id = connection.execute(
                 text("SELECT id FROM species ORDER BY name LIMIT 1")
             ).scalar_one()
+            connection.execute(
+                text(
+                    "INSERT INTO exam_categories (id, name, status, row_version) "
+                    "VALUES (:id, :name, 'ACTIVE', 1)"
+                ),
+                {"id": category_id, "name": f"Migration category {category_id}"},
+            )
+            connection.execute(
+                text(
+                    "INSERT INTO exams "
+                    "(id, code, name, category_id, price_base, status, row_version) "
+                    "VALUES (:id, :code, 'Migration exam', :category_id, 10.00, 'ACTIVE', 1)"
+                ),
+                {"id": exam_id, "code": f"QA-{exam_id}", "category_id": category_id},
+            )
             connection.execute(
                 text(
                     "INSERT INTO clinics (id, name, status, row_version) "
@@ -194,7 +211,11 @@ def test_attendance_options_migration_backfills_existing_rows(
                 text("SELECT collection_method, service_level FROM attendances WHERE id = :id"),
                 {"id": attendance_id},
             ).one()
+            price_valid_from = connection.execute(
+                text("SELECT price_valid_from FROM exams WHERE id = :id"), {"id": exam_id}
+            ).scalar_one()
         assert row.collection_method == "INTERNAL"
         assert row.service_level == "NORMAL"
+        assert str(price_valid_from) == "1900-01-01"
     finally:
         engine.dispose()

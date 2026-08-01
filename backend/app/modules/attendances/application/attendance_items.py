@@ -28,7 +28,12 @@ from app.modules.identity.application.dtos import AuthenticatedUserDTO
 from app.modules.patients.domain.repositories import PatientRepository
 from app.modules.veterinarian_clinics.domain.repositories import VeterinarianClinicLinkRepository
 from app.modules.veterinarians.domain.repositories import VeterinarianRepository
-from app.shared.domain.errors import ForbiddenError, NotFoundError, ValidationError
+from app.shared.domain.errors import (
+    ForbiddenError,
+    NotFoundError,
+    PriceNotAvailableError,
+    ValidationError,
+)
 from app.shared.domain.money import round_currency
 
 _OVERRIDE_PERMISSION = "attendances.override_price"
@@ -75,6 +80,8 @@ def validate_and_snapshot_items(
             raise NotFoundError("Exame não encontrado.")
         if exam.status != ExamStatus.ACTIVE:
             raise ValidationError("Exame não está ativo.")
+        if not exam.has_price_on(attendance.service_date):
+            raise PriceNotAvailableError("Exame sem preço vigente na data do atendimento.")
 
         discount_amount = item_input.discount_amount or Decimal("0")
         override_reason: str | None = None

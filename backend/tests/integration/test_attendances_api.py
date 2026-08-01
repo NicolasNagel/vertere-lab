@@ -621,6 +621,26 @@ async def test_preview_attendance_unknown_attendance_is_not_found(
     assert response.status_code == 404
 
 
+async def test_preview_rejects_exam_without_price_valid_on_service_date(
+    client: httpx.AsyncClient, session_factory: sessionmaker[Session]
+) -> None:
+    await _login_admin(client, session_factory)
+    attendance_id, exam_id = await _create_confirmable_draft(client, session_factory)
+    with session_factory.begin() as session:
+        session.execute(
+            text("UPDATE exams SET price_valid_from = DATE '2026-02-01' WHERE id = :id"),
+            {"id": exam_id},
+        )
+
+    response = await client.post(
+        f"/api/v1/attendances/{attendance_id}/preview",
+        json={"items": [{"exam_id": exam_id, "quantity": 1}]},
+    )
+
+    assert response.status_code == 422
+    assert response.json()["error"]["code"] == "PRICE_NOT_AVAILABLE"
+
+
 async def test_preview_attendance_already_confirmed_is_invalid(
     client: httpx.AsyncClient, session_factory: sessionmaker[Session]
 ) -> None:
