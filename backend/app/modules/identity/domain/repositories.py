@@ -10,7 +10,14 @@ from datetime import datetime
 from typing import Protocol
 from uuid import UUID
 
-from app.modules.identity.domain.entities import LabMembership, Permission, Role, Session, User
+from app.modules.identity.domain.entities import (
+    ClinicMembership,
+    LabMembership,
+    Permission,
+    Role,
+    Session,
+    User,
+)
 
 
 class UserRepository(Protocol):
@@ -83,6 +90,16 @@ class LabMembershipRepository(Protocol):
     def add(self, membership: LabMembership) -> None: ...
 
     def get_active_by_user_id(self, user_id: UUID) -> LabMembership | None: ...
+
+
+class ClinicMembershipRepository(Protocol):
+    def add(self, membership: ClinicMembership) -> None: ...
+
+    def list_active_clinic_ids_for_user(self, user_id: UUID) -> frozenset[UUID]: ...
+
+    def get_active_by_user_and_clinic(
+        self, user_id: UUID, clinic_id: UUID
+    ) -> ClinicMembership | None: ...
 
 
 class LoginFailureRepository(Protocol):

@@ -91,6 +91,27 @@ class LabMembershipModel(Base):
     revoked_at: Mapped[datetime | None] = mapped_column(nullable=True)
 
 
+class ClinicMembershipModel(Base):
+    __tablename__ = "clinic_memberships"
+    __table_args__ = (
+        UniqueConstraint("user_id", "clinic_id", name="uq_clinic_memberships_user_id_clinic_id"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"), nullable=False
+    )
+    clinic_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("clinics.id", ondelete="CASCADE"), nullable=False
+    )
+    is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    granted_at: Mapped[datetime] = mapped_column(nullable=False)
+    granted_by: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("users.id", ondelete="SET NULL"), nullable=True
+    )
+    revoked_at: Mapped[datetime | None] = mapped_column(nullable=True)
+
+
 class SessionModel(Base):
     __tablename__ = "sessions"
     __table_args__ = (Index("ix_sessions_user_id_expires_at", "user_id", "expires_at"),)

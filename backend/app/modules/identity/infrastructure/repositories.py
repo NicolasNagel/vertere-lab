@@ -14,6 +14,7 @@ from sqlalchemy import ColumnElement, CursorResult, delete, func, or_, select, u
 from sqlalchemy.orm import Session as SqlAlchemySession
 
 from app.modules.identity.domain.entities import (
+    ClinicMembership,
     LabMembership,
     Permission,
     Role,
@@ -23,6 +24,7 @@ from app.modules.identity.domain.entities import (
 )
 from app.modules.identity.domain.value_objects import Email
 from app.modules.identity.infrastructure.models import (
+    ClinicMembershipModel,
     LabMembershipModel,
     LoginFailureModel,
     PermissionModel,
@@ -370,6 +372,57 @@ class SqlAlchemyLabMembershipRepository:
         return LabMembership(
             id=model.id,
             user_id=model.user_id,
+            is_active=model.is_active,
+            granted_at=model.granted_at,
+            granted_by=model.granted_by,
+            revoked_at=model.revoked_at,
+        )
+
+
+class SqlAlchemyClinicMembershipRepository:
+    def __init__(self, session: SqlAlchemySession) -> None:
+        self._session = session
+
+    def add(self, membership: ClinicMembership) -> None:
+        self._session.add(
+            ClinicMembershipModel(
+                id=membership.id,
+                user_id=membership.user_id,
+                clinic_id=membership.clinic_id,
+                is_active=membership.is_active,
+                granted_at=membership.granted_at,
+                granted_by=membership.granted_by,
+                revoked_at=membership.revoked_at,
+            )
+        )
+
+    def list_active_clinic_ids_for_user(self, user_id: UUID) -> frozenset[UUID]:
+        rows = self._session.execute(
+            select(ClinicMembershipModel.clinic_id).where(
+                ClinicMembershipModel.user_id == user_id,
+                ClinicMembershipModel.is_active.is_(True),
+                ClinicMembershipModel.revoked_at.is_(None),
+            )
+        ).scalars()
+        return frozenset(rows)
+
+    def get_active_by_user_and_clinic(
+        self, user_id: UUID, clinic_id: UUID
+    ) -> ClinicMembership | None:
+        model = self._session.execute(
+            select(ClinicMembershipModel).where(
+                ClinicMembershipModel.user_id == user_id,
+                ClinicMembershipModel.clinic_id == clinic_id,
+                ClinicMembershipModel.is_active.is_(True),
+                ClinicMembershipModel.revoked_at.is_(None),
+            )
+        ).scalar_one_or_none()
+        if model is None:
+            return None
+        return ClinicMembership(
+            id=model.id,
+            user_id=model.user_id,
+            clinic_id=model.clinic_id,
             is_active=model.is_active,
             granted_at=model.granted_at,
             granted_by=model.granted_by,

@@ -83,6 +83,22 @@ class LabMembership:
 
 
 @dataclass(kw_only=True)
+class ClinicMembership:
+    """Scopes a user to exactly one clinic — the CLINIC-scope counterpart to
+    `LabMembership` (which grants all-clinic/lab-wide scope). A user can hold
+    several of these (N clinics), unlike `LabMembership`, which is unique per
+    user (`.claude/rules/01-product-domain.md`: escopo por clínica)."""
+
+    id: UUID
+    user_id: UUID
+    clinic_id: UUID
+    is_active: bool = True
+    granted_at: datetime
+    granted_by: UUID | None = None
+    revoked_at: datetime | None = None
+
+
+@dataclass(kw_only=True)
 class Session:
     id: UUID
     user_id: UUID
