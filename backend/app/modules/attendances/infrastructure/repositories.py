@@ -6,6 +6,7 @@ ORM models never leak past this file (rule: .claude/rules/03-database.md).
 
 from __future__ import annotations
 
+from datetime import date
 from uuid import UUID
 
 from sqlalchemy import ColumnElement, func, select
@@ -23,6 +24,7 @@ from app.modules.attendances.infrastructure.models import (
     AttendanceModel,
     AttendanceSequenceModel,
 )
+from app.modules.patients.infrastructure.models import PatientModel
 
 
 def _item_to_domain(model: AttendanceExamModel) -> AttendanceExam:
@@ -190,6 +192,10 @@ class SqlAlchemyAttendanceRepository:
         veterinarian_id: UUID | None,
         patient_id: UUID | None,
         status: AttendanceStatus | None,
+        protocol_number: str | None,
+        owner_name: str | None,
+        service_date_from: date | None,
+        service_date_to: date | None,
     ) -> tuple[list[AttendanceRecord], int]:
         conditions: list[ColumnElement[bool]] = []
         if clinic_id is not None:
@@ -200,6 +206,12 @@ class SqlAlchemyAttendanceRepository:
             conditions.append(AttendanceModel.patient_id == patient_id)
         if status is not None:
             conditions.append(AttendanceModel.status == status.value)
+        if protocol_number:
+            conditions.append(AttendanceModel.protocol_number.ilike(f"%{protocol_number.strip()}%"))
+        if service_date_from is not None:
+            conditions.append(AttendanceModel.service_date >= service_date_from)
+        if service_date_to is not None:
+            conditions.append(AttendanceModel.service_date <= service_date_to)
 
         count_stmt = select(func.count()).select_from(AttendanceModel)
         list_stmt = (
@@ -207,6 +219,13 @@ class SqlAlchemyAttendanceRepository:
             .options(selectinload(AttendanceModel.items))
             .order_by(AttendanceModel.created_at.desc())
         )
+        if owner_name:
+            owner_condition = PatientModel.owner_name.ilike(f"%{owner_name.strip()}%")
+            count_stmt = count_stmt.join(
+                PatientModel, PatientModel.id == AttendanceModel.patient_id
+            )
+            list_stmt = list_stmt.join(PatientModel, PatientModel.id == AttendanceModel.patient_id)
+            conditions.append(owner_condition)
         for condition in conditions:
             count_stmt = count_stmt.where(condition)
             list_stmt = list_stmt.where(condition)

@@ -27,6 +27,10 @@ export function AttendanceListPage() {
   const [status, setStatus] = useState<AttendanceStatus | ''>('')
   const [clinicId, setClinicId] = useState('')
   const [veterinarianId, setVeterinarianId] = useState('')
+  const [protocolNumber, setProtocolNumber] = useState('')
+  const [ownerName, setOwnerName] = useState('')
+  const [serviceDateFrom, setServiceDateFrom] = useState('')
+  const [serviceDateTo, setServiceDateTo] = useState('')
 
   const clinicsQuery = useAllClinicsQuery()
   const veterinariansQuery = useAllVeterinariansQuery()
@@ -41,6 +45,10 @@ export function AttendanceListPage() {
           status: status || undefined,
           clinicId: clinicId || undefined,
           veterinarianId: veterinarianId || undefined,
+          protocolNumber: protocolNumber.trim() || undefined,
+          ownerName: ownerName.trim() || undefined,
+          serviceDateFrom: serviceDateFrom || undefined,
+          serviceDateTo: serviceDateTo || undefined,
         }
       : null,
   )
@@ -109,10 +117,24 @@ export function AttendanceListPage() {
             clinicId={clinicId}
             veterinarianId={veterinarianId}
             status={status}
+            protocolNumber={protocolNumber}
+            ownerName={ownerName}
+            serviceDateFrom={serviceDateFrom}
+            serviceDateTo={serviceDateTo}
             disabled={isLoading}
             onClinicChange={(value) => handleFilterChange(() => setClinicId(value))}
             onVeterinarianChange={(value) => handleFilterChange(() => setVeterinarianId(value))}
             onStatusChange={(value) => handleFilterChange(() => setStatus(value))}
+            onProtocolNumberChange={(value) =>
+              handleFilterChange(() => setProtocolNumber(value))
+            }
+            onOwnerNameChange={(value) => handleFilterChange(() => setOwnerName(value))}
+            onServiceDateFromChange={(value) =>
+              handleFilterChange(() => setServiceDateFrom(value))
+            }
+            onServiceDateToChange={(value) =>
+              handleFilterChange(() => setServiceDateTo(value))
+            }
           />
 
           <div className="attendance-list-page__body">

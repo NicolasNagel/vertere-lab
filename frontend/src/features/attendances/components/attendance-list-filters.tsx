@@ -18,10 +18,18 @@ interface AttendanceListFiltersProps {
   clinicId: string
   veterinarianId: string
   status: AttendanceStatus | ''
+  protocolNumber: string
+  ownerName: string
+  serviceDateFrom: string
+  serviceDateTo: string
   disabled: boolean
   onClinicChange: (clinicId: string) => void
   onVeterinarianChange: (veterinarianId: string) => void
   onStatusChange: (status: AttendanceStatus | '') => void
+  onProtocolNumberChange: (value: string) => void
+  onOwnerNameChange: (value: string) => void
+  onServiceDateFromChange: (value: string) => void
+  onServiceDateToChange: (value: string) => void
 }
 
 export function AttendanceListFilters({
@@ -30,10 +38,18 @@ export function AttendanceListFilters({
   clinicId,
   veterinarianId,
   status,
+  protocolNumber,
+  ownerName,
+  serviceDateFrom,
+  serviceDateTo,
   disabled,
   onClinicChange,
   onVeterinarianChange,
   onStatusChange,
+  onProtocolNumberChange,
+  onOwnerNameChange,
+  onServiceDateFromChange,
+  onServiceDateToChange,
 }: AttendanceListFiltersProps) {
   return (
     <div className="attendance-list-filters">
@@ -46,6 +62,44 @@ export function AttendanceListFilters({
         disabled={disabled}
         onChange={(event) => onStatusChange(event.target.value as AttendanceStatus | '')}
       />
+      <label className="attendance-list-filters__field">
+        <span>Protocolo</span>
+        <input
+          value={protocolNumber}
+          maxLength={32}
+          disabled={disabled}
+          placeholder="2026/000001"
+          onChange={(event) => onProtocolNumberChange(event.target.value)}
+        />
+      </label>
+      <label className="attendance-list-filters__field">
+        <span>Tutor</span>
+        <input
+          value={ownerName}
+          maxLength={200}
+          disabled={disabled}
+          onChange={(event) => onOwnerNameChange(event.target.value)}
+        />
+      </label>
+      <label className="attendance-list-filters__field">
+        <span>Data inicial</span>
+        <input
+          type="date"
+          value={serviceDateFrom}
+          disabled={disabled}
+          onChange={(event) => onServiceDateFromChange(event.target.value)}
+        />
+      </label>
+      <label className="attendance-list-filters__field">
+        <span>Data final</span>
+        <input
+          type="date"
+          value={serviceDateTo}
+          min={serviceDateFrom || undefined}
+          disabled={disabled}
+          onChange={(event) => onServiceDateToChange(event.target.value)}
+        />
+      </label>
       <SelectField
         label="Clínica"
         id="attendance-list-clinic"

@@ -5,7 +5,7 @@ pure use-case test is not the repository-under-test, so this is fine per
 
 from __future__ import annotations
 
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime
 from decimal import Decimal
 from uuid import UUID
 
@@ -75,6 +75,10 @@ class FakeAttendanceRepository:
         veterinarian_id: UUID | None,
         patient_id: UUID | None,
         status: AttendanceStatus | None,
+        protocol_number: str | None,
+        owner_name: str | None,
+        service_date_from: date | None,
+        service_date_to: date | None,
     ) -> tuple[list[AttendanceRecord], int]:
         items = list(self._attendances.values())
         if clinic_id is not None:
@@ -85,6 +89,22 @@ class FakeAttendanceRepository:
             items = [a for a in items if a.patient_id == patient_id]
         if status is not None:
             items = [a for a in items if a.status == status]
+        if protocol_number:
+            items = [a for a in items if protocol_number in (a.protocol_number or "")]
+        # Owner lives in the patient repository; the integration repository
+        # test covers that join. This fake deliberately has no patient graph.
+        if owner_name:
+            items = []
+        if service_date_from is not None:
+            items = [
+                a
+                for a in items
+                if a.service_date is not None and a.service_date >= service_date_from
+            ]
+        if service_date_to is not None:
+            items = [
+                a for a in items if a.service_date is not None and a.service_date <= service_date_to
+            ]
         items.sort(key=lambda a: a.created_at, reverse=True)
         total = len(items)
         start = (page - 1) * page_size

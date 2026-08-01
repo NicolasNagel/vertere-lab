@@ -7,6 +7,7 @@ does.
 
 from __future__ import annotations
 
+from datetime import date
 from typing import Protocol
 from uuid import UUID
 
@@ -29,6 +30,10 @@ class AttendanceRepository(Protocol):
         veterinarian_id: UUID | None,
         patient_id: UUID | None,
         status: AttendanceStatus | None,
+        protocol_number: str | None,
+        owner_name: str | None,
+        service_date_from: date | None,
+        service_date_to: date | None,
     ) -> tuple[list[AttendanceRecord], int]: ...
 
 

@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+from datetime import date
 from typing import cast
 from uuid import UUID
 
@@ -153,6 +154,10 @@ def list_attendances(
     veterinarian_id: UUID | None = Query(None),
     patient_id: UUID | None = Query(None),
     status: AttendanceStatus | None = Query(None),
+    protocol_number: str | None = Query(None, min_length=1, max_length=32),
+    owner_name: str | None = Query(None, min_length=1, max_length=200),
+    service_date_from: date | None = Query(None),
+    service_date_to: date | None = Query(None),
     session: SqlAlchemySession = Depends(get_session),
     current_user: AuthenticatedUserDTO = Depends(require_permission("attendances.read")),
 ) -> AttendanceListResponse:
@@ -166,6 +171,10 @@ def list_attendances(
             veterinarian_id=veterinarian_id,
             patient_id=patient_id,
             status=status,
+            protocol_number=protocol_number,
+            owner_name=owner_name,
+            service_date_from=service_date_from,
+            service_date_to=service_date_to,
         )
     )
     return AttendanceListResponse(

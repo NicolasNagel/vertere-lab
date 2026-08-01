@@ -373,7 +373,12 @@ async def test_list_attendances_filters_by_clinic(
 
     await client.post(
         "/api/v1/attendances/drafts",
-        json={"clinic_id": clinic_id, "veterinarian_id": veterinarian_id, "patient_id": patient_id},
+        json={
+            "clinic_id": clinic_id,
+            "veterinarian_id": veterinarian_id,
+            "patient_id": patient_id,
+            "service_date": "2026-01-10",
+        },
     )
     await client.post(
         "/api/v1/attendances/drafts",
@@ -381,6 +386,7 @@ async def test_list_attendances_filters_by_clinic(
             "clinic_id": other_clinic_id,
             "veterinarian_id": veterinarian_id,
             "patient_id": patient_id,
+            "service_date": "2026-02-10",
         },
     )
 
@@ -390,6 +396,25 @@ async def test_list_attendances_filters_by_clinic(
     body = response.json()
     assert body["total"] == 1
     assert body["items"][0]["clinic_id"] == clinic_id
+
+    response = await client.get(
+        "/api/v1/attendances",
+        params={
+            "owner_name": "maria sou",
+            "service_date_from": "2026-01-01",
+            "service_date_to": "2026-01-31",
+        },
+    )
+    assert response.status_code == 200
+    assert response.json()["total"] == 1
+    assert response.json()["items"][0]["clinic_id"] == clinic_id
+
+    invalid_range = await client.get(
+        "/api/v1/attendances",
+        params={"service_date_from": "2026-02-01", "service_date_to": "2026-01-01"},
+    )
+    assert invalid_range.status_code == 422
+    assert invalid_range.json()["error"]["code"] == "VALIDATION_ERROR"
 
 
 async def test_get_attendance_not_found(

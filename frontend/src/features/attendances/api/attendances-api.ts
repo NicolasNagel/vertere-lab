@@ -57,6 +57,10 @@ export interface AttendanceListParams {
   veterinarianId?: string
   patientId?: string
   status?: AttendanceStatus
+  protocolNumber?: string
+  ownerName?: string
+  serviceDateFrom?: string
+  serviceDateTo?: string
   page?: number
   pageSize?: number
 }
@@ -259,6 +263,10 @@ export async function fetchAttendances(params: AttendanceListParams = {}): Promi
   if (params.veterinarianId) query.set('veterinarian_id', params.veterinarianId)
   if (params.patientId) query.set('patient_id', params.patientId)
   if (params.status) query.set('status', params.status)
+  if (params.protocolNumber) query.set('protocol_number', params.protocolNumber)
+  if (params.ownerName) query.set('owner_name', params.ownerName)
+  if (params.serviceDateFrom) query.set('service_date_from', params.serviceDateFrom)
+  if (params.serviceDateTo) query.set('service_date_to', params.serviceDateTo)
   query.set('page', String(params.page ?? 1))
   query.set('page_size', String(params.pageSize ?? 20))
 
