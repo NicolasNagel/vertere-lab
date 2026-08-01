@@ -25,7 +25,7 @@ from app.modules.attendances.application.mappers import attendance_to_dto
 from app.modules.attendances.application.party_validation import (
     validate_clinic_veterinarian_patient,
 )
-from app.modules.attendances.domain.entities import AttendanceStatus
+from app.modules.attendances.domain.entities import AttendanceStatus, CollectionMethod, ServiceLevel
 from app.modules.attendances.domain.repositories import AttendanceRepository
 from app.modules.audit.domain.entities import ActorScope, AuditEntry
 from app.modules.audit.domain.repositories import AuditLogWriter
@@ -48,6 +48,8 @@ class UpdateAttendanceCommand:
     clinic_id: UUID | None = None
     veterinarian_id: UUID | None = None
     patient_id: UUID | None = None
+    collection_method: CollectionMethod | None = None
+    service_level: ServiceLevel | None = None
     service_date: date | None = None
     notes: str | None = None
 
@@ -104,6 +106,8 @@ class UpdateAttendanceUseCase:
             clinic_id=command.clinic_id,
             veterinarian_id=command.veterinarian_id,
             patient_id=command.patient_id,
+            collection_method=command.collection_method,
+            service_level=command.service_level,
             service_date=command.service_date,
             notes=command.notes,
             now=self._clock.now(),

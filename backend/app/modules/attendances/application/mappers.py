@@ -26,6 +26,8 @@ def attendance_to_dto(attendance: AttendanceRecord) -> AttendanceDTO:
         clinic_id=attendance.clinic_id,
         veterinarian_id=attendance.veterinarian_id,
         patient_id=attendance.patient_id,
+        collection_method=attendance.collection_method.value,
+        service_level=attendance.service_level.value,
         service_date=attendance.service_date,
         notes=attendance.notes,
         status=attendance.status.value,

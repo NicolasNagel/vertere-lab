@@ -18,6 +18,8 @@ from app.modules.attendances.domain.entities import (
     AttendanceExamStatus,
     AttendanceRecord,
     AttendanceStatus,
+    CollectionMethod,
+    ServiceLevel,
 )
 from app.modules.attendances.infrastructure.models import (
     AttendanceExamModel,
@@ -50,6 +52,8 @@ def _to_domain(model: AttendanceModel) -> AttendanceRecord:
         clinic_id=model.clinic_id,
         veterinarian_id=model.veterinarian_id,
         patient_id=model.patient_id,
+        collection_method=CollectionMethod(model.collection_method),
+        service_level=ServiceLevel(model.service_level),
         service_date=model.service_date,
         notes=model.notes,
         status=AttendanceStatus(model.status),
@@ -91,6 +95,8 @@ class SqlAlchemyAttendanceRepository:
                 clinic_id=attendance.clinic_id,
                 veterinarian_id=attendance.veterinarian_id,
                 patient_id=attendance.patient_id,
+                collection_method=attendance.collection_method.value,
+                service_level=attendance.service_level.value,
                 service_date=attendance.service_date,
                 notes=attendance.notes,
                 status=attendance.status.value,
@@ -124,6 +130,8 @@ class SqlAlchemyAttendanceRepository:
         model.clinic_id = attendance.clinic_id
         model.veterinarian_id = attendance.veterinarian_id
         model.patient_id = attendance.patient_id
+        model.collection_method = attendance.collection_method.value
+        model.service_level = attendance.service_level.value
         model.service_date = attendance.service_date
         model.notes = attendance.notes
         model.status = attendance.status.value

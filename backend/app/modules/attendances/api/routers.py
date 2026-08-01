@@ -24,6 +24,8 @@ from app.modules.attendances.api.schemas import (
     AttendanceTimelineEntryRead,
     AttendanceTimelineResponse,
     AttendanceUpdateRequest,
+    CollectionMethodLiteral,
+    ServiceLevelLiteral,
 )
 from app.modules.attendances.application.attendance_items import AttendanceItemInput
 from app.modules.attendances.application.cancel_attendance import (
@@ -64,7 +66,11 @@ from app.modules.attendances.application.update_attendance import (
     UpdateAttendanceCommand,
     UpdateAttendanceUseCase,
 )
-from app.modules.attendances.domain.entities import AttendanceStatus
+from app.modules.attendances.domain.entities import (
+    AttendanceStatus,
+    CollectionMethod,
+    ServiceLevel,
+)
 from app.modules.attendances.infrastructure.repositories import (
     SqlAlchemyAttendanceRepository,
     SqlAlchemyAttendanceSequenceRepository,
@@ -114,6 +120,8 @@ def _attendance_read(dto: AttendanceDTO) -> AttendanceRead:
         clinic_id=dto.clinic_id,
         veterinarian_id=dto.veterinarian_id,
         patient_id=dto.patient_id,
+        collection_method=cast(CollectionMethodLiteral, dto.collection_method),
+        service_level=cast(ServiceLevelLiteral, dto.service_level),
         service_date=dto.service_date,
         notes=dto.notes,
         status=cast(AttendanceStatusLiteral, dto.status),
@@ -137,6 +145,8 @@ def _attendance_preview_read(dto: AttendancePreviewDTO) -> AttendancePreviewResp
         clinic_id=dto.clinic_id,
         veterinarian_id=dto.veterinarian_id,
         patient_id=dto.patient_id,
+        collection_method=cast(CollectionMethodLiteral, dto.collection_method),
+        service_level=cast(ServiceLevelLiteral, dto.service_level),
         service_date=dto.service_date,
         items=[_attendance_exam_read(item) for item in dto.items],
         subtotal=dto.subtotal,
@@ -257,6 +267,16 @@ def update_attendance(
                 clinic_id=payload.clinic_id,
                 veterinarian_id=payload.veterinarian_id,
                 patient_id=payload.patient_id,
+                collection_method=(
+                    CollectionMethod(payload.collection_method)
+                    if payload.collection_method is not None
+                    else None
+                ),
+                service_level=(
+                    ServiceLevel(payload.service_level)
+                    if payload.service_level is not None
+                    else None
+                ),
                 service_date=payload.service_date,
                 notes=payload.notes,
             )
@@ -287,6 +307,8 @@ def create_attendance_draft(
                 clinic_id=payload.clinic_id,
                 veterinarian_id=payload.veterinarian_id,
                 patient_id=payload.patient_id,
+                collection_method=CollectionMethod(payload.collection_method),
+                service_level=ServiceLevel(payload.service_level),
                 service_date=payload.service_date,
                 notes=payload.notes,
             )

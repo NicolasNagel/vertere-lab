@@ -34,6 +34,8 @@ class AttendancePreviewDTO:
     clinic_id: UUID
     veterinarian_id: UUID
     patient_id: UUID
+    collection_method: str
+    service_level: str
     service_date: date
     items: list[AttendanceExamDTO]
     subtotal: Decimal
@@ -48,6 +50,8 @@ class AttendanceDTO:
     clinic_id: UUID
     veterinarian_id: UUID
     patient_id: UUID
+    collection_method: str
+    service_level: str
     service_date: date | None
     notes: str | None
     status: str

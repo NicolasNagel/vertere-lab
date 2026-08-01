@@ -88,6 +88,8 @@ class PreviewAttendanceUseCase:
             clinic_id=attendance.clinic_id,
             veterinarian_id=attendance.veterinarian_id,
             patient_id=attendance.patient_id,
+            collection_method=attendance.collection_method.value,
+            service_level=attendance.service_level.value,
             service_date=attendance.service_date,
             items=[attendance_exam_to_dto(item) for item in items],
             subtotal=totals.subtotal,

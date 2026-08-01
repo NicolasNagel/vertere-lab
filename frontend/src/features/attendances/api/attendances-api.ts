@@ -10,6 +10,9 @@ export type AttendanceStatus =
   | 'CANCELLED'
   | 'ON_HOLD'
 
+export type CollectionMethod = 'HELITO_NICOLAS' | 'INTERNAL' | 'MARLI' | 'COURIER' | 'UBER'
+export type ServiceLevel = 'NORMAL' | 'ON_CALL'
+
 export interface AttendanceExamItem {
   id: string
   examId: string
@@ -29,6 +32,8 @@ export interface Attendance {
   clinicId: string
   veterinarianId: string
   patientId: string
+  collectionMethod: CollectionMethod
+  serviceLevel: ServiceLevel
   serviceDate: string | null
   notes: string | null
   status: AttendanceStatus
@@ -69,6 +74,8 @@ export interface AttendanceDraftFormValues {
   clinicId: string
   veterinarianId: string
   patientId: string
+  collectionMethod: CollectionMethod
+  serviceLevel: ServiceLevel
   serviceDate: string | null
   notes: string | null
 }
@@ -85,6 +92,8 @@ export interface AttendancePreview {
   clinicId: string
   veterinarianId: string
   patientId: string
+  collectionMethod: CollectionMethod
+  serviceLevel: ServiceLevel
   serviceDate: string
   items: AttendanceExamItem[]
   subtotal: string
@@ -129,6 +138,8 @@ interface ApiAttendance {
   clinic_id: string
   veterinarian_id: string
   patient_id: string
+  collection_method: CollectionMethod
+  service_level: ServiceLevel
   service_date: string | null
   notes: string | null
   status: AttendanceStatus
@@ -157,6 +168,8 @@ interface ApiAttendancePreview {
   clinic_id: string
   veterinarian_id: string
   patient_id: string
+  collection_method: CollectionMethod
+  service_level: ServiceLevel
   service_date: string
   items: ApiAttendanceExamItem[]
   subtotal: string
@@ -197,6 +210,8 @@ function fromApiPreview(preview: ApiAttendancePreview): AttendancePreview {
     clinicId: preview.clinic_id,
     veterinarianId: preview.veterinarian_id,
     patientId: preview.patient_id,
+    collectionMethod: preview.collection_method ?? 'INTERNAL',
+    serviceLevel: preview.service_level ?? 'NORMAL',
     serviceDate: preview.service_date,
     items: preview.items.map(fromApiItem),
     subtotal: preview.subtotal,
@@ -240,6 +255,8 @@ function fromApiAttendance(attendance: ApiAttendance): Attendance {
     clinicId: attendance.clinic_id,
     veterinarianId: attendance.veterinarian_id,
     patientId: attendance.patient_id,
+    collectionMethod: attendance.collection_method ?? 'INTERNAL',
+    serviceLevel: attendance.service_level ?? 'NORMAL',
     serviceDate: attendance.service_date,
     notes: attendance.notes,
     status: attendance.status,
@@ -333,6 +350,8 @@ export interface AttendanceUpdateInput {
   clinicId?: string
   veterinarianId?: string
   patientId?: string
+  collectionMethod?: CollectionMethod
+  serviceLevel?: ServiceLevel
   serviceDate?: string | null
   notes?: string
 }
@@ -350,6 +369,8 @@ export async function updateAttendance(
   if (input.clinicId !== undefined) body.clinic_id = input.clinicId
   if (input.veterinarianId !== undefined) body.veterinarian_id = input.veterinarianId
   if (input.patientId !== undefined) body.patient_id = input.patientId
+  if (input.collectionMethod !== undefined) body.collection_method = input.collectionMethod
+  if (input.serviceLevel !== undefined) body.service_level = input.serviceLevel
   if (input.serviceDate !== undefined) body.service_date = input.serviceDate
   if (input.notes !== undefined) body.notes = input.notes
 
@@ -393,6 +414,8 @@ export async function createAttendanceDraft(
       clinic_id: values.clinicId,
       veterinarian_id: values.veterinarianId,
       patient_id: values.patientId,
+      collection_method: values.collectionMethod,
+      service_level: values.serviceLevel,
       service_date: values.serviceDate,
       notes: values.notes,
     }),

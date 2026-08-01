@@ -15,7 +15,7 @@ import { useVeterinarianQuery } from '../../veterinarians/api/use-veterinarian-q
 import { useAllVeterinariansQuery } from '../../veterinarians/api/use-veterinarians-query'
 import { attendanceQueryKey } from '../api/use-attendance-query'
 import { useUpdateAttendanceMutation } from '../api/use-update-attendance-mutation'
-import type { Attendance } from '../api/attendances-api'
+import type { Attendance, CollectionMethod, ServiceLevel } from '../api/attendances-api'
 import { PatientPicker } from './patient-picker'
 import './attendance-header-details.css'
 
@@ -36,6 +36,8 @@ export function AttendanceHeaderDetails({ attendance, editable }: AttendanceHead
   const [veterinarianId, setVeterinarianId] = useState('')
   const [patient, setPatient] = useState<Patient | null>(null)
   const [serviceDate, setServiceDate] = useState('')
+  const [collectionMethod, setCollectionMethod] = useState<CollectionMethod>('INTERNAL')
+  const [serviceLevel, setServiceLevel] = useState<ServiceLevel>('NORMAL')
   const [notes, setNotes] = useState('')
 
   const clinicQuery = useClinicQuery(attendance.clinicId)
@@ -72,6 +74,8 @@ export function AttendanceHeaderDetails({ attendance, editable }: AttendanceHead
     setVeterinarianId(attendance.veterinarianId)
     setPatient(patientQuery.data ?? null)
     setServiceDate(attendance.serviceDate ?? '')
+    setCollectionMethod(attendance.collectionMethod)
+    setServiceLevel(attendance.serviceLevel)
     setNotes(attendance.notes ?? '')
     updateMutation.reset()
     setEditing(true)
@@ -95,6 +99,8 @@ export function AttendanceHeaderDetails({ attendance, editable }: AttendanceHead
           veterinarianId,
           patientId: patient.id,
           serviceDate: serviceDate || null,
+          collectionMethod,
+          serviceLevel,
           notes,
         },
       },
@@ -128,6 +134,24 @@ export function AttendanceHeaderDetails({ attendance, editable }: AttendanceHead
             <span className="attendance-header-details__label">Clínica</span>
             <span className="attendance-header-details__value">
               {clinicQuery.data?.name ?? '—'}
+            </span>
+          </div>
+          <div className="attendance-header-details__field">
+            <span className="attendance-header-details__label">MÃ©todo de coleta</span>
+            <span className="attendance-header-details__value">
+              {{
+                INTERNAL: 'Internos',
+                HELITO_NICOLAS: 'Helito/Nicolas',
+                MARLI: 'Marli',
+                COURIER: 'Motoboy',
+                UBER: 'Uber',
+              }[attendance.collectionMethod]}
+            </span>
+          </div>
+          <div className="attendance-header-details__field">
+            <span className="attendance-header-details__label">Tipo de atendimento</span>
+            <span className="attendance-header-details__value">
+              {attendance.serviceLevel === 'ON_CALL' ? 'PlantÃ£o' : 'Normal'}
             </span>
           </div>
           <div className="attendance-header-details__field">
@@ -196,6 +220,31 @@ export function AttendanceHeaderDetails({ attendance, editable }: AttendanceHead
           />
 
           <div className="attendance-header-details__row">
+            <SelectField
+              id="attendance-header-collection-method"
+              label="MÃ©todo de coleta"
+              value={collectionMethod}
+              disabled={updateMutation.isPending}
+              options={[
+                { value: 'INTERNAL', label: 'Internos' },
+                { value: 'HELITO_NICOLAS', label: 'Helito/Nicolas' },
+                { value: 'MARLI', label: 'Marli' },
+                { value: 'COURIER', label: 'Motoboy' },
+                { value: 'UBER', label: 'Uber' },
+              ]}
+              onChange={(event) => setCollectionMethod(event.target.value as CollectionMethod)}
+            />
+            <SelectField
+              id="attendance-header-service-level"
+              label="Tipo de atendimento"
+              value={serviceLevel}
+              disabled={updateMutation.isPending}
+              options={[
+                { value: 'NORMAL', label: 'Normal' },
+                { value: 'ON_CALL', label: 'PlantÃ£o' },
+              ]}
+              onChange={(event) => setServiceLevel(event.target.value as ServiceLevel)}
+            />
             <TextField
               id="attendance-header-service-date"
               label="Data do atendimento"

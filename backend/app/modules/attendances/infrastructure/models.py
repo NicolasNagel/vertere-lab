@@ -35,6 +35,13 @@ class AttendanceModel(Base):
         CheckConstraint("discount_total >= 0", name="ck_attendances_discount_total_non_negative"),
         CheckConstraint("surcharge_total >= 0", name="ck_attendances_surcharge_total_non_negative"),
         CheckConstraint("grand_total >= 0", name="ck_attendances_grand_total_non_negative"),
+        CheckConstraint(
+            "collection_method IN ('HELITO_NICOLAS','INTERNAL','MARLI','COURIER','UBER')",
+            name="ck_attendances_collection_method",
+        ),
+        CheckConstraint(
+            "service_level IN ('NORMAL','ON_CALL')", name="ck_attendances_service_level"
+        ),
         UniqueConstraint(
             "protocol_year", "protocol_sequence", name="uq_attendances_protocol_year_sequence"
         ),
@@ -50,6 +57,8 @@ class AttendanceModel(Base):
     patient_id: Mapped[uuid.UUID] = mapped_column(
         ForeignKey("patients.id", ondelete="RESTRICT"), nullable=False
     )
+    collection_method: Mapped[str] = mapped_column(nullable=False, default="INTERNAL")
+    service_level: Mapped[str] = mapped_column(nullable=False, default="NORMAL")
     service_date: Mapped[date | None] = mapped_column(nullable=True)
     notes: Mapped[str | None] = mapped_column(nullable=True)
     status: Mapped[str] = mapped_column(nullable=False, default="DRAFT")

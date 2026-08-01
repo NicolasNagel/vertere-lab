@@ -17,7 +17,12 @@ from app.modules.attendances.application.mappers import attendance_to_dto
 from app.modules.attendances.application.party_validation import (
     validate_clinic_veterinarian_patient,
 )
-from app.modules.attendances.domain.entities import AttendanceRecord, AttendanceStatus
+from app.modules.attendances.domain.entities import (
+    AttendanceRecord,
+    AttendanceStatus,
+    CollectionMethod,
+    ServiceLevel,
+)
 from app.modules.attendances.domain.repositories import AttendanceRepository
 from app.modules.audit.domain.entities import ActorScope, AuditEntry
 from app.modules.audit.domain.repositories import AuditLogWriter
@@ -38,6 +43,8 @@ class CreateAttendanceDraftCommand:
     clinic_id: UUID
     veterinarian_id: UUID
     patient_id: UUID
+    collection_method: CollectionMethod = CollectionMethod.INTERNAL
+    service_level: ServiceLevel = ServiceLevel.NORMAL
     service_date: date | None
     notes: str | None
 
@@ -82,6 +89,8 @@ class CreateAttendanceDraftUseCase:
             clinic_id=command.clinic_id,
             veterinarian_id=command.veterinarian_id,
             patient_id=command.patient_id,
+            collection_method=command.collection_method,
+            service_level=command.service_level,
             service_date=command.service_date,
             notes=command.notes,
             status=AttendanceStatus.DRAFT,
@@ -103,6 +112,8 @@ class CreateAttendanceDraftUseCase:
                     "clinic_id": str(attendance.clinic_id),
                     "veterinarian_id": str(attendance.veterinarian_id),
                     "patient_id": str(attendance.patient_id),
+                    "collection_method": attendance.collection_method.value,
+                    "service_level": attendance.service_level.value,
                     "status": attendance.status.value,
                 },
             )

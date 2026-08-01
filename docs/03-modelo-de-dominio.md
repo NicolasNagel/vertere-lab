@@ -95,8 +95,8 @@ Representar o fato operacional e financeiro de que uma clínica solicitou um ou 
 - `service_date`;
 - `requested_at`;
 - `status`;
-- `service_type_id`;
-- `collection_method_id`;
+- `service_level` controlado (`NORMAL` ou `ON_CALL`/plantão);
+- `collection_method` controlado, usando códigos estáveis em vez dos rótulos da planilha;
 - `notes` sanitizadas;
 - `subtotal`;
 - `discount_total`;

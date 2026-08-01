@@ -14,6 +14,8 @@ AttendanceStatusLiteral = Literal[
     "DRAFT", "CONFIRMED", "IN_PROGRESS", "COMPLETED", "CANCELLED", "ON_HOLD"
 ]
 AttendanceExamStatusLiteral = Literal["ACTIVE", "CANCELLED"]
+CollectionMethodLiteral = Literal["HELITO_NICOLAS", "INTERNAL", "MARLI", "COURIER", "UBER"]
+ServiceLevelLiteral = Literal["NORMAL", "ON_CALL"]
 
 
 class AttendanceExamRead(BaseModel):
@@ -35,6 +37,8 @@ class AttendanceRead(BaseModel):
     clinic_id: UUID
     veterinarian_id: UUID
     patient_id: UUID
+    collection_method: CollectionMethodLiteral
+    service_level: ServiceLevelLiteral
     service_date: date | None
     notes: str | None
     status: AttendanceStatusLiteral
@@ -64,6 +68,8 @@ class AttendanceDraftCreateRequest(BaseModel):
     clinic_id: UUID
     veterinarian_id: UUID
     patient_id: UUID
+    collection_method: CollectionMethodLiteral = "INTERNAL"
+    service_level: ServiceLevelLiteral = "NORMAL"
     service_date: date | None = None
     notes: str | None = None
 
@@ -107,6 +113,8 @@ class AttendanceUpdateRequest(BaseModel):
     clinic_id: UUID | None = None
     veterinarian_id: UUID | None = None
     patient_id: UUID | None = None
+    collection_method: CollectionMethodLiteral | None = None
+    service_level: ServiceLevelLiteral | None = None
     service_date: date | None = None
     notes: str | None = Field(default=None, max_length=2000)
 
@@ -145,6 +153,8 @@ class AttendancePreviewResponse(BaseModel):
     clinic_id: UUID
     veterinarian_id: UUID
     patient_id: UUID
+    collection_method: CollectionMethodLiteral
+    service_level: ServiceLevelLiteral
     service_date: date
     items: list[AttendanceExamRead]
     subtotal: Decimal

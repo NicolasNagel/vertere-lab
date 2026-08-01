@@ -225,7 +225,13 @@ test('creates a draft and navigates back to the attendance list', async () => {
 
   await waitFor(() => expect(onDraftCreated).toHaveBeenCalledTimes(1))
   expect(onDraftCreated).toHaveBeenCalledWith(
-    expect.objectContaining({ clinic_id: 'c1', veterinarian_id: 'v2', patient_id: 'p1' }),
+    expect.objectContaining({
+      clinic_id: 'c1',
+      veterinarian_id: 'v2',
+      patient_id: 'p1',
+      collection_method: 'INTERNAL',
+      service_level: 'NORMAL',
+    }),
   )
   expect(await screen.findByText('Lista de atendimentos')).toBeInTheDocument()
 })

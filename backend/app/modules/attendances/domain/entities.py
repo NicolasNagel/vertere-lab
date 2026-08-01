@@ -42,6 +42,19 @@ class AttendanceExamStatus(StrEnum):
     CANCELLED = "CANCELLED"
 
 
+class CollectionMethod(StrEnum):
+    HELITO_NICOLAS = "HELITO_NICOLAS"
+    INTERNAL = "INTERNAL"
+    MARLI = "MARLI"
+    COURIER = "COURIER"
+    UBER = "UBER"
+
+
+class ServiceLevel(StrEnum):
+    NORMAL = "NORMAL"
+    ON_CALL = "ON_CALL"
+
+
 @dataclass(kw_only=True)
 class AttendanceExam:
     """An exam item snapshotted onto a confirmed attendance.
@@ -111,6 +124,8 @@ class AttendanceRecord:
     clinic_id: UUID
     veterinarian_id: UUID
     patient_id: UUID
+    collection_method: CollectionMethod = CollectionMethod.INTERNAL
+    service_level: ServiceLevel = ServiceLevel.NORMAL
     service_date: date | None = None
     notes: str | None = None
     status: AttendanceStatus = AttendanceStatus.DRAFT
@@ -190,6 +205,8 @@ class AttendanceRecord:
         clinic_id: UUID | None,
         veterinarian_id: UUID | None,
         patient_id: UUID | None,
+        collection_method: CollectionMethod | None = None,
+        service_level: ServiceLevel | None = None,
         service_date: date | None,
         notes: str | None,
         now: datetime,
@@ -223,6 +240,8 @@ class AttendanceRecord:
             clinic_id is not None
             or veterinarian_id is not None
             or patient_id is not None
+            or collection_method is not None
+            or service_level is not None
             or service_date is not None
         ):
             raise ValidationError("Após a confirmação, apenas observações podem ser editadas.")
@@ -237,6 +256,12 @@ class AttendanceRecord:
         if patient_id is not None and patient_id != self.patient_id:
             changes["patient_id"] = (str(self.patient_id), str(patient_id))
             self.patient_id = patient_id
+        if collection_method is not None and collection_method != self.collection_method:
+            changes["collection_method"] = (self.collection_method.value, collection_method.value)
+            self.collection_method = collection_method
+        if service_level is not None and service_level != self.service_level:
+            changes["service_level"] = (self.service_level.value, service_level.value)
+            self.service_level = service_level
         if service_date is not None and service_date != self.service_date:
             changes["service_date"] = (str(self.service_date), str(service_date))
             self.service_date = service_date

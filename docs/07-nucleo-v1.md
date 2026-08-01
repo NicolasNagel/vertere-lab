@@ -89,6 +89,11 @@ Seções recomendadas:
 7. observações;
 8. resumo e confirmação.
 
+Na V1, coleta e tipo de atendimento são valores controlados no próprio agregado:
+`collection_method` normaliza os cinco valores encontrados na planilha e `service_level`
+distingue atendimento normal de plantão. Plantão aplica no servidor o adicional configurado
+no exame; o frontend nunca envia o valor do adicional.
+
 ### 3.2 Criação rápida
 
 Cada seletor de cadastro oferece:
@@ -237,4 +242,3 @@ GET  /api/v1/closures/{id}/export
 - ajuste e reabertura são rastreáveis;
 - migração reconcilia contagem e valores;
 - todos os fluxos críticos têm testes E2E.
-

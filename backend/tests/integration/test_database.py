@@ -8,6 +8,7 @@ from __future__ import annotations
 
 from collections.abc import Iterator
 from pathlib import Path
+from uuid import uuid4
 
 import pytest
 from alembic.config import Config
@@ -117,11 +118,83 @@ def test_alembic_upgrade_head_runs_on_empty_database(
             "monthly_closures",
             "monthly_closure_items",
             "financial_adjustments",
-            # Fatia de isolamento por clínica atualmente em desenvolvimento.
-            # Mantê-la no inventário torna o gate compatível com esse worktree
-            # sem assumir que a implementação concorrente esteja concluída.
+            # Foundation only: clinic users remain denied until the portal
+            # and its tenant-scoped authorization are intentionally enabled.
             "clinic_memberships",
         }
         assert "roles" in table_names
+    finally:
+        engine.dispose()
+
+
+def test_attendance_options_migration_backfills_existing_rows(
+    postgres_url: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("DATABASE_URL", postgres_url)
+    config = Config()
+    config.set_main_option("script_location", str(REPO_ROOT / "backend" / "alembic"))
+    command.downgrade(config, "0025")
+
+    engine = build_engine(postgres_url)
+    attendance_id = uuid4()
+    clinic_id = uuid4()
+    veterinarian_id = uuid4()
+    patient_id = uuid4()
+    try:
+        with engine.begin() as connection:
+            species_id = connection.execute(
+                text("SELECT id FROM species ORDER BY name LIMIT 1")
+            ).scalar_one()
+            connection.execute(
+                text(
+                    "INSERT INTO clinics (id, name, status, row_version) "
+                    "VALUES (:id, 'Migration clinic', 'ACTIVE', 1)"
+                ),
+                {"id": clinic_id},
+            )
+            connection.execute(
+                text(
+                    "INSERT INTO veterinarians "
+                    "(id, name, crmv, is_autonomous, status, row_version) "
+                    "VALUES (:id, 'Migration vet', :crmv, true, 'ACTIVE', 1)"
+                ),
+                {"id": veterinarian_id, "crmv": f"QA-{veterinarian_id}"},
+            )
+            connection.execute(
+                text(
+                    "INSERT INTO patients "
+                    "(id, name, species_id, sex, owner_name, status, row_version) "
+                    "VALUES (:id, 'Migration patient', :species_id, 'MALE', "
+                    "'Synthetic owner', 'ACTIVE', 1)"
+                ),
+                {"id": patient_id, "species_id": species_id},
+            )
+            connection.execute(
+                text(
+                    "INSERT INTO attendances "
+                    "(id, clinic_id, veterinarian_id, patient_id, status, row_version) "
+                    "VALUES (:id, :clinic_id, :veterinarian_id, :patient_id, 'DRAFT', 1)"
+                ),
+                {
+                    "id": attendance_id,
+                    "clinic_id": clinic_id,
+                    "veterinarian_id": veterinarian_id,
+                    "patient_id": patient_id,
+                },
+            )
+    finally:
+        engine.dispose()
+
+    command.upgrade(config, "head")
+
+    engine = build_engine(postgres_url)
+    try:
+        with engine.connect() as connection:
+            row = connection.execute(
+                text("SELECT collection_method, service_level FROM attendances WHERE id = :id"),
+                {"id": attendance_id},
+            ).one()
+        assert row.collection_method == "INTERNAL"
+        assert row.service_level == "NORMAL"
     finally:
         engine.dispose()

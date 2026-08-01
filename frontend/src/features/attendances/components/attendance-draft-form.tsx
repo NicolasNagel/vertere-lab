@@ -9,7 +9,7 @@ import { useAllClinicsQuery } from '../../clinics/api/use-clinics-query'
 import type { Patient } from '../../patients/api/patients-api'
 import { useAllVeterinariansQuery } from '../../veterinarians/api/use-veterinarians-query'
 import { useCreateAttendanceDraftMutation } from '../api/use-create-attendance-draft-mutation'
-import type { Attendance } from '../api/attendances-api'
+import type { Attendance, CollectionMethod, ServiceLevel } from '../api/attendances-api'
 import { CreatePatientModal } from './create-patient-modal'
 import { PatientPicker } from './patient-picker'
 import './attendance-draft-form.css'
@@ -33,6 +33,8 @@ export function AttendanceDraftForm({ onCreated, onCancel }: AttendanceDraftForm
   const [veterinarianId, setVeterinarianId] = useState('')
   const [patient, setPatient] = useState<Patient | null>(null)
   const [serviceDate, setServiceDate] = useState('')
+  const [collectionMethod, setCollectionMethod] = useState<CollectionMethod>('INTERNAL')
+  const [serviceLevel, setServiceLevel] = useState<ServiceLevel>('NORMAL')
   const [notes, setNotes] = useState('')
   const [creatingPatientWithName, setCreatingPatientWithName] = useState<string | null>(null)
 
@@ -80,6 +82,8 @@ export function AttendanceDraftForm({ onCreated, onCancel }: AttendanceDraftForm
         veterinarianId,
         patientId: patient.id,
         serviceDate: serviceDate || null,
+        collectionMethod,
+        serviceLevel,
         notes: notes.trim() || null,
       },
       { onSuccess: onCreated },
@@ -148,6 +152,31 @@ export function AttendanceDraftForm({ onCreated, onCancel }: AttendanceDraftForm
         <section className="attendance-draft-form__section">
           <h2 className="attendance-draft-form__section-title">Atendimento</h2>
           <div className="attendance-draft-form__row">
+            <SelectField
+              id="attendance-draft-collection-method"
+              label="MÃ©todo de coleta"
+              value={collectionMethod}
+              disabled={createDraftMutation.isPending}
+              options={[
+                { value: 'INTERNAL', label: 'Internos' },
+                { value: 'HELITO_NICOLAS', label: 'Helito/Nicolas' },
+                { value: 'MARLI', label: 'Marli' },
+                { value: 'COURIER', label: 'Motoboy' },
+                { value: 'UBER', label: 'Uber' },
+              ]}
+              onChange={(event) => setCollectionMethod(event.target.value as CollectionMethod)}
+            />
+            <SelectField
+              id="attendance-draft-service-level"
+              label="Tipo de atendimento"
+              value={serviceLevel}
+              disabled={createDraftMutation.isPending}
+              options={[
+                { value: 'NORMAL', label: 'Normal' },
+                { value: 'ON_CALL', label: 'PlantÃ£o' },
+              ]}
+              onChange={(event) => setServiceLevel(event.target.value as ServiceLevel)}
+            />
             <TextField
               id="attendance-draft-service-date"
               label="Data do atendimento"

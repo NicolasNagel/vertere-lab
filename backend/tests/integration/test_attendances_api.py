@@ -447,6 +447,7 @@ async def _create_exam(
     category_id: str,
     price_base: str,
     species_ids: list[str],
+    plantao_surcharge_percent: str | None = None,
 ) -> str:
     response = await client.post(
         "/api/v1/exams",
@@ -456,6 +457,7 @@ async def _create_exam(
             "category_id": category_id,
             "price_base": price_base,
             "species_ids": species_ids,
+            "plantao_surcharge_percent": plantao_surcharge_percent,
         },
     )
     assert response.status_code == 201
@@ -467,7 +469,11 @@ def _idempotency_header(key: str) -> dict[str, str]:
 
 
 async def _create_confirmable_draft(
-    client: httpx.AsyncClient, session_factory: sessionmaker[Session]
+    client: httpx.AsyncClient,
+    session_factory: sessionmaker[Session],
+    *,
+    service_level: str = "NORMAL",
+    plantao_surcharge_percent: str | None = None,
 ) -> tuple[str, str]:
     """Returns (attendance_id, exam_id) for a DRAFT ready to confirm."""
     unique = uuid4().hex[:8]
@@ -484,6 +490,7 @@ async def _create_confirmable_draft(
         category_id=category_id,
         price_base="100.00",
         species_ids=[species_id],
+        plantao_surcharge_percent=plantao_surcharge_percent,
     )
 
     draft_response = await client.post(
@@ -493,6 +500,7 @@ async def _create_confirmable_draft(
             "veterinarian_id": veterinarian_id,
             "patient_id": patient_id,
             "service_date": "2026-01-05",
+            "service_level": service_level,
         },
     )
     assert draft_response.status_code == 201
@@ -653,6 +661,30 @@ async def test_confirm_attendance_succeeds_with_protocol_and_totals(
     assert body["protocol_number"] == "2026/000001"
     assert len(body["items"]) == 1
     assert Decimal(body["items"][0]["total_amount"]) == Decimal("200.00")
+
+
+async def test_on_call_attendance_applies_catalog_surcharge(
+    client: httpx.AsyncClient, session_factory: sessionmaker[Session]
+) -> None:
+    await _login_admin(client, session_factory)
+    attendance_id, exam_id = await _create_confirmable_draft(
+        client,
+        session_factory,
+        service_level="ON_CALL",
+        plantao_surcharge_percent="25.00",
+    )
+
+    response = await client.post(
+        f"/api/v1/attendances/{attendance_id}/confirm",
+        json={"items": [{"exam_id": exam_id, "quantity": 2}]},
+        headers=_idempotency_header("confirm-on-call"),
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["service_level"] == "ON_CALL"
+    assert Decimal(body["surcharge_total"]) == Decimal("50.00")
+    assert Decimal(body["grand_total"]) == Decimal("250.00")
 
     with session_factory() as session:
         row = session.execute(
