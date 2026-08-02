@@ -1,6 +1,6 @@
 import { Link } from 'react-router'
 
-import { formatCurrencyBRL, formatDateTime } from '../../../shared/lib/formatters'
+import { formatCurrencyBRL, formatServiceDateTime } from '../../../shared/lib/formatters'
 import type { Attendance } from '../api/attendances-api'
 import { AttendanceStatusBadge } from './attendance-status-badge'
 import './attendance-list-table.css'
@@ -65,7 +65,7 @@ export function AttendanceListTable({
               {attendance.protocolNumber ?? 'Rascunho'}
             </div>
             <div className="attendance-list-table__muted">
-              {formatDateTime(attendance.createdAt)}
+              {formatServiceDateTime(attendance.serviceDate, attendance.createdAt)}
             </div>
             <div
               className="attendance-list-table__clinic"

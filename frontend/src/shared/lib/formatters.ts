@@ -48,14 +48,31 @@ export function formatDate(isoDate: string): string {
   )
 }
 
-/** Same UTC-to-browser-timezone rule as `formatDate`, plus hour:minute. */
+/** Same UTC-to-browser-timezone rule as `formatDate`, plus hour:minute.
+ * Date and time are formatted separately and joined with "·" — `Intl`'s
+ * combined `dateStyle`/multi-field format uses a comma by default, which
+ * doesn't match the design (`27/06 · 08:21`, never `27/06, 08:21`). */
 export function formatDateTime(isoDateTime: string): string {
-  return new Intl.DateTimeFormat('pt-BR', {
-    day: '2-digit',
-    month: '2-digit',
-    hour: '2-digit',
-    minute: '2-digit',
-  }).format(new Date(isoDateTime))
+  const date = new Date(isoDateTime)
+  const datePart = new Intl.DateTimeFormat('pt-BR', { day: '2-digit', month: '2-digit' }).format(
+    date,
+  )
+  const timePart = new Intl.DateTimeFormat('pt-BR', { hour: '2-digit', minute: '2-digit' }).format(
+    date,
+  )
+  return `${datePart} · ${timePart}`
+}
+
+/** `service_date` (`DATE`, no time component) paired with `created_at`
+ * (`TIMESTAMPTZ`) to show a date+time pair the way the operation list does
+ * (`DD/MM · HH:MM`) — falls back to `created_at` alone when there's no
+ * `service_date` yet (draft) or it doesn't parse as a plain date. */
+export function formatServiceDateTime(serviceDate: string | null, createdAt: string): string {
+  if (!serviceDate) return formatDateTime(createdAt)
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(serviceDate)
+  if (!match) return formatDateTime(createdAt)
+  const createdTime = formatDateTime(createdAt).split(' · ')[1]
+  return `${match[3]}/${match[2]} · ${createdTime ?? '—'}`
 }
 
 /** `competence_year`/`competence_month` are plain integers (never a date

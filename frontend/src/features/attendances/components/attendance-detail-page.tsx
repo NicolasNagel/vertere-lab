@@ -1,13 +1,15 @@
 import { useState } from 'react'
-import { useParams } from 'react-router'
+import { Link, useParams } from 'react-router'
 
 import { ApiError } from '../../../shared/api/errors'
 import { Button } from '../../../shared/ui/button'
+import { ArrowLeftIcon } from '../../../shared/ui/icons'
 import { useAuth } from '../../auth/auth-context'
 import { useAttendanceQuery } from '../api/use-attendance-query'
 import { AttendanceCancelModal } from './attendance-cancel-modal'
 import { AttendanceConfirmationForm } from './attendance-confirmation-form'
 import { AttendanceReadonlyDetail } from './attendance-readonly-detail'
+import { AttendanceStatusBadge } from './attendance-status-badge'
 import { AttendanceTimeline } from './attendance-timeline'
 import './attendance-detail-page.css'
 
@@ -41,10 +43,19 @@ export function AttendanceDetailPage() {
             {attendanceQuery.data?.status === 'DRAFT' ? 'Confirmação de atendimento' : 'Atendimento'}
           </h1>
         </div>
-        {canCancelThisAttendance && (
-          <Button type="button" variant="ghost" onClick={() => setShowCancelModal(true)}>
-            Cancelar atendimento
-          </Button>
+        {attendanceQuery.data && (
+          <div className="attendance-detail-page__actions">
+            <Link to="/operacao" className="attendance-detail-page__back-link">
+              <ArrowLeftIcon />
+              Voltar
+            </Link>
+            <AttendanceStatusBadge status={attendanceQuery.data.status} />
+            {canCancelThisAttendance && (
+              <Button type="button" variant="ghost" onClick={() => setShowCancelModal(true)}>
+                Cancelar atendimento
+              </Button>
+            )}
+          </div>
         )}
       </div>
 

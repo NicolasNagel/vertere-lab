@@ -276,11 +276,16 @@ test('shows the read-only view for a non-draft attendance', async () => {
           grand_total: '100.00',
         }),
       ),
+      http.get('/api/v1/exams/e1', () => HttpResponse.json(hemograma())),
+      http.get('/api/v1/exam-categories/cat1', () =>
+        HttpResponse.json({ id: 'cat1', name: 'Hematológico', status: 'ACTIVE', row_version: 1 }),
+      ),
     ],
   )
 
   expect(await screen.findByText('2026/000001')).toBeInTheDocument()
-  expect(screen.getByText('Hemograma')).toBeInTheDocument()
+  expect(screen.getAllByText('Hemograma').length).toBeGreaterThan(0)
+  expect(await screen.findByText('Hematológico')).toBeInTheDocument()
   expect(document.querySelector('.attendance-readonly-detail__total-value')).toHaveTextContent(
     'R$ 100,00',
   )
