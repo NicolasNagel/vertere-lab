@@ -39,7 +39,12 @@ function getInitials(fullName: string): string {
   return `${first}${last}`.toUpperCase()
 }
 
-export function Sidebar() {
+interface SidebarProps {
+  mobileOpen?: boolean
+  onNavigate?: () => void
+}
+
+export function Sidebar({ mobileOpen = false, onNavigate }: SidebarProps) {
   const { user } = useAuth()
   const permissions = user?.permissions ?? []
 
@@ -76,7 +81,13 @@ export function Sidebar() {
   ]
 
   return (
-    <aside className="sidebar" aria-label="Navegação principal">
+    <aside
+      className={`sidebar${mobileOpen ? ' sidebar--mobile-open' : ''}`}
+      aria-label="Navegação principal"
+      onClick={(event) => {
+        if ((event.target as HTMLElement).closest('a')) onNavigate?.()
+      }}
+    >
       <div className="sidebar__brand">
         <img className="sidebar__brand-mark" src={vertereMark} alt="" />
         <div>

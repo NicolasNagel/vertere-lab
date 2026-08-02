@@ -109,6 +109,80 @@ function bidu() {
   }
 }
 
+/** Uma vez que o rascunho é criado automaticamente, `AttendanceConfirmationForm`
+ * assume a tela e busca clínica/veterinário/paciente por ID (via
+ * `AttendanceHeaderDetails`) — sem esses handlers a chamada não mockada
+ * quebraria o teste (`onUnhandledRequest: 'error'`). */
+function confirmationFormDetailHandlers() {
+  return [
+    http.get('/api/v1/clinics/c1', () =>
+      HttpResponse.json({
+        id: 'c1',
+        name: 'Clínica Central',
+        tax_id: null,
+        phone: null,
+        email: null,
+        status: 'ACTIVE',
+        address_zip_code: null,
+        address_street: null,
+        address_number: null,
+        address_neighborhood: null,
+        address_city: null,
+        address_state: null,
+        address_complement: null,
+        notes: null,
+        created_at: '2026-01-01T00:00:00Z',
+        updated_at: '2026-01-01T00:00:00Z',
+        row_version: 1,
+        veterinarians: [],
+      }),
+    ),
+    http.get('/api/v1/veterinarians/v2', () =>
+      HttpResponse.json({
+        id: 'v2',
+        name: 'Dr. Bruno (vinculado c1)',
+        crmv: 'CRMV-SC 0002',
+        phone: null,
+        email: null,
+        is_autonomous: false,
+        status: 'ACTIVE',
+        notes: null,
+        created_at: '2026-01-01T00:00:00Z',
+        updated_at: '2026-01-01T00:00:00Z',
+        row_version: 1,
+        clinics: [],
+      }),
+    ),
+    http.get('/api/v1/patients/p1', () => HttpResponse.json(bidu())),
+  ]
+}
+
+function draftCreatedResponse(body: Record<string, unknown>) {
+  return {
+    id: 'a1',
+    clinic_id: body.clinic_id,
+    veterinarian_id: body.veterinarian_id,
+    patient_id: body.patient_id,
+    service_date: body.service_date,
+    collection_method: body.collection_method,
+    service_level: body.service_level,
+    notes: body.notes,
+    status: 'DRAFT',
+    items: [],
+    billing_competence: null,
+    subtotal: '0.00',
+    discount_total: '0.00',
+    surcharge_total: '0.00',
+    on_call_fee: '0.00',
+    grand_total: '0.00',
+    protocol_number: null,
+    cancel_reason: null,
+    created_at: '2026-01-01T00:00:00Z',
+    updated_at: '2026-01-01T00:00:00Z',
+    row_version: 1,
+  }
+}
+
 function renderPage(permissions: string[], handlers: ReturnType<typeof http.get>[] = []) {
   // Handlers passados aqui vêm ANTES dos defaults — MSW resolve pelo
   // primeiro handler compatível na lista, então isso é o que permite um
@@ -165,63 +239,65 @@ test('filters the veterinarian list by the selected clinic', async () => {
   expect(optionLabelsAfter).not.toContain('Dr. Bruno (vinculado c1)')
 })
 
-test('submit is disabled until clinic, veterinarian and patient are all set', async () => {
-  const user = userEvent.setup()
-  renderPage(['attendances.create'], [patientSearchHandler([bidu()])])
+function speciesHandler() {
+  return http.get('/api/v1/species', () =>
+    HttpResponse.json({ items: [{ id: 's1', name: 'Canino', created_at: '2026-01-01T00:00:00Z' }] }),
+  )
+}
 
-  await screen.findByRole('option', { name: 'Clínica Central' })
-  expect(screen.getByRole('button', { name: 'Criar rascunho' })).toBeDisabled()
+function createPatientHandler() {
+  return http.post('/api/v1/patients', async ({ request }) => {
+    const body = (await request.json()) as Record<string, unknown>
+    return HttpResponse.json(
+      {
+        id: 'p1',
+        name: body.name,
+        species_id: body.species_id,
+        sex: body.sex,
+        breed: null,
+        age_description: null,
+        owner_name: body.owner_name,
+        owner_phone: null,
+        owner_document: null,
+        status: 'ACTIVE',
+        notes: null,
+        created_at: '2026-01-01T00:00:00Z',
+        updated_at: '2026-01-01T00:00:00Z',
+        row_version: 1,
+      },
+      { status: 201 },
+    )
+  })
+}
 
-  await user.selectOptions(screen.getByLabelText('Clínica solicitante'), 'Clínica Central')
-  await user.selectOptions(screen.getByLabelText('Veterinário responsável'), 'Dr. Bruno (vinculado c1)')
-  expect(screen.getByRole('button', { name: 'Criar rascunho' })).toBeDisabled()
+async function fillAndSavePatientForm(user: ReturnType<typeof userEvent.setup>) {
+  await user.type(screen.getByLabelText('Nome do paciente'), 'Bidu')
+  await user.selectOptions(await screen.findByLabelText('Espécie'), 'Canino')
+  await user.type(screen.getByLabelText('Tutor / Proprietário'), 'Maria Souza')
+  await user.click(screen.getByRole('button', { name: 'Salvar' }))
+}
 
-  await user.type(screen.getByLabelText('Paciente'), 'Bidu')
-  await user.click(await screen.findByRole('option', { name: /Bidu/ }))
-
-  expect(screen.getByRole('button', { name: 'Criar rascunho' })).toBeEnabled()
-})
-
-test('creates a draft and navigates back to the attendance list', async () => {
+test('auto-creates the draft as soon as clinic, veterinarian and patient are all set', async () => {
   const user = userEvent.setup()
   const onDraftCreated = vi.fn()
   server.use(
+    ...confirmationFormDetailHandlers(),
+    speciesHandler(),
+    createPatientHandler(),
     http.post('/api/v1/attendances/drafts', async ({ request }) => {
       const body = (await request.json()) as Record<string, unknown>
       onDraftCreated(body)
-      return HttpResponse.json(
-        {
-          id: 'a1',
-          clinic_id: body.clinic_id,
-          veterinarian_id: body.veterinarian_id,
-          patient_id: body.patient_id,
-          service_date: body.service_date,
-          notes: body.notes,
-          status: 'DRAFT',
-          items: [],
-          billing_competence: null,
-          subtotal: '0.00',
-          discount_total: '0.00',
-          surcharge_total: '0.00',
-          grand_total: '0.00',
-          protocol_number: null,
-          cancel_reason: null,
-          created_at: '2026-01-01T00:00:00Z',
-          updated_at: '2026-01-01T00:00:00Z',
-          row_version: 1,
-        },
-        { status: 201 },
-      )
+      return HttpResponse.json(draftCreatedResponse(body), { status: 201 })
     }),
   )
-  renderPage(['attendances.create'], [patientSearchHandler([bidu()])])
+  renderPage(['attendances.create'])
 
   await screen.findByRole('option', { name: 'Clínica Central' })
   await user.selectOptions(screen.getByLabelText('Clínica solicitante'), 'Clínica Central')
   await user.selectOptions(screen.getByLabelText('Veterinário responsável'), 'Dr. Bruno (vinculado c1)')
-  await user.type(screen.getByLabelText('Paciente'), 'Bidu')
-  await user.click(await screen.findByRole('option', { name: /Bidu/ }))
-  await user.click(screen.getByRole('button', { name: 'Criar rascunho' }))
+  expect(onDraftCreated).not.toHaveBeenCalled()
+
+  await fillAndSavePatientForm(user)
 
   await waitFor(() => expect(onDraftCreated).toHaveBeenCalledTimes(1))
   expect(onDraftCreated).toHaveBeenCalledWith(
@@ -233,56 +309,125 @@ test('creates a draft and navigates back to the attendance list', async () => {
       service_level: 'NORMAL',
     }),
   )
-  expect(await screen.findByText('Lista de atendimentos')).toBeInTheDocument()
+  // Os cards de Exames/Valor já estavam visíveis (layout estático) e ficam
+  // ativos assim que o rascunho existe.
+  expect(await screen.findByLabelText('Adicionar exame')).toBeEnabled()
 })
 
-test('quick-creates a patient without losing the already-filled clinic/veterinarian', async () => {
+test('shows the confirmation screen after the draft is created and navigates to the list once confirmed', async () => {
   const user = userEvent.setup()
   server.use(
-    http.post('/api/v1/patients', async ({ request }) => {
+    ...confirmationFormDetailHandlers(),
+    speciesHandler(),
+    createPatientHandler(),
+    http.post('/api/v1/attendances/drafts', async ({ request }) => {
       const body = (await request.json()) as Record<string, unknown>
-      return HttpResponse.json(
-        {
-          id: 'p2',
-          name: body.name,
-          species_id: body.species_id,
-          sex: body.sex,
-          breed: null,
-          age_description: null,
-          owner_name: body.owner_name,
-          owner_phone: null,
-          owner_document: null,
-          status: 'ACTIVE',
-          notes: null,
-          created_at: '2026-01-01T00:00:00Z',
-          updated_at: '2026-01-01T00:00:00Z',
-          row_version: 1,
-        },
-        { status: 201 },
-      )
+      return HttpResponse.json(draftCreatedResponse(body), { status: 201 })
     }),
-    http.get('/api/v1/species', () =>
-      HttpResponse.json({ items: [{ id: 's1', name: 'Canino', created_at: '2026-01-01T00:00:00Z' }] }),
+    http.get('/api/v1/exams', ({ request }) => {
+      const url = new URL(request.url)
+      const search = url.searchParams.get('search')
+      const items = search
+        ? [
+            {
+              id: 'e1',
+              code: 'HEMO',
+              name: 'Hemograma',
+              category_id: 'cat1',
+              description: null,
+              species_ids: [],
+              status: 'ACTIVE',
+              row_version: 1,
+              price_base: '100.00',
+              plantao_surcharge_fixed: null,
+              plantao_surcharge_percent: null,
+              updated_at: '2026-01-01T00:00:00Z',
+            },
+          ]
+        : []
+      return HttpResponse.json({ items, total: items.length, page: 1, page_size: 10 })
+    }),
+    http.post('/api/v1/attendances/a1/preview', async () =>
+      HttpResponse.json({
+        attendance_id: 'a1',
+        clinic_id: 'c1',
+        veterinarian_id: 'v2',
+        patient_id: 'p1',
+        service_date: '2026-01-01',
+        items: [
+          {
+            id: 'preview-1',
+            exam_id: 'e1',
+            exam_code: 'HEMO',
+            exam_name: 'Hemograma',
+            price_base: '100.00',
+            quantity: 1,
+            discount_amount: '0.00',
+            surcharge_amount: '0.00',
+            total_amount: '100.00',
+            override_reason: null,
+            status: 'ACTIVE',
+          },
+        ],
+        subtotal: '100.00',
+        discount_total: '0.00',
+        surcharge_total: '0.00',
+        on_call_fee: '0.00',
+        grand_total: '100.00',
+      }),
+    ),
+    http.post('/api/v1/attendances/a1/confirm', async () =>
+      HttpResponse.json(
+        draftCreatedResponse({
+          clinic_id: 'c1',
+          veterinarian_id: 'v2',
+          patient_id: 'p1',
+          service_date: null,
+          collection_method: 'INTERNAL',
+          service_level: 'NORMAL',
+          notes: null,
+        }),
+      ),
     ),
   )
-  renderPage(['attendances.create', 'patients.manage'], [patientSearchHandler([])])
+  renderPage(['attendances.create', 'attendances.update'])
 
   await screen.findByRole('option', { name: 'Clínica Central' })
   await user.selectOptions(screen.getByLabelText('Clínica solicitante'), 'Clínica Central')
   await user.selectOptions(screen.getByLabelText('Veterinário responsável'), 'Dr. Bruno (vinculado c1)')
-  await user.type(screen.getByLabelText('Paciente'), 'Thor')
+  await fillAndSavePatientForm(user)
 
-  await user.click(await screen.findByRole('button', { name: /Cadastrar “Thor” como novo paciente/ }))
-  await user.type(screen.getByLabelText('Nome do paciente'), 'Thor')
-  await user.selectOptions(await screen.findByLabelText('Espécie'), 'Canino')
-  await user.type(screen.getByLabelText('Nome do tutor'), 'Marcelo Andrade')
-  await user.click(screen.getByRole('button', { name: 'Salvar' }))
+  await user.type(await screen.findByLabelText('Adicionar exame'), 'Hemo')
+  await user.click(await screen.findByRole('option', { name: /Hemograma/ }))
+  await user.click(await screen.findByRole('button', { name: 'Abrir protocolo' }))
 
-  await waitFor(() =>
-    expect(screen.queryByRole('heading', { name: 'Novo paciente' })).not.toBeInTheDocument(),
+  expect(await screen.findByText('Lista de atendimentos')).toBeInTheDocument()
+})
+
+test('toggling to "buscar do histórico" finds an existing patient without losing the already-filled clinic/veterinarian', async () => {
+  const user = userEvent.setup()
+  const onDraftCreated = vi.fn()
+  server.use(
+    ...confirmationFormDetailHandlers(),
+    http.post('/api/v1/attendances/drafts', async ({ request }) => {
+      const body = (await request.json()) as Record<string, unknown>
+      onDraftCreated(body)
+      return HttpResponse.json(draftCreatedResponse(body), { status: 201 })
+    }),
   )
-  expect(screen.getByText('Thor')).toBeInTheDocument()
-  // Clínica/veterinário continuam preenchidos — o rascunho não se perdeu.
-  expect(screen.getByLabelText('Clínica solicitante')).toHaveValue('c1')
-  expect(screen.getByLabelText('Veterinário responsável')).toHaveValue('v2')
+  renderPage(['attendances.create'], [patientSearchHandler([bidu()])])
+
+  await screen.findByRole('option', { name: 'Clínica Central' })
+  await user.selectOptions(screen.getByLabelText('Clínica solicitante'), 'Clínica Central')
+  await user.selectOptions(screen.getByLabelText('Veterinário responsável'), 'Dr. Bruno (vinculado c1)')
+
+  await user.click(screen.getByRole('button', { name: '+ buscar do histórico' }))
+  await user.type(screen.getByLabelText('Paciente'), 'Bidu')
+  await user.click(await screen.findByRole('option', { name: /Bidu/ }))
+
+  await waitFor(() => expect(onDraftCreated).toHaveBeenCalledTimes(1))
+  // Clínica/veterinário já preenchidos entram no rascunho junto com o paciente encontrado na busca.
+  expect(onDraftCreated).toHaveBeenCalledWith(
+    expect.objectContaining({ clinic_id: 'c1', veterinarian_id: 'v2', patient_id: 'p1' }),
+  )
 })

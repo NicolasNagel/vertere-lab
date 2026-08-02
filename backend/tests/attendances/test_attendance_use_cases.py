@@ -40,7 +40,7 @@ from app.modules.attendances.application.update_attendance import (
     UpdateAttendanceCommand,
     UpdateAttendanceUseCase,
 )
-from app.modules.attendances.domain.entities import AttendanceStatus
+from app.modules.attendances.domain.entities import AttendanceStatus, ServiceLevel
 from app.modules.catalog.domain.entities import ExamStatus
 from app.modules.clinics.domain.entities import ClinicStatus
 from app.modules.identity.application.dtos import AuthenticatedUserDTO
@@ -389,6 +389,51 @@ def test_confirm_attendance_succeeds_and_computes_totals() -> None:
     assert len(result.items) == 1
     assert result.items[0].total_amount == Decimal("200.00")
     assert fixture.audit.entries[-1].action == "attendances.confirmed"
+
+
+def test_confirm_attendance_with_plantao_normal_adds_flat_fee_once() -> None:
+    """Taxa fixa (R$100) é somada uma única vez ao atendimento, não por
+    exame — 2 itens não dobram o adicional."""
+    fixture = _ConfirmFixture(exam_price=Decimal("100.00"))
+    draft = fixture.use_case().execute(_command(service_level=ServiceLevel.PLANTAO_NORMAL))
+
+    result = fixture.confirm_use_case().execute(_confirm_command(attendance_id=draft.id))
+
+    assert result.subtotal == Decimal("200.00")
+    assert result.surcharge_total == Decimal("0.00")
+    assert result.on_call_fee == Decimal("100.00")
+    assert result.grand_total == Decimal("300.00")
+
+
+def test_confirm_attendance_with_plantao_especial_adds_higher_flat_fee() -> None:
+    fixture = _ConfirmFixture(exam_price=Decimal("100.00"))
+    draft = fixture.use_case().execute(_command(service_level=ServiceLevel.PLANTAO_ESPECIAL))
+
+    result = fixture.confirm_use_case().execute(_confirm_command(attendance_id=draft.id))
+
+    assert result.on_call_fee == Decimal("150.00")
+    assert result.grand_total == Decimal("350.00")
+
+
+def test_confirm_attendance_normal_has_no_on_call_fee() -> None:
+    fixture = _ConfirmFixture(exam_price=Decimal("100.00"))
+    draft = fixture.use_case().execute(_command(service_level=ServiceLevel.NORMAL))
+
+    result = fixture.confirm_use_case().execute(_confirm_command(attendance_id=draft.id))
+
+    assert result.on_call_fee == Decimal("0.00")
+    assert result.grand_total == Decimal("200.00")
+
+
+def test_preview_plantao_fee_matches_what_confirm_would_charge() -> None:
+    fixture = _ConfirmFixture(exam_price=Decimal("100.00"))
+    draft = fixture.use_case().execute(_command(service_level=ServiceLevel.PLANTAO_ESPECIAL))
+
+    preview = fixture.preview_use_case().execute(_preview_command(attendance_id=draft.id))
+    confirmed = fixture.confirm_use_case().execute(_confirm_command(attendance_id=draft.id))
+
+    assert preview.on_call_fee == confirmed.on_call_fee == Decimal("150.00")
+    assert preview.grand_total == confirmed.grand_total
 
 
 def test_confirm_attendance_without_permission_is_forbidden() -> None:

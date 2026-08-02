@@ -124,6 +124,7 @@ function attendanceItem(overrides: Record<string, unknown> = {}) {
     subtotal: '100.00',
     discount_total: '0.00',
     surcharge_total: '0.00',
+    on_call_fee: '0.00',
     grand_total: '100.00',
     protocol_number: '2026/000001',
     cancel_reason: null,
@@ -137,6 +138,15 @@ function attendanceItem(overrides: Record<string, unknown> = {}) {
 function attendancesHandler(items: Record<string, unknown>[]) {
   return http.get('/api/v1/attendances', () =>
     HttpResponse.json({ items, total: items.length, page: 1, page_size: 20 }),
+  )
+}
+
+function statusCountsHandler(byStatus: Record<string, number> = { CONFIRMED: 1, CANCELLED: 1 }) {
+  return http.get('/api/v1/attendances/status-counts', () =>
+    HttpResponse.json({
+      total: Object.values(byStatus).reduce((sum, count) => sum + count, 0),
+      by_status: byStatus,
+    }),
   )
 }
 
@@ -158,13 +168,20 @@ test('lists attendances with resolved clinic/veterinarian/patient names', async 
     veterinariansHandler(),
     speciesHandler(),
     patientsHandler(),
-    attendancesHandler([attendanceItem()]),
+    statusCountsHandler(),
+    attendancesHandler([
+      attendanceItem({ service_date: '2026-07-05', created_at: '2026-08-01T10:00:00Z' }),
+    ]),
   )
   renderWithProviders(<AttendanceListPage />)
 
   expect(await screen.findByText('2026/000001')).toBeInTheDocument()
-  const rows = screen.getAllByRole('row')
-  const dataRow = within(rows[1] as HTMLElement)
+  expect(screen.getByText('Data · Hora')).toBeInTheDocument()
+  expect(screen.getByText(/05\/07 · \d{2}:00/)).toBeInTheDocument()
+  expect(screen.getByLabelText('Competência')).toBeInTheDocument()
+  expect(screen.queryByLabelText('Mês')).not.toBeInTheDocument()
+  expect(screen.queryByLabelText('Ano')).not.toBeInTheDocument()
+  const dataRow = within(screen.getByRole('row'))
   expect(dataRow.getByText('Clínica Central')).toBeInTheDocument()
   expect(dataRow.getByText('Dra. Ana')).toBeInTheDocument()
   expect(dataRow.getByText('Bidu')).toBeInTheDocument()
@@ -189,6 +206,7 @@ test('shows the empty state when there are no attendances for the filters', asyn
     veterinariansHandler(),
     speciesHandler(),
     patientsHandler(),
+    statusCountsHandler(),
     attendancesHandler([]),
   )
   renderWithProviders(<AttendanceListPage />)
@@ -205,6 +223,7 @@ test('shows a draft attendance without a protocol number or total', async () => 
     veterinariansHandler(),
     speciesHandler(),
     patientsHandler(),
+    statusCountsHandler(),
     attendancesHandler([
       attendanceItem({
         status: 'DRAFT',
@@ -229,6 +248,7 @@ test('re-filters by status and resets to page 1', async () => {
     veterinariansHandler(),
     speciesHandler(),
     patientsHandler(),
+    statusCountsHandler(),
     http.get('/api/v1/attendances', ({ request }) => {
       const url = new URL(request.url)
       const status = url.searchParams.get('status')
@@ -240,7 +260,7 @@ test('re-filters by status and resets to page 1', async () => {
 
   expect(await screen.findByText('2026/000001')).toBeInTheDocument()
 
-  await user.selectOptions(screen.getByLabelText('Status'), 'Cancelado')
+  await user.click(screen.getByRole('tab', { name: /Cancelado/ }))
 
   await waitFor(() =>
     expect(

@@ -6,7 +6,7 @@ interface AttendanceSummaryPanelProps {
   items: AttendanceExamItem[]
   subtotal: string
   discountTotal: string
-  surchargeTotal: string
+  onCallFee: string
   grandTotal: string
   isLoading: boolean
 }
@@ -15,13 +15,16 @@ export function AttendanceSummaryPanel({
   items,
   subtotal,
   discountTotal,
-  surchargeTotal,
+  onCallFee,
   grandTotal,
   isLoading,
 }: AttendanceSummaryPanelProps) {
   return (
     <section className="attendance-summary-panel">
-      <h2 className="attendance-summary-panel__title">Valor</h2>
+      <h2 className="attendance-summary-panel__title">
+        <span className="attendance-summary-panel__badge">5</span>
+        Valor
+      </h2>
 
       {isLoading ? (
         <p className="attendance-summary-panel__hint">Calculando…</p>
@@ -51,14 +54,12 @@ export function AttendanceSummaryPanel({
                 </span>
               </div>
             )}
-            {Number(surchargeTotal) > 0 && (
-              <div className="attendance-summary-panel__line">
-                <span>Adicional</span>
-                <span className="attendance-summary-panel__mono">
-                  {formatCurrencyBRL(surchargeTotal)}
-                </span>
-              </div>
-            )}
+            <div className="attendance-summary-panel__line">
+              <span>Taxa de plantão</span>
+              <span className="attendance-summary-panel__mono">
+                {Number(onCallFee) > 0 ? formatCurrencyBRL(onCallFee) : 'não se aplica'}
+              </span>
+            </div>
           </div>
           <div className="attendance-summary-panel__total">
             <span>Valor total</span>

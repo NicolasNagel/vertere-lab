@@ -19,10 +19,9 @@ from uuid import UUID, uuid4
 from app.modules.attendances.application.party_validation import (
     validate_clinic_veterinarian_patient,
 )
-from app.modules.attendances.domain.entities import AttendanceExam, AttendanceRecord, ServiceLevel
+from app.modules.attendances.domain.entities import AttendanceExam, AttendanceRecord
 from app.modules.catalog.domain.entities import ExamStatus
 from app.modules.catalog.domain.repositories import ExamRepository
-from app.modules.catalog.domain.value_objects import PlantaoSurcharge
 from app.modules.clinics.domain.repositories import ClinicRepository
 from app.modules.identity.application.dtos import AuthenticatedUserDTO
 from app.modules.patients.domain.repositories import PatientRepository
@@ -34,7 +33,6 @@ from app.shared.domain.errors import (
     PriceNotAvailableError,
     ValidationError,
 )
-from app.shared.domain.money import round_currency
 
 _OVERRIDE_PERMISSION = "attendances.override_price"
 
@@ -104,21 +102,13 @@ def validate_and_snapshot_items(
                 price_base=exam.price_base,
                 quantity=item_input.quantity,
                 discount_amount=discount_amount,
-                surcharge_amount=(
-                    _on_call_surcharge(exam.price_base, item_input.quantity, exam.plantao_surcharge)
-                    if attendance.service_level is ServiceLevel.ON_CALL
-                    else Decimal("0")
-                ),
+                # O adicional de plantão não é mais por item — é uma taxa
+                # fixa por atendimento inteiro (`ServiceLevel.compute_on_call_fee`,
+                # somada em `compute_attendance_totals`), então nenhum item
+                # carrega mais adicional próprio.
+                surcharge_amount=Decimal("0"),
                 override_reason=override_reason,
                 override_by=override_by,
             )
         )
     return built
-
-
-def _on_call_surcharge(price: Decimal, quantity: int, surcharge: PlantaoSurcharge) -> Decimal:
-    if surcharge.fixed_amount is not None:
-        return round_currency(surcharge.fixed_amount * quantity)
-    if surcharge.percent is not None:
-        return round_currency(price * quantity * surcharge.percent / Decimal("100"))
-    return Decimal("0")

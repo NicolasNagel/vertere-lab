@@ -6,11 +6,13 @@ import { AppShell } from '../shared/layout/app-shell'
 export const router = createBrowserRouter([
   {
     path: '/login',
+    hydrateFallbackElement: <div className="route-loading" aria-label="Carregando aplicação" />,
     lazy: async () => ({
       Component: (await import('../features/auth/components/login-page')).LoginPage,
     }),
   },
   {
+    hydrateFallbackElement: <div className="route-loading" aria-label="Carregando aplicação" />,
     element: (
       <ProtectedRoute>
         <AppShell />

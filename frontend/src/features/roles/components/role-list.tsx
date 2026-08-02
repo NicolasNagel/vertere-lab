@@ -24,7 +24,7 @@ export function RoleList({ roles, selectedId, isLoading, onSelect }: RoleListPro
         </span>
       </div>
 
-      <div className="role-list__rows" role="list">
+      <div className="role-list__rows">
         {isLoading && <p className="role-list__empty">Carregando…</p>}
         {!isLoading && roles.length === 0 && (
           <p className="role-list__empty">Nenhum perfil encontrado.</p>
@@ -33,7 +33,6 @@ export function RoleList({ roles, selectedId, isLoading, onSelect }: RoleListPro
           <button
             key={role.id}
             type="button"
-            role="listitem"
             className="role-list__row"
             data-selected={role.id === selectedId}
             onClick={() => onSelect(role.id)}

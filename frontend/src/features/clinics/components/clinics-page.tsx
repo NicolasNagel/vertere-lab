@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 
 import { useAuth } from '../../auth/auth-context'
 import { Button } from '../../../shared/ui/button'
@@ -32,7 +32,12 @@ export function ClinicsPage() {
   const deactivateMutation = useDeactivateClinicMutation()
 
   const clinics = listQuery.data?.items ?? []
+  const firstClinicId = listQuery.data?.items[0]?.id
   const activeCount = clinics.filter((clinic) => clinic.status === 'ACTIVE').length
+
+  useEffect(() => {
+    if (mode === 'view' && selectedId === null && firstClinicId) setSelectedId(firstClinicId)
+  }, [firstClinicId, mode, selectedId])
 
   function handleSelect(id: string) {
     setSelectedId(id)

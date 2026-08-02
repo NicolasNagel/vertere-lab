@@ -20,6 +20,7 @@ from app.modules.attendances.api.schemas import (
     AttendanceListResponse,
     AttendancePreviewResponse,
     AttendanceRead,
+    AttendanceStatusCountsResponse,
     AttendanceStatusLiteral,
     AttendanceTimelineEntryRead,
     AttendanceTimelineResponse,
@@ -55,6 +56,8 @@ from app.modules.attendances.application.get_attendance_timeline import (
     GetAttendanceTimelineUseCase,
 )
 from app.modules.attendances.application.list_attendances import (
+    CountAttendancesByStatusQuery,
+    CountAttendancesByStatusUseCase,
     ListAttendancesQuery,
     ListAttendancesUseCase,
 )
@@ -130,6 +133,7 @@ def _attendance_read(dto: AttendanceDTO) -> AttendanceRead:
         subtotal=dto.subtotal,
         discount_total=dto.discount_total,
         surcharge_total=dto.surcharge_total,
+        on_call_fee=dto.on_call_fee,
         grand_total=dto.grand_total,
         protocol_number=dto.protocol_number,
         cancel_reason=dto.cancel_reason,
@@ -152,6 +156,7 @@ def _attendance_preview_read(dto: AttendancePreviewDTO) -> AttendancePreviewResp
         subtotal=dto.subtotal,
         discount_total=dto.discount_total,
         surcharge_total=dto.surcharge_total,
+        on_call_fee=dto.on_call_fee,
         grand_total=dto.grand_total,
     )
 
@@ -164,6 +169,7 @@ def list_attendances(
     veterinarian_id: UUID | None = Query(None),
     patient_id: UUID | None = Query(None),
     status: AttendanceStatus | None = Query(None),
+    service_level: ServiceLevel | None = Query(None),
     protocol_number: str | None = Query(None, min_length=1, max_length=32),
     owner_name: str | None = Query(None, min_length=1, max_length=200),
     service_date_from: date | None = Query(None),
@@ -181,6 +187,7 @@ def list_attendances(
             veterinarian_id=veterinarian_id,
             patient_id=patient_id,
             status=status,
+            service_level=service_level,
             protocol_number=protocol_number,
             owner_name=owner_name,
             service_date_from=service_date_from,
@@ -192,6 +199,37 @@ def list_attendances(
         total=result.total,
         page=result.page,
         page_size=result.page_size,
+    )
+
+
+@router.get("/status-counts", response_model=AttendanceStatusCountsResponse)
+def get_attendance_status_counts(
+    clinic_id: UUID | None = Query(None),
+    veterinarian_id: UUID | None = Query(None),
+    service_level: ServiceLevel | None = Query(None),
+    protocol_number: str | None = Query(None, min_length=1, max_length=32),
+    owner_name: str | None = Query(None, min_length=1, max_length=200),
+    service_date_from: date | None = Query(None),
+    service_date_to: date | None = Query(None),
+    session: SqlAlchemySession = Depends(get_session),
+    current_user: AuthenticatedUserDTO = Depends(require_permission("attendances.read")),
+) -> AttendanceStatusCountsResponse:
+    use_case = CountAttendancesByStatusUseCase(attendances=SqlAlchemyAttendanceRepository(session))
+    counts = use_case.execute(
+        CountAttendancesByStatusQuery(
+            actor=current_user,
+            clinic_id=clinic_id,
+            veterinarian_id=veterinarian_id,
+            service_level=service_level,
+            protocol_number=protocol_number,
+            owner_name=owner_name,
+            service_date_from=service_date_from,
+            service_date_to=service_date_to,
+        )
+    )
+    return AttendanceStatusCountsResponse(
+        total=sum(counts.values()),
+        by_status={status.value: count for status, count in counts.items()},
     )
 
 

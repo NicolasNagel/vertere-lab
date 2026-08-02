@@ -683,28 +683,34 @@ async def test_confirm_attendance_succeeds_with_protocol_and_totals(
     assert Decimal(body["items"][0]["total_amount"]) == Decimal("200.00")
 
 
-async def test_on_call_attendance_applies_catalog_surcharge(
+async def test_plantao_normal_attendance_applies_flat_fee_once(
     client: httpx.AsyncClient, session_factory: sessionmaker[Session]
 ) -> None:
+    """Adicional de plantão é uma taxa fixa por atendimento inteiro (R$
+    100,00), não por exame — mesmo com 2 exames o total sobe só uma vez, e
+    um `plantao_surcharge_percent` configurado no exame (legado, ainda não
+    removido do cadastro nesta fatia) não tem mais nenhum efeito."""
     await _login_admin(client, session_factory)
     attendance_id, exam_id = await _create_confirmable_draft(
         client,
         session_factory,
-        service_level="ON_CALL",
+        service_level="PLANTAO_NORMAL",
         plantao_surcharge_percent="25.00",
     )
 
     response = await client.post(
         f"/api/v1/attendances/{attendance_id}/confirm",
         json={"items": [{"exam_id": exam_id, "quantity": 2}]},
-        headers=_idempotency_header("confirm-on-call"),
+        headers=_idempotency_header("confirm-plantao-normal"),
     )
 
     assert response.status_code == 200
     body = response.json()
-    assert body["service_level"] == "ON_CALL"
-    assert Decimal(body["surcharge_total"]) == Decimal("50.00")
-    assert Decimal(body["grand_total"]) == Decimal("250.00")
+    assert body["service_level"] == "PLANTAO_NORMAL"
+    assert Decimal(body["subtotal"]) == Decimal("200.00")
+    assert Decimal(body["surcharge_total"]) == Decimal("0.00")
+    assert Decimal(body["on_call_fee"]) == Decimal("100.00")
+    assert Decimal(body["grand_total"]) == Decimal("300.00")
 
     with session_factory() as session:
         row = session.execute(
@@ -714,6 +720,47 @@ async def test_on_call_attendance_applies_catalog_surcharge(
             )
         ).one()
         assert row.entity_id == attendance_id
+
+
+async def test_plantao_especial_attendance_applies_higher_flat_fee(
+    client: httpx.AsyncClient, session_factory: sessionmaker[Session]
+) -> None:
+    await _login_admin(client, session_factory)
+    attendance_id, exam_id = await _create_confirmable_draft(
+        client, session_factory, service_level="PLANTAO_ESPECIAL"
+    )
+
+    response = await client.post(
+        f"/api/v1/attendances/{attendance_id}/confirm",
+        json={"items": [{"exam_id": exam_id, "quantity": 1}]},
+        headers=_idempotency_header("confirm-plantao-especial"),
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["service_level"] == "PLANTAO_ESPECIAL"
+    assert Decimal(body["on_call_fee"]) == Decimal("150.00")
+    assert Decimal(body["grand_total"]) == Decimal("250.00")
+
+
+async def test_preview_plantao_fee_matches_confirm(
+    client: httpx.AsyncClient, session_factory: sessionmaker[Session]
+) -> None:
+    """A prévia nunca pode divergir do que `/confirm` realmente cobra —
+    inclusive para a taxa fixa de plantão (`.claude/rules/12-attendance.md`)."""
+    await _login_admin(client, session_factory)
+    attendance_id, exam_id = await _create_confirmable_draft(
+        client, session_factory, service_level="PLANTAO_ESPECIAL"
+    )
+    payload = {"items": [{"exam_id": exam_id, "quantity": 1}]}
+
+    preview_response = await client.post(
+        f"/api/v1/attendances/{attendance_id}/preview", json=payload
+    )
+
+    assert preview_response.status_code == 200
+    assert Decimal(preview_response.json()["on_call_fee"]) == Decimal("150.00")
+    assert Decimal(preview_response.json()["grand_total"]) == Decimal("250.00")
 
 
 async def test_confirm_attendance_without_permission_is_forbidden(

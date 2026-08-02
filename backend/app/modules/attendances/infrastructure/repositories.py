@@ -62,6 +62,7 @@ def _to_domain(model: AttendanceModel) -> AttendanceRecord:
         subtotal=model.subtotal,
         discount_total=model.discount_total,
         surcharge_total=model.surcharge_total,
+        on_call_fee=model.on_call_fee,
         grand_total=model.grand_total,
         protocol_year=model.protocol_year,
         protocol_sequence=model.protocol_sequence,
@@ -104,6 +105,7 @@ class SqlAlchemyAttendanceRepository:
                 subtotal=attendance.subtotal,
                 discount_total=attendance.discount_total,
                 surcharge_total=attendance.surcharge_total,
+                on_call_fee=attendance.on_call_fee,
                 grand_total=attendance.grand_total,
                 protocol_year=attendance.protocol_year,
                 protocol_sequence=attendance.protocol_sequence,
@@ -139,6 +141,7 @@ class SqlAlchemyAttendanceRepository:
         model.subtotal = attendance.subtotal
         model.discount_total = attendance.discount_total
         model.surcharge_total = attendance.surcharge_total
+        model.on_call_fee = attendance.on_call_fee
         model.grand_total = attendance.grand_total
         model.protocol_year = attendance.protocol_year
         model.protocol_sequence = attendance.protocol_sequence
@@ -191,20 +194,19 @@ class SqlAlchemyAttendanceRepository:
         self._session.flush()
         attendance.row_version = model.row_version
 
-    def list_page(
+    def _filter_conditions(
         self,
         *,
-        page: int,
-        page_size: int,
         clinic_id: UUID | None,
         veterinarian_id: UUID | None,
-        patient_id: UUID | None,
-        status: AttendanceStatus | None,
+        patient_id: UUID | None = None,
+        status: AttendanceStatus | None = None,
+        service_level: ServiceLevel | None,
         protocol_number: str | None,
         owner_name: str | None,
         service_date_from: date | None,
         service_date_to: date | None,
-    ) -> tuple[list[AttendanceRecord], int]:
+    ) -> list[ColumnElement[bool]]:
         conditions: list[ColumnElement[bool]] = []
         if clinic_id is not None:
             conditions.append(AttendanceModel.clinic_id == clinic_id)
@@ -214,12 +216,44 @@ class SqlAlchemyAttendanceRepository:
             conditions.append(AttendanceModel.patient_id == patient_id)
         if status is not None:
             conditions.append(AttendanceModel.status == status.value)
+        if service_level is not None:
+            conditions.append(AttendanceModel.service_level == service_level.value)
         if protocol_number:
             conditions.append(AttendanceModel.protocol_number.ilike(f"%{protocol_number.strip()}%"))
         if service_date_from is not None:
             conditions.append(AttendanceModel.service_date >= service_date_from)
         if service_date_to is not None:
             conditions.append(AttendanceModel.service_date <= service_date_to)
+        if owner_name:
+            conditions.append(PatientModel.owner_name.ilike(f"%{owner_name.strip()}%"))
+        return conditions
+
+    def list_page(
+        self,
+        *,
+        page: int,
+        page_size: int,
+        clinic_id: UUID | None,
+        veterinarian_id: UUID | None,
+        patient_id: UUID | None,
+        status: AttendanceStatus | None,
+        service_level: ServiceLevel | None,
+        protocol_number: str | None,
+        owner_name: str | None,
+        service_date_from: date | None,
+        service_date_to: date | None,
+    ) -> tuple[list[AttendanceRecord], int]:
+        conditions = self._filter_conditions(
+            clinic_id=clinic_id,
+            veterinarian_id=veterinarian_id,
+            patient_id=patient_id,
+            status=status,
+            service_level=service_level,
+            protocol_number=protocol_number,
+            owner_name=owner_name,
+            service_date_from=service_date_from,
+            service_date_to=service_date_to,
+        )
 
         count_stmt = select(func.count()).select_from(AttendanceModel)
         list_stmt = (
@@ -228,12 +262,10 @@ class SqlAlchemyAttendanceRepository:
             .order_by(AttendanceModel.created_at.desc())
         )
         if owner_name:
-            owner_condition = PatientModel.owner_name.ilike(f"%{owner_name.strip()}%")
             count_stmt = count_stmt.join(
                 PatientModel, PatientModel.id == AttendanceModel.patient_id
             )
             list_stmt = list_stmt.join(PatientModel, PatientModel.id == AttendanceModel.patient_id)
-            conditions.append(owner_condition)
         for condition in conditions:
             count_stmt = count_stmt.where(condition)
             list_stmt = list_stmt.where(condition)
@@ -242,6 +274,34 @@ class SqlAlchemyAttendanceRepository:
         list_stmt = list_stmt.offset((page - 1) * page_size).limit(page_size)
         models = self._session.execute(list_stmt).scalars().all()
         return [_to_domain(model) for model in models], total
+
+    def count_by_status(
+        self,
+        *,
+        clinic_id: UUID | None,
+        veterinarian_id: UUID | None,
+        service_level: ServiceLevel | None,
+        protocol_number: str | None,
+        owner_name: str | None,
+        service_date_from: date | None,
+        service_date_to: date | None,
+    ) -> dict[AttendanceStatus, int]:
+        conditions = self._filter_conditions(
+            clinic_id=clinic_id,
+            veterinarian_id=veterinarian_id,
+            service_level=service_level,
+            protocol_number=protocol_number,
+            owner_name=owner_name,
+            service_date_from=service_date_from,
+            service_date_to=service_date_to,
+        )
+        stmt = select(AttendanceModel.status, func.count()).group_by(AttendanceModel.status)
+        if owner_name:
+            stmt = stmt.join(PatientModel, PatientModel.id == AttendanceModel.patient_id)
+        for condition in conditions:
+            stmt = stmt.where(condition)
+        rows = self._session.execute(stmt).all()
+        return {AttendanceStatus(status): count for status, count in rows}
 
 
 class SqlAlchemyAttendanceSequenceRepository:

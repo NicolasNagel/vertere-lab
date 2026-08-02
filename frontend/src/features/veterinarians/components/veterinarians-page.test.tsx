@@ -238,7 +238,7 @@ test('shows inactive status in the list even for an autonomous veterinarian', as
   renderWithProviders(<VeterinariansPage />)
 
   const name = await screen.findByText('Aline Cabral Silva')
-  const row = name.closest('[role="listitem"]') as HTMLElement
+  const row = name.closest('button') as HTMLElement
   expect(within(row).getByText('Autônomo')).toBeInTheDocument()
   expect(within(row).getByText('Inativo')).toBeInTheDocument()
 })

@@ -25,11 +25,8 @@ export function VeterinariansPage() {
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [mode, setMode] = useState<PanelMode>('view')
 
-  // "Vinculados" não é filtrável na listagem — a API não expõe esse filtro no
-  // GET /veterinarians (só is_autonomous); o vínculo em si já existe e é
-  // gerenciado no formulário/detalhe. Trata como "todos" até um filtro de
-  // lista ser justificado por uso real.
-  const isAutonomous = typeFilter === 'autonomous' ? true : undefined
+  const isAutonomous =
+    typeFilter === 'autonomous' ? true : typeFilter === 'linked' ? false : undefined
 
   const listQuery = useVeterinariansQuery({
     search: search || undefined,
@@ -68,6 +65,22 @@ export function VeterinariansPage() {
           <div className="veterinarians-page__eyebrow">Cadastros</div>
           <h1 className="veterinarians-page__title">Veterinários</h1>
         </div>
+        <div className="veterinarians-page__header-actions">
+          {(['all', 'linked', 'autonomous'] as const).map((filter) => (
+            <button
+              key={filter}
+              type="button"
+              className="veterinarians-page__filter"
+              data-active={typeFilter === filter}
+              onClick={() => {
+                setTypeFilter(filter)
+                setPage(1)
+              }}
+            >
+              {{ all: 'Todos', linked: 'Vinculados', autonomous: 'Autônomos' }[filter]}
+              {filter === 'all' ? ` · ${listQuery.data?.total ?? 0}` : ''}
+            </button>
+          ))}
         {canManage && (
           <Button
             type="button"
@@ -77,9 +90,10 @@ export function VeterinariansPage() {
             <PlusIcon /> Novo vet
           </Button>
         )}
+        </div>
       </div>
 
-      <div className="veterinarians-page__body">
+      <div className="veterinarians-page__body" data-panel-open={mode !== 'view' || selectedId !== null}>
         <VeterinarianList
           veterinarians={veterinarians}
           activeCount={activeCount}

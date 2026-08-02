@@ -11,7 +11,16 @@ export type AttendanceStatus =
   | 'ON_HOLD'
 
 export type CollectionMethod = 'HELITO_NICOLAS' | 'INTERNAL' | 'MARLI' | 'COURIER' | 'UBER'
-export type ServiceLevel = 'NORMAL' | 'ON_CALL'
+export type ServiceLevel = 'NORMAL' | 'PLANTAO_NORMAL' | 'PLANTAO_ESPECIAL'
+
+/** Rótulo de exibição único por `ServiceLevel` — evita 5 lugares reimplementando
+ * o mesmo `=== 'PLANTAO_NORMAL' ? ... : ...` cada um com um pedaço diferente da
+ * regra (ver `docs/adr` — taxa fixa por atendimento substituiu o antigo +30%). */
+export const SERVICE_LEVEL_LABELS: Record<ServiceLevel, string> = {
+  NORMAL: 'Normal',
+  PLANTAO_NORMAL: 'Plantão Normal',
+  PLANTAO_ESPECIAL: 'Plantão Especial',
+}
 
 export interface AttendanceExamItem {
   id: string
@@ -42,6 +51,7 @@ export interface Attendance {
   subtotal: string
   discountTotal: string
   surchargeTotal: string
+  onCallFee: string
   grandTotal: string
   protocolNumber: string | null
   cancelReason: string | null
@@ -62,12 +72,18 @@ export interface AttendanceListParams {
   veterinarianId?: string
   patientId?: string
   status?: AttendanceStatus
+  serviceLevel?: ServiceLevel
   protocolNumber?: string
   ownerName?: string
   serviceDateFrom?: string
   serviceDateTo?: string
   page?: number
   pageSize?: number
+}
+
+export interface AttendanceStatusCounts {
+  total: number
+  byStatus: Partial<Record<AttendanceStatus, number>>
 }
 
 export interface AttendanceDraftFormValues {
@@ -99,6 +115,7 @@ export interface AttendancePreview {
   subtotal: string
   discountTotal: string
   surchargeTotal: string
+  onCallFee: string
   grandTotal: string
 }
 
@@ -148,6 +165,7 @@ interface ApiAttendance {
   subtotal: string
   discount_total: string
   surcharge_total: string
+  on_call_fee: string
   grand_total: string
   protocol_number: string | null
   cancel_reason: string | null
@@ -175,6 +193,7 @@ interface ApiAttendancePreview {
   subtotal: string
   discount_total: string
   surcharge_total: string
+  on_call_fee: string
   grand_total: string
 }
 
@@ -217,6 +236,7 @@ function fromApiPreview(preview: ApiAttendancePreview): AttendancePreview {
     subtotal: preview.subtotal,
     discountTotal: preview.discount_total,
     surchargeTotal: preview.surcharge_total,
+    onCallFee: preview.on_call_fee,
     grandTotal: preview.grand_total,
   }
 }
@@ -265,6 +285,7 @@ function fromApiAttendance(attendance: ApiAttendance): Attendance {
     subtotal: attendance.subtotal,
     discountTotal: attendance.discount_total,
     surchargeTotal: attendance.surcharge_total,
+    onCallFee: attendance.on_call_fee,
     grandTotal: attendance.grand_total,
     protocolNumber: attendance.protocol_number,
     cancelReason: attendance.cancel_reason,
@@ -280,6 +301,7 @@ export async function fetchAttendances(params: AttendanceListParams = {}): Promi
   if (params.veterinarianId) query.set('veterinarian_id', params.veterinarianId)
   if (params.patientId) query.set('patient_id', params.patientId)
   if (params.status) query.set('status', params.status)
+  if (params.serviceLevel) query.set('service_level', params.serviceLevel)
   if (params.protocolNumber) query.set('protocol_number', params.protocolNumber)
   if (params.ownerName) query.set('owner_name', params.ownerName)
   if (params.serviceDateFrom) query.set('service_date_from', params.serviceDateFrom)
@@ -298,6 +320,28 @@ export async function fetchAttendances(params: AttendanceListParams = {}): Promi
     page: body.page,
     pageSize: body.page_size,
   }
+}
+
+export type AttendanceStatusCountsParams = Omit<AttendanceListParams, 'page' | 'pageSize' | 'status'>
+
+export async function fetchAttendanceStatusCounts(
+  params: AttendanceStatusCountsParams = {},
+): Promise<AttendanceStatusCounts> {
+  const query = new URLSearchParams()
+  if (params.clinicId) query.set('clinic_id', params.clinicId)
+  if (params.veterinarianId) query.set('veterinarian_id', params.veterinarianId)
+  if (params.serviceLevel) query.set('service_level', params.serviceLevel)
+  if (params.protocolNumber) query.set('protocol_number', params.protocolNumber)
+  if (params.ownerName) query.set('owner_name', params.ownerName)
+  if (params.serviceDateFrom) query.set('service_date_from', params.serviceDateFrom)
+  if (params.serviceDateTo) query.set('service_date_to', params.serviceDateTo)
+
+  const response = await fetch(`${API_BASE}/attendances/status-counts?${query.toString()}`, {
+    credentials: 'include',
+  })
+  await throwIfNotOk(response)
+  const body = (await response.json()) as { total: number; by_status: Record<string, number> }
+  return { total: body.total, byStatus: body.by_status as Partial<Record<AttendanceStatus, number>> }
 }
 
 export async function fetchAttendance(id: string): Promise<Attendance> {

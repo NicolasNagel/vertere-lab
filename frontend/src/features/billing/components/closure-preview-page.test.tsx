@@ -282,11 +282,13 @@ test('disables the close button when there is nothing eligible', async () => {
 test('closes the competence after explicit confirmation and shows a success banner', async () => {
   const user = userEvent.setup()
   let closedBody: Record<string, unknown> | null = null
+  let closeRequestCount = 0
   server.use(
     meHandler(['closures.preview', 'closures.close']),
     clinicsListHandler(),
     http.get('/api/v1/closures/preview', () => HttpResponse.json(previewResponseBody())),
     http.post('/api/v1/closures', async ({ request }) => {
+      closeRequestCount += 1
       closedBody = (await request.json()) as Record<string, unknown>
       expect(request.headers.get('Idempotency-Key')).toBeTruthy()
       return HttpResponse.json(
@@ -328,10 +330,11 @@ test('closes the competence after explicit confirmation and shows a success bann
 
   await user.click(dialog.getByRole('checkbox'))
   expect(confirmButton).toBeEnabled()
-  await user.click(confirmButton)
+  await user.dblClick(confirmButton)
 
   await waitFor(() => expect(closedBody).not.toBeNull())
   expect(closedBody).toMatchObject({ clinic_id: 'clinic-a', year: 2026, month: 1 })
+  expect(closeRequestCount).toBe(1)
   expect(
     await screen.findByText('Competência janeiro de 2026 fechada com sucesso — total R$ 100,00.'),
   ).toBeInTheDocument()

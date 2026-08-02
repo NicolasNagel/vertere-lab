@@ -15,7 +15,7 @@ AttendanceStatusLiteral = Literal[
 ]
 AttendanceExamStatusLiteral = Literal["ACTIVE", "CANCELLED"]
 CollectionMethodLiteral = Literal["HELITO_NICOLAS", "INTERNAL", "MARLI", "COURIER", "UBER"]
-ServiceLevelLiteral = Literal["NORMAL", "ON_CALL"]
+ServiceLevelLiteral = Literal["NORMAL", "PLANTAO_NORMAL", "PLANTAO_ESPECIAL"]
 
 
 class AttendanceExamRead(BaseModel):
@@ -47,6 +47,7 @@ class AttendanceRead(BaseModel):
     subtotal: Decimal
     discount_total: Decimal
     surcharge_total: Decimal
+    on_call_fee: Decimal
     grand_total: Decimal
     protocol_number: str | None
     cancel_reason: str | None
@@ -60,6 +61,11 @@ class AttendanceListResponse(BaseModel):
     total: int
     page: int
     page_size: int
+
+
+class AttendanceStatusCountsResponse(BaseModel):
+    total: int
+    by_status: dict[str, int]
 
 
 class AttendanceDraftCreateRequest(BaseModel):
@@ -160,4 +166,5 @@ class AttendancePreviewResponse(BaseModel):
     subtotal: Decimal
     discount_total: Decimal
     surcharge_total: Decimal
+    on_call_fee: Decimal
     grand_total: Decimal

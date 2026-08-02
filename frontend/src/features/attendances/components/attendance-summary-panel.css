@@ -5,12 +5,29 @@
 }
 
 .attendance-summary-panel__title {
+  display: flex;
+  align-items: center;
+  gap: 0.625rem;
   font-family: var(--font-display);
   text-transform: uppercase;
   letter-spacing: 0.02em;
   font-size: 1.0625rem;
   font-weight: 600;
   margin: 0 0 0.75rem;
+}
+
+.attendance-summary-panel__badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.375rem;
+  height: 1.375rem;
+  flex-shrink: 0;
+  background: rgba(255, 255, 255, 0.15);
+  color: #ffffff;
+  font-family: var(--font-mono);
+  font-size: 0.6875rem;
+  font-weight: 700;
 }
 
 .attendance-summary-panel__hint {

@@ -15,7 +15,12 @@ import { useVeterinarianQuery } from '../../veterinarians/api/use-veterinarian-q
 import { useAllVeterinariansQuery } from '../../veterinarians/api/use-veterinarians-query'
 import { attendanceQueryKey } from '../api/use-attendance-query'
 import { useUpdateAttendanceMutation } from '../api/use-update-attendance-mutation'
-import type { Attendance, CollectionMethod, ServiceLevel } from '../api/attendances-api'
+import {
+  SERVICE_LEVEL_LABELS,
+  type Attendance,
+  type CollectionMethod,
+  type ServiceLevel,
+} from '../api/attendances-api'
 import { PatientPicker } from './patient-picker'
 import './attendance-header-details.css'
 
@@ -137,7 +142,7 @@ export function AttendanceHeaderDetails({ attendance, editable }: AttendanceHead
             </span>
           </div>
           <div className="attendance-header-details__field">
-            <span className="attendance-header-details__label">MÃ©todo de coleta</span>
+            <span className="attendance-header-details__label">Método de coleta</span>
             <span className="attendance-header-details__value">
               {{
                 INTERNAL: 'Internos',
@@ -151,7 +156,7 @@ export function AttendanceHeaderDetails({ attendance, editable }: AttendanceHead
           <div className="attendance-header-details__field">
             <span className="attendance-header-details__label">Tipo de atendimento</span>
             <span className="attendance-header-details__value">
-              {attendance.serviceLevel === 'ON_CALL' ? 'PlantÃ£o' : 'Normal'}
+              {SERVICE_LEVEL_LABELS[attendance.serviceLevel]}
             </span>
           </div>
           <div className="attendance-header-details__field">
@@ -222,7 +227,7 @@ export function AttendanceHeaderDetails({ attendance, editable }: AttendanceHead
           <div className="attendance-header-details__row">
             <SelectField
               id="attendance-header-collection-method"
-              label="MÃ©todo de coleta"
+              label="Método de coleta"
               value={collectionMethod}
               disabled={updateMutation.isPending}
               options={[
@@ -240,8 +245,9 @@ export function AttendanceHeaderDetails({ attendance, editable }: AttendanceHead
               value={serviceLevel}
               disabled={updateMutation.isPending}
               options={[
-                { value: 'NORMAL', label: 'Normal' },
-                { value: 'ON_CALL', label: 'PlantÃ£o' },
+                { value: 'NORMAL', label: SERVICE_LEVEL_LABELS.NORMAL },
+                { value: 'PLANTAO_NORMAL', label: SERVICE_LEVEL_LABELS.PLANTAO_NORMAL },
+                { value: 'PLANTAO_ESPECIAL', label: SERVICE_LEVEL_LABELS.PLANTAO_ESPECIAL },
               ]}
               onChange={(event) => setServiceLevel(event.target.value as ServiceLevel)}
             />

@@ -2,18 +2,21 @@ import { useState } from 'react'
 import { Link } from 'react-router'
 
 import { ApiError } from '../../../shared/api/errors'
-import { PlusIcon } from '../../../shared/ui/icons'
+import { PlusIcon, SearchIcon } from '../../../shared/ui/icons'
 import type { SelectOption } from '../../../shared/ui/select'
 import { useAuth } from '../../auth/auth-context'
 import { useAllClinicsQuery } from '../../clinics/api/use-clinics-query'
 import { useAllPatientsQuery } from '../../patients/api/use-patients-query'
 import { useSpeciesQuery } from '../../patients/api/use-species-query'
 import { useAllVeterinariansQuery } from '../../veterinarians/api/use-veterinarians-query'
-import type { AttendanceStatus } from '../api/attendances-api'
+import type { AttendanceStatus, ServiceLevel } from '../api/attendances-api'
+import { useAttendanceStatusCountsQuery } from '../api/use-attendance-status-counts-query'
 import { useAttendancesQuery } from '../api/use-attendances-query'
 import { AttendanceListFilters } from './attendance-list-filters'
 import { AttendanceListPagination } from './attendance-list-pagination'
 import { AttendanceListTable, type PatientDisplay } from './attendance-list-table'
+import { AttendanceStatusTabs } from './attendance-status-tabs'
+import '../../../shared/ui/button.css'
 import './attendance-list-page.css'
 
 const PAGE_SIZE = 20
@@ -26,9 +29,8 @@ export function AttendanceListPage() {
   const [page, setPage] = useState(1)
   const [status, setStatus] = useState<AttendanceStatus | ''>('')
   const [clinicId, setClinicId] = useState('')
-  const [veterinarianId, setVeterinarianId] = useState('')
+  const [serviceLevel, setServiceLevel] = useState<ServiceLevel | ''>('')
   const [protocolNumber, setProtocolNumber] = useState('')
-  const [ownerName, setOwnerName] = useState('')
   const [serviceDateFrom, setServiceDateFrom] = useState('')
   const [serviceDateTo, setServiceDateTo] = useState('')
 
@@ -44,9 +46,19 @@ export function AttendanceListPage() {
           pageSize: PAGE_SIZE,
           status: status || undefined,
           clinicId: clinicId || undefined,
-          veterinarianId: veterinarianId || undefined,
+          serviceLevel: serviceLevel || undefined,
           protocolNumber: protocolNumber.trim() || undefined,
-          ownerName: ownerName.trim() || undefined,
+          serviceDateFrom: serviceDateFrom || undefined,
+          serviceDateTo: serviceDateTo || undefined,
+        }
+      : null,
+  )
+  const statusCountsQuery = useAttendanceStatusCountsQuery(
+    canRead
+      ? {
+          clinicId: clinicId || undefined,
+          serviceLevel: serviceLevel || undefined,
+          protocolNumber: protocolNumber.trim() || undefined,
           serviceDateFrom: serviceDateFrom || undefined,
           serviceDateTo: serviceDateTo || undefined,
         }
@@ -57,10 +69,6 @@ export function AttendanceListPage() {
     value: clinic.id,
     label: clinic.name,
   }))
-  const veterinarianOptions: SelectOption[] = (veterinariansQuery.data?.items ?? []).map(
-    (veterinarian) => ({ value: veterinarian.id, label: veterinarian.name }),
-  )
-
   const clinicNameById: Record<string, string> = Object.fromEntries(
     (clinicsQuery.data?.items ?? []).map((clinic) => [clinic.id, clinic.name]),
   )
@@ -98,10 +106,25 @@ export function AttendanceListPage() {
           <div className="attendance-list-page__eyebrow">Operação</div>
           <h1 className="attendance-list-page__title">Registro de Atendimentos</h1>
         </div>
-        {canCreate && (
-          <Link to="/operacao/novo" className="button button--primary">
-            <PlusIcon /> Novo protocolo
-          </Link>
+        {canRead && (
+          <div className="attendance-list-page__header-actions">
+            <label className="attendance-list-page__search">
+              <SearchIcon />
+              <input
+                value={protocolNumber}
+                maxLength={32}
+                placeholder="Buscar protocolo..."
+                onChange={(event) =>
+                  handleFilterChange(() => setProtocolNumber(event.target.value))
+                }
+              />
+            </label>
+            {canCreate && (
+              <Link to="/operacao/novo" className="button button--primary">
+                <PlusIcon /> Novo protocolo
+              </Link>
+            )}
+          </div>
         )}
       </div>
 
@@ -111,31 +134,27 @@ export function AttendanceListPage() {
         </p>
       ) : (
         <>
-          <AttendanceListFilters
-            clinicOptions={clinicOptions}
-            veterinarianOptions={veterinarianOptions}
-            clinicId={clinicId}
-            veterinarianId={veterinarianId}
-            status={status}
-            protocolNumber={protocolNumber}
-            ownerName={ownerName}
-            serviceDateFrom={serviceDateFrom}
-            serviceDateTo={serviceDateTo}
-            disabled={isLoading}
-            onClinicChange={(value) => handleFilterChange(() => setClinicId(value))}
-            onVeterinarianChange={(value) => handleFilterChange(() => setVeterinarianId(value))}
-            onStatusChange={(value) => handleFilterChange(() => setStatus(value))}
-            onProtocolNumberChange={(value) =>
-              handleFilterChange(() => setProtocolNumber(value))
-            }
-            onOwnerNameChange={(value) => handleFilterChange(() => setOwnerName(value))}
-            onServiceDateFromChange={(value) =>
-              handleFilterChange(() => setServiceDateFrom(value))
-            }
-            onServiceDateToChange={(value) =>
-              handleFilterChange(() => setServiceDateTo(value))
-            }
-          />
+          <div className="attendance-list-page__filter-row">
+            <AttendanceStatusTabs
+              counts={statusCountsQuery.data}
+              value={status}
+              onChange={(value) => handleFilterChange(() => setStatus(value))}
+            />
+            <AttendanceListFilters
+              clinicOptions={clinicOptions}
+              clinicId={clinicId}
+              serviceLevel={serviceLevel}
+              disabled={isLoading}
+              onClinicChange={(value) => handleFilterChange(() => setClinicId(value))}
+              onServiceLevelChange={(value) => handleFilterChange(() => setServiceLevel(value))}
+              onServiceDateFromChange={(value) =>
+                handleFilterChange(() => setServiceDateFrom(value))
+              }
+              onServiceDateToChange={(value) =>
+                handleFilterChange(() => setServiceDateTo(value))
+              }
+            />
+          </div>
 
           <div className="attendance-list-page__body">
             {isLoading && <p className="attendance-list-page__hint">Carregando…</p>}

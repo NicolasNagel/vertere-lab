@@ -32,9 +32,58 @@
   margin: 0.125rem 0 0;
 }
 
+.attendance-list-page__header-actions {
+  display: flex;
+  align-items: stretch;
+  gap: 0.625rem; /* 10px */
+}
+
+.attendance-list-page__header-actions .button--primary {
+  width: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0 1.25rem; /* 0 20px */
+  font-size: 0.6875rem; /* 11px */
+}
+
+.attendance-list-page__search {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem; /* 8px */
+  padding: 0.625rem 0.875rem; /* 10px 14px */
+  background: var(--color-surface-cream);
+  border: 1px solid var(--color-border);
+  font-size: 0.8125rem;
+  color: var(--color-text-secondary);
+}
+
+.attendance-list-page__search input {
+  border: none;
+  outline: none;
+  background: transparent;
+  font: inherit;
+  color: var(--color-text-primary);
+  width: 14rem;
+}
+
+.attendance-list-page__filter-row {
+  padding: 0.875rem 2rem; /* 14px 32px */
+  background: #ffffff;
+  border-bottom: 1px solid var(--color-border);
+  display: flex;
+  align-items: center;
+  gap: 1.125rem;
+  flex-wrap: wrap;
+}
+
+.attendance-list-page__filter-row .attendance-list-filters {
+  margin-left: auto;
+}
+
 .attendance-list-page__body {
   flex: 1;
-  padding: 1.5rem 1.75rem; /* 24px 28px */
+  padding: 0;
   overflow-y: auto;
   min-height: 0;
 }

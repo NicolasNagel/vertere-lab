@@ -38,6 +38,7 @@ function draftAttendance(overrides: Record<string, unknown> = {}) {
     subtotal: '0.00',
     discount_total: '0.00',
     surcharge_total: '0.00',
+    on_call_fee: '0.00',
     grand_total: '0.00',
     protocol_number: null,
     cancel_reason: null,
@@ -209,6 +210,7 @@ function previewHandler(items: Record<string, unknown>[]) {
       subtotal: '200.00',
       discount_total: '0.00',
       surcharge_total: '0.00',
+      on_call_fee: '0.00',
       grand_total: '200.00',
     }),
   )

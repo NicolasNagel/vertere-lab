@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 
 import { describeError } from '../../../shared/api/describe-error'
 import { ApiError } from '../../../shared/api/errors'
@@ -25,6 +25,7 @@ export function ClosureCloseModal({
   onClosed,
 }: ClosureCloseModalProps) {
   const [confirmed, setConfirmed] = useState(false)
+  const submissionStarted = useRef(false)
   const closeMutation = useCloseMonthlyPeriodMutation()
 
   const errorMessage = describeError(closeMutation.error)
@@ -32,10 +33,16 @@ export function ClosureCloseModal({
     closeMutation.error instanceof ApiError && closeMutation.error.code === 'CLOSURE_ALREADY_EXISTS'
 
   function handleConfirm() {
-    if (!confirmed) return
+    if (!confirmed || submissionStarted.current) return
+    submissionStarted.current = true
     closeMutation.mutate(
       { clinicId: preview.clinicId, year: preview.competenceYear, month: preview.competenceMonth },
-      { onSuccess: onClosed },
+      {
+        onSuccess: onClosed,
+        onError: () => {
+          submissionStarted.current = false
+        },
+      },
     )
   }
 

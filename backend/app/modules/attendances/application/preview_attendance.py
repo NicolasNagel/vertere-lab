@@ -22,7 +22,11 @@ from app.modules.attendances.application.attendance_items import (
 )
 from app.modules.attendances.application.dtos import AttendancePreviewDTO
 from app.modules.attendances.application.mappers import attendance_exam_to_dto
-from app.modules.attendances.domain.entities import AttendanceStatus, compute_attendance_totals
+from app.modules.attendances.domain.entities import (
+    AttendanceStatus,
+    compute_attendance_totals,
+    compute_on_call_fee,
+)
 from app.modules.attendances.domain.repositories import AttendanceRepository
 from app.modules.catalog.domain.repositories import ExamRepository
 from app.modules.clinics.domain.repositories import ClinicRepository
@@ -80,7 +84,9 @@ class PreviewAttendanceUseCase:
             patients=self._patients,
             exams=self._exams,
         )
-        totals = compute_attendance_totals(items)
+        totals = compute_attendance_totals(
+            items, on_call_fee=compute_on_call_fee(attendance.service_level)
+        )
         assert attendance.service_date is not None  # enforced by validate_and_snapshot_items
 
         return AttendancePreviewDTO(
@@ -95,5 +101,6 @@ class PreviewAttendanceUseCase:
             subtotal=totals.subtotal,
             discount_total=totals.discount_total,
             surcharge_total=totals.surcharge_total,
+            on_call_fee=totals.on_call_fee,
             grand_total=totals.grand_total,
         )

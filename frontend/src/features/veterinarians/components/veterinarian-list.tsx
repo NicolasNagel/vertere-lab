@@ -17,6 +17,11 @@ const TYPE_FILTERS: { value: VeterinarianTypeFilter; label: string }[] = [
   { value: 'autonomous', label: 'Autônomos' },
 ]
 
+function initials(name: string): string {
+  const parts = name.trim().split(/\s+/)
+  return `${parts[0]?.[0] ?? ''}${parts.at(-1)?.[0] ?? ''}`.toUpperCase()
+}
+
 interface VeterinarianListProps {
   veterinarians: Veterinarian[]
   activeCount: number
@@ -65,7 +70,7 @@ export function VeterinarianList({
         </span>
       </div>
 
-      <div className="veterinarian-list__filters" role="group" aria-label="Filtrar por tipo">
+      <div className="veterinarian-list__filters" role="group" aria-label="Filtrar por tipo" hidden>
         {TYPE_FILTERS.map((filter) => (
           <button
             key={filter.value}
@@ -79,7 +84,7 @@ export function VeterinarianList({
         ))}
       </div>
 
-      <div className="veterinarian-list__rows" role="list">
+      <div className="veterinarian-list__rows">
         {isLoading && <p className="veterinarian-list__empty">Carregando…</p>}
         {!isLoading && veterinarians.length === 0 && (
           <p className="veterinarian-list__empty">Nenhum veterinário encontrado.</p>
@@ -88,13 +93,20 @@ export function VeterinarianList({
           <button
             key={veterinarian.id}
             type="button"
-            role="listitem"
             className="veterinarian-list__row"
             data-selected={veterinarian.id === selectedId}
             onClick={() => onSelect(veterinarian.id)}
           >
             <div className="veterinarian-list__row-header">
-              <span className="veterinarian-list__row-name">{veterinarian.name}</span>
+              <span className="veterinarian-list__identity">
+                <span className="veterinarian-list__avatar" aria-hidden="true">
+                  {initials(veterinarian.name)}
+                </span>
+                <span>
+                  <span className="veterinarian-list__row-name">{veterinarian.name}</span>
+                  <span className="veterinarian-list__row-crmv">{veterinarian.crmv}</span>
+                </span>
+              </span>
               <span className="veterinarian-list__row-badges">
                 {veterinarian.isAutonomous && (
                   <span className="veterinarian-list__row-autonomous">Autônomo</span>
@@ -104,7 +116,6 @@ export function VeterinarianList({
                 </span>
               </span>
             </div>
-            <div className="veterinarian-list__row-crmv">{veterinarian.crmv}</div>
             {(veterinarian.phone || veterinarian.email) && (
               <div className="veterinarian-list__row-meta">
                 {[veterinarian.phone, veterinarian.email].filter(Boolean).join(' · ')}

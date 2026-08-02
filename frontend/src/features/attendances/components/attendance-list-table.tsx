@@ -1,7 +1,8 @@
 import { Link } from 'react-router'
 
 import { formatCurrencyBRL, formatServiceDateTime } from '../../../shared/lib/formatters'
-import type { Attendance } from '../api/attendances-api'
+import { EyeIcon } from '../../../shared/ui/icons'
+import { SERVICE_LEVEL_LABELS, type Attendance } from '../api/attendances-api'
 import { AttendanceStatusBadge } from './attendance-status-badge'
 import './attendance-list-table.css'
 
@@ -42,25 +43,22 @@ export function AttendanceListTable({
 
   return (
     <div className="attendance-list-table">
-      <div className="attendance-list-table__header" role="row">
+      <div className="attendance-list-table__header">
         <div>Protocolo</div>
         <div>Data · Hora</div>
         <div>Clínica</div>
         <div>Veterinário</div>
         <div>Paciente</div>
         <div>Exames</div>
+        <div>Tipo</div>
         <div>Status</div>
         <div className="attendance-list-table__value-header">Valor</div>
+        <div className="attendance-list-table__actions-header">Ações</div>
       </div>
       {attendances.map((attendance) => {
         const patient = patientDisplayById[attendance.patientId]
         return (
-          <Link
-            key={attendance.id}
-            to={`/operacao/${attendance.id}`}
-            className="attendance-list-table__row"
-            role="row"
-          >
+          <div key={attendance.id} className="attendance-list-table__row" role="row">
             <div className="attendance-list-table__protocol">
               {attendance.protocolNumber ?? 'Rascunho'}
             </div>
@@ -94,6 +92,14 @@ export function AttendanceListTable({
             </div>
             <div>{examsSummary(attendance)}</div>
             <div>
+              <span
+                className="attendance-list-table__service-level"
+                data-level={attendance.serviceLevel}
+              >
+                {SERVICE_LEVEL_LABELS[attendance.serviceLevel]}
+              </span>
+            </div>
+            <div>
               <AttendanceStatusBadge status={attendance.status} />
             </div>
             <div className="attendance-list-table__value">
@@ -104,7 +110,17 @@ export function AttendanceListTable({
                   mostra o total de verdade. */}
               {attendance.items.length === 0 ? '—' : formatCurrencyBRL(attendance.grandTotal)}
             </div>
-          </Link>
+            <div className="attendance-list-table__actions">
+              <Link
+                to={`/operacao/${attendance.id}`}
+                className="attendance-list-table__view-button"
+                title="Ver detalhes do protocolo"
+                aria-label={`Ver detalhes do protocolo ${attendance.protocolNumber ?? 'rascunho'}`}
+              >
+                <EyeIcon />
+              </Link>
+            </div>
+          </div>
         )
       })}
     </div>

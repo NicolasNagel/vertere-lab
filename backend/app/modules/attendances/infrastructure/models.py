@@ -34,13 +34,15 @@ class AttendanceModel(Base):
         CheckConstraint("subtotal >= 0", name="ck_attendances_subtotal_non_negative"),
         CheckConstraint("discount_total >= 0", name="ck_attendances_discount_total_non_negative"),
         CheckConstraint("surcharge_total >= 0", name="ck_attendances_surcharge_total_non_negative"),
+        CheckConstraint("on_call_fee >= 0", name="ck_attendances_on_call_fee_non_negative"),
         CheckConstraint("grand_total >= 0", name="ck_attendances_grand_total_non_negative"),
         CheckConstraint(
             "collection_method IN ('HELITO_NICOLAS','INTERNAL','MARLI','COURIER','UBER')",
             name="ck_attendances_collection_method",
         ),
         CheckConstraint(
-            "service_level IN ('NORMAL','ON_CALL')", name="ck_attendances_service_level"
+            "service_level IN ('NORMAL','PLANTAO_NORMAL','PLANTAO_ESPECIAL')",
+            name="ck_attendances_service_level",
         ),
         UniqueConstraint(
             "protocol_year", "protocol_sequence", name="uq_attendances_protocol_year_sequence"
@@ -66,6 +68,7 @@ class AttendanceModel(Base):
     subtotal: Mapped[Decimal] = mapped_column(nullable=False, default=Decimal("0"))
     discount_total: Mapped[Decimal] = mapped_column(nullable=False, default=Decimal("0"))
     surcharge_total: Mapped[Decimal] = mapped_column(nullable=False, default=Decimal("0"))
+    on_call_fee: Mapped[Decimal] = mapped_column(nullable=False, default=Decimal("0"))
     grand_total: Mapped[Decimal] = mapped_column(nullable=False, default=Decimal("0"))
     protocol_year: Mapped[int | None] = mapped_column(nullable=True)
     protocol_sequence: Mapped[int | None] = mapped_column(nullable=True)

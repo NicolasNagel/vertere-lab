@@ -9,7 +9,11 @@ from datetime import UTC, date, datetime
 from decimal import Decimal
 from uuid import UUID
 
-from app.modules.attendances.domain.entities import AttendanceRecord, AttendanceStatus
+from app.modules.attendances.domain.entities import (
+    AttendanceRecord,
+    AttendanceStatus,
+    ServiceLevel,
+)
 from app.modules.audit.domain.entities import AuditEntry
 from app.modules.catalog.domain.entities import Exam, ExamStatus
 from app.modules.catalog.domain.value_objects import ExamCode, PlantaoSurcharge
@@ -75,6 +79,7 @@ class FakeAttendanceRepository:
         veterinarian_id: UUID | None,
         patient_id: UUID | None,
         status: AttendanceStatus | None,
+        service_level: ServiceLevel | None,
         protocol_number: str | None,
         owner_name: str | None,
         service_date_from: date | None,
@@ -89,6 +94,8 @@ class FakeAttendanceRepository:
             items = [a for a in items if a.patient_id == patient_id]
         if status is not None:
             items = [a for a in items if a.status == status]
+        if service_level is not None:
+            items = [a for a in items if a.service_level == service_level]
         if protocol_number:
             items = [a for a in items if protocol_number in (a.protocol_number or "")]
         # Owner lives in the patient repository; the integration repository
@@ -109,6 +116,43 @@ class FakeAttendanceRepository:
         total = len(items)
         start = (page - 1) * page_size
         return items[start : start + page_size], total
+
+    def count_by_status(
+        self,
+        *,
+        clinic_id: UUID | None,
+        veterinarian_id: UUID | None,
+        service_level: ServiceLevel | None,
+        protocol_number: str | None,
+        owner_name: str | None,
+        service_date_from: date | None,
+        service_date_to: date | None,
+    ) -> dict[AttendanceStatus, int]:
+        items = list(self._attendances.values())
+        if clinic_id is not None:
+            items = [a for a in items if a.clinic_id == clinic_id]
+        if veterinarian_id is not None:
+            items = [a for a in items if a.veterinarian_id == veterinarian_id]
+        if service_level is not None:
+            items = [a for a in items if a.service_level == service_level]
+        if protocol_number:
+            items = [a for a in items if protocol_number in (a.protocol_number or "")]
+        if owner_name:
+            items = []
+        if service_date_from is not None:
+            items = [
+                a
+                for a in items
+                if a.service_date is not None and a.service_date >= service_date_from
+            ]
+        if service_date_to is not None:
+            items = [
+                a for a in items if a.service_date is not None and a.service_date <= service_date_to
+            ]
+        counts: dict[AttendanceStatus, int] = {}
+        for attendance in items:
+            counts[attendance.status] = counts.get(attendance.status, 0) + 1
+        return counts
 
 
 class FakeClinicRepository:

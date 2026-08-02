@@ -8,12 +8,14 @@
   font-family: inherit;
   cursor: pointer;
   padding: 1rem 1.5rem; /* 16px */
+  text-decoration: none;
 }
 
 .button--primary {
   width: 100%;
   background: var(--color-brand-ink);
   color: #ffffff;
+  text-decoration: none;
 }
 
 .button--ghost {

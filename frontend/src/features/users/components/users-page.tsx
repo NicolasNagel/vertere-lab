@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 
 import { ApiError } from '../../../shared/api/errors'
 import { Button } from '../../../shared/ui/button'
@@ -46,8 +46,13 @@ export function UsersPage() {
   const activateMutation = useActivateUserMutation()
 
   const users = listQuery.data?.items ?? []
+  const firstUserId = listQuery.data?.items[0]?.id
   const activeCount = users.filter((item) => item.isActive).length
   const selectedUser = users.find((item) => item.id === selectedId) ?? null
+
+  useEffect(() => {
+    if (mode === 'view' && selectedId === null && firstUserId) setSelectedId(firstUserId)
+  }, [firstUserId, mode, selectedId])
 
   const roleOptions: SelectOption[] = (rolesQuery.data?.items ?? [])
     .filter((role) => role.scope !== 'CLINIC')

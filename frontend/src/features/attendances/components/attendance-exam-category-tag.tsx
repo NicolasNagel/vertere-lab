@@ -1,5 +1,6 @@
 import { useExamCategoryQuery } from '../../catalog/api/use-exam-category-query'
 import { useExamQuery } from '../../catalog/api/use-exam-query'
+import './attendance-exam-category-tag.css'
 
 interface AttendanceExamCategoryTagProps {
   examId: string
@@ -17,7 +18,5 @@ export function AttendanceExamCategoryTag({ examId }: AttendanceExamCategoryTagP
 
   if (!categoryQuery.data) return null
 
-  return (
-    <span className="attendance-readonly-detail__exam-category">{categoryQuery.data.name}</span>
-  )
+  return <span className="attendance-exam-category-tag">{categoryQuery.data.name}</span>
 }

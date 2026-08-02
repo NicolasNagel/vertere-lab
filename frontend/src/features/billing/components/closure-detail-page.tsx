@@ -154,22 +154,57 @@ export function ClosureDetailPage() {
 
             <section className="closure-detail-page__section">
               <h2 className="closure-detail-page__section-title">Itens ({closure.itemCount})</h2>
+
+              <div className="closure-detail-page__summary-cards">
+                <div className="closure-detail-page__summary-card">
+                  <div className="closure-detail-page__summary-card-label">Protocolos</div>
+                  <div className="closure-detail-page__summary-card-value">
+                    {new Set(closure.items.map((item) => item.attendanceId)).size}
+                  </div>
+                </div>
+                <div className="closure-detail-page__summary-card">
+                  <div className="closure-detail-page__summary-card-label">Exames</div>
+                  <div className="closure-detail-page__summary-card-value">
+                    {closure.itemCount}
+                  </div>
+                </div>
+                <div className="closure-detail-page__summary-card closure-detail-page__summary-card--total">
+                  <div className="closure-detail-page__summary-card-label">Valor total</div>
+                  <div className="closure-detail-page__summary-card-value">
+                    {formatCurrencyBRL(closure.grandTotal)}
+                  </div>
+                </div>
+              </div>
+
               {closure.items.length === 0 ? (
                 <p className="closure-detail-page__value">Nenhum item associado.</p>
               ) : (
-                <ul className="closure-detail-page__items">
-                  {closure.items.map((item) => (
-                    <li key={item.id} className="closure-detail-page__item">
-                      <span>
-                        {item.protocolNumber ?? '—'} · {item.patientName} · {item.examName}
-                        {item.quantity > 1 ? ` ×${item.quantity}` : ''}
-                      </span>
-                      <span className="closure-detail-page__mono">
-                        {formatCurrencyBRL(item.totalAmount)}
-                      </span>
-                    </li>
-                  ))}
-                </ul>
+                <table className="closure-detail-page__item-table">
+                  <thead>
+                    <tr>
+                      <th>Protocolo</th>
+                      <th>Paciente</th>
+                      <th>Exame</th>
+                      <th>Qtd.</th>
+                      <th>Valor</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {closure.items.map((item) => (
+                      <tr key={item.id}>
+                        <td className="closure-detail-page__item-table-protocol">
+                          {item.protocolNumber ?? '—'}
+                        </td>
+                        <td>{item.patientName}</td>
+                        <td>{item.examName}</td>
+                        <td>{item.quantity}</td>
+                        <td className="closure-detail-page__item-table-value">
+                          {formatCurrencyBRL(item.totalAmount)}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
               )}
             </section>
 

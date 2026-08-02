@@ -1,4 +1,4 @@
-import { forwardRef, type SelectHTMLAttributes } from 'react'
+import { forwardRef, type ReactNode, type SelectHTMLAttributes } from 'react'
 
 import './select.css'
 
@@ -11,10 +11,11 @@ export interface SelectFieldProps extends SelectHTMLAttributes<HTMLSelectElement
   label: string
   options: SelectOption[]
   errorMessage?: string
+  leadingIcon?: ReactNode
 }
 
 export const SelectField = forwardRef<HTMLSelectElement, SelectFieldProps>(function SelectField(
-  { label, options, errorMessage, id, className, ...selectProps },
+  { label, options, errorMessage, leadingIcon, id, className, ...selectProps },
   ref,
 ) {
   const errorId = errorMessage ? `${id}-error` : undefined
@@ -25,10 +26,11 @@ export const SelectField = forwardRef<HTMLSelectElement, SelectFieldProps>(funct
         {label}
       </label>
       <div className="select-field__control" data-invalid={Boolean(errorMessage)}>
+        {leadingIcon && <span className="select-field__leading-icon">{leadingIcon}</span>}
         <select
           ref={ref}
           id={id}
-          className="select-field__input"
+          className={`select-field__input${leadingIcon ? ' select-field__input--with-icon' : ''}`}
           aria-invalid={errorMessage ? 'true' : undefined}
           aria-describedby={errorId}
           {...selectProps}

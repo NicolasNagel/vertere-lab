@@ -62,7 +62,7 @@ export function UserList({
         <span aria-hidden="true" />
       </div>
 
-      <div className="user-list__rows" role="list">
+      <div className="user-list__rows">
         {isLoading && <p className="user-list__empty">Carregando…</p>}
         {!isLoading && users.length === 0 && (
           <p className="user-list__empty">Nenhum usuário encontrado.</p>
@@ -71,7 +71,6 @@ export function UserList({
           <button
             key={user.id}
             type="button"
-            role="listitem"
             className="user-list__row"
             data-selected={user.id === selectedId}
             onClick={() => onSelect(user.id)}

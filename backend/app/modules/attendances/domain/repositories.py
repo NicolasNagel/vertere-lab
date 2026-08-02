@@ -11,7 +11,11 @@ from datetime import date
 from typing import Protocol
 from uuid import UUID
 
-from app.modules.attendances.domain.entities import AttendanceRecord, AttendanceStatus
+from app.modules.attendances.domain.entities import (
+    AttendanceRecord,
+    AttendanceStatus,
+    ServiceLevel,
+)
 
 
 class AttendanceRepository(Protocol):
@@ -30,11 +34,24 @@ class AttendanceRepository(Protocol):
         veterinarian_id: UUID | None,
         patient_id: UUID | None,
         status: AttendanceStatus | None,
+        service_level: ServiceLevel | None,
         protocol_number: str | None,
         owner_name: str | None,
         service_date_from: date | None,
         service_date_to: date | None,
     ) -> tuple[list[AttendanceRecord], int]: ...
+
+    def count_by_status(
+        self,
+        *,
+        clinic_id: UUID | None,
+        veterinarian_id: UUID | None,
+        service_level: ServiceLevel | None,
+        protocol_number: str | None,
+        owner_name: str | None,
+        service_date_from: date | None,
+        service_date_to: date | None,
+    ) -> dict[AttendanceStatus, int]: ...
 
 
 class AttendanceSequenceRepository(Protocol):

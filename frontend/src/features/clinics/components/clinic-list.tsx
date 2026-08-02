@@ -55,7 +55,7 @@ export function ClinicList({
         </span>
       </div>
 
-      <div className="clinic-list__rows" role="list">
+      <div className="clinic-list__rows">
         {isLoading && <p className="clinic-list__empty">Carregando…</p>}
         {!isLoading && clinics.length === 0 && (
           <p className="clinic-list__empty">Nenhuma clínica encontrada.</p>
@@ -64,7 +64,6 @@ export function ClinicList({
           <button
             key={clinic.id}
             type="button"
-            role="listitem"
             className="clinic-list__row"
             data-selected={clinic.id === selectedId}
             onClick={() => onSelect(clinic.id)}

@@ -23,7 +23,7 @@ export function ClosuresListTable({ closures, clinicNameById }: ClosuresListTabl
 
   return (
     <div className="closures-list-table">
-      <div className="closures-list-table__header" role="row">
+      <div className="closures-list-table__header">
         <div>Competência</div>
         <div>Clínica</div>
         <div>Itens</div>
@@ -36,7 +36,6 @@ export function ClosuresListTable({ closures, clinicNameById }: ClosuresListTabl
           key={closure.id}
           to={`/financeiro/fechamentos/${closure.id}`}
           className="closures-list-table__row"
-          role="row"
         >
           <div className="closures-list-table__competence">
             {formatCompetence(closure.competenceYear, closure.competenceMonth)}

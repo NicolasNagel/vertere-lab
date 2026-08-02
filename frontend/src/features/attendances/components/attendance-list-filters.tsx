@@ -1,122 +1,94 @@
+import { useState } from 'react'
+
 import { SelectField, type SelectOption } from '../../../shared/ui/select'
-import type { AttendanceStatus } from '../api/attendances-api'
+import { CalendarIcon } from '../../../shared/ui/icons'
+import { SERVICE_LEVEL_LABELS, type ServiceLevel } from '../api/attendances-api'
 import './attendance-list-filters.css'
 
-const STATUS_OPTIONS: SelectOption[] = [
-  { value: '', label: 'Todos os status' },
-  { value: 'DRAFT', label: 'Rascunho' },
-  { value: 'CONFIRMED', label: 'Confirmado' },
-  { value: 'IN_PROGRESS', label: 'Em andamento' },
-  { value: 'COMPLETED', label: 'Concluído' },
-  { value: 'CANCELLED', label: 'Cancelado' },
-  { value: 'ON_HOLD', label: 'Em espera' },
+const SERVICE_LEVEL_FILTER_OPTIONS: SelectOption[] = [
+  { value: '', label: 'Tipo: Todos' },
+  { value: 'NORMAL', label: `Tipo: ${SERVICE_LEVEL_LABELS.NORMAL}` },
+  { value: 'PLANTAO_NORMAL', label: `Tipo: ${SERVICE_LEVEL_LABELS.PLANTAO_NORMAL}` },
+  { value: 'PLANTAO_ESPECIAL', label: `Tipo: ${SERVICE_LEVEL_LABELS.PLANTAO_ESPECIAL}` },
 ]
+
+const PERIOD_MONTH_LABELS = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez']
+const currentMonth = new Date()
+const currentMonthIndex = currentMonth.getFullYear() * 12 + currentMonth.getMonth()
+const PERIOD_OPTIONS: SelectOption[] = Array.from({ length: 36 }, (_, index) => {
+  const absoluteMonth = currentMonthIndex + 6 - index
+  const year = Math.floor(absoluteMonth / 12)
+  const monthIndex = ((absoluteMonth % 12) + 12) % 12
+  const value = `${year}-${String(monthIndex + 1).padStart(2, '0')}`
+  return { value, label: `${PERIOD_MONTH_LABELS[monthIndex]} ${year}` }
+})
 
 interface AttendanceListFiltersProps {
   clinicOptions: SelectOption[]
-  veterinarianOptions: SelectOption[]
   clinicId: string
-  veterinarianId: string
-  status: AttendanceStatus | ''
-  protocolNumber: string
-  ownerName: string
-  serviceDateFrom: string
-  serviceDateTo: string
+  serviceLevel: ServiceLevel | ''
   disabled: boolean
   onClinicChange: (clinicId: string) => void
-  onVeterinarianChange: (veterinarianId: string) => void
-  onStatusChange: (status: AttendanceStatus | '') => void
-  onProtocolNumberChange: (value: string) => void
-  onOwnerNameChange: (value: string) => void
+  onServiceLevelChange: (serviceLevel: ServiceLevel | '') => void
   onServiceDateFromChange: (value: string) => void
   onServiceDateToChange: (value: string) => void
 }
 
 export function AttendanceListFilters({
   clinicOptions,
-  veterinarianOptions,
   clinicId,
-  veterinarianId,
-  status,
-  protocolNumber,
-  ownerName,
-  serviceDateFrom,
-  serviceDateTo,
+  serviceLevel,
   disabled,
   onClinicChange,
-  onVeterinarianChange,
-  onStatusChange,
-  onProtocolNumberChange,
-  onOwnerNameChange,
+  onServiceLevelChange,
   onServiceDateFromChange,
   onServiceDateToChange,
 }: AttendanceListFiltersProps) {
+  const [selectedPeriod, setSelectedPeriod] = useState('')
+
+  function handlePeriodChange(period: string) {
+    setSelectedPeriod(period)
+    if (!period) {
+      onServiceDateFromChange('')
+      onServiceDateToChange('')
+      return
+    }
+    const [year, month] = period.split('-')
+    if (!year || !month) return
+    const lastDay = new Date(Date.UTC(Number(year), Number(month), 0)).getUTCDate()
+    onServiceDateFromChange(`${period}-01`)
+    onServiceDateToChange(`${period}-${String(lastDay).padStart(2, '0')}`)
+  }
+
   return (
     <div className="attendance-list-filters">
       <SelectField
-        label="Status"
-        id="attendance-list-status"
+        label="Competência"
+        id="attendance-list-period"
         className="attendance-list-filters__field"
-        options={STATUS_OPTIONS}
-        value={status}
+        leadingIcon={<CalendarIcon />}
+        options={[{ value: '', label: 'Período: Todos' }, ...PERIOD_OPTIONS]}
+        value={selectedPeriod}
         disabled={disabled}
-        onChange={(event) => onStatusChange(event.target.value as AttendanceStatus | '')}
+        onChange={(event) => handlePeriodChange(event.target.value)}
       />
-      <label className="attendance-list-filters__field">
-        <span>Protocolo</span>
-        <input
-          value={protocolNumber}
-          maxLength={32}
-          disabled={disabled}
-          placeholder="2026/000001"
-          onChange={(event) => onProtocolNumberChange(event.target.value)}
-        />
-      </label>
-      <label className="attendance-list-filters__field">
-        <span>Tutor</span>
-        <input
-          value={ownerName}
-          maxLength={200}
-          disabled={disabled}
-          onChange={(event) => onOwnerNameChange(event.target.value)}
-        />
-      </label>
-      <label className="attendance-list-filters__field">
-        <span>Data inicial</span>
-        <input
-          type="date"
-          value={serviceDateFrom}
-          disabled={disabled}
-          onChange={(event) => onServiceDateFromChange(event.target.value)}
-        />
-      </label>
-      <label className="attendance-list-filters__field">
-        <span>Data final</span>
-        <input
-          type="date"
-          value={serviceDateTo}
-          min={serviceDateFrom || undefined}
-          disabled={disabled}
-          onChange={(event) => onServiceDateToChange(event.target.value)}
-        />
-      </label>
       <SelectField
         label="Clínica"
         id="attendance-list-clinic"
         className="attendance-list-filters__field"
-        options={[{ value: '', label: 'Todas as clínicas' }, ...clinicOptions]}
+        options={[{ value: '', label: 'Clínica: Todas' }, ...clinicOptions]}
         value={clinicId}
         disabled={disabled}
         onChange={(event) => onClinicChange(event.target.value)}
       />
       <SelectField
-        label="Veterinário"
-        id="attendance-list-veterinarian"
+        label="Tipo"
+        id="attendance-list-service-level"
         className="attendance-list-filters__field"
-        options={[{ value: '', label: 'Todos os veterinários' }, ...veterinarianOptions]}
-        value={veterinarianId}
+        options={SERVICE_LEVEL_FILTER_OPTIONS}
+        value={serviceLevel}
         disabled={disabled}
-        onChange={(event) => onVeterinarianChange(event.target.value)}
+        onChange={(event) => onServiceLevelChange(event.target.value as ServiceLevel | '')}
       />
     </div>
   )

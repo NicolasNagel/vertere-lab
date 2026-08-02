@@ -42,6 +42,7 @@ function renderShell(initialPath: string) {
             <Route path="/" element={<AppShell />}>
               <Route index element={<p>conteúdo dashboard</p>} />
               <Route path="/cadastros/clinicas" element={<p>conteúdo clínicas</p>} />
+              <Route path="/operacao" element={<p>conteúdo operação</p>} />
             </Route>
           </Routes>
         </MemoryRouter>
@@ -50,17 +51,21 @@ function renderShell(initialPath: string) {
   )
 }
 
-test('highlights the nav item matching the current route', async () => {
+test('keeps the global navigation visible in clinic management', async () => {
   mockAuthenticatedUser()
   renderShell('/cadastros/clinicas')
 
   expect(await screen.findByText('conteúdo clínicas')).toBeInTheDocument()
 
-  const clinicsLink = screen.getByRole('link', { name: /clínicas/i })
-  expect(clinicsLink).toHaveAttribute('aria-current', 'page')
+  expect(screen.getByLabelText('Navegação principal')).toBeInTheDocument()
+})
 
-  const dashboardLink = screen.getByRole('link', { name: /dashboard/i })
-  expect(dashboardLink).not.toHaveAttribute('aria-current')
+test('keeps the main navigation visible in operation, matching the supplied screenshot', async () => {
+  mockAuthenticatedUser(['attendances.read'])
+  renderShell('/operacao')
+
+  expect(await screen.findByText('conteúdo operação')).toBeInTheDocument()
+  expect(screen.getByLabelText('Navegação principal')).toBeInTheDocument()
 })
 
 test('items without a route are not interactive', async () => {
@@ -86,6 +91,27 @@ test('footer shows the authenticated user name, role and initials', async () => 
   expect(await screen.findByText('Fabianna Garcia')).toBeInTheDocument()
   expect(screen.getByText('Administradora')).toBeInTheDocument()
   expect(screen.getByText('FG')).toBeInTheDocument()
+})
+
+test('opens and closes the mobile navigation when a destination is selected', async () => {
+  const user = userEvent.setup()
+  mockAuthenticatedUser()
+  renderShell('/')
+
+  const menuButton = await screen.findByRole('button', { name: 'Abrir navegação' })
+  expect(menuButton).toHaveAttribute('aria-expanded', 'false')
+
+  await user.click(menuButton)
+  expect(menuButton).toHaveAttribute('aria-expanded', 'true')
+  expect(screen.getByRole('button', { name: 'Fechar navegação' })).toBeInTheDocument()
+
+  await user.click(screen.getByRole('link', { name: /clínicas/i }))
+  expect(await screen.findByText('conteúdo clínicas')).toBeInTheDocument()
+  expect(screen.getByRole('button', { name: 'Abrir navegação' })).toHaveAttribute(
+    'aria-expanded',
+    'false',
+  )
+  expect(screen.queryByRole('button', { name: 'Fechar navegação' })).not.toBeInTheDocument()
 })
 
 test('hides "Usuários" and "Perfis de permissão" without the matching read permission', async () => {

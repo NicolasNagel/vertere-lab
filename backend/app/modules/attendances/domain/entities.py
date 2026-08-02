@@ -52,7 +52,22 @@ class CollectionMethod(StrEnum):
 
 class ServiceLevel(StrEnum):
     NORMAL = "NORMAL"
-    ON_CALL = "ON_CALL"
+    PLANTAO_NORMAL = "PLANTAO_NORMAL"
+    PLANTAO_ESPECIAL = "PLANTAO_ESPECIAL"
+
+
+# Taxa fixa de plantão, cobrada uma única vez por atendimento inteiro — não
+# por exame (substitui o antigo adicional percentual/fixo configurado por
+# exame no catálogo). Valores definidos pelo negócio, não configuráveis.
+ON_CALL_FEES: dict[ServiceLevel, Decimal] = {
+    ServiceLevel.NORMAL: Decimal("0"),
+    ServiceLevel.PLANTAO_NORMAL: Decimal("100.00"),
+    ServiceLevel.PLANTAO_ESPECIAL: Decimal("150.00"),
+}
+
+
+def compute_on_call_fee(service_level: ServiceLevel) -> Decimal:
+    return ON_CALL_FEES[service_level]
 
 
 @dataclass(kw_only=True)
@@ -98,23 +113,34 @@ class AttendanceTotals:
     subtotal: Decimal
     discount_total: Decimal
     surcharge_total: Decimal
+    on_call_fee: Decimal
     grand_total: Decimal
 
 
-def compute_attendance_totals(items: list[AttendanceExam]) -> AttendanceTotals:
+def compute_attendance_totals(
+    items: list[AttendanceExam], *, on_call_fee: Decimal = Decimal("0")
+) -> AttendanceTotals:
     """Single point of money math for a set of items (rule:
     .claude/rules/12-attendance.md — "moeda e arredondamento centralizados em
     um único ponto do domínio"). Used by `AttendanceRecord.confirm()` and,
     unchanged, by the preview (dry-run) use case — a preview must never be
     able to compute a different total than what confirming would charge.
+
+    `on_call_fee` (from `compute_on_call_fee`) is the one amount that isn't
+    itemized — it belongs to the attendance as a whole (a dispatch/on-call
+    fee, not tied to any single exam), so it's added on top of the items'
+    total rather than folded into `surcharge_total`, which stays a pure sum
+    of item-level surcharges.
     """
     if not items:
         raise ValidationError("Confirmação exige ao menos um item de exame.")
+    items_total = round_currency(sum((i.total_amount for i in items), Decimal("0")))
     return AttendanceTotals(
         subtotal=round_currency(sum((i.price_base * i.quantity for i in items), Decimal("0"))),
         discount_total=round_currency(sum((i.discount_amount for i in items), Decimal("0"))),
         surcharge_total=round_currency(sum((i.surcharge_amount for i in items), Decimal("0"))),
-        grand_total=round_currency(sum((i.total_amount for i in items), Decimal("0"))),
+        on_call_fee=on_call_fee,
+        grand_total=round_currency(items_total + on_call_fee),
     )
 
 
@@ -134,6 +160,7 @@ class AttendanceRecord:
     subtotal: Decimal = Decimal("0")
     discount_total: Decimal = Decimal("0")
     surcharge_total: Decimal = Decimal("0")
+    on_call_fee: Decimal = Decimal("0")
     grand_total: Decimal = Decimal("0")
     protocol_year: int | None = None
     protocol_sequence: int | None = None
@@ -164,12 +191,15 @@ class AttendanceRecord:
         if self.service_date is None:
             raise ValidationError("Data do atendimento é obrigatória para confirmar.")
 
-        totals = compute_attendance_totals(items)
+        totals = compute_attendance_totals(
+            items, on_call_fee=compute_on_call_fee(self.service_level)
+        )
 
         self.items = items
         self.subtotal = totals.subtotal
         self.discount_total = totals.discount_total
         self.surcharge_total = totals.surcharge_total
+        self.on_call_fee = totals.on_call_fee
         self.grand_total = totals.grand_total
         self.protocol_year = protocol_year
         self.protocol_sequence = protocol_sequence

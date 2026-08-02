@@ -4,7 +4,7 @@ import { useClinicQuery } from '../../clinics/api/use-clinic-query'
 import { usePatientQuery } from '../../patients/api/use-patient-query'
 import { useSpeciesQuery } from '../../patients/api/use-species-query'
 import { useVeterinarianQuery } from '../../veterinarians/api/use-veterinarian-query'
-import type { Attendance } from '../api/attendances-api'
+import { SERVICE_LEVEL_LABELS, type Attendance } from '../api/attendances-api'
 import { AttendanceExamCategoryTag } from './attendance-exam-category-tag'
 import { AttendanceNotesSection } from './attendance-notes-section'
 import { AttendancePatientCard } from './attendance-patient-card'
@@ -89,7 +89,7 @@ export function AttendanceReadonlyDetail({ attendance }: AttendanceReadonlyDetai
               <div className="attendance-readonly-detail__field-row attendance-readonly-detail__field-row--stack">
                 <span className="attendance-readonly-detail__label">Tipo</span>
                 <span className="attendance-readonly-detail__value">
-                  {attendance.serviceLevel === 'ON_CALL' ? 'Plantão' : 'Normal'}
+                  {SERVICE_LEVEL_LABELS[attendance.serviceLevel]}
                 </span>
               </div>
               <div className="attendance-readonly-detail__field-row attendance-readonly-detail__field-row--stack">
@@ -133,10 +133,20 @@ export function AttendanceReadonlyDetail({ attendance }: AttendanceReadonlyDetai
                 {formatCurrencyBRL(attendance.discountTotal)}
               </span>
             </div>
+            {Number(attendance.surchargeTotal) > 0 && (
+              <div className="attendance-readonly-detail__field-row">
+                <span>Acréscimo</span>
+                <span className="attendance-readonly-detail__mono">
+                  {formatCurrencyBRL(attendance.surchargeTotal)}
+                </span>
+              </div>
+            )}
             <div className="attendance-readonly-detail__field-row">
-              <span>Acréscimo</span>
+              <span>Taxa de plantão</span>
               <span className="attendance-readonly-detail__mono">
-                {formatCurrencyBRL(attendance.surchargeTotal)}
+                {Number(attendance.onCallFee) > 0
+                  ? formatCurrencyBRL(attendance.onCallFee)
+                  : 'não se aplica'}
               </span>
             </div>
             <div className="attendance-readonly-detail__total">

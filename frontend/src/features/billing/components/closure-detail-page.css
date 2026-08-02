@@ -166,6 +166,91 @@
   font-size: 0.8125rem;
 }
 
+.closure-detail-page__summary-cards {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+}
+
+.closure-detail-page__summary-card {
+  background: #ffffff;
+  border: 1px solid var(--color-border);
+  padding: 0.875rem 1rem; /* 14px 16px */
+}
+
+.closure-detail-page__summary-card--total {
+  background: #1f3450;
+  border-color: #1f3450;
+  color: #ffffff;
+}
+
+.closure-detail-page__summary-card-label {
+  font-family: var(--font-mono);
+  font-size: 0.59375rem; /* 9.5px */
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--color-text-secondary);
+}
+
+.closure-detail-page__summary-card--total .closure-detail-page__summary-card-label {
+  color: rgba(255, 255, 255, 0.7);
+}
+
+.closure-detail-page__summary-card-value {
+  font-family: var(--font-display);
+  font-size: 1.875rem; /* 30px */
+  line-height: 1;
+  color: #1f3450;
+  margin-top: 0.25rem;
+}
+
+.closure-detail-page__summary-card--total .closure-detail-page__summary-card-value {
+  color: #ffffff;
+}
+
+.closure-detail-page__item-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.75rem;
+}
+
+.closure-detail-page__item-table th {
+  padding: 0.6875rem 1.125rem; /* 11px 18px */
+  background: #f4f1ea;
+  color: var(--color-text-secondary);
+  font-size: 0.625rem; /* 10px */
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  font-weight: 600;
+  text-align: left;
+}
+
+.closure-detail-page__item-table th:last-child {
+  text-align: right;
+}
+
+.closure-detail-page__item-table td {
+  padding: 0.6875rem 1.125rem;
+  border-bottom: 1px solid #f0ede5;
+}
+
+.closure-detail-page__item-table tbody tr:nth-child(even) {
+  background: var(--color-surface-cream);
+}
+
+.closure-detail-page__item-table-protocol {
+  font-family: var(--font-mono);
+  font-weight: 600;
+  color: var(--color-brand-ink);
+}
+
+.closure-detail-page__item-table-value {
+  font-family: var(--font-mono);
+  font-weight: 600;
+  text-align: right;
+}
+
 .closure-detail-page__mono {
   font-family: var(--font-mono);
   font-weight: 600;

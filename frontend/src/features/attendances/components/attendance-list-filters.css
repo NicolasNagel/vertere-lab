@@ -1,32 +1,75 @@
 .attendance-list-filters {
   display: flex;
-  gap: 1rem;
-  padding: 0.875rem 2rem; /* 14px 32px */
-  background: #ffffff;
-  border-bottom: 1px solid var(--color-border);
+  gap: 0.5rem;
+  align-items: flex-end;
   flex-wrap: wrap;
 }
 
 .attendance-list-filters__field {
-  min-width: 11rem;
+  width: 9.5rem;
+  flex-shrink: 0;
+  margin-bottom: 0 !important;
 }
 
-.attendance-list-filters__field > span {
-  display: block;
-  margin-bottom: 0.375rem;
-  color: var(--color-text-muted);
-  font-size: 0.75rem;
+.attendance-list-filters__field > span:first-child {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  clip-path: inset(50%);
+  white-space: nowrap;
+  font-size: 0.625rem; /* 10px */
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
   font-weight: 600;
+  color: var(--color-brand-ink);
+  margin: -1px;
 }
 
 .attendance-list-filters__field > input {
   box-sizing: border-box;
   width: 100%;
-  min-height: 2.5rem;
-  padding: 0.5rem 0.75rem;
   border: 1px solid var(--color-border);
-  border-radius: 0.5rem;
-  background: #fff;
-  color: var(--color-text);
-  font: inherit;
+  border-radius: 0.125rem; /* 2px */
+  padding: 0.625rem 0.75rem; /* 10px 12px */
+  background: #ffffff;
+  color: var(--color-text-primary);
+  font-size: 0.8125rem;
+  font-family: var(--font-body);
+}
+
+.attendance-list-filters__field > input:focus {
+  outline: none;
+  border-color: var(--color-brand-ink);
+}
+
+.attendance-list-filters__year {
+  width: 7rem;
+}
+
+.attendance-list-filters .select-field__label,
+.attendance-list-filters .text-field__label {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  clip-path: inset(50%);
+  white-space: nowrap;
+  margin: -1px;
+}
+
+.attendance-list-filters .select-field__input {
+  padding: 0.4375rem 0; /* 7px */
+  font-size: 0.75rem;
+}
+
+.attendance-list-filters .select-field__control {
+  padding: 0 0.75rem;
+}
+
+.attendance-list-filters__field > input {
+  padding: 0.4375rem 0.75rem;
+  font-size: 0.75rem;
 }

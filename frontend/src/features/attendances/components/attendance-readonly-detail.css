@@ -95,18 +95,6 @@
   min-width: 0;
 }
 
-.attendance-readonly-detail__exam-category {
-  flex-shrink: 0;
-  background: #e8f1f1;
-  color: var(--color-brand-ink);
-  padding: 0.1875rem 0.5rem; /* 3px 8px */
-  font-size: 0.625rem;
-  font-weight: 600;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-  white-space: nowrap;
-}
-
 .attendance-readonly-detail__mono {
   font-family: var(--font-mono);
   font-weight: 600;

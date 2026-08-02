@@ -187,7 +187,6 @@ export function PatientForm({
         disabled={submitting}
         {...register('ownerDocument')}
       />
-
       <TextField id="patient-notes" label="Observação" disabled={submitting} {...register('notes')} />
 
       {errorMessage && (

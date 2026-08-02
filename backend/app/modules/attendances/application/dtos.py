@@ -41,6 +41,7 @@ class AttendancePreviewDTO:
     subtotal: Decimal
     discount_total: Decimal
     surcharge_total: Decimal
+    on_call_fee: Decimal
     grand_total: Decimal
 
 
@@ -60,6 +61,7 @@ class AttendanceDTO:
     subtotal: Decimal = Decimal("0")
     discount_total: Decimal = Decimal("0")
     surcharge_total: Decimal = Decimal("0")
+    on_call_fee: Decimal = Decimal("0")
     grand_total: Decimal = Decimal("0")
     protocol_number: str | None = None
     cancel_reason: str | None = None
