@@ -25,10 +25,10 @@ verified against the real file (`assets/features/Tabela de Preços -
   full joined text, not a per-token split.
 - A "Plantão" surcharge block (two lines, same two values, repeated
   identically on every page) is not an exam at all — it's a flat surcharge
-  applied regardless of which exam was done. Deliberately excluded here
-  (confirmed with the team: `Exam.plantao_surcharge` is a single per-exam
-  value and doesn't fit two global tiers — modelling that surcharge is out
-  of scope for this slice, see `docs/01-analise-planilha.md` §6).
+  applied regardless of which exam was done. Deliberately excluded here: it
+  doesn't belong on the exam catalog at all (the flat plantão fee now lives
+  on `AttendanceRecord.on_call_fee`, keyed by `service_level`, not by exam —
+  see `docs/01-analise-planilha.md` §6).
 - At least one row ("Cálcio") had its price on the line *above* its label
   instead of below/same-line — the forward-only merge below can't recover
   that pairing; both halves surface as unpaired entries instead of being

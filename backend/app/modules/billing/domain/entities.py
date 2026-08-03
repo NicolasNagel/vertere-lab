@@ -77,6 +77,12 @@ class ClosureCandidateItem:
     discount_amount: Decimal
     surcharge_amount: Decimal
     total_amount: Decimal
+    # Flat per-attendance fee (`AttendanceRecord.on_call_fee`), repeated on
+    # every item row of the same attendance because a candidate is per-item
+    # — callers must sum it once per **distinct** `attendance_id` among the
+    # items they include, never once per row, or a multi-exam attendance
+    # double/triple-counts the fee.
+    attendance_on_call_fee: Decimal = Decimal("0")
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -113,6 +119,7 @@ class ClosurePreview:
     subtotal: Decimal
     discount_total: Decimal
     surcharge_total: Decimal
+    on_call_fee_total: Decimal
     grand_total: Decimal
     eligible_items: list[ClosurePreviewItem] = field(default_factory=list)
     blocked_items: list[ClosurePreviewBlockedItem] = field(default_factory=list)
@@ -200,6 +207,7 @@ class MonthlyClosure:
     closed_by: UUID | None
     generated_at: datetime
     closed_at: datetime
+    on_call_fee_total: Decimal = Decimal("0")
     reopened_at: datetime | None = None
     version: int = 1
     integrity_hash: str | None = None
@@ -207,7 +215,12 @@ class MonthlyClosure:
     adjustments: list[FinancialAdjustment] = field(default_factory=list)
 
     def __post_init__(self) -> None:
-        if self.subtotal < 0 or self.discount_total < 0 or self.surcharge_total < 0:
+        if (
+            self.subtotal < 0
+            or self.discount_total < 0
+            or self.surcharge_total < 0
+            or self.on_call_fee_total < 0
+        ):
             raise ValidationError("Totais do fechamento não podem ser negativos.")
         if self.grand_total < 0:
             raise ValidationError("Total do fechamento não pode ser negativo.")

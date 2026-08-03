@@ -1,14 +1,12 @@
 .exam-stat-cards {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(auto-fit, minmax(11.25rem, 1fr));
   gap: 0.875rem; /* 14px */
-  margin-bottom: 1.125rem; /* 18px */
-}
-
-@media (max-width: 900px) {
-  .exam-stat-cards {
-    grid-template-columns: 1fr;
-  }
+  /* Horizontal padding matches .exam-table-panel's (exam-table.css) so the
+     row's left/right edges line up with the table below it; the 1fr tracks
+     then stretch the cards to fill that same full width. */
+  padding: 1.5rem 1.75rem 0; /* 24px 28px 0 */
+  margin-bottom: 1.125rem; /* 18px gap before the Taxas de plantão panel below */
 }
 
 .exam-stat-cards__card {

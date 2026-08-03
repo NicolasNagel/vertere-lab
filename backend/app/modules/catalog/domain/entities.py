@@ -13,7 +13,7 @@ from decimal import Decimal
 from enum import StrEnum
 from uuid import UUID
 
-from app.modules.catalog.domain.value_objects import ExamCode, PlantaoSurcharge
+from app.modules.catalog.domain.value_objects import ExamCode
 
 
 class ExamCategoryStatus(StrEnum):
@@ -68,7 +68,6 @@ class Exam:
     price_valid_from: date = date(1900, 1, 1)
     price_valid_to: date | None = None
     description: str | None = None
-    plantao_surcharge: PlantaoSurcharge = field(default_factory=PlantaoSurcharge)
     species_ids: frozenset[UUID] = field(default_factory=frozenset)
     status: ExamStatus = ExamStatus.ACTIVE
     created_by: UUID | None = None
@@ -98,7 +97,6 @@ class Exam:
         category_id: UUID,
         price_base: Decimal,
         description: str | None,
-        plantao_surcharge: PlantaoSurcharge,
         species_ids: frozenset[UUID],
         status: ExamStatus,
         updated_by: UUID | None,
@@ -116,7 +114,6 @@ class Exam:
         self.category_id = category_id
         self.price_base = price_base
         self.description = description
-        self.plantao_surcharge = plantao_surcharge
         self.species_ids = species_ids
         self.status = status
         self.updated_by = updated_by

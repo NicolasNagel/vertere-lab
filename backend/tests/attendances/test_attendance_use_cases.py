@@ -61,6 +61,7 @@ from tests.attendances.fakes import (
     FakeClinicRepository,
     FakeClock,
     FakeExamRepository,
+    FakeOnCallFeeSettingRepository,
     FakePatientRepository,
     FakeVeterinarianClinicLinkRepository,
     FakeVeterinarianRepository,
@@ -340,6 +341,7 @@ class _ConfirmFixture(_Fixture):
         )
         self.exams = FakeExamRepository([make_exam(exam_id=_EXAM_ID, price_base=exam_price)])
         self.attendance_sequences = FakeAttendanceSequenceRepository()
+        self.on_call_fees = FakeOnCallFeeSettingRepository()
 
     def confirm_use_case(self) -> ConfirmAttendanceUseCase:
         return ConfirmAttendanceUseCase(
@@ -350,6 +352,7 @@ class _ConfirmFixture(_Fixture):
             veterinarian_clinics=self.veterinarian_clinics,
             patients=self.patients,
             exams=self.exams,
+            on_call_fees=self.on_call_fees,
             audit=self.audit,
             clock=FakeClock(_NOW),
         )
@@ -362,6 +365,7 @@ class _ConfirmFixture(_Fixture):
             veterinarian_clinics=self.veterinarian_clinics,
             patients=self.patients,
             exams=self.exams,
+            on_call_fees=self.on_call_fees,
         )
 
 

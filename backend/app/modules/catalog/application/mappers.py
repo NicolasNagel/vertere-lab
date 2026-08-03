@@ -30,6 +30,4 @@ def exam_to_dto(exam: Exam, *, include_price: bool) -> ExamDTO:
         price_base=exam.price_base if include_price else None,
         price_valid_from=exam.price_valid_from if include_price else None,
         price_valid_to=exam.price_valid_to if include_price else None,
-        plantao_surcharge_fixed=exam.plantao_surcharge.fixed_amount if include_price else None,
-        plantao_surcharge_percent=exam.plantao_surcharge.percent if include_price else None,
     )

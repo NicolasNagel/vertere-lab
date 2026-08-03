@@ -70,7 +70,10 @@ def test_rejects_a_closure_whose_item_count_disagrees_with_the_items_list() -> N
         _closure(items=[_item()], item_count=2)
 
 
-@pytest.mark.parametrize("field", ["subtotal", "discount_total", "surcharge_total", "grand_total"])
+@pytest.mark.parametrize(
+    "field",
+    ["subtotal", "discount_total", "surcharge_total", "on_call_fee_total", "grand_total"],
+)
 def test_rejects_negative_header_totals(field: str) -> None:
     with pytest.raises(ValidationError):
         _closure(items=[_item()], **{field: Decimal("-1")})

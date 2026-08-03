@@ -56,18 +56,44 @@ class ServiceLevel(StrEnum):
     PLANTAO_ESPECIAL = "PLANTAO_ESPECIAL"
 
 
-# Taxa fixa de plantão, cobrada uma única vez por atendimento inteiro — não
-# por exame (substitui o antigo adicional percentual/fixo configurado por
-# exame no catálogo). Valores definidos pelo negócio, não configuráveis.
-ON_CALL_FEES: dict[ServiceLevel, Decimal] = {
-    ServiceLevel.NORMAL: Decimal("0"),
-    ServiceLevel.PLANTAO_NORMAL: Decimal("100.00"),
-    ServiceLevel.PLANTAO_ESPECIAL: Decimal("150.00"),
-}
+@dataclass(kw_only=True)
+class OnCallFeeSetting:
+    """Configurable flat on-call fee for one plantão tier — cobrada uma
+    única vez por atendimento inteiro, não por exame (substitui o antigo
+    adicional percentual/fixo configurado por exame no catálogo). `NORMAL`
+    não tem linha aqui: sua taxa é sempre zero e nunca configurável, só
+    `PLANTAO_NORMAL`/`PLANTAO_ESPECIAL` existem como configuração.
 
+    `schedule_label` é um texto livre e informativo (ex.: "Seg-Sáb · 19h às
+    07h") — não é aplicado automaticamente por horário, já que
+    `service_level` continua sendo escolhido manualmente na criação do
+    atendimento (`.claude/rules/12-attendance.md`); serve só de contexto
+    para quem preenche o atendimento.
+    """
 
-def compute_on_call_fee(service_level: ServiceLevel) -> Decimal:
-    return ON_CALL_FEES[service_level]
+    id: UUID
+    service_level: ServiceLevel
+    fee_amount: Decimal
+    schedule_label: str = ""
+    updated_by: UUID | None = None
+    updated_at: datetime
+    row_version: int = 1
+
+    def __post_init__(self) -> None:
+        if self.service_level == ServiceLevel.NORMAL:
+            raise ValidationError("NORMAL não tem taxa de plantão configurável.")
+        if self.fee_amount < 0:
+            raise ValidationError("Valor da taxa de plantão não pode ser negativo.")
+
+    def update(
+        self, *, fee_amount: Decimal, schedule_label: str, now: datetime, updated_by: UUID | None
+    ) -> None:
+        if fee_amount < 0:
+            raise ValidationError("Valor da taxa de plantão não pode ser negativo.")
+        self.fee_amount = fee_amount
+        self.schedule_label = schedule_label
+        self.updated_by = updated_by
+        self.updated_at = now
 
 
 @dataclass(kw_only=True)
@@ -126,11 +152,12 @@ def compute_attendance_totals(
     unchanged, by the preview (dry-run) use case — a preview must never be
     able to compute a different total than what confirming would charge.
 
-    `on_call_fee` (from `compute_on_call_fee`) is the one amount that isn't
-    itemized — it belongs to the attendance as a whole (a dispatch/on-call
-    fee, not tied to any single exam), so it's added on top of the items'
-    total rather than folded into `surcharge_total`, which stays a pure sum
-    of item-level surcharges.
+    `on_call_fee` (resolved by the caller from `OnCallFeeSetting` — domain
+    itself has no I/O to look it up) is the one amount that isn't itemized —
+    it belongs to the attendance as a whole (a dispatch/on-call fee, not
+    tied to any single exam), so it's added on top of the items' total
+    rather than folded into `surcharge_total`, which stays a pure sum of
+    item-level surcharges.
     """
     if not items:
         raise ValidationError("Confirmação exige ao menos um item de exame.")
@@ -183,6 +210,7 @@ class AttendanceRecord:
         items: list[AttendanceExam],
         protocol_year: int,
         protocol_sequence: int,
+        on_call_fee: Decimal,
         now: datetime,
         confirmed_by: UUID | None,
     ) -> None:
@@ -191,9 +219,7 @@ class AttendanceRecord:
         if self.service_date is None:
             raise ValidationError("Data do atendimento é obrigatória para confirmar.")
 
-        totals = compute_attendance_totals(
-            items, on_call_fee=compute_on_call_fee(self.service_level)
-        )
+        totals = compute_attendance_totals(items, on_call_fee=on_call_fee)
 
         self.items = items
         self.subtotal = totals.subtotal

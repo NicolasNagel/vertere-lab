@@ -65,9 +65,15 @@ class PreviewClosureUseCase:
         subtotal = Decimal("0")
         discount_total = Decimal("0")
         surcharge_total = Decimal("0")
+        on_call_fee_total = Decimal("0")
         grand_total = Decimal("0")
         attendance_ids: set[UUID] = set()
         cancelled_attendance_ids: set[UUID] = set()
+        # `attendance_on_call_fee` is a flat per-attendance charge repeated on
+        # every item row of that attendance — counted once per distinct
+        # eligible attendance, never once per item (`ClosureCandidateItem`
+        # docstring).
+        on_call_fee_counted_attendance_ids: set[UUID] = set()
 
         for candidate in candidates:
             attendance_ids.add(candidate.attendance_id)
@@ -89,6 +95,9 @@ class PreviewClosureUseCase:
                 subtotal += candidate.price_base * candidate.quantity
                 discount_total += candidate.discount_amount
                 surcharge_total += candidate.surcharge_amount
+                if candidate.attendance_id not in on_call_fee_counted_attendance_ids:
+                    on_call_fee_counted_attendance_ids.add(candidate.attendance_id)
+                    on_call_fee_total += candidate.attendance_on_call_fee
                 grand_total += candidate.total_amount
             else:
                 assert reason is not None
@@ -116,7 +125,8 @@ class PreviewClosureUseCase:
             subtotal=round_currency(subtotal),
             discount_total=round_currency(discount_total),
             surcharge_total=round_currency(surcharge_total),
-            grand_total=round_currency(grand_total),
+            on_call_fee_total=round_currency(on_call_fee_total),
+            grand_total=round_currency(grand_total + on_call_fee_total),
             eligible_items=eligible_items,
             blocked_items=blocked_items,
             generated_at=self._clock.now(),

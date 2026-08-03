@@ -43,7 +43,7 @@
   display: inline-flex;
   align-items: center;
   gap: 0.5rem; /* 8px */
-  padding: 0.75rem 1.25rem; /* 12px 20px */
+  padding: 0.6875rem 1.125rem; /* 11px 18px */
 }
 
 .exams-page__body {
@@ -58,4 +58,11 @@
   flex-direction: column;
   min-height: 0;
   min-width: 0;
+  /* One scroll container for the whole column (stat cards + Taxas de
+     plantão + table) — mirrors the mockup's single `overflow-y:auto`
+     wrapper (6-cadastro-de-exames(1).html:133). The table used to carry
+     its own independent scroll (.exam-table-panel), which squeezed
+     everything above it into a fixed height instead of letting the page
+     scroll as a whole — that's what produced the broken vertical spacing. */
+  overflow-y: auto;
 }

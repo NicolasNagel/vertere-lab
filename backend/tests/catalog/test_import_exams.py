@@ -74,8 +74,6 @@ def _row(**overrides: object) -> ExamImportRow:
         "category_name": "Hematologia",
         "price_base": "85.00",
         "description": None,
-        "plantao_surcharge_fixed": None,
-        "plantao_surcharge_percent": None,
         "species_names": ("Cão",),
         "active": True,
     }
@@ -212,8 +210,6 @@ def test_import_reports_duplicate_code_already_in_database() -> None:
             category_id=category.id,
             price_base=Decimal("50.00"),
             description=None,
-            plantao_surcharge_fixed=None,
-            plantao_surcharge_percent=None,
             species_ids=frozenset({_DOG_SPECIES_ID}),
         )
     )

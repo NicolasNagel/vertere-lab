@@ -9,12 +9,6 @@ const STATUS_LABELS: Record<Exam['status'], string> = {
   INACTIVE: 'Inativo',
 }
 
-function plantaoLabel(exam: Exam): string {
-  if (exam.plantaoSurchargePercent) return `+ ${exam.plantaoSurchargePercent}%`
-  if (exam.plantaoSurchargeFixed) return `+ R$ ${exam.plantaoSurchargeFixed}`
-  return '—'
-}
-
 interface ExamTableProps {
   exams: Exam[]
   categories: ExamCategory[]
@@ -63,7 +57,6 @@ export function ExamTable({
           <div>Exame</div>
           <div>Categoria</div>
           {priceVisible && <div>Preço base</div>}
-          {priceVisible && <div>Plantão</div>}
           <div>Espécies</div>
           <div />
         </div>
@@ -130,7 +123,6 @@ export function ExamTable({
                     {exam.priceBase ? `R$ ${exam.priceBase}` : '—'}
                   </div>
                 )}
-                {priceVisible && <div className="exam-table__plantao">{plantaoLabel(exam)}</div>}
                 <div className="exam-table__species">{speciesLabel || '—'}</div>
                 <div className="exam-table__menu" onClick={(event) => event.stopPropagation()}>
                   {menuItems.length > 0 && <KebabMenu label={`Ações para ${exam.name}`} items={menuItems} />}

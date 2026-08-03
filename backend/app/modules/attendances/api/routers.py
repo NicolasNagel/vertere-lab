@@ -26,6 +26,10 @@ from app.modules.attendances.api.schemas import (
     AttendanceTimelineResponse,
     AttendanceUpdateRequest,
     CollectionMethodLiteral,
+    OnCallFeeSettingListResponse,
+    OnCallFeeSettingRead,
+    OnCallFeeSettingUpdateRequest,
+    OnCallServiceLevelLiteral,
     ServiceLevelLiteral,
 )
 from app.modules.attendances.application.attendance_items import AttendanceItemInput
@@ -55,6 +59,10 @@ from app.modules.attendances.application.get_attendance_timeline import (
     GetAttendanceTimelineQuery,
     GetAttendanceTimelineUseCase,
 )
+from app.modules.attendances.application.get_on_call_fee_settings import (
+    GetOnCallFeeSettingsQuery,
+    GetOnCallFeeSettingsUseCase,
+)
 from app.modules.attendances.application.list_attendances import (
     CountAttendancesByStatusQuery,
     CountAttendancesByStatusUseCase,
@@ -69,14 +77,20 @@ from app.modules.attendances.application.update_attendance import (
     UpdateAttendanceCommand,
     UpdateAttendanceUseCase,
 )
+from app.modules.attendances.application.update_on_call_fee_setting import (
+    UpdateOnCallFeeSettingCommand,
+    UpdateOnCallFeeSettingUseCase,
+)
 from app.modules.attendances.domain.entities import (
     AttendanceStatus,
     CollectionMethod,
+    OnCallFeeSetting,
     ServiceLevel,
 )
 from app.modules.attendances.infrastructure.repositories import (
     SqlAlchemyAttendanceRepository,
     SqlAlchemyAttendanceSequenceRepository,
+    SqlAlchemyOnCallFeeSettingRepository,
 )
 from app.modules.audit.infrastructure.repositories import (
     SqlAlchemyAuditLogReader,
@@ -369,6 +383,7 @@ def preview_attendance(
         veterinarian_clinics=SqlAlchemyVeterinarianClinicLinkRepository(session),
         patients=SqlAlchemyPatientRepository(session),
         exams=SqlAlchemyExamRepository(session),
+        on_call_fees=SqlAlchemyOnCallFeeSettingRepository(session),
     )
     result = use_case.execute(
         PreviewAttendanceCommand(
@@ -419,6 +434,7 @@ def confirm_attendance(
             veterinarian_clinics=SqlAlchemyVeterinarianClinicLinkRepository(uow.session),
             patients=SqlAlchemyPatientRepository(uow.session),
             exams=SqlAlchemyExamRepository(uow.session),
+            on_call_fees=SqlAlchemyOnCallFeeSettingRepository(uow.session),
             audit=SqlAlchemyAuditLogWriter(uow.session),
             clock=clock,
         )
@@ -470,3 +486,55 @@ def cancel_attendance(
         )
         uow.commit()
     return _attendance_read(result)
+
+
+on_call_fee_settings_router = APIRouter(prefix="/on-call-fee-settings", tags=["attendances"])
+
+
+def _on_call_fee_setting_read(setting: OnCallFeeSetting) -> OnCallFeeSettingRead:
+    return OnCallFeeSettingRead(
+        id=setting.id,
+        service_level=cast(OnCallServiceLevelLiteral, setting.service_level.value),
+        fee_amount=setting.fee_amount,
+        schedule_label=setting.schedule_label,
+        updated_at=setting.updated_at,
+        row_version=setting.row_version,
+    )
+
+
+@on_call_fee_settings_router.get("", response_model=OnCallFeeSettingListResponse)
+def list_on_call_fee_settings(
+    session: SqlAlchemySession = Depends(get_session),
+    current_user: AuthenticatedUserDTO = Depends(require_permission("pricing.read")),
+) -> OnCallFeeSettingListResponse:
+    use_case = GetOnCallFeeSettingsUseCase(
+        on_call_fees=SqlAlchemyOnCallFeeSettingRepository(session)
+    )
+    result = use_case.execute(GetOnCallFeeSettingsQuery(actor=current_user))
+    return OnCallFeeSettingListResponse(items=[_on_call_fee_setting_read(item) for item in result])
+
+
+@on_call_fee_settings_router.patch("/{service_level}", response_model=OnCallFeeSettingRead)
+def update_on_call_fee_setting(
+    service_level: OnCallServiceLevelLiteral,
+    payload: OnCallFeeSettingUpdateRequest,
+    uow: SqlAlchemyUnitOfWork = Depends(get_unit_of_work),
+    current_user: AuthenticatedUserDTO = Depends(require_permission("pricing.manage")),
+) -> OnCallFeeSettingRead:
+    with uow:
+        use_case = UpdateOnCallFeeSettingUseCase(
+            on_call_fees=SqlAlchemyOnCallFeeSettingRepository(uow.session),
+            audit=SqlAlchemyAuditLogWriter(uow.session),
+            clock=SystemClock(),
+        )
+        result = use_case.execute(
+            UpdateOnCallFeeSettingCommand(
+                actor=current_user,
+                service_level=ServiceLevel(service_level),
+                fee_amount=payload.fee_amount,
+                schedule_label=payload.schedule_label,
+                expected_row_version=payload.expected_row_version,
+            )
+        )
+        uow.commit()
+    return _on_call_fee_setting_read(result)

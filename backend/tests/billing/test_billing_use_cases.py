@@ -179,6 +179,49 @@ def test_preview_totals_and_counts_from_eligible_items_only() -> None:
     assert result.blocked_items[0].reason
 
 
+def test_preview_counts_on_call_fee_once_per_attendance_not_per_item() -> None:
+    """A flat plantão fee lives on the attendance, not the item — an
+    attendance with 2 eligible exam items must contribute the fee once,
+    never twice (`ClosureCandidateItem.attendance_on_call_fee` docstring)."""
+    attendance_a = uuid4()
+    candidates = [
+        _candidate(
+            attendance_id=attendance_a,
+            total_amount=Decimal("100.00"),
+            attendance_on_call_fee=Decimal("150.00"),
+        ),
+        _candidate(
+            attendance_id=attendance_a,
+            total_amount=Decimal("50.00"),
+            price_base=Decimal("50.00"),
+            attendance_on_call_fee=Decimal("150.00"),
+        ),
+    ]
+    fixture = _Fixture(candidates)
+
+    result = fixture.use_case().execute(_query())
+
+    assert result.on_call_fee_total == Decimal("150.00")
+    assert result.subtotal == Decimal("150.00")
+    assert result.grand_total == Decimal("300.00")
+
+
+def test_preview_excludes_on_call_fee_for_an_attendance_with_no_eligible_item() -> None:
+    candidates = [
+        _candidate(
+            attendance_status="CANCELLED",
+            total_amount=Decimal("100.00"),
+            attendance_on_call_fee=Decimal("150.00"),
+        )
+    ]
+    fixture = _Fixture(candidates)
+
+    result = fixture.use_case().execute(_query())
+
+    assert result.on_call_fee_total == Decimal("0")
+    assert result.grand_total == Decimal("0")
+
+
 def test_preview_does_not_mutate_or_persist_anything() -> None:
     """The preview only reads — no repository method beyond
     `list_candidates` is ever called (rule: "não fecha nem bloqueia

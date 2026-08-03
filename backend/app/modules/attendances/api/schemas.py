@@ -150,6 +150,30 @@ class AttendanceTimelineResponse(BaseModel):
     page_size: int
 
 
+OnCallServiceLevelLiteral = Literal["PLANTAO_NORMAL", "PLANTAO_ESPECIAL"]
+
+
+class OnCallFeeSettingRead(BaseModel):
+    id: UUID
+    service_level: OnCallServiceLevelLiteral
+    fee_amount: Decimal
+    schedule_label: str
+    updated_at: datetime
+    row_version: int
+
+
+class OnCallFeeSettingListResponse(BaseModel):
+    items: list[OnCallFeeSettingRead]
+
+
+class OnCallFeeSettingUpdateRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    fee_amount: Decimal = Field(ge=0)
+    schedule_label: str = Field(default="", max_length=200)
+    expected_row_version: int = Field(ge=1)
+
+
 class AttendancePreviewResponse(BaseModel):
     """Dry-run projection — no `id`/`protocol_number`/`row_version`:
     nothing is persisted (`.claude/rules/02-backend.md`: schemas de

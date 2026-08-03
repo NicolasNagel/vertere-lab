@@ -39,6 +39,12 @@ export function ClosurePreviewSummary({ preview }: ClosurePreviewSummaryProps) {
           {formatCurrencyBRL(preview.surchargeTotal)}
         </div>
       </div>
+      <div className="closure-preview-summary__card">
+        <div className="closure-preview-summary__label">Taxa de plantão</div>
+        <div className="closure-preview-summary__value closure-preview-summary__value--mono">
+          {formatCurrencyBRL(preview.onCallFeeTotal)}
+        </div>
+      </div>
       <div className="closure-preview-summary__card closure-preview-summary__card--total">
         <div className="closure-preview-summary__label">Total</div>
         <div className="closure-preview-summary__value closure-preview-summary__value--mono">

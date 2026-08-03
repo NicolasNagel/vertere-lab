@@ -136,6 +136,17 @@ class CloseMonthlyPeriodUseCase:
             for candidate in eligible
         ]
 
+        # Flat per-attendance fee repeated on every candidate row of that
+        # attendance — counted once per distinct eligible attendance, never
+        # once per item (`ClosureCandidateItem` docstring).
+        on_call_fee_total = Decimal("0")
+        on_call_fee_counted_attendance_ids: set[UUID] = set()
+        for candidate in eligible:
+            if candidate.attendance_id not in on_call_fee_counted_attendance_ids:
+                on_call_fee_counted_attendance_ids.add(candidate.attendance_id)
+                on_call_fee_total += candidate.attendance_on_call_fee
+        on_call_fee_total = round_currency(on_call_fee_total)
+
         closure = MonthlyClosure(
             id=closure_id,
             clinic_id=command.clinic_id,
@@ -154,7 +165,10 @@ class CloseMonthlyPeriodUseCase:
             surcharge_total=round_currency(
                 sum((item.surcharge_amount for item in items), Decimal("0"))
             ),
-            grand_total=round_currency(sum((item.total_amount for item in items), Decimal("0"))),
+            on_call_fee_total=on_call_fee_total,
+            grand_total=round_currency(
+                sum((item.total_amount for item in items), Decimal("0")) + on_call_fee_total
+            ),
             generated_by=command.actor.id,
             closed_by=command.actor.id,
             generated_at=now,
@@ -176,6 +190,7 @@ class CloseMonthlyPeriodUseCase:
         # different path still gets caught here.
         reconciled_total = round_currency(
             sum((item.total_amount for item in closure.items), Decimal("0"))
+            + closure.on_call_fee_total
         )
         assert reconciled_total == closure.grand_total, "Soma dos itens diverge do cabeçalho."
 

@@ -12,11 +12,12 @@ from uuid import UUID
 from app.modules.attendances.domain.entities import (
     AttendanceRecord,
     AttendanceStatus,
+    OnCallFeeSetting,
     ServiceLevel,
 )
 from app.modules.audit.domain.entities import AuditEntry
 from app.modules.catalog.domain.entities import Exam, ExamStatus
-from app.modules.catalog.domain.value_objects import ExamCode, PlantaoSurcharge
+from app.modules.catalog.domain.value_objects import ExamCode
 from app.modules.clinics.domain.entities import Clinic, ClinicStatus
 from app.modules.patients.domain.entities import Patient, PatientSex, PatientStatus
 from app.modules.veterinarian_clinics.domain.entities import VeterinarianClinicLink
@@ -328,6 +329,39 @@ class FakeAttendanceSequenceRepository:
         return self._last_by_year[year]
 
 
+class FakeOnCallFeeSettingRepository:
+    """Seeded with the amounts in effect before this became configurable
+    (migration 0031's seed values) so existing confirm/preview tests that
+    assert on `Decimal("100.00")`/`Decimal("150.00")` keep working unchanged.
+    """
+
+    def __init__(self, settings: list[OnCallFeeSetting] | None = None) -> None:
+        self._settings: dict[ServiceLevel, OnCallFeeSetting] = {
+            setting.service_level: setting
+            for setting in (
+                settings
+                if settings is not None
+                else [
+                    make_on_call_fee_setting(
+                        service_level=ServiceLevel.PLANTAO_NORMAL, fee_amount=Decimal("100.00")
+                    ),
+                    make_on_call_fee_setting(
+                        service_level=ServiceLevel.PLANTAO_ESPECIAL, fee_amount=Decimal("150.00")
+                    ),
+                ]
+            )
+        }
+
+    def get_by_service_level(self, service_level: ServiceLevel) -> OnCallFeeSetting | None:
+        return self._settings.get(service_level)
+
+    def list_all(self) -> list[OnCallFeeSetting]:
+        return list(self._settings.values())
+
+    def update(self, setting: OnCallFeeSetting) -> None:
+        self._settings[setting.service_level] = setting
+
+
 def make_clinic(*, clinic_id: UUID, status: ClinicStatus = ClinicStatus.ACTIVE) -> Clinic:
     return Clinic(
         id=clinic_id, name="Clínica Teste", status=status, created_at=_SEED_AT, updated_at=_SEED_AT
@@ -381,9 +415,25 @@ def make_exam(
         name="Hemograma",
         category_id=UUID(int=2),
         price_base=price_base,
-        plantao_surcharge=PlantaoSurcharge(),
         species_ids=frozenset({UUID(int=1)}),
         status=status,
         created_at=_SEED_AT,
         updated_at=_SEED_AT,
+    )
+
+
+def make_on_call_fee_setting(
+    *,
+    service_level: ServiceLevel,
+    fee_amount: Decimal,
+    schedule_label: str = "",
+    row_version: int = 1,
+) -> OnCallFeeSetting:
+    return OnCallFeeSetting(
+        id=UUID(int=hash(service_level) & ((1 << 128) - 1)),
+        service_level=service_level,
+        fee_amount=fee_amount,
+        schedule_label=schedule_label,
+        updated_at=_SEED_AT,
+        row_version=row_version,
     )

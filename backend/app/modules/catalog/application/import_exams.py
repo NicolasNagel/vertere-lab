@@ -22,7 +22,7 @@ from app.modules.audit.domain.entities import ActorScope, AuditEntry
 from app.modules.audit.domain.repositories import AuditLogWriter
 from app.modules.catalog.domain.entities import Exam, ExamStatus
 from app.modules.catalog.domain.repositories import ExamCategoryRepository, ExamRepository
-from app.modules.catalog.domain.value_objects import ExamCode, PlantaoSurcharge
+from app.modules.catalog.domain.value_objects import ExamCode
 from app.modules.identity.application.dtos import AuthenticatedUserDTO
 from app.modules.patients.domain.repositories import SpeciesRepository
 from app.shared.application.clock import Clock
@@ -43,8 +43,6 @@ class ExamImportRow:
     category_name: str
     price_base: str
     description: str | None = None
-    plantao_surcharge_fixed: str | None = None
-    plantao_surcharge_percent: str | None = None
     species_names: tuple[str, ...] = ()
     active: bool = True
 
@@ -163,18 +161,6 @@ class ImportExamsUseCase:
             raise _RowValidationError("Preço base inválido.") from exc
 
         try:
-            plantao_surcharge = PlantaoSurcharge(
-                fixed_amount=Decimal(row.plantao_surcharge_fixed)
-                if row.plantao_surcharge_fixed
-                else None,
-                percent=Decimal(row.plantao_surcharge_percent)
-                if row.plantao_surcharge_percent
-                else None,
-            )
-        except (InvalidOperation, ValueError) as exc:
-            raise _RowValidationError(str(exc)) from exc
-
-        try:
             return Exam(
                 id=uuid4(),
                 code=code,
@@ -182,7 +168,6 @@ class ImportExamsUseCase:
                 category_id=category.id,
                 price_base=price_base,
                 description=row.description,
-                plantao_surcharge=plantao_surcharge,
                 species_ids=frozenset(species_ids),
                 status=ExamStatus.ACTIVE if row.active else ExamStatus.INACTIVE,
                 created_by=actor_id,

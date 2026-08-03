@@ -161,6 +161,26 @@ def test_csv_export_has_a_header_and_one_row_per_item() -> None:
     assert lines[1] == "2026/000001,Rex,Hemograma,100.00,1,0,0,100.00"
 
 
+def test_csv_export_includes_the_on_call_fee_total_line() -> None:
+    closure = _closure()
+    closure.on_call_fee_total = Decimal("150.00")
+    dto = monthly_closure_to_dto(closure)
+
+    csv_content = monthly_closure_to_csv(dto)
+
+    lines = csv_content.strip("\r\n").split("\r\n")
+    assert "taxa_de_plantao_total,150.00" in lines
+
+
+def test_csv_export_omits_the_on_call_fee_line_when_it_is_zero() -> None:
+    closure = _closure()
+    dto = monthly_closure_to_dto(closure)
+
+    csv_content = monthly_closure_to_csv(dto)
+
+    assert "taxa_de_plantao_total" not in csv_content
+
+
 def test_csv_export_of_a_closure_without_items_is_header_only() -> None:
     closure = _closure()
     closure.items.clear()

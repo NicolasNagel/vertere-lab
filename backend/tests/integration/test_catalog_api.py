@@ -316,7 +316,6 @@ async def test_create_and_get_exam_with_price_visible_to_pricing_read(
             "name": "Hemograma completo",
             "category_id": category_id,
             "price_base": "85.00",
-            "plantao_surcharge_percent": "20",
             "species_ids": [species_id],
         },
     )
@@ -324,7 +323,6 @@ async def test_create_and_get_exam_with_price_visible_to_pricing_read(
     body = create_response.json()
     assert body["code"] == "HEM001"
     assert Decimal(body["price_base"]) == Decimal("85.00")
-    assert Decimal(body["plantao_surcharge_percent"]) == Decimal("20")
 
     get_response = await client.get(f"/api/v1/exams/{body['id']}")
     assert get_response.status_code == 200
@@ -365,8 +363,6 @@ async def test_exam_price_hidden_without_pricing_read(
     assert response.status_code == 200
     body = response.json()
     assert body["price_base"] is None
-    assert body["plantao_surcharge_fixed"] is None
-    assert body["plantao_surcharge_percent"] is None
 
 
 async def test_create_exam_with_duplicate_code_conflicts(
@@ -391,32 +387,6 @@ async def test_create_exam_with_duplicate_code_conflicts(
 
     second = await client.post("/api/v1/exams", json={**payload, "code": "hem001", "name": "Outro"})
     assert second.status_code == 409
-
-
-async def test_create_exam_with_both_surcharge_types_is_rejected(
-    client: httpx.AsyncClient, session_factory: sessionmaker[Session]
-) -> None:
-    _create_user(
-        session_factory, email="admin@vertere.local", password="s3nhaForte!", role_id=ROLE_LAB_ADMIN
-    )
-    await _login(client, email="admin@vertere.local", password="s3nhaForte!")
-    species_id = _get_species_id(session_factory, name="Canino")
-    category_id = await _create_category(client)
-
-    response = await client.post(
-        "/api/v1/exams",
-        json={
-            "code": "HEM001",
-            "name": "Hemograma completo",
-            "category_id": category_id,
-            "price_base": "85.00",
-            "plantao_surcharge_fixed": "10.00",
-            "plantao_surcharge_percent": "20",
-            "species_ids": [species_id],
-        },
-    )
-
-    assert response.status_code == 422
 
 
 async def test_deactivate_exam_preserves_record(

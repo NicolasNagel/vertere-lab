@@ -514,6 +514,76 @@ async def test_close_header_totals_match_the_sum_of_its_items(
         assert Decimal(db_items_sum) == Decimal(db_header_total) == Decimal("240.00")
 
 
+async def test_close_includes_the_on_call_fee_once_per_attendance_not_per_item(
+    client: httpx.AsyncClient, session_factory: sessionmaker[Session]
+) -> None:
+    """A plantão attendance confirmed with 2 exam items must contribute its
+    flat `on_call_fee` once to the closure — never once per item
+    (`ClosureCandidateItem.attendance_on_call_fee` docstring)."""
+    await _login_admin(client, session_factory)
+    clinic_id = await _create_clinic(client, f"Clinica {uuid4()}")
+    vet_id = await _create_veterinarian(client, name="Dra. Ana", crmv=f"CRMV-{uuid4()}")
+    patient_id = await _create_patient(client, session_factory)
+    exam_a_id = await _create_exam(
+        client, session_factory, code=f"HEMO-{uuid4().hex[:6]}", price="100.00"
+    )
+    exam_b_id = await _create_exam(
+        client, session_factory, code=f"URIN-{uuid4().hex[:6]}", price="50.00"
+    )
+
+    draft_response = await client.post(
+        "/api/v1/attendances/drafts",
+        json={
+            "clinic_id": clinic_id,
+            "veterinarian_id": vet_id,
+            "patient_id": patient_id,
+            "service_date": "2026-01-10",
+            "service_level": "PLANTAO_ESPECIAL",
+        },
+    )
+    assert draft_response.status_code == 201
+    attendance_id = draft_response.json()["id"]
+
+    confirm_response = await client.post(
+        f"/api/v1/attendances/{attendance_id}/confirm",
+        json={
+            "items": [
+                {"exam_id": exam_a_id, "quantity": 1},
+                {"exam_id": exam_b_id, "quantity": 1},
+            ]
+        },
+        headers={"Idempotency-Key": f"confirm-{attendance_id}"},
+    )
+    assert confirm_response.status_code == 200
+    assert confirm_response.json()["on_call_fee"] == "150.00"
+
+    response = await client.post(
+        "/api/v1/closures",
+        json={"clinic_id": clinic_id, "year": 2026, "month": 1},
+        headers=_close_headers("close-on-call-fee"),
+    )
+
+    assert response.status_code == 201
+    body = response.json()
+    assert body["item_count"] == 2
+    assert body["on_call_fee_total"] == "150.00"
+    items_sum = sum(Decimal(item["total_amount"]) for item in body["items"])
+    assert items_sum == Decimal("150.00")
+    assert Decimal(body["grand_total"]) == Decimal("300.00")
+
+    with session_factory() as session:
+        stored = session.execute(
+            text("SELECT on_call_fee_total, grand_total FROM monthly_closures WHERE id = :id"),
+            {"id": body["id"]},
+        ).one()
+        assert Decimal(stored[0]) == Decimal("150.00")
+        assert Decimal(stored[1]) == Decimal("300.00")
+
+    exported = await client.get(f"/api/v1/closures/{body['id']}/export")
+    assert exported.status_code == 200
+    assert "taxa_de_plantao_total,150.00" in exported.text
+
+
 async def test_close_without_permission_is_forbidden(
     client: httpx.AsyncClient, session_factory: sessionmaker[Session]
 ) -> None:

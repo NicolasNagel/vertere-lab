@@ -27,6 +27,7 @@ export interface ClosurePreview {
   subtotal: string
   discountTotal: string
   surchargeTotal: string
+  onCallFeeTotal: string
   grandTotal: string
   eligibleItems: ClosurePreviewItem[]
   blockedItems: ClosurePreviewBlockedItem[]
@@ -64,6 +65,7 @@ interface ApiClosurePreview {
   subtotal: string
   discount_total: string
   surcharge_total: string
+  on_call_fee_total: string
   grand_total: string
   eligible_items: ApiClosurePreviewItem[]
   blocked_items: ApiClosurePreviewBlockedItem[]
@@ -98,6 +100,7 @@ function fromApiClosurePreview(preview: ApiClosurePreview): ClosurePreview {
     subtotal: preview.subtotal,
     discountTotal: preview.discount_total,
     surchargeTotal: preview.surcharge_total,
+    onCallFeeTotal: preview.on_call_fee_total,
     grandTotal: preview.grand_total,
     eligibleItems: preview.eligible_items.map(fromApiItem),
     blockedItems: preview.blocked_items.map(fromApiBlockedItem),
@@ -159,6 +162,7 @@ export interface MonthlyClosure {
   subtotal: string
   discountTotal: string
   surchargeTotal: string
+  onCallFeeTotal: string
   grandTotal: string
   generatedBy: string | null
   closedBy: string | null
@@ -218,6 +222,7 @@ interface ApiMonthlyClosure {
   subtotal: string
   discount_total: string
   surcharge_total: string
+  on_call_fee_total: string
   grand_total: string
   generated_by: string | null
   closed_by: string | null
@@ -291,6 +296,7 @@ function fromApiMonthlyClosure(closure: ApiMonthlyClosure): MonthlyClosure {
     subtotal: closure.subtotal,
     discountTotal: closure.discount_total,
     surchargeTotal: closure.surcharge_total,
+    onCallFeeTotal: closure.on_call_fee_total,
     grandTotal: closure.grand_total,
     generatedBy: closure.generated_by,
     closedBy: closure.closed_by,

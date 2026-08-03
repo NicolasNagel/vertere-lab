@@ -18,13 +18,17 @@ from uuid import UUID
 from app.modules.attendances.application.attendance_items import (
     AttendanceItemInput as ConfirmAttendanceItemInput,
 )
-from app.modules.attendances.application.attendance_items import validate_and_snapshot_items
+from app.modules.attendances.application.attendance_items import (
+    resolve_on_call_fee,
+    validate_and_snapshot_items,
+)
 from app.modules.attendances.application.dtos import AttendanceDTO
 from app.modules.attendances.application.mappers import attendance_to_dto
 from app.modules.attendances.domain.entities import AttendanceStatus
 from app.modules.attendances.domain.repositories import (
     AttendanceRepository,
     AttendanceSequenceRepository,
+    OnCallFeeSettingRepository,
 )
 from app.modules.audit.domain.entities import ActorScope, AuditEntry
 from app.modules.audit.domain.repositories import AuditLogWriter
@@ -64,6 +68,7 @@ class ConfirmAttendanceUseCase:
         veterinarian_clinics: VeterinarianClinicLinkRepository,
         patients: PatientRepository,
         exams: ExamRepository,
+        on_call_fees: OnCallFeeSettingRepository,
         audit: AuditLogWriter,
         clock: Clock,
     ) -> None:
@@ -74,6 +79,7 @@ class ConfirmAttendanceUseCase:
         self._veterinarian_clinics = veterinarian_clinics
         self._patients = patients
         self._exams = exams
+        self._on_call_fees = on_call_fees
         self._audit = audit
         self._clock = clock
 
@@ -105,10 +111,14 @@ class ConfirmAttendanceUseCase:
         protocol_year = attendance.service_date.year
         protocol_sequence = self._attendance_sequences.next_sequence(protocol_year)
 
+        on_call_fee = resolve_on_call_fee(
+            service_level=attendance.service_level, on_call_fees=self._on_call_fees
+        )
         attendance.confirm(
             items=items,
             protocol_year=protocol_year,
             protocol_sequence=protocol_sequence,
+            on_call_fee=on_call_fee,
             now=now,
             confirmed_by=command.actor.id,
         )

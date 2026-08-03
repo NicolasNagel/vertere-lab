@@ -29,6 +29,9 @@ class MonthlyClosureModel(Base):
         CheckConstraint(
             "surcharge_total >= 0", name="ck_monthly_closures_surcharge_total_non_negative"
         ),
+        CheckConstraint(
+            "on_call_fee_total >= 0", name="ck_monthly_closures_on_call_fee_total_non_negative"
+        ),
         CheckConstraint("grand_total >= 0", name="ck_monthly_closures_grand_total_non_negative"),
         CheckConstraint("item_count >= 0", name="ck_monthly_closures_item_count_non_negative"),
         # Partial unique index: only one *active* (CLOSED) closure per
@@ -58,6 +61,7 @@ class MonthlyClosureModel(Base):
     subtotal: Mapped[Decimal] = mapped_column(nullable=False, default=Decimal("0"))
     discount_total: Mapped[Decimal] = mapped_column(nullable=False, default=Decimal("0"))
     surcharge_total: Mapped[Decimal] = mapped_column(nullable=False, default=Decimal("0"))
+    on_call_fee_total: Mapped[Decimal] = mapped_column(nullable=False, default=Decimal("0"))
     grand_total: Mapped[Decimal] = mapped_column(nullable=False, default=Decimal("0"))
     generated_by: Mapped[uuid.UUID | None] = mapped_column(
         ForeignKey("users.id", ondelete="SET NULL"), nullable=True

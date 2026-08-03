@@ -23,3 +23,6 @@ frontend/test-results/
 # OS / editor
 .DS_Store
 Thumbs.db
+
+# QA exploratório (screenshots/logs locais)
+.codex-qa/

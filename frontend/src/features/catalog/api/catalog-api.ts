@@ -25,8 +25,6 @@ export interface Exam {
   status: ExamStatus
   rowVersion: number
   priceBase: string | null
-  plantaoSurchargeFixed: string | null
-  plantaoSurchargePercent: string | null
   updatedAt: string
 }
 
@@ -52,8 +50,6 @@ export interface ExamFormValues {
   categoryId: string
   priceBase: string
   description: string | null
-  plantaoSurchargeFixed: string | null
-  plantaoSurchargePercent: string | null
   speciesIds: string[]
 }
 
@@ -78,8 +74,6 @@ interface ApiExam {
   status: ExamStatus
   row_version: number
   price_base: string | null
-  plantao_surcharge_fixed: string | null
-  plantao_surcharge_percent: string | null
   updated_at: string
 }
 
@@ -110,8 +104,6 @@ function fromApiExam(exam: ApiExam): Exam {
     status: exam.status,
     rowVersion: exam.row_version,
     priceBase: exam.price_base,
-    plantaoSurchargeFixed: exam.plantao_surcharge_fixed,
-    plantaoSurchargePercent: exam.plantao_surcharge_percent,
     updatedAt: exam.updated_at,
   }
 }
@@ -123,8 +115,6 @@ function toApiExamPayload(values: ExamFormValues): Record<string, unknown> {
     category_id: values.categoryId,
     price_base: values.priceBase,
     description: values.description || null,
-    plantao_surcharge_fixed: values.plantaoSurchargeFixed || null,
-    plantao_surcharge_percent: values.plantaoSurchargePercent || null,
     species_ids: values.speciesIds,
   }
 }

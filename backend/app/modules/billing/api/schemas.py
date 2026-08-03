@@ -42,6 +42,7 @@ class ClosurePreviewResponse(BaseModel):
     subtotal: Decimal
     discount_total: Decimal
     surcharge_total: Decimal
+    on_call_fee_total: Decimal
     grand_total: Decimal
     eligible_items: list[ClosurePreviewItemRead]
     blocked_items: list[ClosurePreviewBlockedItemRead]
@@ -108,6 +109,7 @@ class MonthlyClosureRead(BaseModel):
     subtotal: Decimal
     discount_total: Decimal
     surcharge_total: Decimal
+    on_call_fee_total: Decimal
     grand_total: Decimal
     generated_by: UUID | None
     closed_by: UUID | None

@@ -57,6 +57,7 @@ function previewResponseBody(overrides: Record<string, unknown> = {}) {
     subtotal: '100.00',
     discount_total: '0.00',
     surcharge_total: '0.00',
+    on_call_fee_total: '0.00',
     grand_total: '100.00',
     eligible_items: [
       {
@@ -304,6 +305,7 @@ test('closes the competence after explicit confirmation and shows a success bann
           subtotal: '100.00',
           discount_total: '0.00',
           surcharge_total: '0.00',
+          on_call_fee_total: '0.00',
           grand_total: '100.00',
           generated_by: 'u1',
           closed_by: 'u1',

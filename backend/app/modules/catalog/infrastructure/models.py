@@ -44,10 +44,6 @@ class ExamModel(Base):
             "price_valid_to IS NULL OR price_valid_to >= price_valid_from",
             name="ck_exams_price_validity",
         ),
-        CheckConstraint(
-            "plantao_surcharge_fixed IS NULL OR plantao_surcharge_percent IS NULL",
-            name="ck_exams_plantao_surcharge_exclusive",
-        ),
     )
 
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
@@ -60,8 +56,6 @@ class ExamModel(Base):
     price_base: Mapped[Decimal] = mapped_column(Numeric(14, 2), nullable=False)
     price_valid_from: Mapped[date] = mapped_column(nullable=False, default=date(1900, 1, 1))
     price_valid_to: Mapped[date | None] = mapped_column(nullable=True)
-    plantao_surcharge_fixed: Mapped[Decimal | None] = mapped_column(Numeric(14, 2), nullable=True)
-    plantao_surcharge_percent: Mapped[Decimal | None] = mapped_column(Numeric(5, 2), nullable=True)
     status: Mapped[str] = mapped_column(nullable=False, default="ACTIVE")
     created_by: Mapped[uuid.UUID | None] = mapped_column(
         ForeignKey("users.id", ondelete="SET NULL"), nullable=True

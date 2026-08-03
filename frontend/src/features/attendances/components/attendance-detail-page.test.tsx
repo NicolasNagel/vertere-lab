@@ -173,8 +173,6 @@ function hemograma() {
     status: 'ACTIVE',
     row_version: 1,
     price_base: '100.00',
-    plantao_surcharge_fixed: null,
-    plantao_surcharge_percent: null,
     updated_at: '2026-01-01T00:00:00Z',
   }
 }

@@ -33,8 +33,6 @@ const existingExam: Exam = {
   status: 'ACTIVE',
   rowVersion: 1,
   priceBase: '85.00',
-  plantaoSurchargeFixed: null,
-  plantaoSurchargePercent: null,
   updatedAt: '2026-01-01T00:00:00Z',
 }
 

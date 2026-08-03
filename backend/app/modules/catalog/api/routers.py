@@ -217,8 +217,6 @@ def _exam_read(dto: ExamDTO) -> ExamRead:
         price_base=dto.price_base,
         price_valid_from=dto.price_valid_from,
         price_valid_to=dto.price_valid_to,
-        plantao_surcharge_fixed=dto.plantao_surcharge_fixed,
-        plantao_surcharge_percent=dto.plantao_surcharge_percent,
     )
 
 
@@ -286,8 +284,6 @@ def create_exam(
                 category_id=payload.category_id,
                 price_base=payload.price_base,
                 description=payload.description,
-                plantao_surcharge_fixed=payload.plantao_surcharge_fixed,
-                plantao_surcharge_percent=payload.plantao_surcharge_percent,
                 species_ids=frozenset(payload.species_ids),
             )
         )
@@ -319,8 +315,6 @@ def update_exam(
                 category_id=payload.category_id,
                 price_base=payload.price_base,
                 description=payload.description,
-                plantao_surcharge_fixed=payload.plantao_surcharge_fixed,
-                plantao_surcharge_percent=payload.plantao_surcharge_percent,
                 species_ids=frozenset(payload.species_ids),
                 status=payload.status,
                 expected_row_version=payload.expected_row_version,
@@ -371,10 +365,6 @@ def _parse_import_rows(content: str) -> list[ExamImportRow]:
                 category_name=(raw_row.get("category") or "").strip(),
                 price_base=(raw_row.get("price_base") or "").strip(),
                 description=(raw_row.get("description") or "").strip() or None,
-                plantao_surcharge_fixed=(raw_row.get("plantao_surcharge_fixed") or "").strip()
-                or None,
-                plantao_surcharge_percent=(raw_row.get("plantao_surcharge_percent") or "").strip()
-                or None,
                 species_names=tuple(
                     part.strip() for part in species_raw.split(";") if part.strip()
                 ),

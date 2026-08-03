@@ -19,7 +19,8 @@ from uuid import UUID, uuid4
 from app.modules.attendances.application.party_validation import (
     validate_clinic_veterinarian_patient,
 )
-from app.modules.attendances.domain.entities import AttendanceExam, AttendanceRecord
+from app.modules.attendances.domain.entities import AttendanceExam, AttendanceRecord, ServiceLevel
+from app.modules.attendances.domain.repositories import OnCallFeeSettingRepository
 from app.modules.catalog.domain.entities import ExamStatus
 from app.modules.catalog.domain.repositories import ExamRepository
 from app.modules.clinics.domain.repositories import ClinicRepository
@@ -43,6 +44,22 @@ class AttendanceItemInput:
     quantity: int = 1
     discount_amount: Decimal | None = None
     override_reason: str | None = None
+
+
+def resolve_on_call_fee(
+    *, service_level: ServiceLevel, on_call_fees: OnCallFeeSettingRepository
+) -> Decimal:
+    """`NORMAL` has no configurable row — its fee is always zero
+    (`domain/repositories.py::OnCallFeeSettingRepository`). For a plantão
+    tier, the setting is expected to exist (seeded by migration 0031); a
+    missing row is a data-integrity bug, not a user-facing 404.
+    """
+    if service_level == ServiceLevel.NORMAL:
+        return Decimal("0")
+    setting = on_call_fees.get_by_service_level(service_level)
+    if setting is None:
+        raise LookupError(f"Configuração de taxa de plantão ausente para {service_level.value}.")
+    return setting.fee_amount
 
 
 def validate_and_snapshot_items(
@@ -103,9 +120,10 @@ def validate_and_snapshot_items(
                 quantity=item_input.quantity,
                 discount_amount=discount_amount,
                 # O adicional de plantão não é mais por item — é uma taxa
-                # fixa por atendimento inteiro (`ServiceLevel.compute_on_call_fee`,
-                # somada em `compute_attendance_totals`), então nenhum item
-                # carrega mais adicional próprio.
+                # fixa por atendimento inteiro (resolvida via
+                # `OnCallFeeSettingRepository` pelo caller e somada em
+                # `compute_attendance_totals`), então nenhum item carrega
+                # mais adicional próprio.
                 surcharge_amount=Decimal("0"),
                 override_reason=override_reason,
                 override_by=override_by,

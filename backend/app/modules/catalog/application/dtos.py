@@ -38,5 +38,3 @@ class ExamDTO:
     price_base: Decimal | None
     price_valid_from: date | None
     price_valid_to: date | None
-    plantao_surcharge_fixed: Decimal | None
-    plantao_surcharge_percent: Decimal | None

@@ -19,12 +19,14 @@ from app.modules.attendances.domain.entities import (
     AttendanceRecord,
     AttendanceStatus,
     CollectionMethod,
+    OnCallFeeSetting,
     ServiceLevel,
 )
 from app.modules.attendances.infrastructure.models import (
     AttendanceExamModel,
     AttendanceModel,
     AttendanceSequenceModel,
+    OnCallFeeSettingModel,
 )
 from app.modules.patients.infrastructure.models import PatientModel
 
@@ -327,3 +329,56 @@ class SqlAlchemyAttendanceSequenceRepository:
 
         model.last_sequence += 1
         return model.last_sequence
+
+
+def _on_call_fee_setting_to_domain(model: OnCallFeeSettingModel) -> OnCallFeeSetting:
+    return OnCallFeeSetting(
+        id=model.id,
+        service_level=ServiceLevel(model.service_level),
+        fee_amount=model.fee_amount,
+        schedule_label=model.schedule_label,
+        updated_by=model.updated_by,
+        updated_at=model.updated_at,
+        row_version=model.row_version,
+    )
+
+
+class SqlAlchemyOnCallFeeSettingRepository:
+    def __init__(self, session: SqlAlchemySession) -> None:
+        self._session = session
+
+    def get_by_service_level(self, service_level: ServiceLevel) -> OnCallFeeSetting | None:
+        model = self._session.execute(
+            select(OnCallFeeSettingModel).where(
+                OnCallFeeSettingModel.service_level == service_level.value
+            )
+        ).scalar_one_or_none()
+        return _on_call_fee_setting_to_domain(model) if model is not None else None
+
+    def list_all(self) -> list[OnCallFeeSetting]:
+        models = (
+            self._session.execute(
+                select(OnCallFeeSettingModel).order_by(OnCallFeeSettingModel.service_level)
+            )
+            .scalars()
+            .all()
+        )
+        return [_on_call_fee_setting_to_domain(model) for model in models]
+
+    def update(self, setting: OnCallFeeSetting) -> None:
+        model = self._session.execute(
+            select(OnCallFeeSettingModel).where(OnCallFeeSettingModel.id == setting.id)
+        ).scalar_one_or_none()
+        if model is None:
+            raise LookupError(
+                f"Configuração de taxa de plantão {setting.id} não encontrada para atualização."
+            )
+        model.fee_amount = setting.fee_amount
+        model.schedule_label = setting.schedule_label
+        model.updated_by = setting.updated_by
+
+        # Same reasoning as SqlAlchemyAttendanceRepository.update() above:
+        # force the UPDATE now so `version_id_col`'s bump is reflected back
+        # onto the domain object the caller will hand to the API response.
+        self._session.flush()
+        setting.row_version = model.row_version

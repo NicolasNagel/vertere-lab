@@ -69,6 +69,7 @@ def _rows_to_candidates(
             discount_amount=exam_item.discount_amount,
             surcharge_amount=exam_item.surcharge_amount,
             total_amount=exam_item.total_amount,
+            attendance_on_call_fee=attendance.on_call_fee,
         )
         for attendance, exam_item, patient_name in rows
     ]
@@ -159,6 +160,7 @@ def _closure_to_domain(model: MonthlyClosureModel) -> MonthlyClosure:
         subtotal=model.subtotal,
         discount_total=model.discount_total,
         surcharge_total=model.surcharge_total,
+        on_call_fee_total=model.on_call_fee_total,
         grand_total=model.grand_total,
         generated_by=model.generated_by,
         closed_by=model.closed_by,
@@ -224,6 +226,7 @@ class SqlAlchemyMonthlyClosureRepository:
                 subtotal=closure.subtotal,
                 discount_total=closure.discount_total,
                 surcharge_total=closure.surcharge_total,
+                on_call_fee_total=closure.on_call_fee_total,
                 grand_total=closure.grand_total,
                 generated_by=closure.generated_by,
                 closed_by=closure.closed_by,

@@ -65,8 +65,6 @@ class ExamRead(BaseModel):
     price_base: Decimal | None
     price_valid_from: date | None
     price_valid_to: date | None
-    plantao_surcharge_fixed: Decimal | None
-    plantao_surcharge_percent: Decimal | None
 
 
 class ExamListResponse(BaseModel):
@@ -84,8 +82,6 @@ class ExamCreateRequest(BaseModel):
     category_id: UUID
     price_base: Decimal = Field(gt=0)
     description: str | None = None
-    plantao_surcharge_fixed: Decimal | None = None
-    plantao_surcharge_percent: Decimal | None = None
     species_ids: list[UUID] = Field(min_length=1)
 
 
@@ -97,8 +93,6 @@ class ExamUpdateRequest(BaseModel):
     category_id: UUID
     price_base: Decimal = Field(gt=0)
     description: str | None = None
-    plantao_surcharge_fixed: Decimal | None = None
-    plantao_surcharge_percent: Decimal | None = None
     species_ids: list[UUID] = Field(min_length=1)
     status: ExamStatusLiteral
     expected_row_version: int

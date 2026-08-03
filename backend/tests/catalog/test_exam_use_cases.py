@@ -76,8 +76,6 @@ def _create_command(category_id: object, **overrides: object) -> CreateExamComma
         "category_id": category_id,
         "price_base": Decimal("85.00"),
         "description": None,
-        "plantao_surcharge_fixed": None,
-        "plantao_surcharge_percent": Decimal("20"),
         "species_ids": frozenset({_DOG_SPECIES_ID}),
     }
     defaults.update(overrides)
@@ -155,29 +153,6 @@ def test_create_exam_with_unknown_species_is_invalid() -> None:
         use_case.execute(_create_command(category.id, species_ids=frozenset({uuid4()})))
 
 
-def test_create_exam_with_both_surcharge_types_is_invalid() -> None:
-    categories = FakeExamCategoryRepository()
-    category = _seed_category(categories)
-    exams = FakeExamRepository()
-    audit = FakeAuditLogWriter()
-    use_case = CreateExamUseCase(
-        exams=exams,
-        categories=categories,
-        species=_species_repo(),
-        audit=audit,
-        clock=FakeClock(_NOW),
-    )
-
-    with pytest.raises(ValidationError):
-        use_case.execute(
-            _create_command(
-                category.id,
-                plantao_surcharge_fixed=Decimal("10.00"),
-                plantao_surcharge_percent=Decimal("20"),
-            )
-        )
-
-
 def test_create_exam_with_duplicate_code_conflicts() -> None:
     categories = FakeExamCategoryRepository()
     category = _seed_category(categories)
@@ -215,7 +190,6 @@ def test_get_exam_omits_price_without_pricing_permission() -> None:
     )
 
     assert result.price_base is None
-    assert result.plantao_surcharge_percent is None
 
 
 def test_get_exam_includes_price_with_pricing_permission() -> None:
@@ -272,8 +246,6 @@ def test_update_exam_with_stale_row_version_conflicts() -> None:
                 category_id=category.id,
                 price_base=Decimal("90.00"),
                 description=None,
-                plantao_surcharge_fixed=None,
-                plantao_surcharge_percent=None,
                 species_ids=frozenset({_DOG_SPECIES_ID}),
                 status=ExamStatus.ACTIVE.value,
                 expected_row_version=created.row_version + 1,

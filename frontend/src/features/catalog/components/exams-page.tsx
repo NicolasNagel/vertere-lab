@@ -13,6 +13,7 @@ import { ExamCatalogSidebar } from './exam-catalog-sidebar'
 import { ExamImportButton } from './exam-import-button'
 import { ExamStatCards } from './exam-stat-cards'
 import { ExamTable } from './exam-table'
+import { OnCallFeeSettingsPanel } from './on-call-fee-settings-panel'
 import './exams-page.css'
 
 export function ExamsPage() {
@@ -133,6 +134,7 @@ export function ExamsPage() {
             priceVisible={priceVisible}
             lastUpdatedAt={lastUpdatedAt}
           />
+          <OnCallFeeSettingsPanel />
           <ExamTable
             exams={filteredExams}
             categories={categories}

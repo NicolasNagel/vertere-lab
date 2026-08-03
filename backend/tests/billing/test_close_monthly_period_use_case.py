@@ -174,6 +174,33 @@ def test_closes_with_totals_computed_from_eligible_items_only() -> None:
     assert len(fixture.closures.added) == 1
 
 
+def test_closes_with_on_call_fee_counted_once_per_attendance_not_per_item() -> None:
+    """Same guarantee as the preview use case, at close time — a flat
+    plantão fee on an attendance with 2 eligible exam items must be added
+    to the closure header once, never once per item."""
+    attendance_a = uuid4()
+    candidates = [
+        _candidate(
+            attendance_id=attendance_a,
+            total_amount=Decimal("100.00"),
+            attendance_on_call_fee=Decimal("150.00"),
+        ),
+        _candidate(
+            attendance_id=attendance_a,
+            total_amount=Decimal("50.00"),
+            price_base=Decimal("50.00"),
+            attendance_on_call_fee=Decimal("150.00"),
+        ),
+    ]
+    fixture = _Fixture(candidates=candidates)
+
+    result = fixture.use_case().execute(_command())
+
+    assert result.on_call_fee_total == Decimal("150.00")
+    assert result.grand_total == Decimal("300.00")
+    assert len(result.items) == 2
+
+
 def test_associates_only_attendances_that_contributed_an_eligible_item() -> None:
     attendance_eligible = uuid4()
     attendance_blocked = uuid4()

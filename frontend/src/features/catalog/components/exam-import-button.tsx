@@ -39,7 +39,7 @@ export function ExamImportButton() {
       />
       <Button
         type="button"
-        variant="ghost"
+        variant="secondary"
         onClick={() => inputRef.current?.click()}
         disabled={importMutation.isPending}
       >

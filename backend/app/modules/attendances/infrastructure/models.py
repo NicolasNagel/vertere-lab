@@ -142,3 +142,34 @@ class AttendanceSequenceModel(Base):
 
     year: Mapped[int] = mapped_column(primary_key=True)
     last_sequence: Mapped[int] = mapped_column(nullable=False, default=0)
+
+
+class OnCallFeeSettingModel(Base):
+    """`version_id_col=row_version` — same optimistic-concurrency pattern as
+    `AttendanceModel` above, so two concurrent edits of the same tier's fee
+    can't silently overwrite each other.
+    """
+
+    __tablename__ = "on_call_fee_settings"
+    __table_args__ = (
+        CheckConstraint(
+            "service_level IN ('PLANTAO_NORMAL','PLANTAO_ESPECIAL')",
+            name="ck_on_call_fee_settings_service_level",
+        ),
+        CheckConstraint("fee_amount >= 0", name="ck_on_call_fee_settings_fee_amount_non_negative"),
+        UniqueConstraint("service_level", name="uq_on_call_fee_settings_service_level"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
+    service_level: Mapped[str] = mapped_column(nullable=False)
+    fee_amount: Mapped[Decimal] = mapped_column(nullable=False)
+    schedule_label: Mapped[str] = mapped_column(nullable=False, default="")
+    updated_by: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("users.id", ondelete="SET NULL"), nullable=True
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        nullable=False, server_default=func.now(), onupdate=func.now()
+    )
+    row_version: Mapped[int] = mapped_column(nullable=False, default=1)
+
+    __mapper_args__ = {"version_id_col": row_version}  # noqa: RUF012

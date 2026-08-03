@@ -105,6 +105,7 @@ def _closure_preview_read(dto: ClosurePreviewDTO) -> ClosurePreviewResponse:
         subtotal=dto.subtotal,
         discount_total=dto.discount_total,
         surcharge_total=dto.surcharge_total,
+        on_call_fee_total=dto.on_call_fee_total,
         grand_total=dto.grand_total,
         eligible_items=[
             ClosurePreviewItemRead(
@@ -146,6 +147,7 @@ def _monthly_closure_read(dto: MonthlyClosureDTO) -> MonthlyClosureRead:
         subtotal=dto.subtotal,
         discount_total=dto.discount_total,
         surcharge_total=dto.surcharge_total,
+        on_call_fee_total=dto.on_call_fee_total,
         grand_total=dto.grand_total,
         generated_by=dto.generated_by,
         closed_by=dto.closed_by,

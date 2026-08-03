@@ -14,6 +14,7 @@ from uuid import UUID
 from app.modules.attendances.domain.entities import (
     AttendanceRecord,
     AttendanceStatus,
+    OnCallFeeSetting,
     ServiceLevel,
 )
 
@@ -61,3 +62,16 @@ class AttendanceSequenceRepository(Protocol):
     """
 
     def next_sequence(self, year: int) -> int: ...
+
+
+class OnCallFeeSettingRepository(Protocol):
+    """Only `PLANTAO_NORMAL`/`PLANTAO_ESPECIAL` have a row — `NORMAL` has no
+    configurable fee, callers must special-case it to `Decimal("0")` instead
+    of calling `get_by_service_level`.
+    """
+
+    def get_by_service_level(self, service_level: ServiceLevel) -> OnCallFeeSetting | None: ...
+
+    def list_all(self) -> list[OnCallFeeSetting]: ...
+
+    def update(self, setting: OnCallFeeSetting) -> None: ...

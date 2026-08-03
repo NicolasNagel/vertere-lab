@@ -20,7 +20,7 @@ from app.modules.catalog.application.mappers import exam_to_dto
 from app.modules.catalog.domain.entities import Exam, ExamStatus
 from app.modules.catalog.domain.errors import DuplicateExamCodeError
 from app.modules.catalog.domain.repositories import ExamCategoryRepository, ExamRepository
-from app.modules.catalog.domain.value_objects import ExamCode, PlantaoSurcharge
+from app.modules.catalog.domain.value_objects import ExamCode
 from app.modules.identity.application.dtos import AuthenticatedUserDTO
 from app.modules.patients.domain.repositories import SpeciesRepository
 from app.shared.application.clock import Clock
@@ -38,8 +38,6 @@ class CreateExamCommand:
     category_id: UUID
     price_base: Decimal
     description: str | None
-    plantao_surcharge_fixed: Decimal | None
-    plantao_surcharge_percent: Decimal | None
     species_ids: frozenset[UUID]
 
 
@@ -74,14 +72,6 @@ class CreateExamUseCase:
         if self._exams.get_by_code(str(code)) is not None:
             raise DuplicateExamCodeError("Código de exame já cadastrado.")
 
-        try:
-            plantao_surcharge = PlantaoSurcharge(
-                fixed_amount=command.plantao_surcharge_fixed,
-                percent=command.plantao_surcharge_percent,
-            )
-        except ValueError as exc:
-            raise ValidationError(str(exc)) from exc
-
         now = self._clock.now()
         try:
             exam = Exam(
@@ -91,7 +81,6 @@ class CreateExamUseCase:
                 category_id=command.category_id,
                 price_base=command.price_base,
                 description=command.description,
-                plantao_surcharge=plantao_surcharge,
                 species_ids=command.species_ids,
                 status=ExamStatus.ACTIVE,
                 created_by=command.actor.id,

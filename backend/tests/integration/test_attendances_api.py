@@ -447,7 +447,6 @@ async def _create_exam(
     category_id: str,
     price_base: str,
     species_ids: list[str],
-    plantao_surcharge_percent: str | None = None,
 ) -> str:
     response = await client.post(
         "/api/v1/exams",
@@ -457,7 +456,6 @@ async def _create_exam(
             "category_id": category_id,
             "price_base": price_base,
             "species_ids": species_ids,
-            "plantao_surcharge_percent": plantao_surcharge_percent,
         },
     )
     assert response.status_code == 201
@@ -473,7 +471,6 @@ async def _create_confirmable_draft(
     session_factory: sessionmaker[Session],
     *,
     service_level: str = "NORMAL",
-    plantao_surcharge_percent: str | None = None,
 ) -> tuple[str, str]:
     """Returns (attendance_id, exam_id) for a DRAFT ready to confirm."""
     unique = uuid4().hex[:8]
@@ -490,7 +487,6 @@ async def _create_confirmable_draft(
         category_id=category_id,
         price_base="100.00",
         species_ids=[species_id],
-        plantao_surcharge_percent=plantao_surcharge_percent,
     )
 
     draft_response = await client.post(
@@ -687,15 +683,12 @@ async def test_plantao_normal_attendance_applies_flat_fee_once(
     client: httpx.AsyncClient, session_factory: sessionmaker[Session]
 ) -> None:
     """Adicional de plantão é uma taxa fixa por atendimento inteiro (R$
-    100,00), não por exame — mesmo com 2 exames o total sobe só uma vez, e
-    um `plantao_surcharge_percent` configurado no exame (legado, ainda não
-    removido do cadastro nesta fatia) não tem mais nenhum efeito."""
+    100,00), não por exame — mesmo com 2 exames o total sobe só uma vez."""
     await _login_admin(client, session_factory)
     attendance_id, exam_id = await _create_confirmable_draft(
         client,
         session_factory,
         service_level="PLANTAO_NORMAL",
-        plantao_surcharge_percent="25.00",
     )
 
     response = await client.post(

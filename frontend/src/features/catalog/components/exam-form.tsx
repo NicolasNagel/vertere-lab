@@ -15,16 +15,12 @@ import { useExamCategoryQuery } from '../api/use-exam-category-query'
 import type { Exam, ExamFormValues, ExamStatus } from '../api/catalog-api'
 import './exam-form.css'
 
-type PlantaoMode = 'none' | 'percent' | 'fixed'
-
 const examSchema = z.object({
   code: z.string().trim().min(1, 'Informe o código do exame.'),
   name: z.string().trim().min(1, 'Informe o nome do exame.'),
   categoryId: z.string().trim().min(1, 'Selecione a categoria.'),
   description: z.string().trim(),
   priceBase: z.string().trim().min(1, 'Informe o preço base.'),
-  plantaoMode: z.enum(['none', 'percent', 'fixed']),
-  plantaoValue: z.string().trim(),
   status: z.enum(['ACTIVE', 'INACTIVE']),
 })
 
@@ -35,13 +31,6 @@ const STATUS_OPTIONS: { value: ExamStatus; label: string }[] = [
   { value: 'INACTIVE', label: 'Inativo' },
 ]
 
-function plantaoModeOf(exam: Exam | null): PlantaoMode {
-  if (!exam) return 'none'
-  if (exam.plantaoSurchargePercent) return 'percent'
-  if (exam.plantaoSurchargeFixed) return 'fixed'
-  return 'none'
-}
-
 function toFormFields(exam: Exam | null): ExamFormFields {
   return {
     code: exam?.code ?? '',
@@ -49,8 +38,6 @@ function toFormFields(exam: Exam | null): ExamFormFields {
     categoryId: exam?.categoryId ?? '',
     description: exam?.description ?? '',
     priceBase: exam?.priceBase ?? '',
-    plantaoMode: plantaoModeOf(exam),
-    plantaoValue: exam?.plantaoSurchargePercent ?? exam?.plantaoSurchargeFixed ?? '',
     status: exam?.status ?? 'ACTIVE',
   }
 }
@@ -62,8 +49,6 @@ function toApiValues(fields: ExamFormFields, speciesIds: string[]): ExamFormValu
     categoryId: fields.categoryId,
     description: fields.description || null,
     priceBase: fields.priceBase,
-    plantaoSurchargePercent: fields.plantaoMode === 'percent' ? fields.plantaoValue : null,
-    plantaoSurchargeFixed: fields.plantaoMode === 'fixed' ? fields.plantaoValue : null,
     speciesIds,
   }
 }
@@ -106,7 +91,6 @@ export function ExamForm({
   const {
     register,
     handleSubmit,
-    watch,
     setValue,
     formState: { errors },
   } = useForm<ExamFormFields>({
@@ -114,7 +98,6 @@ export function ExamForm({
     defaultValues: toFormFields(exam),
   })
 
-  const plantaoMode = watch('plantaoMode')
   const [speciesIds, setSpeciesIds] = useState<string[]>(exam?.speciesIds ?? [])
   const [speciesError, setSpeciesError] = useState<string | null>(null)
   const [newCategoryName, setNewCategoryName] = useState('')
@@ -284,28 +267,6 @@ export function ExamForm({
               errorMessage={errors.priceBase?.message}
               {...register('priceBase')}
             />
-
-            <div className="exam-form__row">
-              <SelectField
-                id="exam-plantao-mode"
-                label="Adicional de plantão"
-                options={[
-                  { value: 'none', label: 'Sem adicional' },
-                  { value: 'percent', label: 'Percentual' },
-                  { value: 'fixed', label: 'Valor fixo' },
-                ]}
-                disabled={submitting}
-                {...register('plantaoMode')}
-              />
-              {plantaoMode !== 'none' && (
-                <TextField
-                  id="exam-plantao-value"
-                  label={plantaoMode === 'percent' ? 'Percentual (%)' : 'Valor fixo'}
-                  disabled={submitting}
-                  {...register('plantaoValue')}
-                />
-              )}
-            </div>
           </div>
 
           <div className="exam-form__card">

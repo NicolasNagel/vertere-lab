@@ -80,8 +80,6 @@ test('creates an exam via the header submit button and returns to the list', asy
           status: 'ACTIVE',
           row_version: 1,
           price_base: body.price_base,
-          plantao_surcharge_fixed: body.plantao_surcharge_fixed,
-          plantao_surcharge_percent: body.plantao_surcharge_percent,
           updated_at: '2026-06-01T00:00:00Z',
         },
         { status: 201 },

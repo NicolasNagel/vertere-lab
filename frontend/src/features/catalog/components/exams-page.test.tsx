@@ -62,8 +62,6 @@ function examsListHandler() {
           status: 'ACTIVE',
           row_version: 1,
           price_base: '85.00',
-          plantao_surcharge_fixed: null,
-          plantao_surcharge_percent: '20.00',
           updated_at: '2026-06-01T00:00:00Z',
         },
         {
@@ -76,8 +74,6 @@ function examsListHandler() {
           status: 'ACTIVE',
           row_version: 1,
           price_base: '120.00',
-          plantao_surcharge_fixed: null,
-          plantao_surcharge_percent: null,
           updated_at: '2026-06-02T00:00:00Z',
         },
       ],
@@ -179,8 +175,6 @@ test('average ticket excludes inactive exams from the calculation', async () => 
             status: 'INACTIVE',
             row_version: 2,
             price_base: '85.00',
-            plantao_surcharge_fixed: null,
-            plantao_surcharge_percent: null,
             updated_at: '2026-06-01T00:00:00Z',
           },
           {
@@ -193,8 +187,6 @@ test('average ticket excludes inactive exams from the calculation', async () => 
             status: 'ACTIVE',
             row_version: 1,
             price_base: '120.00',
-            plantao_surcharge_fixed: null,
-            plantao_surcharge_percent: null,
             updated_at: '2026-06-02T00:00:00Z',
           },
         ],
@@ -239,8 +231,6 @@ test('clicking a row navigates to the edit route for a manager', async () => {
         status: 'ACTIVE',
         row_version: 1,
         price_base: '85.00',
-        plantao_surcharge_fixed: null,
-        plantao_surcharge_percent: '20.00',
         updated_at: '2026-06-01T00:00:00Z',
       }),
     ),
@@ -289,8 +279,6 @@ interface MockApiExam {
   status: string
   row_version: number
   price_base: string | null
-  plantao_surcharge_fixed: string | null
-  plantao_surcharge_percent: string | null
   updated_at: string
 }
 
@@ -305,8 +293,6 @@ test('deactivating an exam from the row menu calls the API', async () => {
     status: 'ACTIVE',
     row_version: 1,
     price_base: '85.00',
-    plantao_surcharge_fixed: null,
-    plantao_surcharge_percent: '20.00',
     updated_at: '2026-06-01T00:00:00Z',
   }
   server.use(

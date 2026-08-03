@@ -1,8 +1,5 @@
 .exam-table-panel {
-  flex: 1;
   padding: 1.5rem 1.75rem; /* 24px 28px */
-  overflow-y: auto;
-  min-height: 0;
 }
 
 .exam-table-panel__search {
@@ -40,7 +37,7 @@
 .exam-table__row {
   display: grid;
   grid-template-columns:
-    minmax(2.5rem, 3.125rem) minmax(0, 2.4fr) minmax(0, 1.2fr) minmax(0, 0.9fr)
+    minmax(3.5rem, 4.5rem) minmax(0, 2.6fr) minmax(0, 1.3fr) minmax(0, 1fr)
     minmax(3.75rem, 60px);
   gap: 0.5rem;
   align-items: center;
@@ -50,8 +47,8 @@
 .exam-table__header[data-price-visible='true'],
 .exam-table__row[data-price-visible='true'] {
   grid-template-columns:
-    minmax(2.5rem, 3.125rem) minmax(0, 2.4fr) minmax(0, 1.2fr) minmax(0, 0.9fr)
-    minmax(0, 0.9fr) minmax(0, 0.9fr) minmax(3.75rem, 60px);
+    minmax(3.5rem, 4.5rem) minmax(0, 2.6fr) minmax(0, 1.3fr) minmax(0, 1fr)
+    minmax(0, 1fr) minmax(3.75rem, 60px);
 }
 
 .exam-table__header {
@@ -146,11 +143,6 @@
   font-family: var(--font-mono);
   font-weight: 600;
   color: #1f3450;
-}
-
-.exam-table__plantao {
-  font-family: var(--font-mono);
-  color: #a06d2c;
 }
 
 .exam-table__species {

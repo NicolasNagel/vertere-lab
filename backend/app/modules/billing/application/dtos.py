@@ -43,6 +43,7 @@ class ClosurePreviewDTO:
     subtotal: Decimal
     discount_total: Decimal
     surcharge_total: Decimal
+    on_call_fee_total: Decimal
     grand_total: Decimal
     eligible_items: list[ClosurePreviewItemDTO] = field(default_factory=list)
     blocked_items: list[ClosurePreviewBlockedItemDTO] = field(default_factory=list)
@@ -89,6 +90,7 @@ class MonthlyClosureDTO:
     subtotal: Decimal
     discount_total: Decimal
     surcharge_total: Decimal
+    on_call_fee_total: Decimal
     grand_total: Decimal
     generated_by: UUID | None
     closed_by: UUID | None

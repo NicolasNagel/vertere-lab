@@ -18,16 +18,16 @@ from uuid import UUID
 
 from app.modules.attendances.application.attendance_items import (
     AttendanceItemInput,
+    resolve_on_call_fee,
     validate_and_snapshot_items,
 )
 from app.modules.attendances.application.dtos import AttendancePreviewDTO
 from app.modules.attendances.application.mappers import attendance_exam_to_dto
-from app.modules.attendances.domain.entities import (
-    AttendanceStatus,
-    compute_attendance_totals,
-    compute_on_call_fee,
+from app.modules.attendances.domain.entities import AttendanceStatus, compute_attendance_totals
+from app.modules.attendances.domain.repositories import (
+    AttendanceRepository,
+    OnCallFeeSettingRepository,
 )
-from app.modules.attendances.domain.repositories import AttendanceRepository
 from app.modules.catalog.domain.repositories import ExamRepository
 from app.modules.clinics.domain.repositories import ClinicRepository
 from app.modules.identity.application.dtos import AuthenticatedUserDTO
@@ -56,6 +56,7 @@ class PreviewAttendanceUseCase:
         veterinarian_clinics: VeterinarianClinicLinkRepository,
         patients: PatientRepository,
         exams: ExamRepository,
+        on_call_fees: OnCallFeeSettingRepository,
     ) -> None:
         self._attendances = attendances
         self._clinics = clinics
@@ -63,6 +64,7 @@ class PreviewAttendanceUseCase:
         self._veterinarian_clinics = veterinarian_clinics
         self._patients = patients
         self._exams = exams
+        self._on_call_fees = on_call_fees
 
     def execute(self, command: PreviewAttendanceCommand) -> AttendancePreviewDTO:
         if _REQUIRED_PERMISSION not in command.actor.permissions:
@@ -84,9 +86,10 @@ class PreviewAttendanceUseCase:
             patients=self._patients,
             exams=self._exams,
         )
-        totals = compute_attendance_totals(
-            items, on_call_fee=compute_on_call_fee(attendance.service_level)
+        on_call_fee = resolve_on_call_fee(
+            service_level=attendance.service_level, on_call_fees=self._on_call_fees
         )
+        totals = compute_attendance_totals(items, on_call_fee=on_call_fee)
         assert attendance.service_date is not None  # enforced by validate_and_snapshot_items
 
         return AttendancePreviewDTO(

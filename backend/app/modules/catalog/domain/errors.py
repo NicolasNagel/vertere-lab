@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from app.shared.domain.errors import ConflictError, ValidationError
+from app.shared.domain.errors import ConflictError
 
 
 class DuplicateExamCategoryNameError(ConflictError):
@@ -10,8 +10,4 @@ class DuplicateExamCategoryNameError(ConflictError):
 
 
 class DuplicateExamCodeError(ConflictError):
-    pass
-
-
-class InvalidPlantaoSurchargeError(ValidationError):
     pass

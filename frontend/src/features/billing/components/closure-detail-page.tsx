@@ -223,6 +223,14 @@ export function ClosureDetailPage() {
                     {formatCurrencyBRL(closure.discountTotal)}
                   </span>
                 </div>
+                {Number(closure.onCallFeeTotal) > 0 && (
+                  <div className="closure-detail-page__field">
+                    <span className="closure-detail-page__label">Taxa de plantão</span>
+                    <span className="closure-detail-page__value">
+                      {formatCurrencyBRL(closure.onCallFeeTotal)}
+                    </span>
+                  </div>
+                )}
               </div>
               <div className="closure-detail-page__total">
                 <span>Valor total</span>
