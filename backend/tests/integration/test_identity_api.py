@@ -343,15 +343,22 @@ async def test_role_change_is_audited(
 async def test_concurrent_permission_updates_on_the_same_profile_reject_the_loser(
     client: httpx.AsyncClient, session_factory: sessionmaker[Session]
 ) -> None:
+    # `roles.manage` (editar a regra de um perfil) é exclusivo do SUPER_ADMIN
+    # desde alembic/versions/0032_restrict_roles_manage_to_super_admin.py —
+    # LAB_ADMIN não serve mais de ator aqui.
     _create_user(
         session_factory,
-        email="lab-admin3@vertere.local",
+        email="super-admin3@vertere.local",
         password="s3nhaForte!",
-        role_id=ROLE_LAB_ADMIN,
+        role_id=ROLE_SUPER_ADMIN,
     )
     login_response = await client.post(
         "/api/v1/auth/login",
-        json={"login": "lab-admin3@vertere.local", "password": "s3nhaForte!", "remember_me": False},
+        json={
+            "login": "super-admin3@vertere.local",
+            "password": "s3nhaForte!",
+            "remember_me": False,
+        },
     )
     assert login_response.status_code == 200
 
@@ -564,6 +571,45 @@ async def test_editing_own_role_cannot_strip_the_last_roles_manage(
     # E o papel continua com `roles.manage` — não é meio-caminho.
     unchanged = await client.get(f"/api/v1/permission-profiles/{ROLE_SUPER_ADMIN}")
     assert "roles.manage" in unchanged.json()["permissions"]
+
+
+async def test_master_only_permission_cannot_be_granted_to_a_lab_scope_role(
+    client: httpx.AsyncClient, session_factory: sessionmaker[Session]
+) -> None:
+    # `attendances.view_prices` é exclusivo de um papel GLOBAL (hoje só
+    # SUPER_ADMIN) — nem o próprio SUPER_ADMIN pode conceder essa permissão a
+    # RECEPTION (papel LAB) via PATCH /permission-profiles.
+    _create_user(
+        session_factory,
+        email="super-admin-master-only@vertere.local",
+        password="s3nhaForte!",
+        role_id=ROLE_SUPER_ADMIN,
+    )
+    login_response = await client.post(
+        "/api/v1/auth/login",
+        json={
+            "login": "super-admin-master-only@vertere.local",
+            "password": "s3nhaForte!",
+            "remember_me": False,
+        },
+    )
+    assert login_response.status_code == 200
+
+    profile_response = await client.get(f"/api/v1/permission-profiles/{ROLE_RECEPTION}")
+    profile = profile_response.json()
+
+    response = await client.patch(
+        f"/api/v1/permission-profiles/{ROLE_RECEPTION}",
+        json={
+            "permissions": [*profile["permissions"], "attendances.view_prices"],
+            "expected_row_version": profile["row_version"],
+        },
+    )
+
+    assert response.status_code == 422
+    # E o perfil da Recepção continua sem a permissão — não é meio-caminho.
+    unchanged = await client.get(f"/api/v1/permission-profiles/{ROLE_RECEPTION}")
+    assert "attendances.view_prices" not in unchanged.json()["permissions"]
 
 
 async def test_user_full_name_over_the_length_limit_is_rejected(

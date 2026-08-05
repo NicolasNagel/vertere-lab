@@ -1,0 +1,55 @@
+.role-chip-list {
+  padding: 0.875rem 1.125rem; /* 14px 18px */
+  border-bottom: 1px solid var(--color-border);
+  background: #ffffff;
+}
+
+.role-chip-list__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 0.625rem; /* 10px */
+}
+
+.role-chip-list__count {
+  font-family: var(--font-mono);
+  font-size: 0.625rem; /* 10px */
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--color-text-secondary);
+}
+
+.role-chip-list__new-link {
+  border: none;
+  background: none;
+  padding: 0;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--color-brand-ink);
+  cursor: pointer;
+  text-decoration: underline;
+  font-family: inherit;
+}
+
+.role-chip-list__chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem; /* 8px */
+}
+
+.role-chip-list__chip {
+  border: 1px solid var(--color-border);
+  background: #ffffff;
+  color: var(--color-text-primary);
+  padding: 0.4375rem 0.75rem; /* 7px 12px */
+  font-size: 0.75rem;
+  font-weight: 600;
+  cursor: pointer;
+  font-family: inherit;
+}
+
+.role-chip-list__chip[data-selected='true'] {
+  background: var(--color-brand-ink);
+  border-color: var(--color-brand-ink);
+  color: #ffffff;
+}

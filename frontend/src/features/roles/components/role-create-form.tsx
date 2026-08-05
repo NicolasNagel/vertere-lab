@@ -5,10 +5,11 @@ import { z } from 'zod'
 
 import { describeError } from '../../../shared/api/describe-error'
 import { Button } from '../../../shared/ui/button'
+import { SelectField } from '../../../shared/ui/select'
 import { TextField } from '../../../shared/ui/text-field'
 import { ToggleSwitch } from '../../../shared/ui/toggle-switch'
-import type { CreateRoleValues, Permission } from '../api/roles-api'
-import { groupPermissionsByResource } from '../lib/permission-groups'
+import type { CreateRoleValues, Permission, Role } from '../api/roles-api'
+import { groupPermissionsByCategory } from '../lib/permission-groups'
 import './role-create-form.css'
 
 const roleSchema = z.object({
@@ -18,8 +19,11 @@ const roleSchema = z.object({
 
 type RoleFormFields = z.infer<typeof roleSchema>
 
+const START_FROM_SCRATCH = ''
+
 interface RoleCreateFormProps {
   allPermissions: Permission[]
+  baseRoles: Role[]
   submitting: boolean
   error?: unknown
   onCancel: () => void
@@ -32,6 +36,7 @@ const ROLE_SCOPE = 'LAB' as const
 
 export function RoleCreateForm({
   allPermissions,
+  baseRoles,
   submitting,
   error,
   onCancel,
@@ -46,6 +51,28 @@ export function RoleCreateForm({
     defaultValues: { name: '', description: '' },
   })
   const [selected, setSelected] = useState<Set<string>>(new Set())
+  const [baseRoleId, setBaseRoleId] = useState(START_FROM_SCRATCH)
+
+  const baseRoleOptions = [
+    { value: START_FROM_SCRATCH, label: 'Começar do zero' },
+    ...baseRoles.map((role) => ({ value: role.id, label: role.name })),
+  ]
+
+  function handleBaseRoleChange(roleId: string) {
+    setBaseRoleId(roleId)
+    const baseRole = baseRoles.find((role) => role.id === roleId)
+    // Perfis criados aqui são sempre escopo LAB — se o perfil-base for o
+    // Master (o único hoje com permissão master-only), essa permissão nunca
+    // pode vir marcada, senão o formulário mostraria um toggle "ligado" que
+    // nem pode ser desmarcado (trava) e o envio seria rejeitado pelo backend.
+    const masterOnlyCodes = new Set(
+      allPermissions.filter((permission) => permission.masterOnly).map((permission) => permission.code),
+    )
+    const clonedPermissions = (baseRole?.permissions ?? []).filter(
+      (code) => !masterOnlyCodes.has(code),
+    )
+    setSelected(new Set(clonedPermissions))
+  }
 
   function toggle(code: string) {
     setSelected((current) => {
@@ -69,7 +96,7 @@ export function RoleCreateForm({
   })
 
   const errorMessage = describeError(error)
-  const groups = groupPermissionsByResource(allPermissions)
+  const groups = groupPermissionsByCategory(allPermissions)
 
   return (
     <form className="role-create-form" onSubmit={submit} noValidate>
@@ -86,21 +113,39 @@ export function RoleCreateForm({
         disabled={submitting}
         {...register('description')}
       />
+      <SelectField
+        id="role-base"
+        label="Baseado em"
+        disabled={submitting}
+        options={baseRoleOptions}
+        value={baseRoleId}
+        onChange={(event) => handleBaseRoleChange(event.target.value)}
+      />
 
       {groups.map((group) => (
-        <div key={group.resource} className="role-create-form__group">
+        <div key={group.category} className="role-create-form__group">
           <div className="role-create-form__group-title">{group.label}</div>
           <div className="role-create-form__group-rows">
-            {group.permissions.map((permission) => (
-              <ToggleSwitch
-                key={permission.id}
-                label={permission.code}
-                description={permission.description || undefined}
-                checked={selected.has(permission.code)}
-                disabled={submitting}
-                onChange={() => toggle(permission.code)}
-              />
-            ))}
+            {group.permissions.map((permission) => {
+              // Perfis criados aqui são sempre escopo LAB (ROLE_SCOPE acima)
+              // — nunca GLOBAL — então toda permissão master-only fica
+              // travada, sem exceção, neste formulário.
+              const isLockedByMaster = permission.masterOnly
+              return (
+                <ToggleSwitch
+                  key={permission.id}
+                  label={permission.description || permission.code}
+                  description={
+                    isLockedByMaster ? (
+                      <span className="role-create-form__master-lock">Definido pelo Master</span>
+                    ) : undefined
+                  }
+                  checked={selected.has(permission.code)}
+                  disabled={submitting || isLockedByMaster}
+                  onChange={() => toggle(permission.code)}
+                />
+              )
+            })}
           </div>
         </div>
       ))}

@@ -6,7 +6,8 @@ from uuid import UUID
 from app.modules.audit.domain.entities import ActorScope, AuditEntry
 from app.modules.audit.domain.repositories import AuditLogWriter
 from app.modules.identity.application.dtos import AuthenticatedUserDTO, RoleDTO
-from app.modules.identity.domain.constants import CONTROL_PERMISSIONS
+from app.modules.identity.domain.constants import CONTROL_PERMISSIONS, MASTER_ONLY_PERMISSIONS
+from app.modules.identity.domain.entities import RoleScope
 from app.modules.identity.domain.errors import SelfLockoutError
 from app.modules.identity.domain.repositories import (
     PermissionRepository,
@@ -50,6 +51,11 @@ class UpdateRolePermissionsUseCase:
 
         if not self._permissions.all_codes_exist(command.permission_codes):
             raise ValidationError("Uma ou mais permissões informadas não existem.")
+
+        if role.scope != RoleScope.GLOBAL and command.permission_codes & MASTER_ONLY_PERMISSIONS:
+            raise ValidationError(
+                "Uma ou mais permissões informadas são exclusivas do perfil Master."
+            )
 
         # Editar um papel afeta *todo mundo* que o tem, não só quem está
         # editando — ao contrário de `assign_role`/`deactivate_user`

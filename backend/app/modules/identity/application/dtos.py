@@ -70,3 +70,4 @@ class PermissionDTO:
     id: UUID
     code: str
     description: str
+    master_only: bool

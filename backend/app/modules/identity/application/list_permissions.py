@@ -3,6 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from app.modules.identity.application.dtos import AuthenticatedUserDTO, PermissionDTO
+from app.modules.identity.domain.constants import MASTER_ONLY_PERMISSIONS
 from app.modules.identity.domain.repositories import PermissionRepository
 from app.shared.domain.errors import ForbiddenError
 
@@ -24,7 +25,10 @@ class ListPermissionsUseCase:
 
         return [
             PermissionDTO(
-                id=permission.id, code=permission.code, description=permission.description
+                id=permission.id,
+                code=permission.code,
+                description=permission.description,
+                master_only=permission.code in MASTER_ONLY_PERMISSIONS,
             )
             for permission in self._permissions.list_all()
         ]

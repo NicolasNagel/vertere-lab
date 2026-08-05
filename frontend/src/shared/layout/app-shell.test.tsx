@@ -114,25 +114,20 @@ test('opens and closes the mobile navigation when a destination is selected', as
   expect(screen.queryByRole('button', { name: 'Fechar navegação' })).not.toBeInTheDocument()
 })
 
-test('hides "Usuários" and "Perfis de permissão" without the matching read permission', async () => {
+test('hides "Usuários" without the matching read permission', async () => {
   mockAuthenticatedUser(['clinics.manage'])
   renderShell('/')
 
   await screen.findByText('conteúdo dashboard')
   expect(screen.queryByRole('link', { name: /^usuários$/i })).not.toBeInTheDocument()
-  expect(screen.queryByRole('link', { name: /perfis de permissão/i })).not.toBeInTheDocument()
 })
 
-test('shows "Usuários" and "Perfis de permissão" with users.read and roles.read', async () => {
-  mockAuthenticatedUser(['users.read', 'roles.read'])
+test('shows "Usuários" with users.read', async () => {
+  mockAuthenticatedUser(['users.read'])
   renderShell('/')
 
   expect(await screen.findByRole('link', { name: /^usuários$/i })).toHaveAttribute(
     'href',
     '/administracao/usuarios',
-  )
-  expect(screen.getByRole('link', { name: /perfis de permissão/i })).toHaveAttribute(
-    'href',
-    '/administracao/perfis',
   )
 })

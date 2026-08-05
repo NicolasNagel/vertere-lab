@@ -1,10 +1,9 @@
 .user-list {
-  flex: 1.4;
+  flex: 1;
   display: flex;
   flex-direction: column;
   min-height: 0;
   background: #ffffff;
-  border-right: 1px solid var(--color-border);
 }
 
 .user-list__search {
@@ -61,24 +60,60 @@
   color: var(--color-text-secondary);
 }
 
+.user-list__domain-error {
+  margin: 0;
+  padding: 0.75rem 1.125rem;
+  background: #fdf1ef;
+  border-bottom: 1px solid #f0d4cf;
+  color: #b3261e;
+  font-size: 0.8125rem;
+}
+
 .user-list__row {
   display: grid;
   grid-template-columns: 2fr 1.2fr 1fr 2.5rem;
   align-items: center;
   width: 100%;
-  text-align: left;
-  border: none;
   border-left: 3px solid transparent;
   border-bottom: 1px solid #f0ede5;
   background: #ffffff;
-  padding: 0.875rem 1.125rem; /* 14px 18px */
-  cursor: pointer;
-  font-family: inherit;
 }
 
 .user-list__row[data-selected='true'] {
   border-left-color: var(--color-brand-ink);
   background: var(--color-surface-form);
+}
+
+.user-list__row-select {
+  grid-column: 1 / span 3;
+  display: grid;
+  grid-template-columns: 2fr 1.2fr 1fr;
+  align-items: center;
+  text-align: left;
+  border: none;
+  background: transparent;
+  padding: 0.875rem 0 0.875rem 1.125rem; /* 14px 0 14px 18px */
+  cursor: pointer;
+  font-family: inherit;
+}
+
+.user-list__row-actions {
+  position: relative;
+  display: flex;
+  justify-content: flex-end;
+  padding: 0.875rem 1.125rem 0.875rem 0; /* 14px 18px 14px 0 */
+}
+
+.user-list__row-popover {
+  position: absolute;
+  top: calc(100% - 0.5rem);
+  right: 1.125rem;
+  z-index: 20;
+  min-width: 20rem;
+  background: #ffffff;
+  border: 1px solid var(--color-border);
+  box-shadow: 0 4px 16px rgba(28, 45, 69, 0.12);
+  padding: 0.875rem 1rem;
 }
 
 .user-list__identity {
@@ -120,8 +155,35 @@
 }
 
 .user-list__role {
-  font-size: 0.75rem;
-  color: var(--color-text-primary);
+  display: inline-block;
+  width: fit-content;
+  padding: 0.1875rem 0.5625rem; /* 3px 9px */
+  font-size: 0.625rem; /* 10px */
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  background: #f4f1ea;
+  color: var(--color-text-secondary);
+}
+
+.user-list__role[data-variant='admin'] {
+  background: #1f3450;
+  color: #9cbfc2;
+}
+
+.user-list__role[data-variant='reception'] {
+  background: #f1ece0;
+  color: #a06d2c;
+}
+
+.user-list__role[data-variant='finance'] {
+  background: #e5ebe2;
+  color: #4f6b3f;
+}
+
+.user-list__role[data-variant='technical'] {
+  background: #e8f1f1;
+  color: #2c4768;
 }
 
 .user-list__status {

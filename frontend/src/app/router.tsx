@@ -88,12 +88,6 @@ export const router = createBrowserRouter([
         }),
       },
       {
-        path: '/administracao/perfis',
-        lazy: async () => ({
-          Component: (await import('../features/roles/components/roles-page')).RolesPage,
-        }),
-      },
-      {
         path: '/financeiro/fechamentos',
         lazy: async () => ({
           Component: (await import('../features/billing/components/closures-list-page'))

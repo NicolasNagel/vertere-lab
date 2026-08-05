@@ -28,7 +28,9 @@ def _setup() -> tuple[FakeRoleRepository, FakePermissionRepository, FakeUserRepo
     roles = FakeRoleRepository()
     users = FakeUserRepository(roles=roles)
     permissions = FakePermissionRepository(
-        codes=frozenset({"clinics.read", "clinics.manage", "roles.manage"})
+        codes=frozenset(
+            {"clinics.read", "clinics.manage", "roles.manage", "attendances.view_prices"}
+        )
     )
     role = Role(
         id=uuid4(),
@@ -144,6 +146,58 @@ def test_update_role_permissions_stale_row_version_is_conflict() -> None:
                 expected_row_version=99,
             )
         )
+
+
+def test_update_role_permissions_rejects_master_only_permission_for_a_lab_scope_role() -> None:
+    roles, permissions, users, role = _setup()
+    use_case = UpdateRolePermissionsUseCase(
+        roles=roles, permissions=permissions, users=users, audit=FakeAuditLogWriter()
+    )
+    actor = _actor(frozenset({"roles.manage"}))
+
+    with pytest.raises(ValidationError):
+        use_case.execute(
+            UpdateRolePermissionsCommand(
+                actor=actor,
+                role_id=role.id,
+                permission_codes=frozenset({"clinics.read", "attendances.view_prices"}),
+                expected_row_version=1,
+            )
+        )
+
+    # Não é meio-caminho: o papel continua exatamente como estava.
+    assert roles.get_by_id(role.id).permission_codes == frozenset({"clinics.read"})  # type: ignore[union-attr]
+
+
+def test_update_role_permissions_allows_master_only_permission_for_a_global_scope_role() -> None:
+    roles = FakeRoleRepository()
+    users = FakeUserRepository(roles=roles)
+    permissions = FakePermissionRepository(
+        codes=frozenset({"clinics.read", "roles.manage", "attendances.view_prices"})
+    )
+    role = Role(
+        id=uuid4(),
+        name="SUPER_ADMIN",
+        scope=RoleScope.GLOBAL,
+        permission_codes=frozenset({"clinics.read"}),
+        row_version=1,
+    )
+    roles.add(role)
+    use_case = UpdateRolePermissionsUseCase(
+        roles=roles, permissions=permissions, users=users, audit=FakeAuditLogWriter()
+    )
+    actor = _actor(frozenset({"roles.manage"}))
+
+    result = use_case.execute(
+        UpdateRolePermissionsCommand(
+            actor=actor,
+            role_id=role.id,
+            permission_codes=frozenset({"clinics.read", "attendances.view_prices"}),
+            expected_row_version=1,
+        )
+    )
+
+    assert result.permissions == frozenset({"clinics.read", "attendances.view_prices"})
 
 
 def _setup_sole_admin() -> tuple[

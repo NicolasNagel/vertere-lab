@@ -55,9 +55,6 @@ export function Sidebar({ mobileOpen = false, onNavigate }: SidebarProps) {
     ...(permissions.includes('users.read')
       ? [{ icon: <UsersIcon />, label: 'Usuários', to: '/administracao/usuarios' }]
       : []),
-    ...(permissions.includes('roles.read')
-      ? [{ icon: <UsersIcon />, label: 'Perfis de permissão', to: '/administracao/perfis' }]
-      : []),
     ...baseAdminNavEntries,
   ]
 

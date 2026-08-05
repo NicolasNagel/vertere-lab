@@ -19,3 +19,13 @@ from __future__ import annotations
 CONTROL_PERMISSIONS: frozenset[str] = frozenset(
     {"users.update", "roles.assign", "users.deactivate", "roles.manage"}
 )
+
+# Permissions that only a GLOBAL-scope role may hold — checked against
+# `role.scope`, never against a role name/id (rule: .claude/rules/01-product-
+# domain.md, "código nunca decide por nome de papel"). SUPER_ADMIN is the
+# only GLOBAL role today, so this is "Master-only" in practice without
+# hardcoding that name. `attendances.view_prices` is narrower than
+# `pricing.read` (the pricing catalog admin screen, which FINANCE genuinely
+# needs) — it's specifically about seeing a price while building an
+# attendance, a decision reserved for Master.
+MASTER_ONLY_PERMISSIONS: frozenset[str] = frozenset({"attendances.view_prices"})

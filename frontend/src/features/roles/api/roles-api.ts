@@ -42,6 +42,7 @@ export interface Permission {
   id: string
   code: string
   description: string
+  masterOnly: boolean
 }
 
 interface ApiRole {
@@ -65,6 +66,7 @@ interface ApiPermission {
   id: string
   code: string
   description: string
+  master_only: boolean
 }
 
 function fromApiRole(role: ApiRole): Role {
@@ -80,7 +82,12 @@ function fromApiRole(role: ApiRole): Role {
 }
 
 function fromApiPermission(permission: ApiPermission): Permission {
-  return { id: permission.id, code: permission.code, description: permission.description }
+  return {
+    id: permission.id,
+    code: permission.code,
+    description: permission.description,
+    masterOnly: permission.master_only,
+  }
 }
 
 export async function fetchRoles(params: RoleListParams = {}): Promise<RolePage> {

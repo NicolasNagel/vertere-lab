@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react'
 import { useEffect, useRef, useState } from 'react'
 
 import './kebab-menu.css'
@@ -11,12 +12,16 @@ export interface KebabMenuItem {
 interface KebabMenuProps {
   items: KebabMenuItem[]
   label: string
+  trigger?: ReactNode
+  triggerClassName?: string
 }
 
 // Menu mínimo, controlado localmente — só existe para agrupar ações
 // secundárias já especificadas (ex.: "Inativar"), não para introduzir ações
-// não previstas na spec da tela.
-export function KebabMenu({ items, label }: KebabMenuProps) {
+// não previstas na spec da tela. `trigger`/`triggerClassName` permitem reusar
+// o mesmo menu como botão de cabeçalho (ex.: "Convidar usuário" + "Novo
+// perfil"), não só como o ⋮ padrão.
+export function KebabMenu({ items, label, trigger, triggerClassName }: KebabMenuProps) {
   const [open, setOpen] = useState(false)
   const containerRef = useRef<HTMLDivElement>(null)
   const triggerRef = useRef<HTMLButtonElement>(null)
@@ -50,13 +55,13 @@ export function KebabMenu({ items, label }: KebabMenuProps) {
       <button
         ref={triggerRef}
         type="button"
-        className="kebab-menu__trigger"
+        className={triggerClassName ?? 'kebab-menu__trigger'}
         aria-haspopup="true"
         aria-expanded={open}
         aria-label={label}
         onClick={() => setOpen((current) => !current)}
       >
-        ⋮
+        {trigger ?? '⋮'}
       </button>
       {open && (
         <ul className="kebab-menu__list" role="menu">

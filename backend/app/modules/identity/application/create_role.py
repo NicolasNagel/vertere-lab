@@ -6,6 +6,7 @@ from uuid import uuid4
 from app.modules.audit.domain.entities import ActorScope, AuditEntry
 from app.modules.audit.domain.repositories import AuditLogWriter
 from app.modules.identity.application.dtos import AuthenticatedUserDTO, RoleDTO
+from app.modules.identity.domain.constants import MASTER_ONLY_PERMISSIONS
 from app.modules.identity.domain.entities import Role, RoleScope
 from app.modules.identity.domain.errors import RoleNameAlreadyExistsError
 from app.modules.identity.domain.repositories import PermissionRepository, RoleRepository
@@ -44,6 +45,11 @@ class CreateRoleUseCase:
 
         if not self._permissions.all_codes_exist(command.permission_codes):
             raise ValidationError("Uma ou mais permissões informadas não existem.")
+
+        if command.scope != RoleScope.GLOBAL and command.permission_codes & MASTER_ONLY_PERMISSIONS:
+            raise ValidationError(
+                "Uma ou mais permissões informadas são exclusivas do perfil Master."
+            )
 
         role = Role(
             id=uuid4(),

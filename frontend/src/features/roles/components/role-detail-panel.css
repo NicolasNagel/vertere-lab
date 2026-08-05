@@ -54,6 +54,10 @@
   margin-bottom: 0.625rem; /* 10px */
 }
 
+.role-detail-panel__master-lock {
+  color: #c89762;
+}
+
 .role-detail-panel__group-rows {
   display: flex;
   flex-direction: column;

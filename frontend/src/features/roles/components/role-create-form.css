@@ -15,6 +15,10 @@
   margin-bottom: 0.625rem; /* 10px */
 }
 
+.role-create-form__master-lock {
+  color: #c89762;
+}
+
 .role-create-form__group-rows {
   display: flex;
   flex-direction: column;

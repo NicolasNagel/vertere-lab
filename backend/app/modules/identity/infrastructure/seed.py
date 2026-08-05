@@ -60,9 +60,58 @@ PERMISSION_CODES: tuple[str, ...] = (
     "closures.reopen",
     "audit.read",
     "imports.execute",
+    # Master-only (see domain/constants.py MASTER_ONLY_PERMISSIONS) — deciding
+    # whether staff other than Master can see prices while building an
+    # attendance is reserved for Master, unlike `pricing.read` (the pricing
+    # catalog admin screen), which FINANCE genuinely needs.
+    "attendances.view_prices",
 )
 
 _ALL_PERMISSIONS = frozenset(PERMISSION_CODES)
+
+# `0002_seed_identity_catalog.py` inserted every permission with
+# `description=""` and is frozen (nunca editar migration já aplicada) — the
+# friendly pt-BR text lives here instead and is applied by
+# `alembic/versions/0033_add_permission_descriptions.py`, which UPDATEs by
+# `code` and therefore fixes both a fresh database (0002 then 0033) and one
+# that already ran 0002 with the empty description. Every key here must have
+# a matching code in `PERMISSION_CODES` — the migration asserts that.
+PERMISSION_DESCRIPTIONS: dict[str, str] = {
+    "users.read": "Ver usuários",
+    "users.create": "Criar usuários",
+    "users.update": "Editar dados de usuários",
+    "users.deactivate": "Desativar usuários",
+    "users.activate": "Reativar usuários",
+    "roles.read": "Ver perfis de permissão",
+    "roles.assign": "Atribuir perfil a um usuário",
+    "roles.manage": "Editar as permissões de um perfil",
+    "permissions.read": "Ver permissões disponíveis",
+    "clinics.read": "Ver clínicas",
+    "clinics.manage": "Cadastrar e editar clínicas",
+    "veterinarians.read": "Ver veterinários",
+    "veterinarians.manage": "Cadastrar e editar veterinários",
+    "owners.read": "Ver proprietários",
+    "owners.manage": "Cadastrar e editar proprietários",
+    "patients.read": "Ver pacientes",
+    "patients.manage": "Cadastrar e editar pacientes",
+    "catalog.read": "Ver catálogo de exames",
+    "catalog.manage": "Cadastrar e editar exames do catálogo",
+    "pricing.read": "Ver preços",
+    "pricing.manage": "Editar preços",
+    "attendances.read": "Ver atendimentos",
+    "attendances.create": "Abrir atendimentos",
+    "attendances.update": "Editar atendimentos",
+    "attendances.cancel": "Cancelar atendimentos",
+    "attendances.override_price": "Alterar valor de um exame manualmente",
+    "closures.read": "Ver fechamentos",
+    "closures.preview": "Gerar prévia de fechamento",
+    "closures.close": "Fechar competência",
+    "closures.adjust": "Registrar ajuste financeiro",
+    "closures.reopen": "Reabrir fechamento",
+    "audit.read": "Ver trilha de auditoria",
+    "imports.execute": "Executar importação da planilha",
+    "attendances.view_prices": "Ver preço ao montar atendimento",
+}
 
 ROLE_DEFINITIONS: tuple[tuple[UUID, str, str, str, frozenset[str]], ...] = (
     (
@@ -77,7 +126,14 @@ ROLE_DEFINITIONS: tuple[tuple[UUID, str, str, str, frozenset[str]], ...] = (
         "LAB_ADMIN",
         "LAB",
         "Usuários, permissões e configurações do laboratório.",
-        _ALL_PERMISSIONS,
+        # `roles.manage` (redefinir o que um perfil concede) fica exclusivo do
+        # SUPER_ADMIN — LAB_ADMIN mantém `roles.read`/`roles.assign` (ver e
+        # atribuir perfil a um usuário) mas não edita a regra do perfil em si.
+        # Ver alembic/versions/0032_restrict_roles_manage_to_super_admin.py.
+        # `attendances.view_prices` também fica de fora — é master-only (ver
+        # domain/constants.py MASTER_ONLY_PERMISSIONS); LAB_ADMIN é escopo LAB,
+        # não GLOBAL, então não pode carregá-la.
+        _ALL_PERMISSIONS - {"roles.manage", "attendances.view_prices"},
     ),
     (
         ROLE_RECEPTION,

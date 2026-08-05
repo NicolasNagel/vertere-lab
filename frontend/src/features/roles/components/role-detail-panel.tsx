@@ -4,7 +4,7 @@ import { ApiError } from '../../../shared/api/errors'
 import { Button } from '../../../shared/ui/button'
 import { ToggleSwitch } from '../../../shared/ui/toggle-switch'
 import type { Permission, Role } from '../api/roles-api'
-import { groupPermissionsByResource } from '../lib/permission-groups'
+import { groupPermissionsByCategory } from '../lib/permission-groups'
 import './role-detail-panel.css'
 
 const SCOPE_LABELS: Record<Role['scope'], string> = {
@@ -68,7 +68,7 @@ export function RoleDetailPanel({
     )
   }
 
-  const groups = groupPermissionsByResource(allPermissions)
+  const groups = groupPermissionsByCategory(allPermissions)
   const originalPermissions = new Set(role.permissions)
   const isDirty =
     selected.size !== originalPermissions.size ||
@@ -99,19 +99,26 @@ export function RoleDetailPanel({
       </p>
 
       {groups.map((group) => (
-        <div key={group.resource} className="role-detail-panel__group">
+        <div key={group.category} className="role-detail-panel__group">
           <div className="role-detail-panel__group-title">{group.label}</div>
           <div className="role-detail-panel__group-rows">
-            {group.permissions.map((permission) => (
-              <ToggleSwitch
-                key={permission.id}
-                label={permission.code}
-                description={permission.description || undefined}
-                checked={selected.has(permission.code)}
-                disabled={!canManage || submitting}
-                onChange={() => toggle(permission.code)}
-              />
-            ))}
+            {group.permissions.map((permission) => {
+              const isLockedByMaster = permission.masterOnly && role.scope !== 'GLOBAL'
+              return (
+                <ToggleSwitch
+                  key={permission.id}
+                  label={permission.description || permission.code}
+                  description={
+                    isLockedByMaster ? (
+                      <span className="role-detail-panel__master-lock">Definido pelo Master</span>
+                    ) : undefined
+                  }
+                  checked={selected.has(permission.code)}
+                  disabled={!canManage || submitting || isLockedByMaster}
+                  onChange={() => toggle(permission.code)}
+                />
+              )
+            })}
           </div>
         </div>
       ))}

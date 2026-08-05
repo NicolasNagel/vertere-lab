@@ -503,4 +503,7 @@ def list_permissions(
 ) -> list[PermissionRead]:
     use_case = ListPermissionsUseCase(permissions=SqlAlchemyPermissionRepository(session))
     result = use_case.execute(ListPermissionsQuery(actor=current_user))
-    return [PermissionRead(id=p.id, code=p.code, description=p.description) for p in result]
+    return [
+        PermissionRead(id=p.id, code=p.code, description=p.description, master_only=p.master_only)
+        for p in result
+    ]
