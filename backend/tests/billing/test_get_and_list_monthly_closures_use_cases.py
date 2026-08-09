@@ -7,6 +7,10 @@ from uuid import uuid4
 import pytest
 
 from app.modules.billing.application.export_monthly_closure import monthly_closure_to_csv
+from app.modules.billing.application.get_closure_by_period import (
+    GetClosureByPeriodQuery,
+    GetClosureByPeriodUseCase,
+)
 from app.modules.billing.application.get_monthly_closure import (
     GetMonthlyClosureQuery,
     GetMonthlyClosureUseCase,
@@ -30,7 +34,7 @@ _NOW = datetime(2026, 2, 1, tzinfo=UTC)
 
 def _actor(*, permissions: frozenset[str]) -> AuthenticatedUserDTO:
     return AuthenticatedUserDTO(
-        id=uuid4(),
+        user_id=uuid4(),
         email="finance@vertere.local",
         full_name="Finance",
         role_id=uuid4(),
@@ -112,6 +116,53 @@ def test_get_returns_the_closure_with_its_items() -> None:
     assert result.id == closure.id
     assert len(result.items) == 1
     assert result.items[0].exam_name == "Hemograma"
+
+
+# ---------------- GetClosureByPeriodUseCase ----------------
+
+
+def test_get_by_period_without_permission_is_forbidden() -> None:
+    use_case = GetClosureByPeriodUseCase(closures=FakeMonthlyClosureRepository())
+    with pytest.raises(ForbiddenError):
+        use_case.execute(
+            GetClosureByPeriodQuery(
+                actor=_actor(permissions=frozenset()),
+                clinic_id=uuid4(),
+                period_start=date(2026, 1, 1),
+                period_end=date(2026, 1, 31),
+            )
+        )
+
+
+def test_get_by_period_with_no_closure_is_not_found() -> None:
+    use_case = GetClosureByPeriodUseCase(closures=FakeMonthlyClosureRepository())
+    with pytest.raises(NotFoundError):
+        use_case.execute(
+            GetClosureByPeriodQuery(
+                actor=_actor(permissions=frozenset({"closures.read"})),
+                clinic_id=uuid4(),
+                period_start=date(2026, 1, 1),
+                period_end=date(2026, 1, 31),
+            )
+        )
+
+
+def test_get_by_period_finds_the_closure_by_clinic_and_competence() -> None:
+    closure = _closure()
+    repository = FakeMonthlyClosureRepository()
+    repository.add(closure)
+
+    use_case = GetClosureByPeriodUseCase(closures=repository)
+    result = use_case.execute(
+        GetClosureByPeriodQuery(
+            actor=_actor(permissions=frozenset({"closures.read"})),
+            clinic_id=closure.clinic_id,
+            period_start=closure.period_start,
+            period_end=closure.period_end,
+        )
+    )
+
+    assert result.id == closure.id
 
 
 # ---------------- ListMonthlyClosuresUseCase ----------------

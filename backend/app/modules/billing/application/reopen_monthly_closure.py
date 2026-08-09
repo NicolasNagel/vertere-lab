@@ -11,7 +11,7 @@ from app.modules.billing.domain.repositories import (
     ClosureCandidateLockRepository,
     MonthlyClosureRepository,
 )
-from app.modules.identity.application.dtos import AuthenticatedUserDTO
+from app.shared.application.authorization import ActorContext
 from app.shared.application.clock import Clock
 from app.shared.domain.errors import ForbiddenError, NotFoundError
 from app.shared.outbox.domain.entities import OutboxEvent
@@ -22,7 +22,7 @@ _REQUIRED_PERMISSION = "closures.reopen"
 
 @dataclass(frozen=True, kw_only=True)
 class ReopenMonthlyClosureCommand:
-    actor: AuthenticatedUserDTO
+    actor: ActorContext
     closure_id: UUID
     reason: str
 
@@ -51,11 +51,7 @@ class ReopenMonthlyClosureUseCase:
         if closure is None:
             raise NotFoundError("Fechamento não encontrado.")
 
-        self._closures.acquire_active_lock(
-            clinic_id=closure.clinic_id,
-            year=closure.competence_year,
-            month=closure.competence_month,
-        )
+        self._closures.acquire_active_lock(clinic_id=closure.clinic_id)
         closure = self._closures.get_by_id_for_update(command.closure_id)
         if closure is None:
             raise NotFoundError("Fechamento não encontrado.")

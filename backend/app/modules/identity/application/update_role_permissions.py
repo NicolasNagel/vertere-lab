@@ -5,7 +5,7 @@ from uuid import UUID
 
 from app.modules.audit.domain.entities import ActorScope, AuditEntry
 from app.modules.audit.domain.repositories import AuditLogWriter
-from app.modules.identity.application.dtos import AuthenticatedUserDTO, RoleDTO
+from app.modules.identity.application.dtos import RoleDTO
 from app.modules.identity.domain.constants import CONTROL_PERMISSIONS, MASTER_ONLY_PERMISSIONS
 from app.modules.identity.domain.entities import RoleScope
 from app.modules.identity.domain.errors import SelfLockoutError
@@ -14,6 +14,7 @@ from app.modules.identity.domain.repositories import (
     RoleRepository,
     UserRepository,
 )
+from app.shared.application.authorization import ActorContext
 from app.shared.domain.errors import ConflictError, ForbiddenError, NotFoundError, ValidationError
 
 _REQUIRED_PERMISSION = "roles.manage"
@@ -21,7 +22,7 @@ _REQUIRED_PERMISSION = "roles.manage"
 
 @dataclass(frozen=True, kw_only=True)
 class UpdateRolePermissionsCommand:
-    actor: AuthenticatedUserDTO
+    actor: ActorContext
     role_id: UUID
     permission_codes: frozenset[str]
     expected_row_version: int

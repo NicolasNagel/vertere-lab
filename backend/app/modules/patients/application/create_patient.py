@@ -20,11 +20,12 @@ from uuid import UUID, uuid4
 
 from app.modules.audit.domain.entities import ActorScope, AuditEntry
 from app.modules.audit.domain.repositories import AuditLogWriter
-from app.modules.identity.application.dtos import AuthenticatedUserDTO
+from app.modules.clinics.domain.repositories import ClinicRepository
 from app.modules.patients.application.dtos import PatientDTO
 from app.modules.patients.application.mappers import patient_to_dto
 from app.modules.patients.domain.entities import Patient, PatientSex, PatientStatus
 from app.modules.patients.domain.repositories import PatientRepository, SpeciesRepository
+from app.shared.application.authorization import ActorContext
 from app.shared.application.clock import Clock
 from app.shared.domain.errors import ForbiddenError, NotFoundError
 
@@ -33,7 +34,8 @@ _REQUIRED_PERMISSION = "patients.manage"
 
 @dataclass(frozen=True, kw_only=True)
 class CreatePatientCommand:
-    actor: AuthenticatedUserDTO
+    actor: ActorContext
+    clinic_id: UUID | None = None
     name: str
     species_id: UUID
     sex: str
@@ -51,15 +53,22 @@ class CreatePatientUseCase:
         *,
         patients: PatientRepository,
         species: SpeciesRepository,
+        clinics: ClinicRepository | None = None,
         audit: AuditLogWriter,
         clock: Clock,
     ) -> None:
         self._patients = patients
         self._species = species
+        self._clinics = clinics
         self._audit = audit
         self._clock = clock
 
     def execute(self, command: CreatePatientCommand) -> PatientDTO:
+        if command.clinic_id is not None:
+            if not command.actor.can_access_clinic(command.clinic_id):
+                raise NotFoundError("Clínica não encontrada.")
+            if self._clinics is None or self._clinics.get_by_id(command.clinic_id) is None:
+                raise NotFoundError("Clínica não encontrada.")
         if _REQUIRED_PERMISSION not in command.actor.permissions:
             raise ForbiddenError(f"Permissão ausente: {_REQUIRED_PERMISSION}")
 
@@ -70,6 +79,7 @@ class CreatePatientUseCase:
         now = self._clock.now()
         patient = Patient(
             id=uuid4(),
+            clinic_id=command.clinic_id,
             name=command.name,
             species_id=command.species_id,
             sex=PatientSex(command.sex),
@@ -94,7 +104,11 @@ class CreatePatientUseCase:
                 action="patients.created",
                 entity_type="patient",
                 entity_id=str(patient.id),
-                after_state={"name": patient.name, "status": patient.status.value},
+                after_state={
+                    "name": patient.name,
+                    "status": patient.status.value,
+                    "clinic_id": str(patient.clinic_id) if patient.clinic_id else None,
+                },
             )
         )
 

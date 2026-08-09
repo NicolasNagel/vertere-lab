@@ -1,0 +1,11 @@
+.closure-history-browser__hint,
+.closure-history-browser__error,
+.closure-history-browser__forbidden {
+  font-size: 0.8125rem;
+  color: var(--color-text-secondary);
+  padding: 1rem 0;
+}
+
+.closure-history-browser__error {
+  color: #a0492c;
+}

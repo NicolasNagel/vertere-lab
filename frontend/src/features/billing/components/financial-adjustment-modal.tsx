@@ -6,6 +6,7 @@ import type {
   AddFinancialAdjustmentParams,
   FinancialAdjustmentKind,
 } from '../api/closures-api'
+import './closure-reopen-modal.css'
 
 interface FinancialAdjustmentModalProps {
   isPending: boolean
@@ -76,7 +77,7 @@ export function FinancialAdjustmentModal({
           onChange={(event) => setReason(event.target.value)}
         />
         {error && (
-          <p role="alert" className="closure-detail-page__error">
+          <p role="alert" className="closure-reopen-modal__error">
             {error instanceof ApiError ? error.message : 'Não foi possível adicionar o ajuste.'}
           </p>
         )}

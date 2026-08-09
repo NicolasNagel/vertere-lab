@@ -1,45 +1,28 @@
 import { SelectField, type SelectOption } from '../../../shared/ui/select'
+import { TextField } from '../../../shared/ui/text-field'
 import './closure-preview-filters.css'
-
-const MONTH_OPTIONS: SelectOption[] = [
-  { value: '1', label: 'Janeiro' },
-  { value: '2', label: 'Fevereiro' },
-  { value: '3', label: 'Março' },
-  { value: '4', label: 'Abril' },
-  { value: '5', label: 'Maio' },
-  { value: '6', label: 'Junho' },
-  { value: '7', label: 'Julho' },
-  { value: '8', label: 'Agosto' },
-  { value: '9', label: 'Setembro' },
-  { value: '10', label: 'Outubro' },
-  { value: '11', label: 'Novembro' },
-  { value: '12', label: 'Dezembro' },
-]
-
-function yearOptions(): SelectOption[] {
-  const currentYear = new Date().getFullYear()
-  const years = [currentYear - 1, currentYear, currentYear + 1]
-  return years.map((year) => ({ value: String(year), label: String(year) }))
-}
 
 interface ClosurePreviewFiltersProps {
   clinicOptions: SelectOption[]
   clinicId: string
-  year: number
-  month: number
+  periodStart: string
+  periodEnd: string
   onClinicChange: (clinicId: string) => void
-  onYearChange: (year: number) => void
-  onMonthChange: (month: number) => void
+  onPeriodStartChange: (periodStart: string) => void
+  onPeriodEndChange: (periodEnd: string) => void
 }
 
+/** Período livre (não só mês calendário) — algumas clínicas fecham
+ * quinzenalmente, então o operador escolhe início/fim diretamente
+ * (`.claude/rules/13-monthly-closure.md`). */
 export function ClosurePreviewFilters({
   clinicOptions,
   clinicId,
-  year,
-  month,
+  periodStart,
+  periodEnd,
   onClinicChange,
-  onYearChange,
-  onMonthChange,
+  onPeriodStartChange,
+  onPeriodEndChange,
 }: ClosurePreviewFiltersProps) {
   return (
     <div className="closure-preview-filters">
@@ -51,21 +34,23 @@ export function ClosurePreviewFilters({
         value={clinicId}
         onChange={(event) => onClinicChange(event.target.value)}
       />
-      <SelectField
-        label="Mês"
-        id="closure-preview-month"
+      <TextField
+        label="De"
+        id="closure-preview-period-start"
         className="closure-preview-filters__field closure-preview-filters__field--small"
-        options={MONTH_OPTIONS}
-        value={String(month)}
-        onChange={(event) => onMonthChange(Number(event.target.value))}
+        type="date"
+        value={periodStart}
+        max={periodEnd || undefined}
+        onChange={(event) => onPeriodStartChange(event.target.value)}
       />
-      <SelectField
-        label="Ano"
-        id="closure-preview-year"
+      <TextField
+        label="Até"
+        id="closure-preview-period-end"
         className="closure-preview-filters__field closure-preview-filters__field--small"
-        options={yearOptions()}
-        value={String(year)}
-        onChange={(event) => onYearChange(Number(event.target.value))}
+        type="date"
+        value={periodEnd}
+        min={periodStart || undefined}
+        onChange={(event) => onPeriodEndChange(event.target.value)}
       />
     </div>
   )

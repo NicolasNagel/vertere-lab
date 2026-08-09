@@ -16,6 +16,8 @@ class ClosurePreviewItemDTO:
     protocol_number: str | None
     patient_name: str
     exam_name: str
+    service_level: str
+    exam_category: str
     total_amount: Decimal
 
 
@@ -63,6 +65,8 @@ class MonthlyClosureItemDTO:
     discount_amount: Decimal
     surcharge_amount: Decimal
     total_amount: Decimal
+    service_level: str | None = None
+    exam_category: str | None = None
 
 
 @dataclass(frozen=True, kw_only=True)

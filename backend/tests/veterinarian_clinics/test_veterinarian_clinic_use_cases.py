@@ -40,7 +40,7 @@ _NOW = datetime(2026, 1, 1, tzinfo=UTC)
 
 def _actor(*, permissions: frozenset[str]) -> AuthenticatedUserDTO:
     return AuthenticatedUserDTO(
-        id=uuid4(),
+        user_id=uuid4(),
         email="user@vertere.local",
         full_name="User",
         role_id=uuid4(),

@@ -23,8 +23,8 @@ from app.modules.audit.domain.repositories import AuditLogWriter
 from app.modules.catalog.domain.entities import Exam, ExamStatus
 from app.modules.catalog.domain.repositories import ExamCategoryRepository, ExamRepository
 from app.modules.catalog.domain.value_objects import ExamCode
-from app.modules.identity.application.dtos import AuthenticatedUserDTO
 from app.modules.patients.domain.repositories import SpeciesRepository
+from app.shared.application.authorization import ActorContext
 from app.shared.application.clock import Clock
 from app.shared.domain.errors import ForbiddenError
 
@@ -55,7 +55,7 @@ class ExamImportRowError:
 
 @dataclass(frozen=True, kw_only=True)
 class ImportExamsCommand:
-    actor: AuthenticatedUserDTO
+    actor: ActorContext
     rows: tuple[ExamImportRow, ...]
 
 

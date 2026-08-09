@@ -3,10 +3,10 @@ from __future__ import annotations
 from dataclasses import dataclass
 from uuid import UUID
 
-from app.modules.identity.application.dtos import AuthenticatedUserDTO
 from app.modules.veterinarians.application.dtos import VeterinarianDTO
 from app.modules.veterinarians.application.mappers import veterinarian_to_dto
 from app.modules.veterinarians.domain.repositories import VeterinarianRepository
+from app.shared.application.authorization import ActorContext
 from app.shared.domain.errors import ForbiddenError, NotFoundError
 
 _REQUIRED_PERMISSION = "veterinarians.read"
@@ -14,7 +14,7 @@ _REQUIRED_PERMISSION = "veterinarians.read"
 
 @dataclass(frozen=True, kw_only=True)
 class GetVeterinarianQuery:
-    actor: AuthenticatedUserDTO
+    actor: ActorContext
     veterinarian_id: UUID
 
 

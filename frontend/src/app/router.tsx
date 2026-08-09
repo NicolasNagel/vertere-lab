@@ -88,24 +88,9 @@ export const router = createBrowserRouter([
         }),
       },
       {
-        path: '/financeiro/fechamentos',
-        lazy: async () => ({
-          Component: (await import('../features/billing/components/closures-list-page'))
-            .ClosuresListPage,
-        }),
-      },
-      {
         path: '/financeiro/fechamento',
         lazy: async () => ({
-          Component: (await import('../features/billing/components/closure-preview-page'))
-            .ClosurePreviewPage,
-        }),
-      },
-      {
-        path: '/financeiro/fechamentos/:closureId',
-        lazy: async () => ({
-          Component: (await import('../features/billing/components/closure-detail-page'))
-            .ClosureDetailPage,
+          Component: (await import('../features/billing/components/closure-page')).ClosurePage,
         }),
       },
     ],

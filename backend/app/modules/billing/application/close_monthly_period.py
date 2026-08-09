@@ -13,6 +13,7 @@ audit + outbox. The caller wraps this in a unit of work and an
 from __future__ import annotations
 
 from dataclasses import dataclass
+from datetime import date
 from decimal import Decimal
 from uuid import UUID, uuid4
 
@@ -32,7 +33,7 @@ from app.modules.billing.domain.repositories import (
     MonthlyClosureRepository,
 )
 from app.modules.clinics.domain.repositories import ClinicRepository
-from app.modules.identity.application.dtos import AuthenticatedUserDTO
+from app.shared.application.authorization import ActorContext
 from app.shared.application.clock import Clock
 from app.shared.domain.errors import (
     ClosureAlreadyExistsError,
@@ -49,10 +50,10 @@ _REQUIRED_PERMISSION = "closures.close"
 
 @dataclass(frozen=True, kw_only=True)
 class CloseMonthlyPeriodCommand:
-    actor: AuthenticatedUserDTO
+    actor: ActorContext
     clinic_id: UUID
-    year: int
-    month: int
+    period_start: date
+    period_end: date
 
 
 class CloseMonthlyPeriodUseCase:
@@ -81,30 +82,30 @@ class CloseMonthlyPeriodUseCase:
         if clinic is None:
             raise NotFoundError("Clínica não encontrada.")
 
-        period = CompetencePeriod(year=command.year, month=command.month)
+        period = CompetencePeriod(period_start=command.period_start, period_end=command.period_end)
 
         # Advisory lock first — everything below, including the
         # "already exists" check, must happen only after this call so two
         # concurrent closes for the same clinic+competence serialize instead
         # of both passing the check (`.claude/rules/03-database.md`).
-        self._closures.acquire_active_lock(
-            clinic_id=command.clinic_id, year=period.year, month=period.month
-        )
+        self._closures.acquire_active_lock(clinic_id=command.clinic_id)
 
         if (
             self._closures.get_active_for_clinic_and_period(
-                clinic_id=command.clinic_id, year=period.year, month=period.month
+                clinic_id=command.clinic_id,
+                period_start=period.period_start,
+                period_end=period.period_end,
             )
             is not None
         ):
             raise ClosureAlreadyExistsError(
-                "Já existe um fechamento ativo para esta clínica e competência."
+                "Já existe um fechamento ativo cujo período se sobrepõe ao selecionado."
             )
 
         latest_closure = self._closures.get_latest_for_clinic_and_period(
             clinic_id=command.clinic_id,
-            year=period.year,
-            month=period.month,
+            period_start=period.period_start,
+            period_end=period.period_end,
         )
 
         locked_candidates = self._candidates.list_candidates_for_update(
@@ -127,6 +128,8 @@ class CloseMonthlyPeriodUseCase:
                 protocol_number=candidate.protocol_number,
                 patient_name=candidate.patient_name,
                 exam_name=candidate.exam_name,
+                service_level=candidate.service_level,
+                exam_category=candidate.exam_category,
                 price_base=candidate.price_base,
                 quantity=candidate.quantity,
                 discount_amount=candidate.discount_amount,
@@ -203,8 +206,8 @@ class CloseMonthlyPeriodUseCase:
                 entity_id=str(closure_id),
                 after_state={
                     "clinic_id": str(command.clinic_id),
-                    "competence_year": period.year,
-                    "competence_month": period.month,
+                    "period_start": period.period_start.isoformat(),
+                    "period_end": period.period_end.isoformat(),
                     "item_count": closure.item_count,
                     "grand_total": str(closure.grand_total),
                 },
@@ -216,8 +219,8 @@ class CloseMonthlyPeriodUseCase:
                 payload={
                     "closure_id": str(closure_id),
                     "clinic_id": str(command.clinic_id),
-                    "competence_year": period.year,
-                    "competence_month": period.month,
+                    "period_start": period.period_start.isoformat(),
+                    "period_end": period.period_end.isoformat(),
                     "grand_total": str(closure.grand_total),
                 },
             )

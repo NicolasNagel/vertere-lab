@@ -29,6 +29,9 @@ class PatientModel(Base):
     )
 
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
+    clinic_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("clinics.id", ondelete="RESTRICT"), nullable=True, index=True
+    )
     name: Mapped[str] = mapped_column(nullable=False)
     species_id: Mapped[uuid.UUID] = mapped_column(
         ForeignKey("species.id", ondelete="RESTRICT"), nullable=False

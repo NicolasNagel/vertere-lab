@@ -24,7 +24,13 @@ from app.core.config import Settings
 from app.core.security import hash_password
 from app.main import create_app
 from app.modules.audit.infrastructure.models import AuditLogModel
-from app.modules.identity.infrastructure.models import LabMembershipModel, RoleModel, UserModel
+from app.modules.identity.infrastructure.models import (
+    ClinicMembershipModel,
+    LabMembershipModel,
+    RoleModel,
+    SessionModel,
+    UserModel,
+)
 from app.modules.identity.infrastructure.seed import (
     ROLE_CLINIC_ADMIN,
     ROLE_LAB_ADMIN,
@@ -162,6 +168,9 @@ async def test_login_active_user_succeeds_and_audits(
     assert "vertere_session" in response.cookies
     body = response.json()
     assert body["user"]["email"] == "reception@vertere.local"
+    assert body["user"]["role_scope"] == "LAB"
+    assert body["user"]["clinic_ids"] == []
+    assert body["user"]["row_version"] == 1
 
     with session_factory() as session:
         entries = (
@@ -196,6 +205,55 @@ async def test_login_rejects_clinic_role_until_client_access_exists(
     assert response.status_code == 401
     assert "vertere_session" not in response.cookies
     assert response.json()["error"]["code"] == "UNAUTHENTICATED"
+
+
+async def test_login_accepts_clinic_role_with_active_clinic_membership(
+    client: httpx.AsyncClient, session_factory: sessionmaker[Session]
+) -> None:
+    _create_user(
+        session_factory,
+        email="admin-clinic-login@vertere.local",
+        password="s3nhaForte!",
+        role_id=ROLE_SUPER_ADMIN,
+    )
+    assert (
+        await client.post(
+            "/api/v1/auth/login",
+            json={
+                "login": "admin-clinic-login@vertere.local",
+                "password": "s3nhaForte!",
+                "remember_me": False,
+            },
+        )
+    ).status_code == 200
+    clinic_response = await client.post("/api/v1/clinics", json={"name": "Clinic Login QA"})
+    assert clinic_response.status_code == 201
+    clinic_id = UUID(clinic_response.json()["id"])
+    user = _create_user(
+        session_factory,
+        email="clinic-active@vertere.local",
+        password="s3nhaForte!",
+        role_id=ROLE_CLINIC_ADMIN,
+    )
+    with session_factory() as session:
+        session.add(
+            ClinicMembershipModel(
+                id=uuid4(),
+                user_id=user.id,
+                clinic_id=clinic_id,
+                is_active=True,
+                granted_at=datetime.now(UTC),
+            )
+        )
+        session.commit()
+
+    response = await client.post(
+        "/api/v1/auth/login",
+        json={"login": user.email, "password": "s3nhaForte!", "remember_me": False},
+    )
+    assert response.status_code == 200
+    assert response.json()["user"]["role_scope"] == "CLINIC"
+    assert response.json()["user"]["clinic_ids"] == [str(clinic_id)]
 
 
 async def test_revoked_lab_membership_invalidates_an_existing_session(
@@ -686,3 +744,74 @@ async def test_login_is_rate_limited_after_repeated_wrong_passwords(
         },
     )
     assert blocked.status_code == 429
+
+
+async def test_update_user_access_is_versioned_atomic_and_revokes_sessions(
+    client: httpx.AsyncClient, session_factory: sessionmaker[Session]
+) -> None:
+    _create_user(
+        session_factory,
+        email="admin-access@vertere.local",
+        password="s3nhaForte!",
+        role_id=ROLE_SUPER_ADMIN,
+    )
+    target = _create_user(
+        session_factory,
+        email="target-access@vertere.local",
+        password="s3nhaForte!",
+        role_id=ROLE_RECEPTION,
+    )
+    target_login = await client.post(
+        "/api/v1/auth/login",
+        json={"login": target.email, "password": "s3nhaForte!", "remember_me": False},
+    )
+    assert target_login.status_code == 200
+
+    admin_login = await client.post(
+        "/api/v1/auth/login",
+        json={
+            "login": "admin-access@vertere.local",
+            "password": "s3nhaForte!",
+            "remember_me": False,
+        },
+    )
+    assert admin_login.status_code == 200
+    response = await client.patch(
+        f"/api/v1/users/{target.id}/access",
+        json={"role_id": str(ROLE_LAB_ADMIN), "clinic_ids": [], "expected_row_version": 1},
+    )
+    assert response.status_code == 200
+    assert response.json()["role_id"] == str(ROLE_LAB_ADMIN)
+    assert response.json()["row_version"] == 2
+
+    stale = await client.patch(
+        f"/api/v1/users/{target.id}/access",
+        json={"role_id": str(ROLE_RECEPTION), "clinic_ids": [], "expected_row_version": 1},
+    )
+    assert stale.status_code == 409
+
+    with session_factory() as session:
+        stored = session.get(UserModel, target.id)
+        assert stored is not None
+        assert stored.role_id == ROLE_LAB_ADMIN
+        assert stored.row_version == 2
+        active_sessions = (
+            session.execute(
+                select(SessionModel).where(
+                    SessionModel.user_id == target.id, SessionModel.revoked_at.is_(None)
+                )
+            )
+            .scalars()
+            .all()
+        )
+        assert active_sessions == []
+        audit = session.execute(
+            select(AuditLogModel).where(
+                AuditLogModel.action == "users.access_changed",
+                AuditLogModel.entity_id == str(target.id),
+            )
+        ).scalar_one()
+        assert audit.before_state is not None
+        assert audit.after_state is not None
+        assert audit.before_state["role_id"] == str(ROLE_RECEPTION)
+        assert audit.after_state["role_id"] == str(ROLE_LAB_ADMIN)

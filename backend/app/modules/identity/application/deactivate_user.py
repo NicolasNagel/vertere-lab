@@ -5,7 +5,7 @@ from uuid import UUID
 
 from app.modules.audit.domain.entities import ActorScope, AuditEntry
 from app.modules.audit.domain.repositories import AuditLogWriter
-from app.modules.identity.application.dtos import AuthenticatedUserDTO, UserSummaryDTO
+from app.modules.identity.application.dtos import UserSummaryDTO
 from app.modules.identity.domain.constants import CONTROL_PERMISSIONS
 from app.modules.identity.domain.errors import SelfLockoutError
 from app.modules.identity.domain.repositories import (
@@ -13,6 +13,7 @@ from app.modules.identity.domain.repositories import (
     SessionRepository,
     UserRepository,
 )
+from app.shared.application.authorization import ActorContext
 from app.shared.application.clock import Clock
 from app.shared.domain.errors import ForbiddenError, NotFoundError
 
@@ -21,7 +22,7 @@ _REQUIRED_PERMISSION = "users.deactivate"
 
 @dataclass(frozen=True, kw_only=True)
 class DeactivateUserCommand:
-    actor: AuthenticatedUserDTO
+    actor: ActorContext
     user_id: UUID
 
 

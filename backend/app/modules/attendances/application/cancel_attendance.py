@@ -21,7 +21,7 @@ from app.modules.attendances.application.mappers import attendance_to_dto
 from app.modules.attendances.domain.repositories import AttendanceRepository
 from app.modules.audit.domain.entities import ActorScope, AuditEntry
 from app.modules.audit.domain.repositories import AuditLogWriter
-from app.modules.identity.application.dtos import AuthenticatedUserDTO
+from app.shared.application.authorization import ActorContext
 from app.shared.application.clock import Clock
 from app.shared.domain.errors import ForbiddenError, NotFoundError, ValidationError
 
@@ -30,7 +30,7 @@ _REQUIRED_PERMISSION = "attendances.cancel"
 
 @dataclass(frozen=True, kw_only=True)
 class CancelAttendanceCommand:
-    actor: AuthenticatedUserDTO
+    actor: ActorContext
     attendance_id: UUID
     reason: str
 

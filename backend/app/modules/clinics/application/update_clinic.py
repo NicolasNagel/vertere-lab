@@ -11,7 +11,7 @@ from app.modules.clinics.domain.entities import ClinicStatus
 from app.modules.clinics.domain.errors import DuplicateTaxIdError
 from app.modules.clinics.domain.repositories import ClinicRepository
 from app.modules.clinics.domain.value_objects import TaxId
-from app.modules.identity.application.dtos import AuthenticatedUserDTO
+from app.shared.application.authorization import ActorContext
 from app.shared.application.clock import Clock
 from app.shared.domain.errors import ConflictError, ForbiddenError, NotFoundError
 
@@ -20,7 +20,7 @@ _REQUIRED_PERMISSION = "clinics.manage"
 
 @dataclass(frozen=True, kw_only=True)
 class UpdateClinicCommand:
-    actor: AuthenticatedUserDTO
+    actor: ActorContext
     clinic_id: UUID
     name: str
     tax_id: str | None
@@ -54,6 +54,8 @@ class UpdateClinicUseCase:
         if _REQUIRED_PERMISSION not in command.actor.permissions:
             raise ForbiddenError(f"Permissão ausente: {_REQUIRED_PERMISSION}")
 
+        if not command.actor.can_access_clinic(command.clinic_id):
+            raise NotFoundError("Clínica não encontrada.")
         clinic = self._clinics.get_by_id(command.clinic_id)
         if clinic is None:
             raise NotFoundError("Clínica não encontrada.")

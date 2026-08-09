@@ -21,8 +21,9 @@ const attendancePatientSchema = z.object({
 
 type AttendancePatientFields = z.infer<typeof attendancePatientSchema>
 
-function toApiValues(fields: AttendancePatientFields): PatientFormValues {
+function toApiValues(fields: AttendancePatientFields, clinicId: string): PatientFormValues {
   return {
+    clinicId,
     name: fields.name,
     speciesId: fields.speciesId,
     sex: fields.sex,
@@ -42,6 +43,7 @@ function describeError(error: unknown): string | null {
 }
 
 interface AttendancePatientFormProps {
+  clinicId: string
   submitting: boolean
   error?: unknown
   onCancel: () => void
@@ -55,6 +57,7 @@ interface AttendancePatientFormProps {
  * telefone/documento/observação e layout de 2 colunas — divergiu demais
  * para forçar o mesmo componente sem quebrar um dos dois lugares). */
 export function AttendancePatientForm({
+  clinicId,
   submitting,
   error,
   onCancel,
@@ -83,7 +86,7 @@ export function AttendancePatientForm({
   const sex = watch('sex')
 
   const onSubmit = handleSubmit((fields) => {
-    onSubmitCreate(toApiValues(fields))
+    onSubmitCreate(toApiValues(fields, clinicId))
   })
 
   function selectSex(value: PatientSex) {

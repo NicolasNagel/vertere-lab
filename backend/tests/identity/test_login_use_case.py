@@ -6,12 +6,19 @@ from uuid import uuid4
 import pytest
 
 from app.modules.identity.application.login import LoginCommand, LoginUseCase
-from app.modules.identity.domain.entities import LabMembership, Role, RoleScope, User
+from app.modules.identity.domain.entities import (
+    ClinicMembership,
+    LabMembership,
+    Role,
+    RoleScope,
+    User,
+)
 from app.modules.identity.domain.errors import AccountInactiveError, InvalidCredentialsError
 from app.modules.identity.domain.value_objects import Email
 from app.shared.domain.errors import RateLimitedError
 from tests.identity.fakes import (
     FakeAuditLogWriter,
+    FakeClinicMembershipRepository,
     FakeClock,
     FakeLabMembershipRepository,
     FakeLoginFailureRepository,
@@ -39,11 +46,13 @@ def _make_use_case(
     sessions = FakeSessionRepository()
     audit = FakeAuditLogWriter()
     memberships = FakeLabMembershipRepository()
+    clinic_memberships = FakeClinicMembershipRepository()
     use_case = LoginUseCase(
         users=users,
         roles=roles,
         sessions=sessions,
         memberships=memberships,
+        clinic_memberships=clinic_memberships,
         login_failures=FakeLoginFailureRepository(),
         password_hasher=FakePasswordHasher(),
         token_generator=FakeSessionTokens(),
@@ -107,23 +116,27 @@ def test_login_succeeds_for_active_user_with_correct_password() -> None:
     assert audit.entries[-1].action == "auth.login_succeeded"
 
 
-def test_login_rejects_clinic_role_while_client_access_is_not_available() -> None:
+def test_login_accepts_clinic_role_with_active_clinic_membership() -> None:
     use_case, users, roles, memberships, audit = _make_use_case()
-    _add_user(users, roles, memberships, scope=RoleScope.CLINIC)
+    user = _add_user(users, roles, memberships, scope=RoleScope.CLINIC)
+    clinic_id = uuid4()
+    use_case._clinic_memberships.add(
+        ClinicMembership(id=uuid4(), user_id=user.id, clinic_id=clinic_id, granted_at=_NOW)
+    )
 
-    with pytest.raises(InvalidCredentialsError):
-        use_case.execute(
-            LoginCommand(
-                login="reception@vertere.local",
-                password="correct-password",
-                remember_me=False,
-                ip_address=None,
-                user_agent=None,
-                request_id=None,
-            )
+    result = use_case.execute(
+        LoginCommand(
+            login="reception@vertere.local",
+            password="correct-password",
+            remember_me=False,
+            ip_address=None,
+            user_agent=None,
+            request_id=None,
         )
-
-    assert audit.entries[-1].after_state == {"reason": "internal_access_unavailable"}
+    )
+    assert result.user.role_scope == "CLINIC"
+    assert result.user.clinic_ids == frozenset({clinic_id})
+    assert audit.entries[-1].action == "auth.login_succeeded"
 
 
 def test_login_rejects_internal_user_without_active_lab_membership() -> None:

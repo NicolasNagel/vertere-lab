@@ -3,8 +3,9 @@ import { SearchIcon } from '../../../shared/ui/icons'
 import { KebabMenu, type KebabMenuItem } from '../../../shared/ui/kebab-menu'
 import { Pagination } from '../../../shared/ui/pagination'
 import { getInitials, pluralize } from '../../../shared/lib/formatters'
-import type { SelectOption } from '../../../shared/ui/select'
 import type { User } from '../api/users-api'
+import type { Clinic } from '../../clinics/api/clinics-api'
+import type { Role } from '../../roles/api/roles-api'
 import { AssignRoleDialog } from './assign-role-dialog'
 import './user-list.css'
 
@@ -45,14 +46,15 @@ interface UserListProps {
   canAssignRole: boolean
   canDeactivate: boolean
   canActivate: boolean
-  roleOptions: SelectOption[]
+  roles: Role[]
+  clinics: Clinic[]
   assigningRoleForId: string | null
   assignRoleSubmitting: boolean
   assignRoleError?: unknown
   statusChangeError?: unknown
   onStartAssignRole: (id: string) => void
   onCancelAssignRole: () => void
-  onSubmitAssignRole: (id: string, roleId: string) => void
+  onSubmitAssignRole: (user: User, roleId: string, clinicIds: string[]) => void
   onDeactivate: (id: string) => void
   onActivate: (id: string) => void
 }
@@ -72,7 +74,8 @@ export function UserList({
   canAssignRole,
   canDeactivate,
   canActivate,
-  roleOptions,
+  roles,
+  clinics,
   assigningRoleForId,
   assignRoleSubmitting,
   assignRoleError,
@@ -163,11 +166,13 @@ export function UserList({
                   <div className="user-list__row-popover">
                     <AssignRoleDialog
                       currentRoleId={user.roleId}
-                      roleOptions={roleOptions}
+                      currentClinicIds={user.clinicIds ?? []}
+                      roles={roles}
+                      clinics={clinics}
                       submitting={assignRoleSubmitting}
                       error={assignRoleError}
                       onCancel={onCancelAssignRole}
-                      onSubmit={(roleId) => onSubmitAssignRole(user.id, roleId)}
+                      onSubmit={(roleId, clinicIds) => onSubmitAssignRole(user, roleId, clinicIds)}
                     />
                   </div>
                 )}

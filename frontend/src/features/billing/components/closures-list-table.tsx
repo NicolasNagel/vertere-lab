@@ -1,6 +1,6 @@
 import { Link } from 'react-router'
 
-import { formatCompetence, formatCurrencyBRL, formatDate } from '../../../shared/lib/formatters'
+import { formatCurrencyBRL, formatDate } from '../../../shared/lib/formatters'
 import type { MonthlyClosureSummary } from '../api/closures-api'
 import { MonthlyClosureStatusBadge } from './monthly-closure-status-badge'
 import './closures-list-table.css'
@@ -24,7 +24,7 @@ export function ClosuresListTable({ closures, clinicNameById }: ClosuresListTabl
   return (
     <div className="closures-list-table">
       <div className="closures-list-table__header">
-        <div>Competência</div>
+        <div>Período</div>
         <div>Clínica</div>
         <div>Itens</div>
         <div className="closures-list-table__value-header">Total</div>
@@ -34,11 +34,11 @@ export function ClosuresListTable({ closures, clinicNameById }: ClosuresListTabl
       {closures.map((closure) => (
         <Link
           key={closure.id}
-          to={`/financeiro/fechamentos/${closure.id}`}
+          to={`/financeiro/fechamento?clinicId=${closure.clinicId}&periodStart=${closure.periodStart}&periodEnd=${closure.periodEnd}`}
           className="closures-list-table__row"
         >
-          <div className="closures-list-table__competence">
-            {formatCompetence(closure.competenceYear, closure.competenceMonth)}
+          <div className="closures-list-table__period">
+            {formatDate(closure.periodStart)} – {formatDate(closure.periodEnd)}
           </div>
           <div className="closures-list-table__clinic" title={clinicNameById[closure.clinicId] ?? '—'}>
             {clinicNameById[closure.clinicId] ?? '—'}

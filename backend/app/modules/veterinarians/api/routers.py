@@ -18,7 +18,6 @@ from app.api.dependencies import get_session, get_unit_of_work
 from app.modules.audit.infrastructure.repositories import SqlAlchemyAuditLogWriter
 from app.modules.clinics.infrastructure.repositories import SqlAlchemyClinicRepository
 from app.modules.identity.api.dependencies import require_permission
-from app.modules.identity.application.dtos import AuthenticatedUserDTO
 from app.modules.veterinarian_clinics.application.link_veterinarian_to_clinic import (
     LinkVeterinarianToClinicCommand,
     LinkVeterinarianToClinicUseCase,
@@ -67,6 +66,7 @@ from app.modules.veterinarians.application.update_veterinarian import (
 )
 from app.modules.veterinarians.domain.entities import VeterinarianStatus
 from app.modules.veterinarians.infrastructure.repositories import SqlAlchemyVeterinarianRepository
+from app.shared.application.authorization import ActorContext
 from app.shared.infrastructure.clock import SystemClock
 from app.shared.infrastructure.uow import SqlAlchemyUnitOfWork
 
@@ -98,7 +98,7 @@ def list_veterinarians(
     search: str | None = Query(None),
     available_for_clinic_id: UUID | None = Query(None),
     session: SqlAlchemySession = Depends(get_session),
-    current_user: AuthenticatedUserDTO = Depends(require_permission("veterinarians.read")),
+    current_user: ActorContext = Depends(require_permission("veterinarians.read")),
 ) -> VeterinarianListResponse:
     use_case = ListVeterinariansUseCase(veterinarians=SqlAlchemyVeterinarianRepository(session))
     result = use_case.execute(
@@ -124,7 +124,7 @@ def list_veterinarians(
 def get_veterinarian(
     veterinarian_id: UUID,
     session: SqlAlchemySession = Depends(get_session),
-    current_user: AuthenticatedUserDTO = Depends(require_permission("veterinarians.read")),
+    current_user: ActorContext = Depends(require_permission("veterinarians.read")),
 ) -> VeterinarianDetailRead:
     use_case = GetVeterinarianUseCase(veterinarians=SqlAlchemyVeterinarianRepository(session))
     result = use_case.execute(
@@ -154,7 +154,7 @@ def get_veterinarian(
 def create_veterinarian(
     payload: VeterinarianCreateRequest,
     uow: SqlAlchemyUnitOfWork = Depends(get_unit_of_work),
-    current_user: AuthenticatedUserDTO = Depends(require_permission("veterinarians.manage")),
+    current_user: ActorContext = Depends(require_permission("veterinarians.manage")),
 ) -> VeterinarianRead:
     with uow:
         use_case = CreateVeterinarianUseCase(
@@ -186,7 +186,7 @@ def update_veterinarian(
     veterinarian_id: UUID,
     payload: VeterinarianUpdateRequest,
     uow: SqlAlchemyUnitOfWork = Depends(get_unit_of_work),
-    current_user: AuthenticatedUserDTO = Depends(require_permission("veterinarians.manage")),
+    current_user: ActorContext = Depends(require_permission("veterinarians.manage")),
 ) -> VeterinarianRead:
     with uow:
         use_case = UpdateVeterinarianUseCase(
@@ -216,7 +216,7 @@ def update_veterinarian(
 def deactivate_veterinarian(
     veterinarian_id: UUID,
     uow: SqlAlchemyUnitOfWork = Depends(get_unit_of_work),
-    current_user: AuthenticatedUserDTO = Depends(require_permission("veterinarians.manage")),
+    current_user: ActorContext = Depends(require_permission("veterinarians.manage")),
 ) -> VeterinarianRead:
     with uow:
         use_case = DeactivateVeterinarianUseCase(
@@ -236,7 +236,7 @@ def link_veterinarian_clinic(
     veterinarian_id: UUID,
     payload: VeterinarianLinkClinicRequest,
     uow: SqlAlchemyUnitOfWork = Depends(get_unit_of_work),
-    current_user: AuthenticatedUserDTO = Depends(require_permission("veterinarians.manage")),
+    current_user: ActorContext = Depends(require_permission("veterinarians.manage")),
 ) -> None:
     with uow:
         use_case = LinkVeterinarianToClinicUseCase(
@@ -262,7 +262,7 @@ def unlink_veterinarian_clinic(
     veterinarian_id: UUID,
     clinic_id: UUID,
     uow: SqlAlchemyUnitOfWork = Depends(get_unit_of_work),
-    current_user: AuthenticatedUserDTO = Depends(require_permission("veterinarians.manage")),
+    current_user: ActorContext = Depends(require_permission("veterinarians.manage")),
 ) -> None:
     with uow:
         use_case = UnlinkVeterinarianFromClinicUseCase(

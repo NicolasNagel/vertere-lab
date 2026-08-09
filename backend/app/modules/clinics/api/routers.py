@@ -36,7 +36,6 @@ from app.modules.clinics.application.update_clinic import UpdateClinicCommand, U
 from app.modules.clinics.domain.entities import ClinicStatus
 from app.modules.clinics.infrastructure.repositories import SqlAlchemyClinicRepository
 from app.modules.identity.api.dependencies import require_permission
-from app.modules.identity.application.dtos import AuthenticatedUserDTO
 from app.modules.veterinarian_clinics.application.list_veterinarians_for_clinic import (
     ListVeterinariansForClinicQuery,
     ListVeterinariansForClinicUseCase,
@@ -45,6 +44,7 @@ from app.modules.veterinarian_clinics.infrastructure.repositories import (
     SqlAlchemyVeterinarianClinicLinkRepository,
 )
 from app.modules.veterinarians.infrastructure.repositories import SqlAlchemyVeterinarianRepository
+from app.shared.application.authorization import ActorContext
 from app.shared.infrastructure.clock import SystemClock
 from app.shared.infrastructure.uow import SqlAlchemyUnitOfWork
 
@@ -80,7 +80,7 @@ def list_clinics(
     status: ClinicStatus | None = Query(None),
     search: str | None = Query(None),
     session: SqlAlchemySession = Depends(get_session),
-    current_user: AuthenticatedUserDTO = Depends(require_permission("clinics.read")),
+    current_user: ActorContext = Depends(require_permission("clinics.read")),
 ) -> ClinicListResponse:
     use_case = ListClinicsUseCase(clinics=SqlAlchemyClinicRepository(session))
     result = use_case.execute(
@@ -100,7 +100,7 @@ def list_clinics(
 def get_clinic(
     clinic_id: UUID,
     session: SqlAlchemySession = Depends(get_session),
-    current_user: AuthenticatedUserDTO = Depends(require_permission("clinics.read")),
+    current_user: ActorContext = Depends(require_permission("clinics.read")),
 ) -> ClinicDetailRead:
     use_case = GetClinicUseCase(clinics=SqlAlchemyClinicRepository(session))
     result = use_case.execute(GetClinicQuery(actor=current_user, clinic_id=clinic_id))
@@ -129,7 +129,7 @@ def get_clinic(
 def create_clinic(
     payload: ClinicCreateRequest,
     uow: SqlAlchemyUnitOfWork = Depends(get_unit_of_work),
-    current_user: AuthenticatedUserDTO = Depends(require_permission("clinics.manage")),
+    current_user: ActorContext = Depends(require_permission("clinics.manage")),
 ) -> ClinicRead:
     with uow:
         use_case = CreateClinicUseCase(
@@ -163,7 +163,7 @@ def update_clinic(
     clinic_id: UUID,
     payload: ClinicUpdateRequest,
     uow: SqlAlchemyUnitOfWork = Depends(get_unit_of_work),
-    current_user: AuthenticatedUserDTO = Depends(require_permission("clinics.manage")),
+    current_user: ActorContext = Depends(require_permission("clinics.manage")),
 ) -> ClinicRead:
     with uow:
         use_case = UpdateClinicUseCase(
@@ -199,7 +199,7 @@ def update_clinic(
 def deactivate_clinic(
     clinic_id: UUID,
     uow: SqlAlchemyUnitOfWork = Depends(get_unit_of_work),
-    current_user: AuthenticatedUserDTO = Depends(require_permission("clinics.manage")),
+    current_user: ActorContext = Depends(require_permission("clinics.manage")),
 ) -> ClinicRead:
     with uow:
         use_case = DeactivateClinicUseCase(

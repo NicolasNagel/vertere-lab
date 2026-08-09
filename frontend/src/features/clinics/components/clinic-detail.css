@@ -172,24 +172,65 @@
   list-style: none;
   margin: 0;
   padding: 0;
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
 }
 
+/* Borders (not `gap` + parent background) draw the dividers between rows/columns —
+   with an odd number of veterinarians the last grid cell has no <li> in it, and a
+   gap-revealed background would show as a stray patch there instead of blending in. */
 .clinic-detail__vets-row {
   display: flex;
   align-items: center;
-  gap: 0.625rem; /* 10px */
+  gap: 0.75rem; /* 12px */
   padding: 0.75rem 1.125rem; /* 12px 18px */
-  border-bottom: 1px solid #f0ede5;
+  background: #ffffff;
   font-size: 0.8125rem;
+  border-bottom: 1px solid #f0ede5;
 }
 
-.clinic-detail__vets-row:last-child {
-  border-bottom: none;
+.clinic-detail__vets-row:nth-child(odd) {
+  border-right: 1px solid #f0ede5;
+}
+
+/* A lone odd item in the final row (odd total veterinarians) has nothing beside
+   it, so no divider to its right. */
+.clinic-detail__vets-row:nth-child(odd):last-child {
+  border-right: none;
+}
+
+.clinic-detail__vets-avatar {
+  width: 2rem; /* 32px */
+  height: 2rem;
+  flex: 0 0 auto;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #e8f1f1;
+  color: var(--color-brand-ink);
+  font-weight: 600;
+  font-size: 0.6875rem;
+}
+
+.clinic-detail__vets-info {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
 }
 
 .clinic-detail__vets-name {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
   font-weight: 600;
   color: #1f3450;
+}
+
+.clinic-detail__vets-crmv {
+  font-size: 0.6875rem;
+  color: var(--color-text-secondary);
+  margin-top: 0.125rem;
 }
 
 .clinic-detail__vets-primary {

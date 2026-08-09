@@ -11,6 +11,7 @@ writer in this module.
 from __future__ import annotations
 
 from collections.abc import Sequence
+from datetime import date
 from uuid import UUID
 
 from sqlalchemy import Row, Select, func, select, text, update
@@ -32,26 +33,33 @@ from app.modules.billing.infrastructure.models import (
     MonthlyClosureItemModel,
     MonthlyClosureModel,
 )
+from app.modules.catalog.infrastructure.models import ExamCategoryModel, ExamModel
 from app.modules.patients.infrastructure.models import PatientModel
 
 
 def _candidates_query(
     *, clinic_id: UUID, period: CompetencePeriod
-) -> Select[tuple[AttendanceModel, AttendanceExamModel, str]]:
+) -> Select[tuple[AttendanceModel, AttendanceExamModel, str, str]]:
+    # Category joined from the *live* catalog — acceptable only here because
+    # the preview never persists (`.claude/rules/13-monthly-closure.md`); the
+    # close use case below captures this same value into the immutable
+    # snapshot at the moment of closing, never re-reading it afterwards.
     return (
-        select(AttendanceModel, AttendanceExamModel, PatientModel.name)
+        select(AttendanceModel, AttendanceExamModel, PatientModel.name, ExamCategoryModel.name)
         .join(AttendanceExamModel, AttendanceExamModel.attendance_id == AttendanceModel.id)
         .join(PatientModel, PatientModel.id == AttendanceModel.patient_id)
+        .join(ExamModel, ExamModel.id == AttendanceExamModel.exam_id)
+        .join(ExamCategoryModel, ExamCategoryModel.id == ExamModel.category_id)
         .where(
             AttendanceModel.clinic_id == clinic_id,
-            AttendanceModel.billing_competence >= period.period_start,
-            AttendanceModel.billing_competence <= period.period_end,
+            AttendanceModel.service_date >= period.period_start,
+            AttendanceModel.service_date <= period.period_end,
         )
     )
 
 
 def _rows_to_candidates(
-    rows: Sequence[Row[tuple[AttendanceModel, AttendanceExamModel, str]]],
+    rows: Sequence[Row[tuple[AttendanceModel, AttendanceExamModel, str, str]]],
 ) -> list[ClosureCandidateItem]:
     return [
         ClosureCandidateItem(
@@ -59,11 +67,14 @@ def _rows_to_candidates(
             attendance_exam_id=exam_item.id,
             attendance_status=attendance.status,
             item_status=exam_item.status,
+            service_date=attendance.service_date,
             billing_competence=attendance.billing_competence,
             monthly_closure_id=attendance.monthly_closure_id,
             protocol_number=attendance.protocol_number,
             patient_name=patient_name,
             exam_name=exam_item.exam_name,
+            service_level=attendance.service_level,
+            exam_category=exam_category_name,
             price_base=exam_item.price_base,
             quantity=exam_item.quantity,
             discount_amount=exam_item.discount_amount,
@@ -71,7 +82,7 @@ def _rows_to_candidates(
             total_amount=exam_item.total_amount,
             attendance_on_call_fee=attendance.on_call_fee,
         )
-        for attendance, exam_item, patient_name in rows
+        for attendance, exam_item, patient_name, exam_category_name in rows
     ]
 
 
@@ -126,6 +137,8 @@ def _item_to_domain(model: MonthlyClosureItemModel) -> MonthlyClosureItem:
         protocol_number=model.protocol_number,
         patient_name=model.patient_name,
         exam_name=model.exam_name,
+        service_level=model.service_level,
+        exam_category=model.exam_category,
         price_base=model.price_base,
         quantity=model.quantity,
         discount_amount=model.discount_amount,
@@ -184,20 +197,21 @@ class SqlAlchemyMonthlyClosureRepository:
     def __init__(self, session: SqlAlchemySession) -> None:
         self._session = session
 
-    def acquire_active_lock(self, *, clinic_id: UUID, year: int, month: int) -> None:
-        # Two independent int4 keys, not one hashed bigint: the period key
-        # is exact (never collides), only the clinic-id hash could theoretically
-        # collide — and a collision there only serializes two unrelated
-        # closes for a moment, it never lets a wrong pair through
-        # (`.claude/rules/03-database.md`: "advisory lock transacional...
-        # por clínica + competência").
+    def acquire_active_lock(self, *, clinic_id: UUID) -> None:
+        # Scoped to the clinic only — periods are free-form now, so there is
+        # no exact period key to lock on; the DB's EXCLUDE constraint
+        # (migration 0037) is the real uniqueness invariant. This lock only
+        # needs to serialize two concurrent closes for the same clinic long
+        # enough for the "already exists" check right after it to be
+        # race-free (`.claude/rules/03-database.md`: "advisory lock
+        # transacional... por clínica").
         self._session.execute(
-            text("SELECT pg_advisory_xact_lock(hashtext(:clinic_key), :period_key)"),
-            {"clinic_key": str(clinic_id), "period_key": year * 100 + month},
+            text("SELECT pg_advisory_xact_lock(hashtext(:clinic_key)::bigint)"),
+            {"clinic_key": str(clinic_id)},
         )
 
     def get_active_for_clinic_and_period(
-        self, *, clinic_id: UUID, year: int, month: int
+        self, *, clinic_id: UUID, period_start: date, period_end: date
     ) -> MonthlyClosure | None:
         model = self._session.execute(
             select(MonthlyClosureModel)
@@ -205,10 +219,11 @@ class SqlAlchemyMonthlyClosureRepository:
             .options(selectinload(MonthlyClosureModel.adjustments))
             .where(
                 MonthlyClosureModel.clinic_id == clinic_id,
-                MonthlyClosureModel.competence_year == year,
-                MonthlyClosureModel.competence_month == month,
+                MonthlyClosureModel.period_start <= period_end,
+                MonthlyClosureModel.period_end >= period_start,
                 MonthlyClosureModel.status == ClosureStatus.CLOSED.value,
             )
+            .limit(1)
         ).scalar_one_or_none()
         return _closure_to_domain(model) if model is not None else None
 
@@ -244,6 +259,8 @@ class SqlAlchemyMonthlyClosureRepository:
                         protocol_number=item.protocol_number,
                         patient_name=item.patient_name,
                         exam_name=item.exam_name,
+                        service_level=item.service_level,
+                        exam_category=item.exam_category,
                         price_base=item.price_base,
                         quantity=item.quantity,
                         discount_amount=item.discount_amount,
@@ -275,7 +292,7 @@ class SqlAlchemyMonthlyClosureRepository:
         return _closure_to_domain(model) if model is not None else None
 
     def get_latest_for_clinic_and_period(
-        self, *, clinic_id: UUID, year: int, month: int
+        self, *, clinic_id: UUID, period_start: date, period_end: date
     ) -> MonthlyClosure | None:
         model = self._session.execute(
             select(MonthlyClosureModel)
@@ -283,8 +300,8 @@ class SqlAlchemyMonthlyClosureRepository:
             .options(selectinload(MonthlyClosureModel.adjustments))
             .where(
                 MonthlyClosureModel.clinic_id == clinic_id,
-                MonthlyClosureModel.competence_year == year,
-                MonthlyClosureModel.competence_month == month,
+                MonthlyClosureModel.period_start <= period_end,
+                MonthlyClosureModel.period_end >= period_start,
             )
             .order_by(MonthlyClosureModel.version.desc())
             .limit(1)

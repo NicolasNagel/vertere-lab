@@ -71,8 +71,26 @@ imports.execute
 - usuário de clínica nunca escolhe `clinic_id` fora das memberships;
 - usuário interno com escopo global precisa de permissão explícita;
 - alteração de papel é auditada;
+- papel e memberships são alterados atomicamente com `expected_row_version`;
+- mudança de acesso revoga todas as sessões do usuário afetado;
 - privilégios críticos podem exigir reautenticação;
 - nenhum endpoint sensível depende apenas de ocultar botão.
+
+Contrato de acesso:
+
+```text
+PATCH /api/v1/users/{id}/access { role_id, clinic_ids, expected_row_version }
+PATCH /api/v1/users/{id}/role   # compatibilidade, depreciado
+```
+
+Login e leituras de usuário expõem `role_scope`, `clinic_ids` e `row_version`. Papéis `CLINIC`
+exigem ao menos uma membership ativa; papéis `LAB`/`GLOBAL` exigem membership de laboratório
+ativa.
+
+Cadastros estruturantes usam o mesmo contexto: atores `CLINIC` só listam suas clínicas e os
+veterinários/pacientes associados a elas. `Patient` expõe e recebe `clinic_id`; linhas anteriores
+à migration `0038` podem permanecer `NULL`, ficam restritas a `LAB/GLOBAL` e só recebem clínica
+por atualização auditada. A confirmação de atendimento rejeita paciente de clínica diferente.
 
 ## 3. Registro de Atendimento
 
@@ -148,18 +166,21 @@ GET    /api/v1/attendances/{id}/timeline
 
 Cadastros possuem endpoints próprios. Não criar proprietário/paciente implicitamente dentro de `/confirm`.
 
-## 4. Fechamento mensal
+## 4. Fechamento por período
 
-### 4.1 Conceito de competência
+### 4.1 Conceito de período
 
-A competência deve ser definida explicitamente por regra aprovada. Recomendação inicial: usar `service_date` do atendimento, armazenando `billing_competence` no momento da confirmação. Mudanças retroativas seguem política formal.
+O fechamento aceita qualquer intervalo civil inclusivo (`period_start`/`period_end`) e seleciona
+atendimentos por `service_date`. `billing_competence` continua gravada na confirmação para
+rastreabilidade financeira, mas não decide a elegibilidade do fechamento. Mudanças retroativas
+seguem política formal.
 
 ### 4.2 Prévia
 
 A prévia exibe:
 
 - clínica;
-- competência;
+- período;
 - quantidade de atendimentos;
 - quantidade de itens;
 - subtotal;
@@ -179,9 +200,9 @@ Pré-condições:
 
 - permissão `closures.close`;
 - clínica ativa ou elegível;
-- competência válida;
+- período válido (`period_end >= period_start`);
 - nenhuma inconsistência bloqueante;
-- nenhuma outra closure ativa;
+- nenhuma outra closure `CLOSED` sobreposta para a mesma clínica;
 - idempotency key;
 - justificativa quando a política exigir.
 
@@ -220,14 +241,19 @@ Reabertura é excepcional:
 ### 4.6 Endpoints iniciais
 
 ```text
-GET  /api/v1/closures/preview?clinic_id=&year=&month=
-POST /api/v1/closures
+GET  /api/v1/closures/preview?clinic_id=&period_start=&period_end=
+POST /api/v1/closures                 { clinic_id, period_start, period_end }
 GET  /api/v1/closures
 GET  /api/v1/closures/{id}
+GET  /api/v1/closures/by-period?clinic_id=&period_start=&period_end=
 POST /api/v1/closures/{id}/adjustments
 POST /api/v1/closures/{id}/reopen
 GET  /api/v1/closures/{id}/export
 ```
+
+Período de fechamento é livre (`period_start`/`period_end`), não só mês calendário — algumas
+clínicas fecham quinzenalmente. Elegibilidade decide por `service_date` do atendimento dentro do
+período (`.claude/rules/13-monthly-closure.md`).
 
 ## 5. Critérios de aceite do núcleo
 

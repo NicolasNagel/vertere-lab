@@ -29,6 +29,9 @@ class UserPublicRead(BaseModel):
     full_name: str
     role_id: UUID
     role_name: str
+    role_scope: Literal["GLOBAL", "LAB", "CLINIC"] = "LAB"
+    clinic_ids: list[UUID] = Field(default_factory=list)
+    row_version: int = 1
 
 
 class AuthResponse(BaseModel):
@@ -43,6 +46,9 @@ class UserListItemRead(BaseModel):
     is_active: bool
     role_id: UUID
     role_name: str
+    role_scope: Literal["GLOBAL", "LAB", "CLINIC"] = "LAB"
+    clinic_ids: list[UUID] = Field(default_factory=list)
+    row_version: int = 1
     created_at: datetime
 
 
@@ -59,6 +65,7 @@ class UserCreateRequest(BaseModel):
     email: EmailStr
     full_name: str = Field(min_length=1, max_length=200)
     role_id: UUID
+    clinic_ids: list[UUID] = Field(default_factory=list, max_length=100)
 
 
 class UserCreateResponse(BaseModel):
@@ -70,6 +77,14 @@ class AssignRoleRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     role_id: UUID
+
+
+class UpdateUserAccessRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    role_id: UUID
+    clinic_ids: list[UUID] = Field(default_factory=list, max_length=100)
+    expected_row_version: int = Field(ge=1)
 
 
 class RoleRead(BaseModel):

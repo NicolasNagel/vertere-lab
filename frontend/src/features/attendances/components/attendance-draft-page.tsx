@@ -266,6 +266,7 @@ export function AttendanceDraftPage() {
                   Paciente
                 </h2>
                 <AttendancePatientSection
+                  clinicId={clinicId}
                   selectedPatient={patient}
                   disabled={fieldsDisabled}
                   onSelect={handlePatientSelect}

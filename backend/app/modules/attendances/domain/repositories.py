@@ -22,6 +22,14 @@ from app.modules.attendances.domain.entities import (
 class AttendanceRepository(Protocol):
     def get_by_id(self, attendance_id: UUID) -> AttendanceRecord | None: ...
 
+    def get_by_legacy_source(
+        self, *, import_batch_id: UUID, source_row_number: int
+    ) -> AttendanceRecord | None:
+        """Idempotency lookup for Fase 4 (`.claude/rules/10-data-migration.md`:
+        "reprocessar não duplica") — a row already imported by this batch is
+        found here instead of being inserted again."""
+        ...
+
     def add(self, attendance: AttendanceRecord) -> None: ...
 
     def update(self, attendance: AttendanceRecord) -> None: ...

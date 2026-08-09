@@ -33,4 +33,5 @@ class VeterinarianRepository(Protocol):
         is_autonomous: bool | None,
         search: str | None,
         available_for_clinic_id: UUID | None = None,
+        allowed_clinic_ids: frozenset[UUID] | None = None,
     ) -> tuple[list[Veterinarian], int]: ...

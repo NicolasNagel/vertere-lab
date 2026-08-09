@@ -77,9 +77,9 @@ Qualquer erro nesse registro se propaga para histórico, laudo, comunicação, i
 - idempotência;
 - bloqueio financeiro após fechamento.
 
-#### Fechamento mensal
+#### Fechamento por período
 
-- prévia por clínica e competência;
+- prévia por clínica e período livre (`period_start`/`period_end`);
 - reconciliação de quantidade e valores;
 - fechamento transacional;
 - snapshot de itens;
@@ -203,14 +203,14 @@ Métricas principais:
 11. confirmação gera número transacional, snapshots financeiros e evento de auditoria;
 12. alterações posteriores obedecem estado, permissão, motivo e competência financeira.
 
-## 8. Jornada crítica: Fechamento mensal
+## 8. Jornada crítica: Fechamento por período
 
-1. financeiro escolhe clínica e competência;
+1. financeiro escolhe clínica e intervalo de datas;
 2. sistema verifica se o período está aberto;
 3. sistema apresenta prévia com itens elegíveis, cancelados, pendentes e inconsistentes;
 4. usuário resolve bloqueios obrigatórios;
 5. backend recalcula a prévia dentro da transação de fechamento;
-6. backend obtém lock lógico por clínica e competência;
+6. backend obtém lock lógico por clínica e impede sobreposição de períodos ativos;
 7. fechamento e itens-snapshot são persistidos;
 8. itens de atendimento recebem referência do fechamento;
 9. totais e contagens são reconciliados antes do commit;

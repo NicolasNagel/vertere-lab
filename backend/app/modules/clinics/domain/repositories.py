@@ -37,4 +37,5 @@ class ClinicRepository(Protocol):
         page_size: int,
         status: ClinicStatus | None,
         search: str | None,
+        clinic_ids: frozenset[UUID] | None = None,
     ) -> tuple[list[Clinic], int]: ...

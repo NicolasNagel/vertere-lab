@@ -171,6 +171,16 @@ O formulário de atendimento pode oferecer criação rápida, mas cada cadastro 
 6. atendimento;
 7. fechamento.
 
+### Escopo clínico dos cadastros
+
+- `Patient.clinic_id` referencia a clínica proprietária do cadastro;
+- novas criações exigem `clinic_id` e o backend valida o acesso do ator;
+- registros legados com `clinic_id = NULL` permanecem visíveis somente a `LAB/GLOBAL` até
+  reconciliação auditada;
+- paciente e atendimento devem pertencer à mesma clínica;
+- listas e leituras de clínicas, veterinários e pacientes aplicam o tenant antes da paginação;
+- recurso de outro tenant responde `404`, sem revelar sua existência.
+
 ## 5. Identidade e permissão
 
 ### Modelo
@@ -207,7 +217,7 @@ Toda autorização considera:
 
 Papéis são agrupadores de permissões, não regras hard-coded no domínio.
 
-## 6. Fechamento mensal
+## 6. Fechamento por período
 
 ### `MonthlyClosure`
 
@@ -245,10 +255,14 @@ Alternativos:
 
 ### Elegibilidade
 
+`competence_year` e `competence_month` são metadados históricos derivados de `period_start` e
+mantidos por compatibilidade. Elegibilidade e unicidade usam exclusivamente o intervalo
+`period_start`/`period_end`.
+
 Um item é elegível quando:
 
 - pertence à clínica;
-- está dentro da competência definida;
+- possui `service_date` dentro do período definido, inclusive nas duas extremidades;
 - atendimento não está cancelado;
 - item não está cancelado;
 - não pertence a outro fechamento ativo;
@@ -257,7 +271,7 @@ Um item é elegível quando:
 
 ### Invariantes
 
-- unicidade ativa por clínica e competência;
+- períodos `CLOSED` da mesma clínica não se sobrepõem;
 - fechamento fechado é imutável;
 - itens do fechamento são snapshots;
 - soma dos itens deve ser igual ao cabeçalho;
@@ -269,14 +283,15 @@ Um item é elegível quando:
 ## 7. Restrições de banco obrigatórias
 
 - `UNIQUE(protocol_year, protocol_sequence)`;
-- `UNIQUE(clinic_id, competence_year, competence_month)` para fechamento ativo, implementada conforme estratégia de status;
+- `EXCLUDE USING gist (clinic_id WITH =, daterange(period_start, period_end, '[]') WITH &&)`
+  para fechamentos `CLOSED`;
 - `CHECK(grand_total >= 0)`;
 - `CHECK(discount_total >= 0)`;
 - `CHECK(surcharge_total >= 0)`;
 - FKs para todos os cadastros;
 - `NUMERIC(14,2)` para dinheiro;
 - `TIMESTAMPTZ` para timestamps;
-- `DATE` ou ano/mês explícito para competência;
+- `DATE` para as extremidades do período;
 - índices por clínica, data, status, protocolo, paciente e veterinário;
 - versão de linha em edições concorrentes.
 
@@ -290,7 +305,7 @@ Ações mínimas:
 - criação e atualização de cadastro mestre;
 - confirmação, edição crítica e cancelamento de atendimento;
 - override de preço;
-- geração, fechamento, ajuste e reabertura mensal;
+- geração, fechamento, ajuste e reabertura por período;
 - importação e reconciliação.
 
 O log registra ator, escopo, ação, entidade, estado anterior reduzido, estado posterior reduzido, motivo, IP quando aplicável, request ID e timestamp. Não registra senha, token ou conteúdo sensível desnecessário.

@@ -292,9 +292,12 @@ def _get_species_id(session_factory: sessionmaker[Session], *, name: str) -> str
 
 async def _create_patient(client: httpx.AsyncClient, session_factory: sessionmaker[Session]) -> str:
     species_id = _get_species_id(session_factory, name="Canino")
+    with session_factory() as session:
+        clinic_id = str(session.execute(text("SELECT id FROM clinics LIMIT 1")).scalar_one())
     response = await client.post(
         "/api/v1/patients",
         json={
+            "clinic_id": clinic_id,
             "name": "Rex",
             "species_id": species_id,
             "sex": "MALE",

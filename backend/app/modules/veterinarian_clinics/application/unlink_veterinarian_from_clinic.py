@@ -5,10 +5,10 @@ from uuid import UUID
 
 from app.modules.audit.domain.entities import ActorScope, AuditEntry
 from app.modules.audit.domain.repositories import AuditLogWriter
-from app.modules.identity.application.dtos import AuthenticatedUserDTO
 from app.modules.veterinarian_clinics.domain.errors import LastClinicLinkRequiredError
 from app.modules.veterinarian_clinics.domain.repositories import VeterinarianClinicLinkRepository
 from app.modules.veterinarians.domain.repositories import VeterinarianRepository
+from app.shared.application.authorization import ActorContext
 from app.shared.domain.errors import ForbiddenError, NotFoundError
 
 _REQUIRED_PERMISSION = "veterinarians.manage"
@@ -16,7 +16,7 @@ _REQUIRED_PERMISSION = "veterinarians.manage"
 
 @dataclass(frozen=True, kw_only=True)
 class UnlinkVeterinarianFromClinicCommand:
-    actor: AuthenticatedUserDTO
+    actor: ActorContext
     veterinarian_id: UUID
     clinic_id: UUID
 
@@ -42,6 +42,8 @@ class UnlinkVeterinarianFromClinicUseCase:
         self._audit = audit
 
     def execute(self, command: UnlinkVeterinarianFromClinicCommand) -> None:
+        if not command.actor.can_access_clinic(command.clinic_id):
+            raise NotFoundError("Clínica não encontrada.")
         if _REQUIRED_PERMISSION not in command.actor.permissions:
             raise ForbiddenError(f"Permissão ausente: {_REQUIRED_PERMISSION}")
 

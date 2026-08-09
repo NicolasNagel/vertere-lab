@@ -8,7 +8,7 @@ from app.modules.attendances.application.dtos import AttendanceDTO
 from app.modules.attendances.application.mappers import attendance_to_dto
 from app.modules.attendances.domain.entities import AttendanceStatus, ServiceLevel
 from app.modules.attendances.domain.repositories import AttendanceRepository
-from app.modules.identity.application.dtos import AuthenticatedUserDTO
+from app.shared.application.authorization import ActorContext
 from app.shared.application.dtos import PageDTO
 from app.shared.domain.errors import ForbiddenError, ValidationError
 
@@ -17,7 +17,7 @@ _REQUIRED_PERMISSION = "attendances.read"
 
 @dataclass(frozen=True, kw_only=True)
 class ListAttendancesQuery:
-    actor: AuthenticatedUserDTO
+    actor: ActorContext
     page: int
     page_size: int
     clinic_id: UUID | None = None
@@ -33,7 +33,7 @@ class ListAttendancesQuery:
 
 @dataclass(frozen=True, kw_only=True)
 class CountAttendancesByStatusQuery:
-    actor: AuthenticatedUserDTO
+    actor: ActorContext
     clinic_id: UUID | None = None
     veterinarian_id: UUID | None = None
     service_level: ServiceLevel | None = None

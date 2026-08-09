@@ -59,11 +59,8 @@ export function Sidebar({ mobileOpen = false, onNavigate }: SidebarProps) {
   ]
 
   const financeNavEntries: SidebarNavItemProps[] = [
-    ...(permissions.includes('closures.read')
-      ? [{ icon: <BillingIcon />, label: 'Fechamentos', to: '/financeiro/fechamentos' }]
-      : []),
-    ...(permissions.includes('closures.preview')
-      ? [{ icon: <BillingIcon />, label: 'Novo fechamento', to: '/financeiro/fechamento' }]
+    ...(permissions.includes('closures.read') || permissions.includes('closures.preview')
+      ? [{ icon: <BillingIcon />, label: 'Fechamento', to: '/financeiro/fechamento' }]
       : []),
   ]
 

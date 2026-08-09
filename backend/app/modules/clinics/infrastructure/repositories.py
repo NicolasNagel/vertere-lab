@@ -117,8 +117,11 @@ class SqlAlchemyClinicRepository:
         page_size: int,
         status: ClinicStatus | None,
         search: str | None,
+        clinic_ids: frozenset[UUID] | None = None,
     ) -> tuple[list[Clinic], int]:
         conditions: list[ColumnElement[bool]] = []
+        if clinic_ids is not None:
+            conditions.append(ClinicModel.id.in_(clinic_ids))
         if status is not None:
             conditions.append(ClinicModel.status == status.value)
         if search:

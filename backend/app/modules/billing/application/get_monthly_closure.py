@@ -14,7 +14,7 @@ from uuid import UUID
 from app.modules.billing.application.dtos import MonthlyClosureDTO
 from app.modules.billing.application.mappers import monthly_closure_to_dto
 from app.modules.billing.domain.repositories import MonthlyClosureRepository
-from app.modules.identity.application.dtos import AuthenticatedUserDTO
+from app.shared.application.authorization import ActorContext
 from app.shared.domain.errors import ForbiddenError, NotFoundError
 
 _REQUIRED_PERMISSION = "closures.read"
@@ -22,7 +22,7 @@ _REQUIRED_PERMISSION = "closures.read"
 
 @dataclass(frozen=True, kw_only=True)
 class GetMonthlyClosureQuery:
-    actor: AuthenticatedUserDTO
+    actor: ActorContext
     closure_id: UUID
 
 

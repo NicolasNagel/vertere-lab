@@ -9,7 +9,7 @@ import { afterAll, afterEach, beforeAll, expect, test } from 'vitest'
 import { AuthProvider } from '../../auth/auth-provider'
 import { PatientsPage } from './patients-page'
 
-const server = setupServer()
+const server = setupServer(clinicsHandler())
 
 beforeAll(() => server.listen({ onUnhandledRequest: 'error' }))
 afterEach(() => server.resetHandlers())
@@ -31,6 +31,17 @@ function speciesHandler() {
         { id: 's1', name: 'Cão', created_at: '2026-01-01T00:00:00Z' },
         { id: 's2', name: 'Gato', created_at: '2026-01-01T00:00:00Z' },
       ],
+    }),
+  )
+}
+
+function clinicsHandler() {
+  return http.get('/api/v1/clinics', () =>
+    HttpResponse.json({
+      items: [{ id: 'c1', name: 'Clínica Central', status: 'ACTIVE' }],
+      total: 1,
+      page: 1,
+      page_size: 100,
     }),
   )
 }
@@ -92,6 +103,7 @@ test('shows the "Novo paciente" action for a user with patients.manage', async (
   server.use(
     meHandler(['patients.read', 'patients.manage']),
     speciesHandler(),
+    clinicsHandler(),
     patientsListHandler(),
   )
   renderWithProviders(<PatientsPage />)
@@ -104,6 +116,7 @@ test('creates a patient with embedded owner data and returns to the detail view'
   server.use(
     meHandler(['patients.read', 'patients.manage']),
     speciesHandler(),
+    clinicsHandler(),
     patientsListHandler(),
     http.post('/api/v1/patients', async ({ request }) => {
       const body = (await request.json()) as Record<string, unknown>
@@ -150,6 +163,7 @@ test('creates a patient with embedded owner data and returns to the detail view'
 
   await user.click(await screen.findByRole('button', { name: /Novo paciente/i }))
   await user.type(screen.getByLabelText('Nome do paciente'), 'Bidu')
+  await user.selectOptions(screen.getByLabelText('Clínica'), 'Clínica Central')
   await user.selectOptions(await screen.findByLabelText('Espécie'), 'Gato')
   await user.type(screen.getByLabelText('Nome do tutor'), 'Joana Lima')
   await user.click(screen.getByRole('button', { name: 'Salvar' }))

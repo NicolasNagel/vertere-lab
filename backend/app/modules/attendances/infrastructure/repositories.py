@@ -76,6 +76,9 @@ def _to_domain(model: AttendanceModel) -> AttendanceRecord:
         created_at=model.created_at,
         updated_at=model.updated_at,
         row_version=model.row_version,
+        legacy_source_row_number=model.legacy_source_row_number,
+        legacy_protocol_reference=model.legacy_protocol_reference,
+        import_batch_id=model.import_batch_id,
     )
 
 
@@ -87,6 +90,19 @@ class SqlAlchemyAttendanceRepository:
         model = self._session.execute(
             select(AttendanceModel)
             .where(AttendanceModel.id == attendance_id)
+            .options(selectinload(AttendanceModel.items))
+        ).scalar_one_or_none()
+        return _to_domain(model) if model is not None else None
+
+    def get_by_legacy_source(
+        self, *, import_batch_id: UUID, source_row_number: int
+    ) -> AttendanceRecord | None:
+        model = self._session.execute(
+            select(AttendanceModel)
+            .where(
+                AttendanceModel.import_batch_id == import_batch_id,
+                AttendanceModel.legacy_source_row_number == source_row_number,
+            )
             .options(selectinload(AttendanceModel.items))
         ).scalar_one_or_none()
         return _to_domain(model) if model is not None else None
@@ -119,6 +135,32 @@ class SqlAlchemyAttendanceRepository:
                 created_at=attendance.created_at,
                 updated_at=attendance.updated_at,
                 row_version=attendance.row_version,
+                legacy_source_row_number=attendance.legacy_source_row_number,
+                legacy_protocol_reference=attendance.legacy_protocol_reference,
+                import_batch_id=attendance.import_batch_id,
+                # Only ever non-empty for a migrated record
+                # (`AttendanceRecord.create_from_legacy_import`) — the live
+                # draft→confirm flow always calls `add()` with `items=[]`
+                # (drafting has none yet) and appends them later via
+                # `update()`, so this has no effect there.
+                items=[
+                    AttendanceExamModel(
+                        id=item.id,
+                        attendance_id=attendance.id,
+                        exam_id=item.exam_id,
+                        exam_code=item.exam_code,
+                        exam_name=item.exam_name,
+                        price_base=item.price_base,
+                        quantity=item.quantity,
+                        discount_amount=item.discount_amount,
+                        surcharge_amount=item.surcharge_amount,
+                        total_amount=item.total_amount,
+                        override_reason=item.override_reason,
+                        override_by=item.override_by,
+                        status=item.status.value,
+                    )
+                    for item in attendance.items
+                ],
             )
         )
 

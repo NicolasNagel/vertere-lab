@@ -34,7 +34,7 @@ _CLINIC_ID = uuid4()
 
 def _actor(*, permissions: frozenset[str]) -> AuthenticatedUserDTO:
     return AuthenticatedUserDTO(
-        id=uuid4(),
+        user_id=uuid4(),
         email="finance@vertere.local",
         full_name="Finance",
         role_id=uuid4(),
@@ -49,11 +49,14 @@ def _candidate(**overrides: object) -> ClosureCandidateItem:
         "attendance_exam_id": uuid4(),
         "attendance_status": "CONFIRMED",
         "item_status": "ACTIVE",
+        "service_date": date(2026, 1, 15),
         "billing_competence": date(2026, 1, 1),
         "monthly_closure_id": None,
         "protocol_number": "2026/000001",
         "patient_name": "Rex",
         "exam_name": "Hemograma",
+        "service_level": "NORMAL",
+        "exam_category": "Hematológico",
         "price_base": Decimal("100.00"),
         "quantity": 1,
         "discount_amount": Decimal("0"),
@@ -92,8 +95,8 @@ def _command(**overrides: object) -> CloseMonthlyPeriodCommand:
     defaults: dict[str, object] = {
         "actor": _actor(permissions=frozenset({"closures.close"})),
         "clinic_id": _CLINIC_ID,
-        "year": 2026,
-        "month": 1,
+        "period_start": date(2026, 1, 1),
+        "period_end": date(2026, 1, 31),
     }
     defaults.update(overrides)
     return CloseMonthlyPeriodCommand(**defaults)  # type: ignore[arg-type]
@@ -114,7 +117,7 @@ def test_unknown_clinic_is_not_found() -> None:
 def test_acquires_the_advisory_lock_before_checking_for_an_existing_closure() -> None:
     fixture = _Fixture(candidates=[_candidate()])
     fixture.use_case().execute(_command())
-    assert fixture.closures.lock_calls == [(_CLINIC_ID, 2026, 1)]
+    assert fixture.closures.lock_calls == [_CLINIC_ID]
 
 
 def test_rejects_when_an_active_closure_already_exists() -> None:

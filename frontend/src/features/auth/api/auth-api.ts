@@ -16,6 +16,9 @@ export interface AuthenticatedUser {
   fullName: string
   roleId: string
   roleName: string
+  roleScope: 'GLOBAL' | 'LAB' | 'CLINIC'
+  clinicIds: string[]
+  rowVersion: number
   permissions: string[]
 }
 
@@ -25,6 +28,9 @@ interface ApiUser {
   full_name: string
   role_id: string
   role_name: string
+  role_scope: 'GLOBAL' | 'LAB' | 'CLINIC'
+  clinic_ids: string[]
+  row_version: number
 }
 
 interface ApiAuthResponse {
@@ -48,6 +54,9 @@ async function parseAuthResponse(response: Response): Promise<AuthenticatedUser>
     fullName: body.user.full_name,
     roleId: body.user.role_id,
     roleName: body.user.role_name,
+    roleScope: body.user.role_scope,
+    clinicIds: body.user.clinic_ids,
+    rowVersion: body.user.row_version,
     permissions: body.permissions,
   }
 }

@@ -5,8 +5,9 @@ from uuid import UUID
 
 from app.modules.audit.domain.entities import ActorScope, AuditEntry
 from app.modules.audit.domain.repositories import AuditLogWriter
-from app.modules.identity.application.dtos import AuthenticatedUserDTO, UserSummaryDTO
+from app.modules.identity.application.dtos import UserSummaryDTO
 from app.modules.identity.domain.repositories import RoleRepository, UserRepository
+from app.shared.application.authorization import ActorContext
 from app.shared.application.clock import Clock
 from app.shared.domain.errors import ForbiddenError, NotFoundError
 
@@ -15,7 +16,7 @@ _REQUIRED_PERMISSION = "users.activate"
 
 @dataclass(frozen=True, kw_only=True)
 class ActivateUserCommand:
-    actor: AuthenticatedUserDTO
+    actor: ActorContext
     user_id: UUID
 
 

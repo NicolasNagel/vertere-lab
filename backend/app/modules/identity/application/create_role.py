@@ -5,11 +5,12 @@ from uuid import uuid4
 
 from app.modules.audit.domain.entities import ActorScope, AuditEntry
 from app.modules.audit.domain.repositories import AuditLogWriter
-from app.modules.identity.application.dtos import AuthenticatedUserDTO, RoleDTO
+from app.modules.identity.application.dtos import RoleDTO
 from app.modules.identity.domain.constants import MASTER_ONLY_PERMISSIONS
 from app.modules.identity.domain.entities import Role, RoleScope
 from app.modules.identity.domain.errors import RoleNameAlreadyExistsError
 from app.modules.identity.domain.repositories import PermissionRepository, RoleRepository
+from app.shared.application.authorization import ActorContext
 from app.shared.domain.errors import ForbiddenError, ValidationError
 
 _REQUIRED_PERMISSION = "roles.manage"
@@ -17,7 +18,7 @@ _REQUIRED_PERMISSION = "roles.manage"
 
 @dataclass(frozen=True, kw_only=True)
 class CreateRoleCommand:
-    actor: AuthenticatedUserDTO
+    actor: ActorContext
     name: str
     scope: RoleScope
     description: str

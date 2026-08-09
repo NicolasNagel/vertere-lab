@@ -99,12 +99,12 @@ from app.modules.audit.infrastructure.repositories import (
 from app.modules.catalog.infrastructure.repositories import SqlAlchemyExamRepository
 from app.modules.clinics.infrastructure.repositories import SqlAlchemyClinicRepository
 from app.modules.identity.api.dependencies import require_permission
-from app.modules.identity.application.dtos import AuthenticatedUserDTO
 from app.modules.patients.infrastructure.repositories import SqlAlchemyPatientRepository
 from app.modules.veterinarian_clinics.infrastructure.repositories import (
     SqlAlchemyVeterinarianClinicLinkRepository,
 )
 from app.modules.veterinarians.infrastructure.repositories import SqlAlchemyVeterinarianRepository
+from app.shared.application.authorization import ActorContext
 from app.shared.idempotency.application.guard import IdempotencyGuard
 from app.shared.idempotency.infrastructure.repositories import (
     SqlAlchemyIdempotencyRecordRepository,
@@ -189,7 +189,7 @@ def list_attendances(
     service_date_from: date | None = Query(None),
     service_date_to: date | None = Query(None),
     session: SqlAlchemySession = Depends(get_session),
-    current_user: AuthenticatedUserDTO = Depends(require_permission("attendances.read")),
+    current_user: ActorContext = Depends(require_permission("attendances.read")),
 ) -> AttendanceListResponse:
     use_case = ListAttendancesUseCase(attendances=SqlAlchemyAttendanceRepository(session))
     result = use_case.execute(
@@ -226,7 +226,7 @@ def get_attendance_status_counts(
     service_date_from: date | None = Query(None),
     service_date_to: date | None = Query(None),
     session: SqlAlchemySession = Depends(get_session),
-    current_user: AuthenticatedUserDTO = Depends(require_permission("attendances.read")),
+    current_user: ActorContext = Depends(require_permission("attendances.read")),
 ) -> AttendanceStatusCountsResponse:
     use_case = CountAttendancesByStatusUseCase(attendances=SqlAlchemyAttendanceRepository(session))
     counts = use_case.execute(
@@ -251,7 +251,7 @@ def get_attendance_status_counts(
 def get_attendance(
     attendance_id: UUID,
     session: SqlAlchemySession = Depends(get_session),
-    current_user: AuthenticatedUserDTO = Depends(require_permission("attendances.read")),
+    current_user: ActorContext = Depends(require_permission("attendances.read")),
 ) -> AttendanceRead:
     use_case = GetAttendanceUseCase(attendances=SqlAlchemyAttendanceRepository(session))
     result = use_case.execute(GetAttendanceQuery(actor=current_user, attendance_id=attendance_id))
@@ -264,7 +264,7 @@ def get_attendance_timeline(
     page: int = Query(1, ge=1),
     page_size: int = Query(20, ge=1, le=100),
     session: SqlAlchemySession = Depends(get_session),
-    current_user: AuthenticatedUserDTO = Depends(require_permission("attendances.read")),
+    current_user: ActorContext = Depends(require_permission("attendances.read")),
 ) -> AttendanceTimelineResponse:
     use_case = GetAttendanceTimelineUseCase(
         attendances=SqlAlchemyAttendanceRepository(session),
@@ -299,7 +299,7 @@ def update_attendance(
     attendance_id: UUID,
     payload: AttendanceUpdateRequest,
     uow: SqlAlchemyUnitOfWork = Depends(get_unit_of_work),
-    current_user: AuthenticatedUserDTO = Depends(require_permission("attendances.update")),
+    current_user: ActorContext = Depends(require_permission("attendances.update")),
 ) -> AttendanceRead:
     with uow:
         use_case = UpdateAttendanceUseCase(
@@ -341,7 +341,7 @@ def update_attendance(
 def create_attendance_draft(
     payload: AttendanceDraftCreateRequest,
     uow: SqlAlchemyUnitOfWork = Depends(get_unit_of_work),
-    current_user: AuthenticatedUserDTO = Depends(require_permission("attendances.create")),
+    current_user: ActorContext = Depends(require_permission("attendances.create")),
 ) -> AttendanceRead:
     with uow:
         use_case = CreateAttendanceDraftUseCase(
@@ -374,7 +374,7 @@ def preview_attendance(
     attendance_id: UUID,
     payload: AttendanceConfirmRequest,
     session: SqlAlchemySession = Depends(get_session),
-    current_user: AuthenticatedUserDTO = Depends(require_permission("attendances.update")),
+    current_user: ActorContext = Depends(require_permission("attendances.update")),
 ) -> AttendancePreviewResponse:
     use_case = PreviewAttendanceUseCase(
         attendances=SqlAlchemyAttendanceRepository(session),
@@ -409,7 +409,7 @@ def confirm_attendance(
     payload: AttendanceConfirmRequest,
     idempotency_key: str = Header(..., alias="Idempotency-Key", min_length=1, max_length=255),
     uow: SqlAlchemyUnitOfWork = Depends(get_unit_of_work),
-    current_user: AuthenticatedUserDTO = Depends(require_permission("attendances.update")),
+    current_user: ActorContext = Depends(require_permission("attendances.update")),
 ) -> AttendanceRead:
     clock = SystemClock()
     with uow:
@@ -469,7 +469,7 @@ def cancel_attendance(
     attendance_id: UUID,
     payload: AttendanceCancelRequest,
     uow: SqlAlchemyUnitOfWork = Depends(get_unit_of_work),
-    current_user: AuthenticatedUserDTO = Depends(require_permission("attendances.cancel")),
+    current_user: ActorContext = Depends(require_permission("attendances.cancel")),
 ) -> AttendanceRead:
     with uow:
         use_case = CancelAttendanceUseCase(
@@ -505,7 +505,7 @@ def _on_call_fee_setting_read(setting: OnCallFeeSetting) -> OnCallFeeSettingRead
 @on_call_fee_settings_router.get("", response_model=OnCallFeeSettingListResponse)
 def list_on_call_fee_settings(
     session: SqlAlchemySession = Depends(get_session),
-    current_user: AuthenticatedUserDTO = Depends(require_permission("pricing.read")),
+    current_user: ActorContext = Depends(require_permission("pricing.read")),
 ) -> OnCallFeeSettingListResponse:
     use_case = GetOnCallFeeSettingsUseCase(
         on_call_fees=SqlAlchemyOnCallFeeSettingRepository(session)
@@ -519,7 +519,7 @@ def update_on_call_fee_setting(
     service_level: OnCallServiceLevelLiteral,
     payload: OnCallFeeSettingUpdateRequest,
     uow: SqlAlchemyUnitOfWork = Depends(get_unit_of_work),
-    current_user: AuthenticatedUserDTO = Depends(require_permission("pricing.manage")),
+    current_user: ActorContext = Depends(require_permission("pricing.manage")),
 ) -> OnCallFeeSettingRead:
     with uow:
         use_case = UpdateOnCallFeeSettingUseCase(

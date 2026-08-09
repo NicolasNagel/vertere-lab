@@ -27,10 +27,10 @@ from app.modules.attendances.domain.repositories import AttendanceRepository
 from app.modules.audit.domain.entities import ActorScope, AuditEntry
 from app.modules.audit.domain.repositories import AuditLogWriter
 from app.modules.clinics.domain.repositories import ClinicRepository
-from app.modules.identity.application.dtos import AuthenticatedUserDTO
 from app.modules.patients.domain.repositories import PatientRepository
 from app.modules.veterinarian_clinics.domain.repositories import VeterinarianClinicLinkRepository
 from app.modules.veterinarians.domain.repositories import VeterinarianRepository
+from app.shared.application.authorization import ActorContext
 from app.shared.application.clock import Clock
 from app.shared.domain.errors import ForbiddenError
 
@@ -39,7 +39,7 @@ _REQUIRED_PERMISSION = "attendances.create"
 
 @dataclass(frozen=True, kw_only=True)
 class CreateAttendanceDraftCommand:
-    actor: AuthenticatedUserDTO
+    actor: ActorContext
     clinic_id: UUID
     veterinarian_id: UUID
     patient_id: UUID

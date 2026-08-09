@@ -9,6 +9,9 @@ export interface User {
   isActive: boolean
   roleId: string
   roleName: string
+  roleScope: 'GLOBAL' | 'LAB' | 'CLINIC'
+  clinicIds: string[]
+  rowVersion: number
   createdAt: string
 }
 
@@ -30,6 +33,7 @@ export interface CreateUserValues {
   email: string
   fullName: string
   roleId: string
+  clinicIds?: string[]
 }
 
 export interface CreatedUser {
@@ -44,6 +48,9 @@ interface ApiUser {
   is_active: boolean
   role_id: string
   role_name: string
+  role_scope: 'GLOBAL' | 'LAB' | 'CLINIC'
+  clinic_ids: string[]
+  row_version: number
   created_at: string
 }
 
@@ -67,6 +74,9 @@ function fromApiUser(user: ApiUser): User {
     isActive: user.is_active,
     roleId: user.role_id,
     roleName: user.role_name,
+    roleScope: user.role_scope,
+    clinicIds: user.clinic_ids,
+    rowVersion: user.row_version,
     createdAt: user.created_at,
   }
 }
@@ -100,6 +110,7 @@ export async function createUser(values: CreateUserValues): Promise<CreatedUser>
       email: values.email,
       full_name: values.fullName,
       role_id: values.roleId,
+      clinic_ids: values.clinicIds ?? [],
     }),
   })
   await throwIfNotOk(response)
@@ -113,6 +124,26 @@ export async function assignUserRole(id: string, roleId: string): Promise<User> 
     headers: { 'Content-Type': 'application/json' },
     credentials: 'include',
     body: JSON.stringify({ role_id: roleId }),
+  })
+  await throwIfNotOk(response)
+  return fromApiUser((await response.json()) as ApiUser)
+}
+
+export async function updateUserAccess(
+  id: string,
+  roleId: string,
+  clinicIds: string[],
+  expectedRowVersion: number,
+): Promise<User> {
+  const response = await fetch(`${API_BASE}/users/${id}/access`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    credentials: 'include',
+    body: JSON.stringify({
+      role_id: roleId,
+      clinic_ids: clinicIds,
+      expected_row_version: expectedRowVersion,
+    }),
   })
   await throwIfNotOk(response)
   return fromApiUser((await response.json()) as ApiUser)

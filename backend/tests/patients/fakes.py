@@ -66,8 +66,14 @@ class FakePatientRepository:
         page_size: int,
         status: PatientStatus | None,
         search: str | None,
+        clinic_ids: frozenset[UUID] | None = None,
+        clinic_id: UUID | None = None,
     ) -> tuple[list[Patient], int]:
         patients = list(self._patients.values())
+        if clinic_ids is not None:
+            patients = [patient for patient in patients if patient.clinic_id in clinic_ids]
+        elif clinic_id is not None:
+            patients = [patient for patient in patients if patient.clinic_id == clinic_id]
         if status is not None:
             patients = [p for p in patients if p.status == status]
         if search:

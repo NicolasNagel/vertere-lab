@@ -6,6 +6,7 @@ Incremento 4.2 will reuse (`domain/eligibility.py`).
 from __future__ import annotations
 
 from dataclasses import dataclass
+from datetime import date
 from decimal import Decimal
 from uuid import UUID
 
@@ -20,7 +21,7 @@ from app.modules.billing.domain.entities import (
 )
 from app.modules.billing.domain.repositories import ClosurePreviewRepository
 from app.modules.clinics.domain.repositories import ClinicRepository
-from app.modules.identity.application.dtos import AuthenticatedUserDTO
+from app.shared.application.authorization import ActorContext
 from app.shared.application.clock import Clock
 from app.shared.domain.errors import ForbiddenError, NotFoundError
 from app.shared.domain.money import round_currency
@@ -31,10 +32,10 @@ _CANCELLED = "CANCELLED"
 
 @dataclass(frozen=True, kw_only=True)
 class PreviewClosureQuery:
-    actor: AuthenticatedUserDTO
+    actor: ActorContext
     clinic_id: UUID
-    year: int
-    month: int
+    period_start: date
+    period_end: date
 
 
 class PreviewClosureUseCase:
@@ -57,7 +58,7 @@ class PreviewClosureUseCase:
         if clinic is None:
             raise NotFoundError("Clínica não encontrada.")
 
-        period = CompetencePeriod(year=query.year, month=query.month)
+        period = CompetencePeriod(period_start=query.period_start, period_end=query.period_end)
         candidates = self._candidates.list_candidates(clinic_id=query.clinic_id, period=period)
 
         eligible_items: list[ClosurePreviewItem] = []
@@ -89,6 +90,8 @@ class PreviewClosureUseCase:
                         protocol_number=candidate.protocol_number,
                         patient_name=candidate.patient_name,
                         exam_name=candidate.exam_name,
+                        service_level=candidate.service_level,
+                        exam_category=candidate.exam_category,
                         total_amount=candidate.total_amount,
                     )
                 )

@@ -5,10 +5,10 @@ from uuid import UUID
 
 from app.modules.audit.domain.entities import ActorScope, AuditEntry
 from app.modules.audit.domain.repositories import AuditLogWriter
-from app.modules.identity.application.dtos import AuthenticatedUserDTO
 from app.modules.veterinarians.application.dtos import VeterinarianDTO
 from app.modules.veterinarians.application.mappers import veterinarian_to_dto
 from app.modules.veterinarians.domain.repositories import VeterinarianRepository
+from app.shared.application.authorization import ActorContext
 from app.shared.application.clock import Clock
 from app.shared.domain.errors import ForbiddenError, NotFoundError
 
@@ -17,7 +17,7 @@ _REQUIRED_PERMISSION = "veterinarians.manage"
 
 @dataclass(frozen=True, kw_only=True)
 class DeactivateVeterinarianCommand:
-    actor: AuthenticatedUserDTO
+    actor: ActorContext
     veterinarian_id: UUID
 
 

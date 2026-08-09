@@ -21,8 +21,8 @@ from app.modules.catalog.domain.entities import Exam, ExamStatus
 from app.modules.catalog.domain.errors import DuplicateExamCodeError
 from app.modules.catalog.domain.repositories import ExamCategoryRepository, ExamRepository
 from app.modules.catalog.domain.value_objects import ExamCode
-from app.modules.identity.application.dtos import AuthenticatedUserDTO
 from app.modules.patients.domain.repositories import SpeciesRepository
+from app.shared.application.authorization import ActorContext
 from app.shared.application.clock import Clock
 from app.shared.domain.errors import ForbiddenError, NotFoundError, ValidationError
 
@@ -32,7 +32,7 @@ _PRICE_PERMISSION = "pricing.read"
 
 @dataclass(frozen=True, kw_only=True)
 class CreateExamCommand:
-    actor: AuthenticatedUserDTO
+    actor: ActorContext
     code: str
     name: str
     category_id: UUID

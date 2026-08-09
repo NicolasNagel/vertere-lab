@@ -3,9 +3,10 @@ from __future__ import annotations
 from dataclasses import dataclass
 from uuid import UUID
 
-from app.modules.identity.application.dtos import AuthenticatedUserDTO, PageDTO, RoleDTO
+from app.modules.identity.application.dtos import PageDTO, RoleDTO
 from app.modules.identity.domain.entities import Role
 from app.modules.identity.domain.repositories import RoleRepository
+from app.shared.application.authorization import ActorContext
 from app.shared.domain.errors import ForbiddenError, NotFoundError
 
 _REQUIRED_PERMISSION = "roles.read"
@@ -25,7 +26,7 @@ def _to_dto(role: Role) -> RoleDTO:
 
 @dataclass(frozen=True, kw_only=True)
 class ListRolesQuery:
-    actor: AuthenticatedUserDTO
+    actor: ActorContext
     page: int
     page_size: int
 
@@ -45,7 +46,7 @@ class ListRolesUseCase:
 
 @dataclass(frozen=True, kw_only=True)
 class GetRoleQuery:
-    actor: AuthenticatedUserDTO
+    actor: ActorContext
     role_id: UUID
 
 

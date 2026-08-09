@@ -10,7 +10,7 @@ from app.modules.billing.application.dtos import FinancialAdjustmentDTO
 from app.modules.billing.application.mappers import financial_adjustment_to_dto
 from app.modules.billing.domain.entities import AdjustmentKind, ClosureStatus, FinancialAdjustment
 from app.modules.billing.domain.repositories import MonthlyClosureRepository
-from app.modules.identity.application.dtos import AuthenticatedUserDTO
+from app.shared.application.authorization import ActorContext
 from app.shared.application.clock import Clock
 from app.shared.domain.errors import (
     ForbiddenError,
@@ -27,7 +27,7 @@ _REQUIRED_PERMISSION = "closures.adjust"
 
 @dataclass(frozen=True, kw_only=True)
 class AddFinancialAdjustmentCommand:
-    actor: AuthenticatedUserDTO
+    actor: ActorContext
     closure_id: UUID
     closure_item_id: UUID | None
     kind: AdjustmentKind

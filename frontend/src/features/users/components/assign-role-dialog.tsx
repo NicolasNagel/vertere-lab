@@ -2,35 +2,53 @@ import { useState } from 'react'
 
 import { describeError } from '../../../shared/api/describe-error'
 import { Button } from '../../../shared/ui/button'
+import { Checkbox } from '../../../shared/ui/checkbox'
 import { SelectField, type SelectOption } from '../../../shared/ui/select'
 import './assign-role-dialog.css'
+import type { Clinic } from '../../clinics/api/clinics-api'
+import type { Role } from '../../roles/api/roles-api'
 
 interface AssignRoleDialogProps {
   currentRoleId: string
-  roleOptions: SelectOption[]
+  currentClinicIds: string[]
+  roles: Role[]
+  clinics: Clinic[]
   submitting: boolean
   error?: unknown
   onCancel: () => void
-  onSubmit: (roleId: string) => void
+  onSubmit: (roleId: string, clinicIds: string[]) => void
 }
 
 export function AssignRoleDialog({
   currentRoleId,
-  roleOptions,
+  currentClinicIds,
+  roles,
+  clinics,
   submitting,
   error,
   onCancel,
   onSubmit,
 }: AssignRoleDialogProps) {
   const [roleId, setRoleId] = useState(currentRoleId)
+  const [clinicIds, setClinicIds] = useState(currentClinicIds)
+  const [accessError, setAccessError] = useState<string | null>(null)
   const errorMessage = describeError(error)
+  const selectedRole = roles.find((role) => role.id === roleId)
+  const roleOptions: SelectOption[] = roles.map((role) => ({ value: role.id, label: role.name }))
+  const unchanged = roleId === currentRoleId && clinicIds.length === currentClinicIds.length &&
+    clinicIds.every((id) => currentClinicIds.includes(id))
 
   return (
     <form
       className="assign-role-dialog"
       onSubmit={(event) => {
         event.preventDefault()
-        onSubmit(roleId)
+        const selectedClinicIds = selectedRole?.scope === 'CLINIC' ? clinicIds : []
+        if (selectedRole?.scope === 'CLINIC' && selectedClinicIds.length === 0) {
+          setAccessError('Selecione ao menos uma clínica.')
+          return
+        }
+        onSubmit(roleId, selectedClinicIds)
       }}
     >
       <SelectField
@@ -41,6 +59,25 @@ export function AssignRoleDialog({
         value={roleId}
         onChange={(event) => setRoleId(event.target.value)}
       />
+
+      {selectedRole?.scope === 'CLINIC' && (
+        <fieldset className="assign-role-dialog__clinics">
+          <legend>Clínicas permitidas</legend>
+          {clinics.map((clinic) => (
+            <Checkbox
+              key={clinic.id}
+              label={clinic.name}
+              checked={clinicIds.includes(clinic.id)}
+              disabled={submitting}
+              onChange={() => setClinicIds((current) => current.includes(clinic.id)
+                ? current.filter((id) => id !== clinic.id)
+                : [...current, clinic.id])}
+            />
+          ))}
+        </fieldset>
+      )}
+
+      {accessError && <p role="alert" className="assign-role-dialog__domain-error">{accessError}</p>}
 
       {errorMessage && (
         <p role="alert" className="assign-role-dialog__domain-error">
@@ -55,7 +92,7 @@ export function AssignRoleDialog({
         <Button
           type="submit"
           className="assign-role-dialog__submit"
-          disabled={submitting || roleId === currentRoleId}
+          disabled={submitting || unchanged}
         >
           {submitting ? 'Salvando…' : 'Alterar perfil'}
         </Button>

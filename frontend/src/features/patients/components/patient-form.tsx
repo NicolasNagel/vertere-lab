@@ -7,10 +7,12 @@ import { SelectField } from '../../../shared/ui/select'
 import { TextField } from '../../../shared/ui/text-field'
 import { ApiError } from '../../../shared/api/errors'
 import { useSpeciesQuery } from '../api/use-species-query'
+import { useAllClinicsQuery } from '../../clinics/api/use-clinics-query'
 import type { Patient, PatientFormValues, PatientStatus } from '../api/patients-api'
 import './patient-form.css'
 
 const patientSchema = z.object({
+  clinicId: z.string().trim().min(1, 'Selecione a clínica.'),
   name: z.string().trim().min(1, 'Informe o nome do paciente.'),
   speciesId: z.string().trim().min(1, 'Selecione a espécie.'),
   sex: z.enum(['MALE', 'FEMALE']),
@@ -37,6 +39,7 @@ const STATUS_OPTIONS: { value: PatientStatus; label: string }[] = [
 
 function toFormFields(patient: Patient | null): PatientFormFields {
   return {
+    clinicId: patient?.clinicId ?? '',
     name: patient?.name ?? '',
     speciesId: patient?.speciesId ?? '',
     sex: patient?.sex ?? 'MALE',
@@ -52,6 +55,7 @@ function toFormFields(patient: Patient | null): PatientFormFields {
 
 function toApiValues(fields: PatientFormFields): PatientFormValues {
   return {
+    clinicId: fields.clinicId,
     name: fields.name,
     speciesId: fields.speciesId,
     sex: fields.sex,
@@ -101,6 +105,7 @@ export function PatientForm({
   })
 
   const speciesQuery = useSpeciesQuery()
+  const clinicsQuery = useAllClinicsQuery({ status: 'ACTIVE' })
   const speciesOptions = speciesQuery.data ?? []
 
   const onSubmit = handleSubmit((fields) => {
@@ -115,6 +120,20 @@ export function PatientForm({
 
   return (
     <form className="patient-form" onSubmit={onSubmit} noValidate>
+      <SelectField
+        id="patient-clinic"
+        label="Clínica"
+        options={[
+          { value: '', label: clinicsQuery.isLoading ? 'Carregando…' : 'Selecione…' },
+          ...(clinicsQuery.data?.items ?? []).map((clinic) => ({
+            value: clinic.id,
+            label: clinic.name,
+          })),
+        ]}
+        disabled={submitting || clinicsQuery.isLoading}
+        errorMessage={errors.clinicId?.message}
+        {...register('clinicId')}
+      />
       <div className="patient-form__row">
         <TextField
           id="patient-name"

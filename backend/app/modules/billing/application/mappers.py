@@ -25,6 +25,8 @@ def _item_to_dto(item: ClosurePreviewItem) -> ClosurePreviewItemDTO:
         protocol_number=item.protocol_number,
         patient_name=item.patient_name,
         exam_name=item.exam_name,
+        service_level=item.service_level,
+        exam_category=item.exam_category,
         total_amount=item.total_amount,
     )
 
@@ -75,6 +77,8 @@ def _closure_item_to_dto(item: MonthlyClosureItem) -> MonthlyClosureItemDTO:
         discount_amount=item.discount_amount,
         surcharge_amount=item.surcharge_amount,
         total_amount=item.total_amount,
+        service_level=item.service_level,
+        exam_category=item.exam_category,
     )
 
 

@@ -1,6 +1,6 @@
 import { Button } from '../../../shared/ui/button'
 import { KebabMenu, type KebabMenuItem } from '../../../shared/ui/kebab-menu'
-import { formatTaxId } from '../../../shared/lib/formatters'
+import { formatTaxId, getInitials } from '../../../shared/lib/formatters'
 import type { Clinic, ClinicFormValues, ClinicStatus } from '../api/clinics-api'
 import { ClinicForm } from './clinic-form'
 import './clinic-detail.css'
@@ -159,11 +159,20 @@ export function ClinicDetail({
             <ul className="clinic-detail__vets-list">
               {clinic.veterinarians.map((veterinarian) => (
                 <li key={veterinarian.veterinarianId} className="clinic-detail__vets-row">
-                  <span className="clinic-detail__vets-name">{veterinarian.veterinarianName}</span>
-                  <span className="clinic-detail__mono">{veterinarian.crmv}</span>
-                  {veterinarian.primaryClinic && (
-                    <span className="clinic-detail__vets-primary">Principal</span>
-                  )}
+                  <span className="clinic-detail__vets-avatar" aria-hidden="true">
+                    {getInitials(veterinarian.veterinarianName)}
+                  </span>
+                  <span className="clinic-detail__vets-info">
+                    <span className="clinic-detail__vets-name">
+                      {veterinarian.veterinarianName}
+                      {veterinarian.primaryClinic && (
+                        <span className="clinic-detail__vets-primary">Principal</span>
+                      )}
+                    </span>
+                    <span className="clinic-detail__vets-crmv clinic-detail__mono">
+                      {veterinarian.crmv}
+                    </span>
+                  </span>
                 </li>
               ))}
             </ul>

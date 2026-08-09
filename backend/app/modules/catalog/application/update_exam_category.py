@@ -11,7 +11,7 @@ from app.modules.catalog.application.mappers import exam_category_to_dto
 from app.modules.catalog.domain.entities import ExamCategoryStatus
 from app.modules.catalog.domain.errors import DuplicateExamCategoryNameError
 from app.modules.catalog.domain.repositories import ExamCategoryRepository
-from app.modules.identity.application.dtos import AuthenticatedUserDTO
+from app.shared.application.authorization import ActorContext
 from app.shared.application.clock import Clock
 from app.shared.domain.errors import ConflictError, ForbiddenError, NotFoundError
 
@@ -20,7 +20,7 @@ _REQUIRED_PERMISSION = "catalog.manage"
 
 @dataclass(frozen=True, kw_only=True)
 class UpdateExamCategoryCommand:
-    actor: AuthenticatedUserDTO
+    actor: ActorContext
     category_id: UUID
     name: str
     status: str

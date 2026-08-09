@@ -45,7 +45,7 @@ def _setup() -> tuple[FakeRoleRepository, FakePermissionRepository, FakeUserRepo
 
 def _actor(permission_codes: frozenset[str]) -> AuthenticatedUserDTO:
     return AuthenticatedUserDTO(
-        id=uuid4(),
+        user_id=uuid4(),
         email="actor@vertere.local",
         full_name="Actor",
         role_id=uuid4(),
@@ -237,7 +237,7 @@ def test_update_role_permissions_blocks_removing_the_last_roles_manage() -> None
         roles=roles, permissions=permissions, users=users, audit=FakeAuditLogWriter()
     )
     actor = AuthenticatedUserDTO(
-        id=admin_user.id,
+        user_id=admin_user.id,
         email=str(admin_user.email),
         full_name=admin_user.full_name,
         role_id=admin_role.id,
@@ -286,7 +286,7 @@ def test_update_role_permissions_allows_removal_when_another_role_still_covers_i
         roles=roles, permissions=permissions, users=users, audit=FakeAuditLogWriter()
     )
     actor = AuthenticatedUserDTO(
-        id=admin_user.id,
+        user_id=admin_user.id,
         email=str(admin_user.email),
         full_name=admin_user.full_name,
         role_id=admin_role.id,

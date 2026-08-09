@@ -2,7 +2,7 @@ import { useRef, useState } from 'react'
 
 import { describeError } from '../../../shared/api/describe-error'
 import { ApiError } from '../../../shared/api/errors'
-import { formatCompetence, formatCurrencyBRL } from '../../../shared/lib/formatters'
+import { formatCurrencyBRL, formatDate } from '../../../shared/lib/formatters'
 import { Button } from '../../../shared/ui/button'
 import { useCloseMonthlyPeriodMutation } from '../api/use-close-monthly-period-mutation'
 import type { ClosurePreview, MonthlyClosure } from '../api/closures-api'
@@ -36,7 +36,11 @@ export function ClosureCloseModal({
     if (!confirmed || submissionStarted.current) return
     submissionStarted.current = true
     closeMutation.mutate(
-      { clinicId: preview.clinicId, year: preview.competenceYear, month: preview.competenceMonth },
+      {
+        clinicId: preview.clinicId,
+        periodStart: preview.periodStart,
+        periodEnd: preview.periodEnd,
+      },
       {
         onSuccess: onClosed,
         onError: () => {
@@ -55,7 +59,7 @@ export function ClosureCloseModal({
         aria-labelledby="closure-close-modal-title"
       >
         <h2 id="closure-close-modal-title" className="closure-close-modal__title">
-          Fechar competência
+          Fechar período
         </h2>
 
         <div className="closure-close-modal__summary">
@@ -64,8 +68,10 @@ export function ClosureCloseModal({
             <span>{clinicName}</span>
           </div>
           <div className="closure-close-modal__summary-row">
-            <span>Competência</span>
-            <span>{formatCompetence(preview.competenceYear, preview.competenceMonth)}</span>
+            <span>Período</span>
+            <span>
+              {formatDate(preview.periodStart)} – {formatDate(preview.periodEnd)}
+            </span>
           </div>
           <div className="closure-close-modal__summary-row">
             <span>Itens elegíveis</span>
@@ -84,7 +90,7 @@ export function ClosureCloseModal({
             disabled={closeMutation.isPending}
             onChange={(event) => setConfirmed(event.target.checked)}
           />{' '}
-          Confirmo que revisei a prévia e quero fechar esta competência. Esta ação não pode ser
+          Confirmo que revisei a prévia e quero fechar este período. Esta ação não pode ser
           desfeita.
         </label>
 
@@ -100,7 +106,7 @@ export function ClosureCloseModal({
             Voltar
           </Button>
           <Button type="button" disabled={!confirmed || closeMutation.isPending} onClick={handleConfirm}>
-            {closeMutation.isPending ? 'Fechando…' : 'Fechar competência'}
+            {closeMutation.isPending ? 'Fechando…' : 'Fechar período'}
           </Button>
         </div>
       </div>

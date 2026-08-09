@@ -33,6 +33,7 @@ class SqlAlchemySpeciesRepository:
 def _patient_to_domain(model: PatientModel) -> Patient:
     return Patient(
         id=model.id,
+        clinic_id=model.clinic_id,
         name=model.name,
         species_id=model.species_id,
         sex=PatientSex(model.sex),
@@ -76,6 +77,7 @@ class SqlAlchemyPatientRepository:
         self._session.add(
             PatientModel(
                 id=patient.id,
+                clinic_id=patient.clinic_id,
                 name=patient.name,
                 species_id=patient.species_id,
                 sex=patient.sex.value,
@@ -99,6 +101,7 @@ class SqlAlchemyPatientRepository:
         if model is None:
             raise LookupError(f"Paciente {patient.id} não encontrado para atualização.")
         model.name = patient.name
+        model.clinic_id = patient.clinic_id
         model.species_id = patient.species_id
         model.sex = patient.sex.value
         model.breed = patient.breed
@@ -119,8 +122,14 @@ class SqlAlchemyPatientRepository:
         page_size: int,
         status: PatientStatus | None,
         search: str | None,
+        clinic_ids: frozenset[UUID] | None = None,
+        clinic_id: UUID | None = None,
     ) -> tuple[list[Patient], int]:
         conditions: list[ColumnElement[bool]] = []
+        if clinic_ids is not None:
+            conditions.append(PatientModel.clinic_id.in_(clinic_ids))
+        elif clinic_id is not None:
+            conditions.append(PatientModel.clinic_id == clinic_id)
         if status is not None:
             conditions.append(PatientModel.status == status.value)
         if search:

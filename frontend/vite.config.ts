@@ -13,7 +13,7 @@ export default defineConfig({
         // Porta 8000 tem um processo travado nesta máquina servindo código
         // antigo (não responde a restart nem kill) — apontando para 8002
         // até o ambiente ser limpo. Reverter para 8000 quando resolvido.
-        target: 'http://localhost:8002',
+        target: 'http://localhost:8321',
         changeOrigin: true,
       },
     },

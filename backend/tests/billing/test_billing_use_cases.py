@@ -23,12 +23,12 @@ from tests.billing.fakes import (
 
 _NOW = datetime(2026, 1, 15, tzinfo=UTC)
 _CLINIC_ID = uuid4()
-_PERIOD = CompetencePeriod(year=2026, month=1)
+_PERIOD = CompetencePeriod.for_month(year=2026, month=1)
 
 
 def _actor(*, permissions: frozenset[str]) -> AuthenticatedUserDTO:
     return AuthenticatedUserDTO(
-        id=uuid4(),
+        user_id=uuid4(),
         email="finance@vertere.local",
         full_name="Finance",
         role_id=uuid4(),
@@ -43,11 +43,14 @@ def _candidate(**overrides: object) -> ClosureCandidateItem:
         "attendance_exam_id": uuid4(),
         "attendance_status": "CONFIRMED",
         "item_status": "ACTIVE",
+        "service_date": date(2026, 1, 15),
         "billing_competence": date(2026, 1, 1),
         "monthly_closure_id": None,
         "protocol_number": "2026/000001",
         "patient_name": "Rex",
         "exam_name": "Hemograma",
+        "service_level": "NORMAL",
+        "exam_category": "Hematológico",
         "price_base": Decimal("100.00"),
         "quantity": 1,
         "discount_amount": Decimal("0"),
@@ -63,18 +66,34 @@ def _candidate(**overrides: object) -> ClosureCandidateItem:
 
 def test_competence_period_rejects_month_out_of_range() -> None:
     with pytest.raises(ValidationError):
-        CompetencePeriod(year=2026, month=13)
+        CompetencePeriod.for_month(year=2026, month=13)
     with pytest.raises(ValidationError):
-        CompetencePeriod(year=2026, month=0)
+        CompetencePeriod.for_month(year=2026, month=0)
 
 
 def test_competence_period_computes_bounds() -> None:
-    period = CompetencePeriod(year=2026, month=2)
+    period = CompetencePeriod.for_month(year=2026, month=2)
     assert period.period_start == date(2026, 2, 1)
     assert period.period_end == date(2026, 2, 28)
 
-    december = CompetencePeriod(year=2026, month=12)
+    december = CompetencePeriod.for_month(year=2026, month=12)
     assert december.period_end == date(2026, 12, 31)
+
+
+def test_competence_period_accepts_a_free_range_not_shaped_like_a_month() -> None:
+    period = CompetencePeriod(period_start=date(2026, 1, 16), period_end=date(2026, 1, 31))
+    assert period.period_start == date(2026, 1, 16)
+    assert period.period_end == date(2026, 1, 31)
+
+
+def test_competence_period_rejects_end_before_start() -> None:
+    with pytest.raises(ValidationError):
+        CompetencePeriod(period_start=date(2026, 1, 31), period_end=date(2026, 1, 1))
+
+
+def test_competence_period_rejects_span_over_max_days() -> None:
+    with pytest.raises(ValidationError):
+        CompetencePeriod(period_start=date(2026, 1, 1), period_end=date(2028, 1, 1))
 
 
 # ---------------- is_eligible ----------------
@@ -102,13 +121,26 @@ def test_is_eligible_rejects_item_already_in_another_closure() -> None:
     assert eligible is False
 
 
-def test_is_eligible_rejects_competence_mismatch() -> None:
-    eligible, _reason = is_eligible(_candidate(billing_competence=date(2026, 2, 1)), _PERIOD)
+def test_is_eligible_rejects_service_date_outside_period() -> None:
+    eligible, _reason = is_eligible(_candidate(service_date=date(2026, 2, 1)), _PERIOD)
     assert eligible is False
 
 
-def test_is_eligible_rejects_missing_competence() -> None:
-    eligible, _reason = is_eligible(_candidate(billing_competence=None), _PERIOD)
+def test_is_eligible_rejects_missing_service_date() -> None:
+    eligible, _reason = is_eligible(_candidate(service_date=None), _PERIOD)
+    assert eligible is False
+
+
+def test_is_eligible_accepts_service_date_inside_a_free_biweekly_period() -> None:
+    quinzena = CompetencePeriod(period_start=date(2026, 1, 16), period_end=date(2026, 1, 31))
+    eligible, reason = is_eligible(_candidate(service_date=date(2026, 1, 20)), quinzena)
+    assert eligible is True
+    assert reason is None
+
+
+def test_is_eligible_rejects_first_half_item_against_second_half_period() -> None:
+    second_half = CompetencePeriod(period_start=date(2026, 1, 16), period_end=date(2026, 1, 31))
+    eligible, _reason = is_eligible(_candidate(service_date=date(2026, 1, 10)), second_half)
     assert eligible is False
 
 
@@ -130,8 +162,8 @@ def _query(**overrides: object) -> PreviewClosureQuery:
     defaults: dict[str, object] = {
         "actor": _actor(permissions=frozenset({"closures.preview"})),
         "clinic_id": _CLINIC_ID,
-        "year": 2026,
-        "month": 1,
+        "period_start": date(2026, 1, 1),
+        "period_end": date(2026, 1, 31),
     }
     defaults.update(overrides)
     return PreviewClosureQuery(**defaults)  # type: ignore[arg-type]

@@ -3,7 +3,7 @@ import { useQuery } from '@tanstack/react-query'
 import { fetchClosurePreview, type ClosurePreviewParams } from './closures-api'
 
 export function closurePreviewQueryKey(params: ClosurePreviewParams) {
-  return ['closure-preview', params.clinicId, params.year, params.month] as const
+  return ['closure-preview', params.clinicId, params.periodStart, params.periodEnd] as const
 }
 
 export function useClosurePreviewQuery(params: ClosurePreviewParams | null) {

@@ -9,7 +9,14 @@ from datetime import datetime
 from uuid import UUID
 
 from app.modules.audit.domain.entities import AuditEntry
-from app.modules.identity.domain.entities import LabMembership, Permission, Role, Session, User
+from app.modules.identity.domain.entities import (
+    ClinicMembership,
+    LabMembership,
+    Permission,
+    Role,
+    Session,
+    User,
+)
 
 
 class FakeClock:
@@ -63,6 +70,17 @@ class FakeUserRepository:
 
     def save(self, user: User) -> None:
         self._users[user.id] = user
+
+    def change_role_if_version(
+        self, user_id: UUID, role_id: UUID, *, expected_row_version: int, now: datetime
+    ) -> bool:
+        user = self._users[user_id]
+        if user.row_version != expected_row_version:
+            return False
+        user.role_id = role_id
+        user.updated_at = now
+        user.row_version += 1
+        return True
 
     def get_by_id(self, user_id: UUID) -> User | None:
         return self._users.get(user_id)
@@ -193,6 +211,73 @@ class FakeLabMembershipRepository:
             ),
             None,
         )
+
+    def set_active(self, user_id: UUID, *, active: bool, now: datetime, granted_by: UUID) -> None:
+        membership = next((item for item in self.memberships if item.user_id == user_id), None)
+        if membership is None and active:
+            self.memberships.append(
+                LabMembership(
+                    id=UUID(int=len(self.memberships) + 1),
+                    user_id=user_id,
+                    granted_at=now,
+                    granted_by=granted_by,
+                )
+            )
+        elif membership is not None:
+            membership.is_active = active
+            membership.revoked_at = None if active else now
+
+
+class FakeClinicMembershipRepository:
+    def __init__(self) -> None:
+        self.memberships: list[ClinicMembership] = []
+
+    def add(self, membership: ClinicMembership) -> None:
+        self.memberships.append(membership)
+
+    def all_clinic_ids_exist(self, clinic_ids: frozenset[UUID]) -> bool:
+        return True
+
+    def list_active_clinic_ids_for_user(self, user_id: UUID) -> frozenset[UUID]:
+        return frozenset(
+            item.clinic_id
+            for item in self.memberships
+            if item.user_id == user_id and item.is_active and item.revoked_at is None
+        )
+
+    def get_active_by_user_and_clinic(
+        self, user_id: UUID, clinic_id: UUID
+    ) -> ClinicMembership | None:
+        return next(
+            (
+                item
+                for item in self.memberships
+                if item.user_id == user_id
+                and item.clinic_id == clinic_id
+                and item.is_active
+                and item.revoked_at is None
+            ),
+            None,
+        )
+
+    def replace_active_clinic_ids(
+        self, user_id: UUID, clinic_ids: frozenset[UUID], *, now: datetime, granted_by: UUID
+    ) -> None:
+        for item in self.memberships:
+            if item.user_id == user_id:
+                item.is_active = item.clinic_id in clinic_ids
+                item.revoked_at = None if item.is_active else now
+        existing = {item.clinic_id for item in self.memberships if item.user_id == user_id}
+        for clinic_id in clinic_ids - existing:
+            self.add(
+                ClinicMembership(
+                    id=UUID(int=len(self.memberships) + 1),
+                    user_id=user_id,
+                    clinic_id=clinic_id,
+                    granted_at=now,
+                    granted_by=granted_by,
+                )
+            )
 
 
 class FakeLoginFailureRepository:

@@ -181,7 +181,13 @@ async def _confirmed_attendance_exam(
     species_id = _get_species_id(session_factory)
     patient_response = await client.post(
         "/api/v1/patients",
-        json={"name": "Rex", "species_id": species_id, "sex": "MALE", "owner_name": "Maria Souza"},
+        json={
+            "clinic_id": clinic_id,
+            "name": "Rex",
+            "species_id": species_id,
+            "sex": "MALE",
+            "owner_name": "Maria Souza",
+        },
     )
     assert patient_response.status_code == 201
     patient_id = patient_response.json()["id"]
@@ -227,7 +233,12 @@ async def _confirmed_attendance_exam(
 
 
 def _closure_from_confirmed(
-    *, clinic_id: str, attendance: dict[str, object], item: dict[str, object]
+    *,
+    clinic_id: str,
+    attendance: dict[str, object],
+    item: dict[str, object],
+    period_start: date = date(2026, 1, 1),
+    period_end: date = date(2026, 1, 31),
 ) -> MonthlyClosure:
     closure_id = uuid4()
     closure_item = MonthlyClosureItem(
@@ -247,10 +258,10 @@ def _closure_from_confirmed(
     return MonthlyClosure(
         id=closure_id,
         clinic_id=UUID(clinic_id),
-        competence_year=2026,
-        competence_month=1,
-        period_start=date(2026, 1, 1),
-        period_end=date(2026, 1, 31),
+        competence_year=period_start.year,
+        competence_month=period_start.month,
+        period_start=period_start,
+        period_end=period_end,
         status=ClosureStatus.CLOSED,
         item_count=1,
         subtotal=closure_item.price_base * closure_item.quantity,
@@ -292,7 +303,9 @@ async def test_repository_round_trips_a_closure_with_its_items(
         assert loaded.items[0].exam_name == "Hemograma"
 
         active = repo.get_active_for_clinic_and_period(
-            clinic_id=closure.clinic_id, year=2026, month=1
+            clinic_id=closure.clinic_id,
+            period_start=date(2026, 1, 1),
+            period_end=date(2026, 1, 31),
         )
         assert active is not None
         assert active.id == closure.id
@@ -327,6 +340,81 @@ async def test_database_rejects_a_second_closed_closure_for_the_same_clinic_and_
     with session_factory() as session, pytest.raises(IntegrityError):
         SqlAlchemyMonthlyClosureRepository(session).add(second)
         session.commit()
+
+
+async def test_database_rejects_two_free_periods_that_partially_overlap(
+    client: httpx.AsyncClient, session_factory: sessionmaker[Session]
+) -> None:
+    """The uniqueness invariant is now an overlap check, not an exact
+    year+month match — two quinzena-shaped periods that partially overlap
+    (1-20 vs. 15-31) must still conflict (migration 0037's EXCLUDE
+    constraint), even though neither is a full calendar month."""
+    await _login(client, session_factory)
+    source = await _confirmed_attendance_exam(client, session_factory)
+    first = _closure_from_confirmed(
+        clinic_id=str(source["clinic_id"]),
+        attendance=source["attendance"],  # type: ignore[arg-type]
+        item=source["item"],  # type: ignore[arg-type]
+        period_start=date(2026, 1, 1),
+        period_end=date(2026, 1, 20),
+    )
+
+    with session_factory() as session:
+        SqlAlchemyMonthlyClosureRepository(session).add(first)
+        session.commit()
+
+    second_source = await _confirmed_attendance_exam(client, session_factory)
+    second = _closure_from_confirmed(
+        clinic_id=str(source["clinic_id"]),
+        attendance=second_source["attendance"],  # type: ignore[arg-type]
+        item=second_source["item"],  # type: ignore[arg-type]
+        period_start=date(2026, 1, 15),
+        period_end=date(2026, 1, 31),
+    )
+
+    with session_factory() as session, pytest.raises(IntegrityError):
+        SqlAlchemyMonthlyClosureRepository(session).add(second)
+        session.commit()
+
+
+async def test_database_accepts_two_non_overlapping_biweekly_periods_for_the_same_clinic(
+    client: httpx.AsyncClient, session_factory: sessionmaker[Session]
+) -> None:
+    """Two real quinzenas of the same clinic, back to back with no overlap,
+    must both close successfully — this is the whole point of the feature."""
+    await _login(client, session_factory)
+    source = await _confirmed_attendance_exam(client, session_factory)
+    first_half = _closure_from_confirmed(
+        clinic_id=str(source["clinic_id"]),
+        attendance=source["attendance"],  # type: ignore[arg-type]
+        item=source["item"],  # type: ignore[arg-type]
+        period_start=date(2026, 1, 1),
+        period_end=date(2026, 1, 15),
+    )
+
+    with session_factory() as session:
+        SqlAlchemyMonthlyClosureRepository(session).add(first_half)
+        session.commit()
+
+    second_source = await _confirmed_attendance_exam(client, session_factory)
+    second_half = _closure_from_confirmed(
+        clinic_id=str(source["clinic_id"]),
+        attendance=second_source["attendance"],  # type: ignore[arg-type]
+        item=second_source["item"],  # type: ignore[arg-type]
+        period_start=date(2026, 1, 16),
+        period_end=date(2026, 1, 31),
+    )
+
+    with session_factory() as session:
+        SqlAlchemyMonthlyClosureRepository(session).add(second_half)
+        session.commit()
+
+    with session_factory() as session:
+        page, total = SqlAlchemyMonthlyClosureRepository(session).list_page(
+            clinic_id=UUID(str(source["clinic_id"])), page=1, page_size=20
+        )
+        assert total == 2
+        assert {item.id for item in page} == {first_half.id, second_half.id}
 
 
 async def test_setting_attendance_monthly_closure_id_links_it_to_the_closure(

@@ -31,6 +31,7 @@ from app.modules.identity.api.schemas import (
     RoleListResponse,
     RoleRead,
     RoleUpdateRequest,
+    UpdateUserAccessRequest,
     UserCreateRequest,
     UserCreateResponse,
     UserListItemRead,
@@ -48,7 +49,7 @@ from app.modules.identity.application.deactivate_user import (
     DeactivateUserCommand,
     DeactivateUserUseCase,
 )
-from app.modules.identity.application.dtos import AuthenticatedUserDTO
+from app.modules.identity.application.dtos import UserSummaryDTO
 from app.modules.identity.application.list_permissions import (
     ListPermissionsQuery,
     ListPermissionsUseCase,
@@ -66,10 +67,15 @@ from app.modules.identity.application.update_role_permissions import (
     UpdateRolePermissionsCommand,
     UpdateRolePermissionsUseCase,
 )
+from app.modules.identity.application.update_user_access import (
+    UpdateUserAccessCommand,
+    UpdateUserAccessUseCase,
+)
 from app.modules.identity.domain.entities import RoleScope
 from app.modules.identity.domain.errors import AccountInactiveError, InvalidCredentialsError
 from app.modules.identity.infrastructure.password_hasher import Argon2PasswordHasher
 from app.modules.identity.infrastructure.repositories import (
+    SqlAlchemyClinicMembershipRepository,
     SqlAlchemyLabMembershipRepository,
     SqlAlchemyLoginFailureRepository,
     SqlAlchemyPermissionRepository,
@@ -78,6 +84,7 @@ from app.modules.identity.infrastructure.repositories import (
     SqlAlchemyUserRepository,
 )
 from app.modules.identity.infrastructure.session_tokens import OpaqueSessionTokens
+from app.shared.application.authorization import ActorContext
 from app.shared.domain.errors import RateLimitedError
 from app.shared.infrastructure.clock import SystemClock
 from app.shared.infrastructure.uow import SqlAlchemyUnitOfWork
@@ -90,13 +97,31 @@ def _settings(request: Request) -> Settings:
     return settings
 
 
-def _user_public_read(user: AuthenticatedUserDTO) -> UserPublicRead:
+def _user_public_read(user: ActorContext) -> UserPublicRead:
     return UserPublicRead(
         id=user.id,
         email=user.email,
         full_name=user.full_name,
         role_id=user.role_id,
         role_name=user.role_name,
+        role_scope=user.role_scope,
+        clinic_ids=sorted(user.clinic_ids),
+        row_version=user.row_version,
+    )
+
+
+def _user_list_item_read(user: UserSummaryDTO) -> UserListItemRead:
+    return UserListItemRead(
+        id=user.id,
+        email=user.email,
+        full_name=user.full_name,
+        is_active=user.is_active,
+        role_id=user.role_id,
+        role_name=user.role_name,
+        role_scope=user.role_scope,
+        clinic_ids=sorted(user.clinic_ids),
+        row_version=user.row_version,
+        created_at=user.created_at,
     )
 
 
@@ -119,6 +144,7 @@ def login(
             roles=SqlAlchemyRoleRepository(uow.session),
             sessions=SqlAlchemySessionRepository(uow.session),
             memberships=SqlAlchemyLabMembershipRepository(uow.session),
+            clinic_memberships=SqlAlchemyClinicMembershipRepository(uow.session),
             login_failures=SqlAlchemyLoginFailureRepository(uow.session),
             password_hasher=Argon2PasswordHasher(),
             token_generator=OpaqueSessionTokens(),
@@ -194,7 +220,7 @@ def logout(
 
 
 @router.get("/auth/me", response_model=AuthResponse)
-def get_me(current_user: AuthenticatedUserDTO = Depends(get_current_user)) -> AuthResponse:
+def get_me(current_user: ActorContext = Depends(get_current_user)) -> AuthResponse:
     return AuthResponse(
         user=_user_public_read(current_user), permissions=sorted(current_user.permissions)
     )
@@ -212,10 +238,12 @@ def list_users(
     is_active: bool | None = Query(None),
     search: str | None = Query(None),
     session: SqlAlchemySession = Depends(get_session),
-    current_user: AuthenticatedUserDTO = Depends(require_permission("users.read")),
+    current_user: ActorContext = Depends(require_permission("users.read")),
 ) -> UserListResponse:
     use_case = ListUsersUseCase(
-        users=SqlAlchemyUserRepository(session), roles=SqlAlchemyRoleRepository(session)
+        users=SqlAlchemyUserRepository(session),
+        roles=SqlAlchemyRoleRepository(session),
+        clinic_memberships=SqlAlchemyClinicMembershipRepository(session),
     )
     result = use_case.execute(
         ListUsersQuery(
@@ -227,18 +255,7 @@ def list_users(
         )
     )
     return UserListResponse(
-        items=[
-            UserListItemRead(
-                id=item.id,
-                email=item.email,
-                full_name=item.full_name,
-                is_active=item.is_active,
-                role_id=item.role_id,
-                role_name=item.role_name,
-                created_at=item.created_at,
-            )
-            for item in result.items
-        ],
+        items=[_user_list_item_read(item) for item in result.items],
         total=result.total,
         page=result.page,
         page_size=result.page_size,
@@ -249,13 +266,14 @@ def list_users(
 def create_user(
     payload: UserCreateRequest,
     uow: SqlAlchemyUnitOfWork = Depends(get_unit_of_work),
-    current_user: AuthenticatedUserDTO = Depends(require_permission("users.create")),
+    current_user: ActorContext = Depends(require_permission("users.create")),
 ) -> UserCreateResponse:
     with uow:
         use_case = CreateUserUseCase(
             users=SqlAlchemyUserRepository(uow.session),
             roles=SqlAlchemyRoleRepository(uow.session),
             memberships=SqlAlchemyLabMembershipRepository(uow.session),
+            clinic_memberships=SqlAlchemyClinicMembershipRepository(uow.session),
             password_hasher=Argon2PasswordHasher(),
             audit=SqlAlchemyAuditLogWriter(uow.session),
             clock=SystemClock(),
@@ -266,30 +284,51 @@ def create_user(
                 email=payload.email,
                 full_name=payload.full_name,
                 role_id=payload.role_id,
+                clinic_ids=frozenset(payload.clinic_ids),
             )
         )
         uow.commit()
 
     return UserCreateResponse(
-        user=UserListItemRead(
-            id=result.user.id,
-            email=result.user.email,
-            full_name=result.user.full_name,
-            is_active=result.user.is_active,
-            role_id=result.user.role_id,
-            role_name=result.user.role_name,
-            created_at=result.user.created_at,
-        ),
-        temporary_password=result.temporary_password,
+        user=_user_list_item_read(result.user), temporary_password=result.temporary_password
     )
 
 
-@router.patch("/users/{user_id}/role", response_model=UserListItemRead)
+@router.patch("/users/{user_id}/access", response_model=UserListItemRead)
+def update_user_access(
+    user_id: UUID,
+    payload: UpdateUserAccessRequest,
+    uow: SqlAlchemyUnitOfWork = Depends(get_unit_of_work),
+    current_user: ActorContext = Depends(require_permission("roles.assign")),
+) -> UserListItemRead:
+    with uow:
+        result = UpdateUserAccessUseCase(
+            users=SqlAlchemyUserRepository(uow.session),
+            roles=SqlAlchemyRoleRepository(uow.session),
+            lab_memberships=SqlAlchemyLabMembershipRepository(uow.session),
+            clinic_memberships=SqlAlchemyClinicMembershipRepository(uow.session),
+            sessions=SqlAlchemySessionRepository(uow.session),
+            audit=SqlAlchemyAuditLogWriter(uow.session),
+            clock=SystemClock(),
+        ).execute(
+            UpdateUserAccessCommand(
+                actor=current_user,
+                user_id=user_id,
+                role_id=payload.role_id,
+                clinic_ids=frozenset(payload.clinic_ids),
+                expected_row_version=payload.expected_row_version,
+            )
+        )
+        uow.commit()
+    return _user_list_item_read(result)
+
+
+@router.patch("/users/{user_id}/role", response_model=UserListItemRead, deprecated=True)
 def assign_role(
     user_id: UUID,
     payload: AssignRoleRequest,
     uow: SqlAlchemyUnitOfWork = Depends(get_unit_of_work),
-    current_user: AuthenticatedUserDTO = Depends(require_permission("roles.assign")),
+    current_user: ActorContext = Depends(require_permission("roles.assign")),
 ) -> UserListItemRead:
     with uow:
         use_case = AssignRoleUseCase(
@@ -319,7 +358,7 @@ def assign_role(
 def deactivate_user(
     user_id: UUID,
     uow: SqlAlchemyUnitOfWork = Depends(get_unit_of_work),
-    current_user: AuthenticatedUserDTO = Depends(require_permission("users.deactivate")),
+    current_user: ActorContext = Depends(require_permission("users.deactivate")),
 ) -> UserListItemRead:
     with uow:
         use_case = DeactivateUserUseCase(
@@ -347,7 +386,7 @@ def deactivate_user(
 def activate_user(
     user_id: UUID,
     uow: SqlAlchemyUnitOfWork = Depends(get_unit_of_work),
-    current_user: AuthenticatedUserDTO = Depends(require_permission("users.activate")),
+    current_user: ActorContext = Depends(require_permission("users.activate")),
 ) -> UserListItemRead:
     with uow:
         use_case = ActivateUserUseCase(
@@ -380,7 +419,7 @@ def list_permission_profiles(
     page: int = Query(1, ge=1),
     page_size: int = Query(20, ge=1, le=100),
     session: SqlAlchemySession = Depends(get_session),
-    current_user: AuthenticatedUserDTO = Depends(require_permission("roles.read")),
+    current_user: ActorContext = Depends(require_permission("roles.read")),
 ) -> RoleListResponse:
     use_case = ListRolesUseCase(roles=SqlAlchemyRoleRepository(session))
     result = use_case.execute(ListRolesQuery(actor=current_user, page=page, page_size=page_size))
@@ -407,7 +446,7 @@ def list_permission_profiles(
 def get_permission_profile(
     role_id: UUID,
     session: SqlAlchemySession = Depends(get_session),
-    current_user: AuthenticatedUserDTO = Depends(require_permission("roles.read")),
+    current_user: ActorContext = Depends(require_permission("roles.read")),
 ) -> RoleRead:
     use_case = GetRoleUseCase(roles=SqlAlchemyRoleRepository(session))
     role = use_case.execute(GetRoleQuery(actor=current_user, role_id=role_id))
@@ -426,7 +465,7 @@ def get_permission_profile(
 def create_permission_profile(
     payload: RoleCreateRequest,
     uow: SqlAlchemyUnitOfWork = Depends(get_unit_of_work),
-    current_user: AuthenticatedUserDTO = Depends(require_permission("roles.manage")),
+    current_user: ActorContext = Depends(require_permission("roles.manage")),
 ) -> RoleRead:
     with uow:
         use_case = CreateRoleUseCase(
@@ -461,7 +500,7 @@ def update_permission_profile(
     role_id: UUID,
     payload: RoleUpdateRequest,
     uow: SqlAlchemyUnitOfWork = Depends(get_unit_of_work),
-    current_user: AuthenticatedUserDTO = Depends(require_permission("roles.manage")),
+    current_user: ActorContext = Depends(require_permission("roles.manage")),
 ) -> RoleRead:
     with uow:
         use_case = UpdateRolePermissionsUseCase(
@@ -499,7 +538,7 @@ def update_permission_profile(
 @router.get("/permissions", response_model=list[PermissionRead])
 def list_permissions(
     session: SqlAlchemySession = Depends(get_session),
-    current_user: AuthenticatedUserDTO = Depends(require_permission("permissions.read")),
+    current_user: ActorContext = Depends(require_permission("permissions.read")),
 ) -> list[PermissionRead]:
     use_case = ListPermissionsUseCase(permissions=SqlAlchemyPermissionRepository(session))
     result = use_case.execute(ListPermissionsQuery(actor=current_user))

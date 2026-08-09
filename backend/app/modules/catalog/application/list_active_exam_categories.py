@@ -9,7 +9,7 @@ from dataclasses import dataclass
 from app.modules.catalog.application.dtos import ExamCategoryDTO
 from app.modules.catalog.application.mappers import exam_category_to_dto
 from app.modules.catalog.domain.repositories import ExamCategoryRepository
-from app.modules.identity.application.dtos import AuthenticatedUserDTO
+from app.shared.application.authorization import ActorContext
 from app.shared.domain.errors import ForbiddenError
 
 _REQUIRED_PERMISSION = "catalog.read"
@@ -17,7 +17,7 @@ _REQUIRED_PERMISSION = "catalog.read"
 
 @dataclass(frozen=True, kw_only=True)
 class ListActiveExamCategoriesQuery:
-    actor: AuthenticatedUserDTO
+    actor: ActorContext
 
 
 class ListActiveExamCategoriesUseCase:

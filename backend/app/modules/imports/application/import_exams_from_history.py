@@ -28,7 +28,6 @@ history.
 
 from __future__ import annotations
 
-import unicodedata
 from dataclasses import dataclass
 from decimal import Decimal, InvalidOperation
 from uuid import UUID, uuid4
@@ -38,6 +37,7 @@ from app.modules.audit.domain.repositories import AuditLogWriter
 from app.modules.catalog.domain.entities import Exam, ExamStatus
 from app.modules.catalog.domain.repositories import ExamCategoryRepository, ExamRepository
 from app.modules.catalog.domain.value_objects import ExamCode
+from app.modules.imports.application.text_normalization import derive_exam_code, merge_key
 from app.modules.imports.domain.repositories import ImportStagingRowRepository
 from app.modules.patients.domain.repositories import SpeciesRepository
 from app.shared.application.clock import Clock
@@ -69,19 +69,6 @@ def _date_sort_key(raw_data: dict[str, object]) -> float:
         return float(raw)
     except ValueError:
         return -1.0
-
-
-def _fold_accents(text: str) -> str:
-    normalized = unicodedata.normalize("NFKD", text)
-    return "".join(char for char in normalized if not unicodedata.combining(char))
-
-
-def _merge_key(name: str) -> str:
-    return _fold_accents(name).lower()
-
-
-def _derive_code(name: str) -> str:
-    return "".join(char for char in _fold_accents(name).upper() if char.isalnum())
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -171,7 +158,7 @@ class ImportExamsFromHistoryUseCase:
                 price=price,
                 source_row_number=row.source_row_number,
             )
-            occurrences_by_key.setdefault(_merge_key(name), []).append(occurrence)
+            occurrences_by_key.setdefault(merge_key(name), []).append(occurrence)
 
         species_ids = frozenset(species.id for species in self._species.list_all())
         used_codes: dict[str, str] = {}
@@ -186,7 +173,7 @@ class ImportExamsFromHistoryUseCase:
             price = next((o.price for o in occurrences if o.price is not None), None)
             category_name = next((o.category_name for o in occurrences if o.category_name), None)
 
-            code = _derive_code(latest.name)
+            code = derive_exam_code(latest.name)
             existing_code_owner = used_codes.get(code)
             if existing_code_owner is not None:
                 reason = (

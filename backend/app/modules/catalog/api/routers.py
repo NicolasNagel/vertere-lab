@@ -76,8 +76,8 @@ from app.modules.catalog.infrastructure.repositories import (
     SqlAlchemyExamRepository,
 )
 from app.modules.identity.api.dependencies import require_permission
-from app.modules.identity.application.dtos import AuthenticatedUserDTO
 from app.modules.patients.infrastructure.repositories import SqlAlchemySpeciesRepository
+from app.shared.application.authorization import ActorContext
 from app.shared.infrastructure.clock import SystemClock
 from app.shared.infrastructure.uow import SqlAlchemyUnitOfWork
 
@@ -103,7 +103,7 @@ def list_exam_categories(
     status: ExamCategoryStatus | None = Query(None),
     search: str | None = Query(None),
     session: SqlAlchemySession = Depends(get_session),
-    current_user: AuthenticatedUserDTO = Depends(require_permission("catalog.read")),
+    current_user: ActorContext = Depends(require_permission("catalog.read")),
 ) -> ExamCategoryListResponse:
     use_case = ListExamCategoriesUseCase(categories=SqlAlchemyExamCategoryRepository(session))
     result = use_case.execute(
@@ -122,7 +122,7 @@ def list_exam_categories(
 @router.get("/active", response_model=ExamCategoryActiveListResponse)
 def list_active_exam_categories(
     session: SqlAlchemySession = Depends(get_session),
-    current_user: AuthenticatedUserDTO = Depends(require_permission("catalog.read")),
+    current_user: ActorContext = Depends(require_permission("catalog.read")),
 ) -> ExamCategoryActiveListResponse:
     use_case = ListActiveExamCategoriesUseCase(categories=SqlAlchemyExamCategoryRepository(session))
     result = use_case.execute(ListActiveExamCategoriesQuery(actor=current_user))
@@ -133,7 +133,7 @@ def list_active_exam_categories(
 def get_exam_category(
     category_id: UUID,
     session: SqlAlchemySession = Depends(get_session),
-    current_user: AuthenticatedUserDTO = Depends(require_permission("catalog.read")),
+    current_user: ActorContext = Depends(require_permission("catalog.read")),
 ) -> ExamCategoryRead:
     use_case = GetExamCategoryUseCase(categories=SqlAlchemyExamCategoryRepository(session))
     result = use_case.execute(GetExamCategoryQuery(actor=current_user, category_id=category_id))
@@ -144,7 +144,7 @@ def get_exam_category(
 def create_exam_category(
     payload: ExamCategoryCreateRequest,
     uow: SqlAlchemyUnitOfWork = Depends(get_unit_of_work),
-    current_user: AuthenticatedUserDTO = Depends(require_permission("catalog.manage")),
+    current_user: ActorContext = Depends(require_permission("catalog.manage")),
 ) -> ExamCategoryRead:
     with uow:
         use_case = CreateExamCategoryUseCase(
@@ -162,7 +162,7 @@ def update_exam_category(
     category_id: UUID,
     payload: ExamCategoryUpdateRequest,
     uow: SqlAlchemyUnitOfWork = Depends(get_unit_of_work),
-    current_user: AuthenticatedUserDTO = Depends(require_permission("catalog.manage")),
+    current_user: ActorContext = Depends(require_permission("catalog.manage")),
 ) -> ExamCategoryRead:
     with uow:
         use_case = UpdateExamCategoryUseCase(
@@ -187,7 +187,7 @@ def update_exam_category(
 def deactivate_exam_category(
     category_id: UUID,
     uow: SqlAlchemyUnitOfWork = Depends(get_unit_of_work),
-    current_user: AuthenticatedUserDTO = Depends(require_permission("catalog.manage")),
+    current_user: ActorContext = Depends(require_permission("catalog.manage")),
 ) -> ExamCategoryRead:
     with uow:
         use_case = DeactivateExamCategoryUseCase(
@@ -229,7 +229,7 @@ def list_exams(
     species_id: UUID | None = Query(None),
     search: str | None = Query(None),
     session: SqlAlchemySession = Depends(get_session),
-    current_user: AuthenticatedUserDTO = Depends(require_permission("catalog.read")),
+    current_user: ActorContext = Depends(require_permission("catalog.read")),
 ) -> ExamListResponse:
     use_case = ListExamsUseCase(exams=SqlAlchemyExamRepository(session))
     result = use_case.execute(
@@ -255,7 +255,7 @@ def list_exams(
 def get_exam(
     exam_id: UUID,
     session: SqlAlchemySession = Depends(get_session),
-    current_user: AuthenticatedUserDTO = Depends(require_permission("catalog.read")),
+    current_user: ActorContext = Depends(require_permission("catalog.read")),
 ) -> ExamRead:
     use_case = GetExamUseCase(exams=SqlAlchemyExamRepository(session))
     result = use_case.execute(GetExamQuery(actor=current_user, exam_id=exam_id))
@@ -266,7 +266,7 @@ def get_exam(
 def create_exam(
     payload: ExamCreateRequest,
     uow: SqlAlchemyUnitOfWork = Depends(get_unit_of_work),
-    current_user: AuthenticatedUserDTO = Depends(require_permission("catalog.manage")),
+    current_user: ActorContext = Depends(require_permission("catalog.manage")),
 ) -> ExamRead:
     with uow:
         use_case = CreateExamUseCase(
@@ -296,7 +296,7 @@ def update_exam(
     exam_id: UUID,
     payload: ExamUpdateRequest,
     uow: SqlAlchemyUnitOfWork = Depends(get_unit_of_work),
-    current_user: AuthenticatedUserDTO = Depends(require_permission("catalog.manage")),
+    current_user: ActorContext = Depends(require_permission("catalog.manage")),
 ) -> ExamRead:
     with uow:
         use_case = UpdateExamUseCase(
@@ -328,7 +328,7 @@ def update_exam(
 def deactivate_exam(
     exam_id: UUID,
     uow: SqlAlchemyUnitOfWork = Depends(get_unit_of_work),
-    current_user: AuthenticatedUserDTO = Depends(require_permission("catalog.manage")),
+    current_user: ActorContext = Depends(require_permission("catalog.manage")),
 ) -> ExamRead:
     with uow:
         use_case = DeactivateExamUseCase(
@@ -378,7 +378,7 @@ def _parse_import_rows(content: str) -> list[ExamImportRow]:
 async def import_exams(
     file: UploadFile = File(...),
     uow: SqlAlchemyUnitOfWork = Depends(get_unit_of_work),
-    current_user: AuthenticatedUserDTO = Depends(require_permission("catalog.manage")),
+    current_user: ActorContext = Depends(require_permission("catalog.manage")),
 ) -> ExamImportResponse:
     if not file.filename or not file.filename.lower().endswith(".csv"):
         raise HTTPException(status_code=422, detail="Envie um arquivo .csv.")

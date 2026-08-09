@@ -203,6 +203,76 @@ class AttendanceRecord:
     created_at: datetime
     updated_at: datetime
     row_version: int = 1
+    # Só preenchidos em atendimentos migrados da planilha legada (Fase 4,
+    # `.claude/rules/10-data-migration.md`) — `None` em todo atendimento
+    # criado pelo fluxo normal de confirmação.
+    legacy_source_row_number: int | None = None
+    legacy_protocol_reference: str | None = None
+    import_batch_id: UUID | None = None
+
+    @classmethod
+    def create_from_legacy_import(
+        cls,
+        *,
+        id: UUID,
+        clinic_id: UUID,
+        veterinarian_id: UUID,
+        patient_id: UUID,
+        collection_method: CollectionMethod,
+        service_level: ServiceLevel,
+        service_date: date,
+        items: list[AttendanceExam],
+        protocol_year: int,
+        protocol_sequence: int,
+        on_call_fee: Decimal,
+        legacy_source_row_number: int,
+        legacy_protocol_reference: str | None,
+        import_batch_id: UUID,
+        now: datetime,
+        created_by: UUID | None,
+    ) -> AttendanceRecord:
+        """A migrated row never passed through `DRAFT` — there is no prior
+        instance to call `.confirm()` on, so this is a factory, not a state
+        transition. It reuses `compute_attendance_totals` (the same single
+        point of money math `.confirm()` uses) so a migrated attendance can
+        never disagree with a live one on how a total is derived from its
+        items (`.claude/rules/12-attendance.md`: "moeda e arredondamento
+        centralizados em um único ponto do domínio").
+
+        Lands directly in `COMPLETED`, never `CONFIRMED` — historical data
+        has nothing left to do, and `update_fields()`/`cancel()` already
+        refuse any status outside `(DRAFT, CONFIRMED)`, which gives migrated
+        records the same "não pode ser editado" protection a closed
+        attendance gets, with no extra guard needed here.
+        """
+        totals = compute_attendance_totals(items, on_call_fee=on_call_fee)
+        return cls(
+            id=id,
+            clinic_id=clinic_id,
+            veterinarian_id=veterinarian_id,
+            patient_id=patient_id,
+            collection_method=collection_method,
+            service_level=service_level,
+            service_date=service_date,
+            status=AttendanceStatus.COMPLETED,
+            items=items,
+            billing_competence=service_date.replace(day=1),
+            subtotal=totals.subtotal,
+            discount_total=totals.discount_total,
+            surcharge_total=totals.surcharge_total,
+            on_call_fee=totals.on_call_fee,
+            grand_total=totals.grand_total,
+            protocol_year=protocol_year,
+            protocol_sequence=protocol_sequence,
+            protocol_number=f"{protocol_year}/{protocol_sequence:06d}",
+            legacy_source_row_number=legacy_source_row_number,
+            legacy_protocol_reference=legacy_protocol_reference,
+            import_batch_id=import_batch_id,
+            created_by=created_by,
+            updated_by=created_by,
+            created_at=now,
+            updated_at=now,
+        )
 
     def confirm(
         self,

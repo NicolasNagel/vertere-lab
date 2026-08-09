@@ -3,8 +3,8 @@ import { useEffect, useState } from 'react'
 import { ApiError } from '../../../shared/api/errors'
 import { Button } from '../../../shared/ui/button'
 import { PlusIcon } from '../../../shared/ui/icons'
-import type { SelectOption } from '../../../shared/ui/select'
 import { useAuth } from '../../auth/auth-context'
+import { useAllClinicsQuery } from '../../clinics/api/use-clinics-query'
 import { RoleCreateForm } from '../../roles/components/role-create-form'
 import { RoleDetailPanel } from '../../roles/components/role-detail-panel'
 import { useCreateRoleMutation } from '../../roles/api/use-create-role-mutation'
@@ -46,6 +46,7 @@ export function UsersPage() {
   // (CLINIC_ADMIN/VETERINARIAN/CLINIC_STAFF) não têm permissão nem vínculo
   // funcional, então ficam fora da lista de perfis atribuíveis aqui.
   const rolesQuery = useAllRolesQuery()
+  const clinicsQuery = useAllClinicsQuery({ status: 'ACTIVE' })
   const permissionsQuery = usePermissionsQuery()
   const allUsersQuery = useAllUsersQuery()
 
@@ -62,6 +63,7 @@ export function UsersPage() {
   const selectedUser = users.find((item) => item.id === selectedId) ?? null
 
   const roles = rolesQuery.data?.items ?? []
+  const clinics = clinicsQuery.data?.items ?? []
   const chipRoles = roles.filter((role) => role.scope !== 'CLINIC')
   const allPermissions = permissionsQuery.data ?? []
   const selectedRole = roles.find((role) => role.id === selectedRoleId) ?? null
@@ -86,11 +88,6 @@ export function UsersPage() {
     const firstChipRole = chipRoles[0]
     if (firstChipRole) setSelectedRoleId(firstChipRole.id)
   }, [mode, selectedRoleId, selectedUser, chipRoles])
-
-  const roleOptions: SelectOption[] = chipRoles.map((role) => ({
-    value: role.id,
-    label: role.name,
-  }))
 
   const isForbidden = listQuery.error instanceof ApiError && listQuery.error.status === 403
 
@@ -164,7 +161,8 @@ export function UsersPage() {
               canAssignRole={canAssignRole}
               canDeactivate={canDeactivate}
               canActivate={canActivate}
-              roleOptions={roleOptions}
+              roles={roles}
+              clinics={clinics}
               assigningRoleForId={assigningRoleForId}
               assignRoleSubmitting={assignRoleMutation.isPending}
               assignRoleError={assignRoleMutation.error}
@@ -174,9 +172,9 @@ export function UsersPage() {
                 setAssigningRoleForId(null)
                 assignRoleMutation.reset()
               }}
-              onSubmitAssignRole={(id, roleId) =>
+              onSubmitAssignRole={(target, roleId, clinicIds) =>
                 assignRoleMutation.mutate(
-                  { id, roleId },
+                  { id: target.id, roleId, clinicIds, expectedRowVersion: target.rowVersion },
                   { onSuccess: () => setAssigningRoleForId(null) },
                 )
               }
@@ -189,7 +187,8 @@ export function UsersPage() {
             <div className="users-page__create-panel">
               <h2 className="users-page__create-title">Novo usuário</h2>
               <UserForm
-                roleOptions={roleOptions}
+                roles={roles}
+                clinics={clinics}
                 submitting={createUserMutation.isPending}
                 error={createUserMutation.error}
                 onCancel={() => setMode('view')}

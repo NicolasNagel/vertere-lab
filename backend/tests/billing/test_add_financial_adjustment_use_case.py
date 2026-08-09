@@ -25,7 +25,7 @@ _NOW = datetime(2026, 3, 1, tzinfo=UTC)
 
 def _actor(*permissions: str) -> AuthenticatedUserDTO:
     return AuthenticatedUserDTO(
-        id=uuid4(),
+        user_id=uuid4(),
         email="finance@vertere.local",
         full_name="Finance",
         role_id=uuid4(),

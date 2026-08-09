@@ -61,7 +61,7 @@ def test_assign_role_blocks_the_only_admin_from_demoting_themselves() -> None:
         users=users, roles=roles, sessions=sessions, audit=audit, clock=FakeClock(_NOW)
     )
     actor = AuthenticatedUserDTO(
-        id=admin.id,
+        user_id=admin.id,
         email=str(admin.email),
         full_name=admin.full_name,
         role_id=admin_role.id,
@@ -95,7 +95,7 @@ def test_assign_role_allows_demotion_when_another_admin_exists() -> None:
         users=users, roles=roles, sessions=sessions, audit=audit, clock=FakeClock(_NOW)
     )
     actor = AuthenticatedUserDTO(
-        id=admin.id,
+        user_id=admin.id,
         email=str(admin.email),
         full_name=admin.full_name,
         role_id=admin_role.id,
@@ -118,7 +118,7 @@ def test_deactivate_user_blocks_the_only_admin_from_deactivating_themselves() ->
         users=users, roles=roles, sessions=sessions, audit=audit, clock=FakeClock(_NOW)
     )
     actor = AuthenticatedUserDTO(
-        id=admin.id,
+        user_id=admin.id,
         email=str(admin.email),
         full_name=admin.full_name,
         role_id=admin_role.id,

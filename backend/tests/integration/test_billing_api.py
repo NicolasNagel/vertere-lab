@@ -168,11 +168,25 @@ async def _create_veterinarian(client: httpx.AsyncClient, *, name: str, crmv: st
     return str(response.json()["id"])
 
 
-async def _create_patient(client: httpx.AsyncClient, session_factory: sessionmaker[Session]) -> str:
+async def _create_patient(
+    client: httpx.AsyncClient,
+    session_factory: sessionmaker[Session],
+    *,
+    clinic_id: str | None = None,
+) -> str:
     species_id = _get_species_id(session_factory, name="Canino")
+    if clinic_id is None:
+        with session_factory() as session:
+            clinic_id = str(session.execute(text("SELECT id FROM clinics LIMIT 1")).scalar_one())
     response = await client.post(
         "/api/v1/patients",
-        json={"name": "Rex", "species_id": species_id, "sex": "MALE", "owner_name": "Maria Souza"},
+        json={
+            "clinic_id": clinic_id,
+            "name": "Rex",
+            "species_id": species_id,
+            "sex": "MALE",
+            "owner_name": "Maria Souza",
+        },
     )
     assert response.status_code == 201
     return str(response.json()["id"])
@@ -284,7 +298,7 @@ async def test_preview_returns_eligible_and_blocked_items_with_correct_totals(
 
     response = await client.get(
         "/api/v1/closures/preview",
-        params={"clinic_id": clinic_id, "year": 2026, "month": 1},
+        params={"clinic_id": clinic_id, "period_start": "2026-01-01", "period_end": "2026-01-31"},
     )
 
     assert response.status_code == 200
@@ -301,6 +315,8 @@ async def test_preview_returns_eligible_and_blocked_items_with_correct_totals(
 
     eligible_ids = {item["attendance_id"] for item in body["eligible_items"]}
     assert eligible_ids == {eligible_1["id"], eligible_2["id"]}
+    assert all(item["service_level"] == "NORMAL" for item in body["eligible_items"])
+    assert all(item["exam_category"] == "Cat HEMO-001" for item in body["eligible_items"])
 
     blocked_ids = {item["attendance_id"] for item in body["blocked_items"]}
     assert blocked["id"] in blocked_ids
@@ -334,7 +350,7 @@ async def test_preview_excludes_cancelled_attendance(
 
     response = await client.get(
         "/api/v1/closures/preview",
-        params={"clinic_id": clinic_id, "year": 2026, "month": 1},
+        params={"clinic_id": clinic_id, "period_start": "2026-01-01", "period_end": "2026-01-31"},
     )
 
     assert response.status_code == 200
@@ -353,7 +369,7 @@ async def test_preview_isolates_clinics(
     clinic_a = await _create_clinic(client, "Schweitzer")
     clinic_b = await _create_clinic(client, "VetCenter")
     vet_id = await _create_veterinarian(client, name="Dra. Fabianna Garcia", crmv="CRMV-SC 04567")
-    patient_id = await _create_patient(client, session_factory)
+    patient_id = await _create_patient(client, session_factory, clinic_id=clinic_b)
     exam_id = await _create_exam(client, session_factory, code="HEMO-001", price="100.00")
 
     await _confirm_attendance(
@@ -367,7 +383,7 @@ async def test_preview_isolates_clinics(
 
     response = await client.get(
         "/api/v1/closures/preview",
-        params={"clinic_id": clinic_a, "year": 2026, "month": 1},
+        params={"clinic_id": clinic_a, "period_start": "2026-01-01", "period_end": "2026-01-31"},
     )
 
     assert response.status_code == 200
@@ -393,7 +409,7 @@ async def test_preview_without_permission_is_forbidden(
 
     response = await client.get(
         "/api/v1/closures/preview",
-        params={"clinic_id": clinic_id, "year": 2026, "month": 1},
+        params={"clinic_id": clinic_id, "period_start": "2026-01-01", "period_end": "2026-01-31"},
     )
 
     assert response.status_code == 403
@@ -413,7 +429,7 @@ async def test_preview_with_finance_role_succeeds(
 
     response = await client.get(
         "/api/v1/closures/preview",
-        params={"clinic_id": clinic_id, "year": 2026, "month": 1},
+        params={"clinic_id": clinic_id, "period_start": "2026-01-01", "period_end": "2026-01-31"},
     )
 
     assert response.status_code == 200
@@ -426,13 +442,17 @@ async def test_preview_unknown_clinic_is_not_found(
 
     response = await client.get(
         "/api/v1/closures/preview",
-        params={"clinic_id": str(uuid4()), "year": 2026, "month": 1},
+        params={
+            "clinic_id": str(uuid4()),
+            "period_start": "2026-01-01",
+            "period_end": "2026-01-31",
+        },
     )
 
     assert response.status_code == 404
 
 
-async def test_preview_invalid_month_is_validation_error(
+async def test_preview_period_end_before_start_is_validation_error(
     client: httpx.AsyncClient, session_factory: sessionmaker[Session]
 ) -> None:
     await _login_admin(client, session_factory)
@@ -440,7 +460,11 @@ async def test_preview_invalid_month_is_validation_error(
 
     response = await client.get(
         "/api/v1/closures/preview",
-        params={"clinic_id": clinic_id, "year": 2026, "month": 13},
+        params={
+            "clinic_id": clinic_id,
+            "period_start": "2026-01-31",
+            "period_end": "2026-01-01",
+        },
     )
 
     assert response.status_code == 422
@@ -451,7 +475,11 @@ async def test_preview_without_authentication_is_unauthenticated(
 ) -> None:
     response = await client.get(
         "/api/v1/closures/preview",
-        params={"clinic_id": str(uuid4()), "year": 2026, "month": 1},
+        params={
+            "clinic_id": str(uuid4()),
+            "period_start": "2026-01-01",
+            "period_end": "2026-01-31",
+        },
     )
     assert response.status_code == 401
 
@@ -483,7 +511,7 @@ async def test_preview_does_not_persist_anything(
     before = _table_counts()
     response = await client.get(
         "/api/v1/closures/preview",
-        params={"clinic_id": clinic_id, "year": 2026, "month": 1},
+        params={"clinic_id": clinic_id, "period_start": "2026-01-01", "period_end": "2026-01-31"},
     )
     after = _table_counts()
 

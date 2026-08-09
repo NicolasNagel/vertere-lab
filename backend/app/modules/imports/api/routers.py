@@ -11,6 +11,10 @@ from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
 from sqlalchemy.orm import Session as SqlAlchemySession
 
 from app.api.dependencies import get_session, get_unit_of_work
+from app.modules.attendances.infrastructure.repositories import (
+    SqlAlchemyAttendanceRepository,
+    SqlAlchemyAttendanceSequenceRepository,
+)
 from app.modules.audit.infrastructure.repositories import SqlAlchemyAuditLogWriter
 from app.modules.catalog.infrastructure.repositories import (
     SqlAlchemyExamCategoryRepository,
@@ -18,8 +22,8 @@ from app.modules.catalog.infrastructure.repositories import (
 )
 from app.modules.clinics.infrastructure.repositories import SqlAlchemyClinicRepository
 from app.modules.identity.api.dependencies import require_permission
-from app.modules.identity.application.dtos import AuthenticatedUserDTO
 from app.modules.imports.api.schemas import (
+    AttendanceHistoryImportResponse,
     ImportBatchRead,
     ImportBatchStatusLiteral,
     ImportClinicsResponse,
@@ -65,6 +69,12 @@ from app.modules.imports.application.list_import_exceptions import (
     ListImportExceptionsQuery,
     ListImportExceptionsUseCase,
 )
+from app.modules.imports.application.run_attendance_history_import import (
+    AttendanceHistoryImportResult,
+    CommitAttendanceHistoryImportUseCase,
+    DryRunAttendanceHistoryImportUseCase,
+    RunAttendanceHistoryImportCommand,
+)
 from app.modules.imports.application.run_import_pipeline import (
     CommitImportUseCase,
     DryRunImportUseCase,
@@ -99,6 +109,7 @@ from app.modules.veterinarian_clinics.infrastructure.repositories import (
     SqlAlchemyVeterinarianClinicLinkRepository,
 )
 from app.modules.veterinarians.infrastructure.repositories import SqlAlchemyVeterinarianRepository
+from app.shared.application.authorization import ActorContext
 from app.shared.infrastructure.clock import SystemClock
 from app.shared.infrastructure.uow import SqlAlchemyUnitOfWork
 
@@ -111,7 +122,7 @@ _MAX_FILE_SIZE = 20 * 1024 * 1024  # 20 MB — planilha de origem tem ~1 MB
 async def stage_spreadsheet(
     file: UploadFile = File(...),
     uow: SqlAlchemyUnitOfWork = Depends(get_unit_of_work),
-    current_user: AuthenticatedUserDTO = Depends(require_permission("imports.execute")),
+    current_user: ActorContext = Depends(require_permission("imports.execute")),
 ) -> SpreadsheetStageResponse:
     if not file.filename or not file.filename.lower().endswith(".xlsx"):
         raise HTTPException(status_code=422, detail="Envie um arquivo .xlsx.")
@@ -155,7 +166,7 @@ async def stage_spreadsheet(
 async def stage_price_table_pdf(
     file: UploadFile = File(...),
     uow: SqlAlchemyUnitOfWork = Depends(get_unit_of_work),
-    current_user: AuthenticatedUserDTO = Depends(require_permission("imports.execute")),
+    current_user: ActorContext = Depends(require_permission("imports.execute")),
 ) -> PriceTablePdfStageResponse:
     if not file.filename or not file.filename.lower().endswith(".pdf"):
         raise HTTPException(status_code=422, detail="Envie um arquivo .pdf.")
@@ -216,7 +227,7 @@ def _price_table_response(
 def dry_run_price_table_import(
     batch_id: UUID,
     uow: SqlAlchemyUnitOfWork = Depends(get_unit_of_work),
-    current_user: AuthenticatedUserDTO = Depends(require_permission("imports.execute")),
+    current_user: ActorContext = Depends(require_permission("imports.execute")),
 ) -> PriceTableImportResponse:
     with uow:
         acquire_batch_lock(uow.session, batch_id)
@@ -243,7 +254,7 @@ def dry_run_price_table_import(
 def commit_price_table_import(
     batch_id: UUID,
     uow: SqlAlchemyUnitOfWork = Depends(get_unit_of_work),
-    current_user: AuthenticatedUserDTO = Depends(require_permission("imports.execute")),
+    current_user: ActorContext = Depends(require_permission("imports.execute")),
 ) -> PriceTableImportResponse:
     with uow:
         acquire_batch_lock(uow.session, batch_id)
@@ -267,11 +278,95 @@ def commit_price_table_import(
     return _price_table_response(result, status="COMMITTED")
 
 
+def _attendance_history_response(
+    result: AttendanceHistoryImportResult, *, status: ImportBatchStatusLiteral
+) -> AttendanceHistoryImportResponse:
+    return AttendanceHistoryImportResponse(
+        batch_id=result.batch_id,
+        status=status,
+        imported_count=result.imported_count,
+        skipped_existing_count=result.skipped_existing_count,
+        rejected_count=result.rejected_count,
+        imported_grand_total=result.imported_grand_total,
+        exceptions=[
+            ImportRowExceptionRead(source_row_number=e.source_row_number, message=e.message)
+            for e in result.exceptions
+        ],
+    )
+
+
+@router.post("/{batch_id}/attendances/dry-run", response_model=AttendanceHistoryImportResponse)
+def dry_run_attendance_history_import(
+    batch_id: UUID,
+    uow: SqlAlchemyUnitOfWork = Depends(get_unit_of_work),
+    current_user: ActorContext = Depends(require_permission("imports.execute")),
+) -> AttendanceHistoryImportResponse:
+    with uow:
+        acquire_batch_lock(uow.session, batch_id)
+        use_case = DryRunAttendanceHistoryImportUseCase(
+            staging_rows=SqlAlchemyImportStagingRowRepository(uow.session),
+            batches=SqlAlchemyImportBatchRepository(uow.session),
+            attendances=SqlAlchemyAttendanceRepository(uow.session),
+            attendance_sequences=SqlAlchemyAttendanceSequenceRepository(uow.session),
+            clinics=SqlAlchemyClinicRepository(uow.session),
+            veterinarians=SqlAlchemyVeterinarianRepository(uow.session),
+            patients=SqlAlchemyPatientRepository(uow.session),
+            exams=SqlAlchemyExamRepository(uow.session),
+            audit=SqlAlchemyAuditLogWriter(uow.session),
+            clock=SystemClock(),
+        )
+        result = use_case.execute(
+            RunAttendanceHistoryImportCommand(
+                actor_id=current_user.id,
+                actor_permissions=current_user.permissions,
+                batch_id=batch_id,
+            )
+        )
+        # Deliberately no uow.commit() — same rollback-based dry-run as every
+        # other phase's /dry-run, including protocol sequence allocation:
+        # a dry-run must never actually consume real protocol numbers.
+
+    return _attendance_history_response(result, status="DRY_RUN_DONE")
+
+
+@router.post("/{batch_id}/attendances/commit", response_model=AttendanceHistoryImportResponse)
+def commit_attendance_history_import(
+    batch_id: UUID,
+    uow: SqlAlchemyUnitOfWork = Depends(get_unit_of_work),
+    current_user: ActorContext = Depends(require_permission("imports.execute")),
+) -> AttendanceHistoryImportResponse:
+    with uow:
+        acquire_batch_lock(uow.session, batch_id)
+        use_case = CommitAttendanceHistoryImportUseCase(
+            staging_rows=SqlAlchemyImportStagingRowRepository(uow.session),
+            batches=SqlAlchemyImportBatchRepository(uow.session),
+            exceptions=SqlAlchemyImportExceptionRepository(uow.session),
+            attendances=SqlAlchemyAttendanceRepository(uow.session),
+            attendance_sequences=SqlAlchemyAttendanceSequenceRepository(uow.session),
+            clinics=SqlAlchemyClinicRepository(uow.session),
+            veterinarians=SqlAlchemyVeterinarianRepository(uow.session),
+            patients=SqlAlchemyPatientRepository(uow.session),
+            exams=SqlAlchemyExamRepository(uow.session),
+            audit=SqlAlchemyAuditLogWriter(uow.session),
+            clock=SystemClock(),
+        )
+        result = use_case.execute(
+            RunAttendanceHistoryImportCommand(
+                actor_id=current_user.id,
+                actor_permissions=current_user.permissions,
+                batch_id=batch_id,
+            )
+        )
+        uow.commit()
+
+    return _attendance_history_response(result, status="COMMITTED")
+
+
 @router.post("/{batch_id}/clinics", response_model=ImportClinicsResponse)
 def import_clinics(
     batch_id: UUID,
     uow: SqlAlchemyUnitOfWork = Depends(get_unit_of_work),
-    current_user: AuthenticatedUserDTO = Depends(require_permission("imports.execute")),
+    current_user: ActorContext = Depends(require_permission("imports.execute")),
 ) -> ImportClinicsResponse:
     with uow:
         acquire_batch_lock(uow.session, batch_id)
@@ -304,7 +399,7 @@ def import_clinics(
 def import_veterinarians(
     batch_id: UUID,
     uow: SqlAlchemyUnitOfWork = Depends(get_unit_of_work),
-    current_user: AuthenticatedUserDTO = Depends(require_permission("imports.execute")),
+    current_user: ActorContext = Depends(require_permission("imports.execute")),
 ) -> ImportVeterinariansResponse:
     with uow:
         acquire_batch_lock(uow.session, batch_id)
@@ -341,7 +436,7 @@ def import_veterinarians(
 def link_veterinarian_clinics_from_history(
     batch_id: UUID,
     uow: SqlAlchemyUnitOfWork = Depends(get_unit_of_work),
-    current_user: AuthenticatedUserDTO = Depends(require_permission("imports.execute")),
+    current_user: ActorContext = Depends(require_permission("imports.execute")),
 ) -> LinkVeterinarianClinicsResponse:
     with uow:
         acquire_batch_lock(uow.session, batch_id)
@@ -375,7 +470,7 @@ def link_veterinarian_clinics_from_history(
 def import_exam_categories(
     batch_id: UUID,
     uow: SqlAlchemyUnitOfWork = Depends(get_unit_of_work),
-    current_user: AuthenticatedUserDTO = Depends(require_permission("imports.execute")),
+    current_user: ActorContext = Depends(require_permission("imports.execute")),
 ) -> ImportExamCategoriesResponse:
     with uow:
         acquire_batch_lock(uow.session, batch_id)
@@ -404,7 +499,7 @@ def import_exam_categories(
 def import_exams_from_history(
     batch_id: UUID,
     uow: SqlAlchemyUnitOfWork = Depends(get_unit_of_work),
-    current_user: AuthenticatedUserDTO = Depends(require_permission("imports.execute")),
+    current_user: ActorContext = Depends(require_permission("imports.execute")),
 ) -> ImportExamsFromHistoryResponse:
     with uow:
         acquire_batch_lock(uow.session, batch_id)
@@ -439,7 +534,7 @@ def import_exams_from_history(
 def import_patients(
     batch_id: UUID,
     uow: SqlAlchemyUnitOfWork = Depends(get_unit_of_work),
-    current_user: AuthenticatedUserDTO = Depends(require_permission("imports.execute")),
+    current_user: ActorContext = Depends(require_permission("imports.execute")),
 ) -> ImportPatientsResponse:
     with uow:
         acquire_batch_lock(uow.session, batch_id)
@@ -496,7 +591,7 @@ def _pipeline_response(
 def dry_run_import(
     batch_id: UUID,
     uow: SqlAlchemyUnitOfWork = Depends(get_unit_of_work),
-    current_user: AuthenticatedUserDTO = Depends(require_permission("imports.execute")),
+    current_user: ActorContext = Depends(require_permission("imports.execute")),
 ) -> ImportPipelineResponse:
     """Runs every phase for real against the current data, but never commits — the transaction
     is simply never committed, so closing the session at the end of `with uow:` rolls it back.
@@ -532,7 +627,7 @@ def dry_run_import(
 def commit_import(
     batch_id: UUID,
     uow: SqlAlchemyUnitOfWork = Depends(get_unit_of_work),
-    current_user: AuthenticatedUserDTO = Depends(require_permission("imports.execute")),
+    current_user: ActorContext = Depends(require_permission("imports.execute")),
 ) -> ImportPipelineResponse:
     with uow:
         acquire_batch_lock(uow.session, batch_id)
@@ -566,7 +661,7 @@ def commit_import(
 def list_import_exceptions(
     batch_id: UUID,
     session: SqlAlchemySession = Depends(get_session),
-    current_user: AuthenticatedUserDTO = Depends(require_permission("imports.execute")),
+    current_user: ActorContext = Depends(require_permission("imports.execute")),
 ) -> ImportExceptionsListResponse:
     use_case = ListImportExceptionsUseCase(exceptions=SqlAlchemyImportExceptionRepository(session))
     exceptions = use_case.execute(

@@ -15,6 +15,14 @@ export function pluralize(count: number, singular: string, plural: string): stri
   return count === 1 ? singular : plural
 }
 
+/** First letter of the first and last name segments, for avatar initials. */
+export function getInitials(fullName: string): string {
+  const parts = fullName.trim().split(/\s+/)
+  const first = parts[0]?.[0] ?? ''
+  const last = parts.length > 1 ? (parts.at(-1)?.[0] ?? '') : ''
+  return `${first}${last}`.toUpperCase()
+}
+
 const _currencyFormatter = new Intl.NumberFormat('pt-BR', {
   style: 'currency',
   currency: 'BRL',
@@ -73,14 +81,4 @@ export function formatServiceDateTime(serviceDate: string | null, createdAt: str
   if (!match) return formatDateTime(createdAt)
   const createdTime = formatDateTime(createdAt).split(' · ')[1]
   return `${match[3]}/${match[2]} · ${createdTime ?? '—'}`
-}
-
-/** `competence_year`/`competence_month` are plain integers (never a date
- * string), so the UTC-parsing pitfall above doesn't apply here — this just
- * needs a `Date` for `Intl` to read the month name from, built directly
- * from the local calendar, day fixed at 1. */
-export function formatCompetence(year: number, month: number): string {
-  return new Intl.DateTimeFormat('pt-BR', { month: 'long', year: 'numeric' }).format(
-    new Date(year, month - 1, 1),
-  )
 }

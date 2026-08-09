@@ -11,7 +11,7 @@ from app.modules.clinics.domain.entities import Clinic, ClinicStatus
 from app.modules.clinics.domain.errors import DuplicateTaxIdError
 from app.modules.clinics.domain.repositories import ClinicRepository
 from app.modules.clinics.domain.value_objects import TaxId
-from app.modules.identity.application.dtos import AuthenticatedUserDTO
+from app.shared.application.authorization import ActorContext
 from app.shared.application.clock import Clock
 from app.shared.domain.errors import ForbiddenError
 
@@ -20,7 +20,7 @@ _REQUIRED_PERMISSION = "clinics.manage"
 
 @dataclass(frozen=True, kw_only=True)
 class CreateClinicCommand:
-    actor: AuthenticatedUserDTO
+    actor: ActorContext
     name: str
     tax_id: str | None
     phone: str | None
@@ -48,6 +48,8 @@ class CreateClinicUseCase:
         self._clock = clock
 
     def execute(self, command: CreateClinicCommand) -> ClinicDTO:
+        if command.actor.role_scope == "CLINIC":
+            raise ForbiddenError("Usuário de clínica não pode criar outra clínica.")
         if _REQUIRED_PERMISSION not in command.actor.permissions:
             raise ForbiddenError(f"Permissão ausente: {_REQUIRED_PERMISSION}")
 

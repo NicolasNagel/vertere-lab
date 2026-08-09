@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 
 import { ApiError } from '../../../shared/api/errors'
 import { Button } from '../../../shared/ui/button'
+import './closure-reopen-modal.css'
 
 interface ClosureReopenModalProps {
   isPending: boolean
@@ -54,7 +55,7 @@ export function ClosureReopenModal({
           onChange={(event) => setReason(event.target.value)}
         />
         {error && (
-          <p role="alert" className="closure-detail-page__error">
+          <p role="alert" className="closure-reopen-modal__error">
             {error instanceof ApiError ? error.message : 'Não foi possível reabrir o fechamento.'}
           </p>
         )}

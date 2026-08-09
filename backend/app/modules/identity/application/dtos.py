@@ -7,9 +7,11 @@ from dataclasses import dataclass
 from datetime import datetime
 from uuid import UUID
 
+from app.shared.application.authorization import ActorContext
 from app.shared.application.dtos import PageDTO
 
 __all__ = [
+    "ActorContext",
     "AuthenticatedUserDTO",
     "PageDTO",
     "PermissionDTO",
@@ -19,22 +21,14 @@ __all__ = [
     "UserSummaryDTO",
 ]
 
-
-@dataclass(frozen=True, kw_only=True)
-class AuthenticatedUserDTO:
-    id: UUID
-    email: str
-    full_name: str
-    role_id: UUID
-    role_name: str
-    permissions: frozenset[str]
+AuthenticatedUserDTO = ActorContext
 
 
 @dataclass(frozen=True, kw_only=True)
 class SessionIssuedDTO:
     token: str
     expires_at: datetime
-    user: AuthenticatedUserDTO
+    user: ActorContext
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -45,6 +39,9 @@ class UserSummaryDTO:
     is_active: bool
     role_id: UUID
     role_name: str
+    role_scope: str = "LAB"
+    clinic_ids: frozenset[UUID] = frozenset()
+    row_version: int = 1
     created_at: datetime
 
 

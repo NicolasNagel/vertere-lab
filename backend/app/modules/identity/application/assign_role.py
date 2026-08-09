@@ -5,23 +5,25 @@ from uuid import UUID
 
 from app.modules.audit.domain.entities import ActorScope, AuditEntry
 from app.modules.audit.domain.repositories import AuditLogWriter
-from app.modules.identity.application.dtos import AuthenticatedUserDTO, UserSummaryDTO
+from app.modules.identity.application.dtos import UserSummaryDTO
 from app.modules.identity.domain.constants import CONTROL_PERMISSIONS
+from app.modules.identity.domain.entities import RoleScope
 from app.modules.identity.domain.errors import SelfLockoutError
 from app.modules.identity.domain.repositories import (
     RoleRepository,
     SessionRepository,
     UserRepository,
 )
+from app.shared.application.authorization import ActorContext
 from app.shared.application.clock import Clock
-from app.shared.domain.errors import ForbiddenError, NotFoundError
+from app.shared.domain.errors import ForbiddenError, NotFoundError, ValidationError
 
 _REQUIRED_PERMISSION = "roles.assign"
 
 
 @dataclass(frozen=True, kw_only=True)
 class AssignRoleCommand:
-    actor: AuthenticatedUserDTO
+    actor: ActorContext
     user_id: UUID
     new_role_id: UUID
 
@@ -53,6 +55,8 @@ class AssignRoleUseCase:
         new_role = self._roles.get_by_id(command.new_role_id)
         if new_role is None:
             raise NotFoundError("Papel não encontrado.")
+        if new_role.scope is RoleScope.CLINIC:
+            raise ValidationError("Use o endpoint de acesso para atribuir papel de clínica.")
 
         if user.id == command.actor.id:
             lost_control_permissions = CONTROL_PERMISSIONS - new_role.permission_codes
@@ -90,5 +94,8 @@ class AssignRoleUseCase:
             is_active=user.is_active,
             role_id=new_role.id,
             role_name=new_role.name,
+            role_scope=new_role.scope.value,
+            clinic_ids=frozenset(),
+            row_version=user.row_version + 1,
             created_at=user.created_at,
         )

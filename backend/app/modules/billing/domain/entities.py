@@ -26,32 +26,57 @@ from uuid import UUID
 
 from app.shared.domain.errors import InvalidStateTransitionError, ValidationError
 
+_MAX_PERIOD_SPAN_DAYS = 366
+
 
 @dataclass(frozen=True, kw_only=True)
 class CompetencePeriod:
-    """Calendar-month competence (`docs/07-nucleo-v1.md` §4.1: competência é
-    gravada como `billing_competence` na confirmação, nunca derivada
-    depois)."""
+    """A closure period — any `[period_start, period_end]` range chosen at
+    close time, not necessarily a full calendar month (some clinics close
+    quinzenalmente). Membership is decided against `service_date`, never
+    `billing_competence` (`eligibility.py`) — `billing_competence` stays
+    immutable and is never the selection criterion
+    (`.claude/rules/13-monthly-closure.md`: "Retroatividade — competência de
+    um atendimento não muda sem um caso de uso específico e auditado").
 
-    year: int
-    month: int
+    `year`/`month` below are *derived* from `period_start` — display/grouping
+    metadata only (e.g. `MonthlyClosure.competence_year/month`), never used
+    for eligibility or uniqueness."""
+
+    period_start: date
+    period_end: date
 
     def __post_init__(self) -> None:
-        if not (1 <= self.month <= 12):
+        if self.period_end < self.period_start:
+            raise ValidationError("Data final do período não pode ser anterior à inicial.")
+        if self.period_start.year < 2000:
+            raise ValidationError("Data inicial do período é inválida.")
+        span_days = (self.period_end - self.period_start).days + 1
+        if span_days > _MAX_PERIOD_SPAN_DAYS:
+            raise ValidationError(
+                f"Período de fechamento não pode exceder {_MAX_PERIOD_SPAN_DAYS} dias."
+            )
+
+    @classmethod
+    def for_month(cls, *, year: int, month: int) -> CompetencePeriod:
+        """Convenience factory for the common case — a full calendar month."""
+        if not (1 <= month <= 12):
             raise ValidationError("Mês de competência deve estar entre 1 e 12.")
-        if self.year < 2000:
-            raise ValidationError("Ano de competência inválido.")
+        period_start = date(year, month, 1)
+        if month == 12:
+            period_end = date(year, 12, 31)
+        else:
+            next_month_start = date(year, month + 1, 1)
+            period_end = date.fromordinal(next_month_start.toordinal() - 1)
+        return cls(period_start=period_start, period_end=period_end)
 
     @property
-    def period_start(self) -> date:
-        return date(self.year, self.month, 1)
+    def year(self) -> int:
+        return self.period_start.year
 
     @property
-    def period_end(self) -> date:
-        if self.month == 12:
-            return date(self.year, 12, 31)
-        next_month_start = date(self.year, self.month + 1, 1)
-        return date.fromordinal(next_month_start.toordinal() - 1)
+    def month(self) -> int:
+        return self.period_start.month
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -67,11 +92,14 @@ class ClosureCandidateItem:
     attendance_exam_id: UUID
     attendance_status: str
     item_status: str
+    service_date: date | None
     billing_competence: date | None
     monthly_closure_id: UUID | None
     protocol_number: str | None
     patient_name: str
     exam_name: str
+    service_level: str
+    exam_category: str
     price_base: Decimal
     quantity: int
     discount_amount: Decimal
@@ -92,6 +120,8 @@ class ClosurePreviewItem:
     protocol_number: str | None
     patient_name: str
     exam_name: str
+    service_level: str
+    exam_category: str
     total_amount: Decimal
 
 
@@ -172,6 +202,10 @@ class MonthlyClosureItem:
     discount_amount: Decimal
     surcharge_amount: Decimal
     total_amount: Decimal
+    # `None` só em fechamentos criados antes da 0035 — nunca reconsultado do
+    # atendimento vivo depois de fechado.
+    service_level: str | None = None
+    exam_category: str | None = None
 
     def __post_init__(self) -> None:
         if self.quantity <= 0:

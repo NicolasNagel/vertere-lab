@@ -17,7 +17,7 @@ from app.modules.attendances.domain.entities import OnCallFeeSetting, ServiceLev
 from app.modules.attendances.domain.repositories import OnCallFeeSettingRepository
 from app.modules.audit.domain.entities import ActorScope, AuditEntry
 from app.modules.audit.domain.repositories import AuditLogWriter
-from app.modules.identity.application.dtos import AuthenticatedUserDTO
+from app.shared.application.authorization import ActorContext
 from app.shared.application.clock import Clock
 from app.shared.domain.errors import ConflictError, ForbiddenError, NotFoundError, ValidationError
 
@@ -26,7 +26,7 @@ _REQUIRED_PERMISSION = "pricing.manage"
 
 @dataclass(frozen=True, kw_only=True)
 class UpdateOnCallFeeSettingCommand:
-    actor: AuthenticatedUserDTO
+    actor: ActorContext
     service_level: ServiceLevel
     fee_amount: Decimal
     schedule_label: str

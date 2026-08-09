@@ -88,6 +88,11 @@ class AttendanceModel(Base):
         nullable=False, server_default=func.now(), onupdate=func.now()
     )
     row_version: Mapped[int] = mapped_column(nullable=False, default=1)
+    legacy_source_row_number: Mapped[int | None] = mapped_column(nullable=True)
+    legacy_protocol_reference: Mapped[str | None] = mapped_column(nullable=True)
+    import_batch_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("import_batches.id", ondelete="SET NULL"), nullable=True
+    )
 
     items: Mapped[list[AttendanceExamModel]] = relationship(
         back_populates="attendance", cascade="all, delete-orphan"

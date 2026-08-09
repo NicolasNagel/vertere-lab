@@ -18,6 +18,7 @@ class SpeciesDTO:
 @dataclass(frozen=True, kw_only=True)
 class PatientDTO:
     id: UUID
+    clinic_id: UUID | None
     name: str
     species_id: UUID
     sex: str

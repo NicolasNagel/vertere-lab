@@ -18,7 +18,6 @@ from uuid import UUID, uuid4
 from app.modules.audit.domain.entities import ActorScope, AuditEntry
 from app.modules.audit.domain.repositories import AuditLogWriter
 from app.modules.clinics.domain.repositories import ClinicRepository
-from app.modules.identity.application.dtos import AuthenticatedUserDTO
 from app.modules.veterinarian_clinics.domain.entities import VeterinarianClinicLink
 from app.modules.veterinarian_clinics.domain.repositories import VeterinarianClinicLinkRepository
 from app.modules.veterinarians.application.dtos import VeterinarianDTO
@@ -27,6 +26,7 @@ from app.modules.veterinarians.domain.entities import Veterinarian, Veterinarian
 from app.modules.veterinarians.domain.errors import DuplicateCrmvError
 from app.modules.veterinarians.domain.repositories import VeterinarianRepository
 from app.modules.veterinarians.domain.value_objects import Crmv
+from app.shared.application.authorization import ActorContext
 from app.shared.application.clock import Clock
 from app.shared.domain.errors import ForbiddenError, NotFoundError, ValidationError
 
@@ -35,7 +35,7 @@ _REQUIRED_PERMISSION = "veterinarians.manage"
 
 @dataclass(frozen=True, kw_only=True)
 class CreateVeterinarianCommand:
-    actor: AuthenticatedUserDTO
+    actor: ActorContext
     name: str
     crmv: str
     phone: str | None

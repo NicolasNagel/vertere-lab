@@ -26,7 +26,7 @@ _NOW = datetime(2026, 3, 1, tzinfo=UTC)
 
 def _actor(*permissions: str) -> AuthenticatedUserDTO:
     return AuthenticatedUserDTO(
-        id=uuid4(),
+        user_id=uuid4(),
         email="finance@vertere.local",
         full_name="Finance",
         role_id=uuid4(),
@@ -88,7 +88,7 @@ def test_reopens_under_lock_releases_attendances_and_audits_reason() -> None:
 
     assert closure.status is ClosureStatus.REOPENED
     assert closure.reopened_at == _NOW
-    assert closures.lock_calls == [(closure.clinic_id, 2026, 2)]
+    assert closures.lock_calls == [closure.clinic_id]
     assert closures.updated == [closure]
     assert candidates.released_closure_ids == [closure.id]
     assert audit.entries[0].reason == "Correção financeira autorizada."

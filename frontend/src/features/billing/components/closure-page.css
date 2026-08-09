@@ -1,11 +1,11 @@
-.closure-preview-page {
+.closure-page {
   display: flex;
   flex-direction: column;
   height: 100%;
   background: var(--color-surface-cream);
 }
 
-.closure-preview-page__header {
+.closure-page__header {
   background: #ffffff;
   padding: 1.375rem 2rem; /* 22px 32px */
   border-bottom: 1px solid var(--color-border);
@@ -14,7 +14,7 @@
   align-items: center;
 }
 
-.closure-preview-page__eyebrow {
+.closure-page__eyebrow {
   font-family: var(--font-mono);
   font-size: 0.625rem; /* 10px */
   letter-spacing: 0.16em;
@@ -22,7 +22,7 @@
   text-transform: uppercase;
 }
 
-.closure-preview-page__title {
+.closure-page__title {
   font-family: var(--font-display);
   text-transform: uppercase;
   letter-spacing: 0.02em;
@@ -32,36 +32,61 @@
   margin: 0.125rem 0 0;
 }
 
-.closure-preview-page__body {
+.closure-page__title-clinic {
+  font-family: var(--font-script);
+  text-transform: none;
+  letter-spacing: 0;
+  font-weight: 500;
+  color: var(--color-accent-mist);
+}
+
+.closure-page__body {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  padding: 1.5rem 1.75rem; /* mesmo espaçamento de .closure-page__main — só é visível aqui quando não há coluna (estado sem permissão) */
+}
+
+.closure-page__body:has(.closure-page__columns) {
+  padding: 0;
+}
+
+.closure-page__columns {
+  flex: 1;
+  display: flex;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.closure-page__main {
   flex: 1;
   padding: 1.5rem 1.75rem; /* 24px 28px */
   overflow-y: auto;
-  min-height: 0;
+  min-width: 0;
 }
 
-.closure-preview-page__hint,
-.closure-preview-page__error,
-.closure-preview-page__forbidden {
+.closure-page__hint,
+.closure-page__error,
+.closure-page__forbidden {
   font-size: 0.8125rem;
   color: var(--color-text-secondary);
   padding: 1rem 0;
 }
 
-.closure-preview-page__error {
+.closure-page__error {
   color: #a0492c;
 }
 
-.closure-preview-page__success {
+.closure-page__success {
   font-size: 0.8125rem;
   color: #2f6b4f;
   background: #eaf5ee;
   border: 1px solid #bfe3cc;
   padding: 0.625rem 0.875rem;
-  margin: 0 0 1rem;
+  margin: 0.875rem 0;
 }
 
-.closure-preview-page__actions {
+.closure-page__actions {
   display: flex;
   justify-content: flex-end;
-  margin-bottom: 0.875rem;
 }

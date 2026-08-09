@@ -108,6 +108,7 @@ class SqlAlchemyVeterinarianRepository:
         is_autonomous: bool | None,
         search: str | None,
         available_for_clinic_id: UUID | None = None,
+        allowed_clinic_ids: frozenset[UUID] | None = None,
     ) -> tuple[list[Veterinarian], int]:
         conditions: list[ColumnElement[bool]] = []
         if status is not None:
@@ -134,6 +135,13 @@ class SqlAlchemyVeterinarianRepository:
                     VeterinarianModel.is_autonomous.is_(True),
                     VeterinarianModel.id.in_(linked_ids),
                 )
+            )
+        elif allowed_clinic_ids is not None:
+            linked_ids = select(VeterinarianClinicModel.veterinarian_id).where(
+                VeterinarianClinicModel.clinic_id.in_(allowed_clinic_ids)
+            )
+            conditions.append(
+                or_(VeterinarianModel.is_autonomous.is_(True), VeterinarianModel.id.in_(linked_ids))
             )
 
         count_stmt = select(func.count()).select_from(VeterinarianModel)

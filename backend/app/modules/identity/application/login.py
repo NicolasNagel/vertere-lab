@@ -6,18 +6,20 @@ from uuid import uuid4
 
 from app.modules.audit.domain.entities import ActorScope, AuditEntry
 from app.modules.audit.domain.repositories import AuditLogWriter
-from app.modules.identity.application.dtos import AuthenticatedUserDTO, SessionIssuedDTO
+from app.modules.identity.application.dtos import SessionIssuedDTO
 from app.modules.identity.application.password_hasher import PasswordHasher
 from app.modules.identity.application.session_tokens import SessionTokenGenerator
 from app.modules.identity.domain.entities import RoleScope, Session
 from app.modules.identity.domain.errors import AccountInactiveError, InvalidCredentialsError
 from app.modules.identity.domain.repositories import (
+    ClinicMembershipRepository,
     LabMembershipRepository,
     LoginFailureRepository,
     RoleRepository,
     SessionRepository,
     UserRepository,
 )
+from app.shared.application.authorization import ActorContext
 from app.shared.application.clock import Clock
 from app.shared.domain.errors import RateLimitedError
 
@@ -40,6 +42,7 @@ class LoginUseCase:
         roles: RoleRepository,
         sessions: SessionRepository,
         memberships: LabMembershipRepository,
+        clinic_memberships: ClinicMembershipRepository,
         login_failures: LoginFailureRepository,
         password_hasher: PasswordHasher,
         token_generator: SessionTokenGenerator,
@@ -54,6 +57,7 @@ class LoginUseCase:
         self._roles = roles
         self._sessions = sessions
         self._memberships = memberships
+        self._clinic_memberships = clinic_memberships
         self._login_failures = login_failures
         self._password_hasher = password_hasher
         self._token_generator = token_generator
@@ -132,8 +136,12 @@ class LoginUseCase:
         if role is None:
             raise RuntimeError(f"Papel {user.role_id} não encontrado para o usuário {user.id}.")
 
-        membership = self._memberships.get_active_by_user_id(user.id)
-        if role.scope is RoleScope.CLINIC or membership is None:
+        lab_membership = self._memberships.get_active_by_user_id(user.id)
+        clinic_ids = self._clinic_memberships.list_active_clinic_ids_for_user(user.id)
+        access_available = (
+            bool(clinic_ids) if role.scope is RoleScope.CLINIC else lab_membership is not None
+        )
+        if not access_available:
             self._login_failures.record_failure(normalized_login, occurred_at=now)
             self._audit.record(
                 AuditEntry(
@@ -177,12 +185,15 @@ class LoginUseCase:
             )
         )
 
-        authenticated = AuthenticatedUserDTO(
-            id=user.id,
+        authenticated = ActorContext(
+            user_id=user.id,
             email=str(user.email),
             full_name=user.full_name,
             role_id=role.id,
             role_name=role.name,
+            role_scope=role.scope.value,
             permissions=role.permission_codes,
+            clinic_ids=clinic_ids,
+            row_version=user.row_version,
         )
         return SessionIssuedDTO(token=token, expires_at=session.expires_at, user=authenticated)

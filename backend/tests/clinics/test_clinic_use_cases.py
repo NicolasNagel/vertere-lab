@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from datetime import UTC, datetime
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 import pytest
 
@@ -24,12 +24,25 @@ _NOW = datetime(2026, 1, 1, tzinfo=UTC)
 
 def _actor(*, permissions: frozenset[str]) -> AuthenticatedUserDTO:
     return AuthenticatedUserDTO(
-        id=uuid4(),
+        user_id=uuid4(),
         email="user@vertere.local",
         full_name="User",
         role_id=uuid4(),
         role_name="RECEPTION",
         permissions=permissions,
+    )
+
+
+def _clinic_actor(*, clinic_ids: frozenset[UUID]) -> AuthenticatedUserDTO:
+    return AuthenticatedUserDTO(
+        user_id=uuid4(),
+        email="clinic@vertere.local",
+        full_name="Clinic User",
+        role_id=uuid4(),
+        role_name="CLINIC_STAFF",
+        role_scope="CLINIC",
+        permissions=frozenset({"clinics.read", "clinics.manage"}),
+        clinic_ids=clinic_ids,
     )
 
 
@@ -64,6 +77,31 @@ def test_create_clinic_succeeds_and_audits() -> None:
     assert result.status == ClinicStatus.ACTIVE.value
     assert clinics.get_by_id(result.id) is not None
     assert audit.entries[0].action == "clinics.created"
+
+
+def test_clinic_actor_only_lists_and_reads_own_memberships() -> None:
+    clinics = FakeClinicRepository()
+    audit = FakeAuditLogWriter()
+    use_case = CreateClinicUseCase(clinics=clinics, audit=audit, clock=FakeClock(_NOW))
+    first = use_case.execute(_create_command(tax_id="78977352000199"))
+    second = use_case.execute(_create_command(name="Outra", tax_id="11222333000181"))
+    actor = _clinic_actor(clinic_ids=frozenset({first.id}))
+
+    page = ListClinicsUseCase(clinics=clinics).execute(
+        ListClinicsQuery(actor=actor, page=1, page_size=20)
+    )
+
+    assert [item.id for item in page.items] == [first.id]
+    with pytest.raises(NotFoundError):
+        GetClinicUseCase(clinics=clinics).execute(GetClinicQuery(actor=actor, clinic_id=second.id))
+
+
+def test_clinic_actor_cannot_create_a_clinic_even_with_permission() -> None:
+    use_case = CreateClinicUseCase(
+        clinics=FakeClinicRepository(), audit=FakeAuditLogWriter(), clock=FakeClock(_NOW)
+    )
+    with pytest.raises(ForbiddenError):
+        use_case.execute(_create_command(actor=_clinic_actor(clinic_ids=frozenset())))
 
 
 def test_create_clinic_without_permission_is_forbidden() -> None:

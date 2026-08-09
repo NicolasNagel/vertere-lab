@@ -4,9 +4,9 @@ from dataclasses import dataclass
 from uuid import UUID
 
 from app.modules.clinics.domain.repositories import ClinicRepository
-from app.modules.identity.application.dtos import AuthenticatedUserDTO
 from app.modules.veterinarian_clinics.application.dtos import LinkedClinicDTO
 from app.modules.veterinarian_clinics.domain.repositories import VeterinarianClinicLinkRepository
+from app.shared.application.authorization import ActorContext
 from app.shared.domain.errors import ForbiddenError
 
 _REQUIRED_PERMISSION = "veterinarians.read"
@@ -14,7 +14,7 @@ _REQUIRED_PERMISSION = "veterinarians.read"
 
 @dataclass(frozen=True, kw_only=True)
 class ListClinicsForVeterinarianQuery:
-    actor: AuthenticatedUserDTO
+    actor: ActorContext
     veterinarian_id: UUID
 
 

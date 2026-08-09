@@ -8,11 +8,12 @@ from __future__ import annotations
 
 from datetime import datetime
 from typing import Any
-from uuid import UUID
+from uuid import UUID, uuid4
 
 from sqlalchemy import ColumnElement, CursorResult, delete, func, or_, select, update
 from sqlalchemy.orm import Session as SqlAlchemySession
 
+from app.modules.clinics.infrastructure.models import ClinicModel
 from app.modules.identity.domain.entities import (
     ClinicMembership,
     LabMembership,
@@ -110,6 +111,16 @@ class SqlAlchemyUserRepository:
         model.role_id = user.role_id
         model.updated_at = user.updated_at
         model.row_version = user.row_version + 1
+
+    def change_role_if_version(
+        self, user_id: UUID, role_id: UUID, *, expected_row_version: int, now: datetime
+    ) -> bool:
+        result: CursorResult[Any] = self._session.execute(  # type: ignore[assignment]
+            update(UserModel)
+            .where(UserModel.id == user_id, UserModel.row_version == expected_row_version)
+            .values(role_id=role_id, updated_at=now, row_version=UserModel.row_version + 1)
+        )
+        return result.rowcount == 1
 
     def list_page(
         self,
@@ -378,6 +389,24 @@ class SqlAlchemyLabMembershipRepository:
             revoked_at=model.revoked_at,
         )
 
+    def set_active(self, user_id: UUID, *, active: bool, now: datetime, granted_by: UUID) -> None:
+        model = self._session.execute(
+            select(LabMembershipModel).where(LabMembershipModel.user_id == user_id)
+        ).scalar_one_or_none()
+        if model is None:
+            if active:
+                self.add(
+                    LabMembership(
+                        id=uuid4(), user_id=user_id, granted_at=now, granted_by=granted_by
+                    )
+                )
+            return
+        model.is_active = active
+        model.revoked_at = None if active else now
+        if active:
+            model.granted_at = now
+            model.granted_by = granted_by
+
 
 class SqlAlchemyClinicMembershipRepository:
     def __init__(self, session: SqlAlchemySession) -> None:
@@ -395,6 +424,14 @@ class SqlAlchemyClinicMembershipRepository:
                 revoked_at=membership.revoked_at,
             )
         )
+
+    def all_clinic_ids_exist(self, clinic_ids: frozenset[UUID]) -> bool:
+        if not clinic_ids:
+            return True
+        count = self._session.execute(
+            select(func.count()).select_from(ClinicModel).where(ClinicModel.id.in_(clinic_ids))
+        ).scalar_one()
+        return count == len(clinic_ids)
 
     def list_active_clinic_ids_for_user(self, user_id: UUID) -> frozenset[UUID]:
         rows = self._session.execute(
@@ -428,6 +465,35 @@ class SqlAlchemyClinicMembershipRepository:
             granted_by=model.granted_by,
             revoked_at=model.revoked_at,
         )
+
+    def replace_active_clinic_ids(
+        self, user_id: UUID, clinic_ids: frozenset[UUID], *, now: datetime, granted_by: UUID
+    ) -> None:
+        models = (
+            self._session.execute(
+                select(ClinicMembershipModel).where(ClinicMembershipModel.user_id == user_id)
+            )
+            .scalars()
+            .all()
+        )
+        by_clinic_id = {model.clinic_id: model for model in models}
+        for clinic_id, model in by_clinic_id.items():
+            active = clinic_id in clinic_ids
+            model.is_active = active
+            model.revoked_at = None if active else now
+            if active:
+                model.granted_at = now
+                model.granted_by = granted_by
+        for clinic_id in clinic_ids - by_clinic_id.keys():
+            self.add(
+                ClinicMembership(
+                    id=uuid4(),
+                    user_id=user_id,
+                    clinic_id=clinic_id,
+                    granted_at=now,
+                    granted_by=granted_by,
+                )
+            )
 
 
 class SqlAlchemyLoginFailureRepository:

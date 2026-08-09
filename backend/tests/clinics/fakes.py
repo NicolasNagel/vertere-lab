@@ -58,9 +58,17 @@ class FakeClinicRepository:
         return {clinic.name.lower(): clinic.id for clinic in self._clinics.values()}
 
     def list_page(
-        self, *, page: int, page_size: int, status: ClinicStatus | None, search: str | None
+        self,
+        *,
+        page: int,
+        page_size: int,
+        status: ClinicStatus | None,
+        search: str | None,
+        clinic_ids: frozenset[UUID] | None = None,
     ) -> tuple[list[Clinic], int]:
         clinics = list(self._clinics.values())
+        if clinic_ids is not None:
+            clinics = [clinic for clinic in clinics if clinic.id in clinic_ids]
         if status is not None:
             clinics = [c for c in clinics if c.status == status]
         if search:

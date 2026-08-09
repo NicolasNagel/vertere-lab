@@ -8,6 +8,8 @@ export interface ClosurePreviewItem {
   protocolNumber: string | null
   patientName: string
   examName: string
+  serviceLevel: string
+  examCategory: string
   totalAmount: string
 }
 
@@ -36,8 +38,8 @@ export interface ClosurePreview {
 
 export interface ClosurePreviewParams {
   clinicId: string
-  year: number
-  month: number
+  periodStart: string
+  periodEnd: string
 }
 
 interface ApiClosurePreviewItem {
@@ -46,6 +48,8 @@ interface ApiClosurePreviewItem {
   protocol_number: string | null
   patient_name: string
   exam_name: string
+  service_level: string
+  exam_category: string
   total_amount: string
 }
 
@@ -79,6 +83,8 @@ function fromApiItem(item: ApiClosurePreviewItem): ClosurePreviewItem {
     protocolNumber: item.protocol_number,
     patientName: item.patient_name,
     examName: item.exam_name,
+    serviceLevel: item.service_level,
+    examCategory: item.exam_category,
     totalAmount: item.total_amount,
   }
 }
@@ -111,8 +117,8 @@ function fromApiClosurePreview(preview: ApiClosurePreview): ClosurePreview {
 export async function fetchClosurePreview(params: ClosurePreviewParams): Promise<ClosurePreview> {
   const query = new URLSearchParams({
     clinic_id: params.clinicId,
-    year: String(params.year),
-    month: String(params.month),
+    period_start: params.periodStart,
+    period_end: params.periodEnd,
   })
   const response = await fetch(`${API_BASE}/closures/preview?${query.toString()}`, {
     credentials: 'include',
@@ -135,6 +141,8 @@ export interface MonthlyClosureItem {
   discountAmount: string
   surchargeAmount: string
   totalAmount: string
+  serviceLevel: string | null
+  examCategory: string | null
 }
 
 export type FinancialAdjustmentKind = 'CREDIT' | 'DEBIT'
@@ -208,6 +216,8 @@ interface ApiMonthlyClosureItem {
   discount_amount: string
   surcharge_amount: string
   total_amount: string
+  service_level: string | null
+  exam_category: string | null
 }
 
 interface ApiMonthlyClosure {
@@ -280,6 +290,8 @@ function fromApiMonthlyClosureItem(item: ApiMonthlyClosureItem): MonthlyClosureI
     discountAmount: item.discount_amount,
     surchargeAmount: item.surcharge_amount,
     totalAmount: item.total_amount,
+    serviceLevel: item.service_level,
+    examCategory: item.exam_category,
   }
 }
 
@@ -341,8 +353,8 @@ function fromApiMonthlyClosureSummary(closure: ApiMonthlyClosureSummary): Monthl
 
 export interface CloseMonthlyPeriodParams {
   clinicId: string
-  year: number
-  month: number
+  periodStart: string
+  periodEnd: string
 }
 
 export async function closeMonthlyPeriod(
@@ -353,7 +365,11 @@ export async function closeMonthlyPeriod(
     method: 'POST',
     headers: { 'Content-Type': 'application/json', 'Idempotency-Key': idempotencyKey },
     credentials: 'include',
-    body: JSON.stringify({ clinic_id: params.clinicId, year: params.year, month: params.month }),
+    body: JSON.stringify({
+      clinic_id: params.clinicId,
+      period_start: params.periodStart,
+      period_end: params.periodEnd,
+    }),
   })
   await throwIfNotOk(response)
   return fromApiMonthlyClosure((await response.json()) as ApiMonthlyClosure)
@@ -388,6 +404,19 @@ export async function fetchMonthlyClosures(
 
 export async function fetchMonthlyClosure(id: string): Promise<MonthlyClosure> {
   const response = await fetch(`${API_BASE}/closures/${id}`, { credentials: 'include' })
+  await throwIfNotOk(response)
+  return fromApiMonthlyClosure((await response.json()) as ApiMonthlyClosure)
+}
+
+export async function fetchClosureByPeriod(params: ClosurePreviewParams): Promise<MonthlyClosure> {
+  const query = new URLSearchParams({
+    clinic_id: params.clinicId,
+    period_start: params.periodStart,
+    period_end: params.periodEnd,
+  })
+  const response = await fetch(`${API_BASE}/closures/by-period?${query.toString()}`, {
+    credentials: 'include',
+  })
   await throwIfNotOk(response)
   return fromApiMonthlyClosure((await response.json()) as ApiMonthlyClosure)
 }

@@ -1,0 +1,146 @@
+.closure-invoice-panel {
+  width: 22rem;
+  flex-shrink: 0;
+  border-left: 1px solid var(--color-border);
+  background: #ffffff;
+  padding: 1.5rem 1.625rem; /* 24px 26px */
+  overflow-y: auto;
+}
+
+.closure-invoice-panel__eyebrow {
+  font-family: var(--font-mono);
+  font-size: 0.625rem; /* 10px */
+  color: var(--color-text-secondary);
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  margin-bottom: 0.375rem;
+}
+
+.closure-invoice-panel__title {
+  font-family: var(--font-display);
+  font-size: 1.375rem; /* 22px */
+  color: #1f3450;
+  margin: 0 0 0.875rem;
+  line-height: 1.1;
+}
+
+.closure-invoice-panel__title em {
+  font-family: var(--font-script);
+  font-style: italic;
+  font-weight: 500;
+  text-transform: none;
+}
+
+.closure-invoice-panel__card {
+  background: var(--color-surface-form);
+  border: 1px solid var(--color-border);
+  padding: 1.125rem 1.25rem; /* 18px 20px */
+  margin-bottom: 0.875rem;
+}
+
+.closure-invoice-panel__brand {
+  font-family: var(--font-display);
+  font-size: 1.125rem;
+  color: #1f3450;
+  letter-spacing: 0.1em;
+}
+
+.closure-invoice-panel__brand em {
+  font-family: var(--font-script);
+  font-size: 0.6875rem;
+  color: var(--color-accent-mist);
+  font-style: italic;
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+.closure-invoice-panel__brand-sub {
+  font-family: var(--font-mono);
+  font-size: 0.5625rem; /* 9px */
+  color: var(--color-text-secondary);
+  letter-spacing: 0.12em;
+  margin-top: 0.125rem;
+}
+
+.closure-invoice-panel__meta,
+.closure-invoice-panel__breakdown {
+  margin: 0.875rem 0 0;
+}
+
+.closure-invoice-panel__breakdown {
+  padding-top: 0.875rem;
+  border-top: 1px dashed var(--color-border);
+}
+
+.closure-invoice-panel__meta-row {
+  display: flex;
+  justify-content: space-between;
+  padding: 0.1875rem 0;
+  font-size: 0.71875rem; /* 11.5px */
+}
+
+.closure-invoice-panel__meta-row dt {
+  color: var(--color-text-secondary);
+}
+
+.closure-invoice-panel__meta-row dd {
+  margin: 0;
+  color: #1f3450;
+  font-weight: 600;
+  text-align: right;
+}
+
+.closure-invoice-panel__mono {
+  font-family: var(--font-mono);
+  font-weight: 400;
+}
+
+.closure-invoice-panel__mono--on-call {
+  color: #a06d2c;
+}
+
+.closure-invoice-panel__total {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  margin-top: 0.875rem;
+  padding-top: 0.875rem;
+  border-top: 1px solid #1f3450;
+  font-family: var(--font-display);
+  font-size: 0.875rem;
+  color: #1f3450;
+}
+
+.closure-invoice-panel__total-value {
+  font-size: 1.5rem;
+  color: var(--color-brand-ink);
+}
+
+.closure-invoice-panel__documents-label {
+  font-family: var(--font-mono);
+  font-size: 0.625rem;
+  color: var(--color-text-secondary);
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  margin: 1.125rem 0 0.5rem;
+}
+
+.closure-invoice-panel__document {
+  display: flex;
+  align-items: center;
+  gap: 0.625rem;
+  border: 1px solid var(--color-border);
+  padding: 0.75rem 0.875rem;
+  font-size: 0.75rem;
+  color: #1f3450;
+  text-decoration: none;
+}
+
+.closure-invoice-panel__document-name {
+  font-weight: 600;
+}
+
+.closure-invoice-panel__hint {
+  font-size: 0.75rem;
+  color: var(--color-text-secondary);
+}

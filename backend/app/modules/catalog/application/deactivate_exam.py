@@ -8,7 +8,7 @@ from app.modules.audit.domain.repositories import AuditLogWriter
 from app.modules.catalog.application.dtos import ExamDTO
 from app.modules.catalog.application.mappers import exam_to_dto
 from app.modules.catalog.domain.repositories import ExamRepository
-from app.modules.identity.application.dtos import AuthenticatedUserDTO
+from app.shared.application.authorization import ActorContext
 from app.shared.application.clock import Clock
 from app.shared.domain.errors import ForbiddenError, NotFoundError
 
@@ -18,7 +18,7 @@ _PRICE_PERMISSION = "pricing.read"
 
 @dataclass(frozen=True, kw_only=True)
 class DeactivateExamCommand:
-    actor: AuthenticatedUserDTO
+    actor: ActorContext
     exam_id: UUID
 
 

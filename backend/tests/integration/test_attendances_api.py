@@ -191,11 +191,31 @@ def _get_species_id(session_factory: sessionmaker[Session], *, name: str) -> str
         return str(row[0])
 
 
-async def _create_patient(client: httpx.AsyncClient, session_factory: sessionmaker[Session]) -> str:
+async def _create_patient(
+    client: httpx.AsyncClient,
+    session_factory: sessionmaker[Session],
+    *,
+    clinic_id: str | None = None,
+) -> str:
     species_id = _get_species_id(session_factory, name="Canino")
+    with session_factory() as session:
+        clinic = session.execute(
+            text("SELECT id FROM clinics ORDER BY created_at DESC LIMIT 1")
+        ).scalar_one_or_none()
+    if clinic_id is not None:
+        pass
+    elif clinic is None:
+        clinic_response = await client.post(
+            "/api/v1/clinics", json={"name": f"Clínica Paciente {uuid4()}"}
+        )
+        assert clinic_response.status_code == 201
+        clinic_id = str(clinic_response.json()["id"])
+    else:
+        clinic_id = str(clinic)
     response = await client.post(
         "/api/v1/patients",
         json={
+            "clinic_id": clinic_id,
             "name": "Rex",
             "species_id": species_id,
             "sex": "MALE",
@@ -237,7 +257,7 @@ async def test_create_and_get_attendance_draft(
     veterinarian_id = await _create_veterinarian(
         client, name="Dra. Fabianna Garcia", crmv="CRMV-SC 04567"
     )
-    patient_id = await _create_patient(client, session_factory)
+    patient_id = await _create_patient(client, session_factory, clinic_id=clinic_id)
 
     create_response = await client.post(
         "/api/v1/attendances/drafts",
@@ -298,7 +318,7 @@ async def test_create_attendance_draft_with_non_autonomous_veterinarian_not_link
         is_autonomous=False,
         clinic_ids=[other_clinic_id],
     )
-    patient_id = await _create_patient(client, session_factory)
+    patient_id = await _create_patient(client, session_factory, clinic_id=clinic_id)
 
     response = await client.post(
         "/api/v1/attendances/drafts",
@@ -318,7 +338,7 @@ async def test_create_attendance_draft_with_inactive_patient_is_invalid(
     await _login_admin(client, session_factory)
     clinic_id = await _create_clinic(client, "Schweitzer")
     veterinarian_id = await _create_veterinarian(client, name="Dr. Teste", crmv="CRMV-SC 00001")
-    patient_id = await _create_patient(client, session_factory)
+    patient_id = await _create_patient(client, session_factory, clinic_id=clinic_id)
     deactivate_response = await client.post(f"/api/v1/patients/{patient_id}/deactivate")
     assert deactivate_response.status_code == 200
 
@@ -369,7 +389,8 @@ async def test_list_attendances_filters_by_clinic(
     clinic_id = await _create_clinic(client, "Schweitzer")
     other_clinic_id = await _create_clinic(client, "VetCenter")
     veterinarian_id = await _create_veterinarian(client, name="Dr. Teste", crmv="CRMV-SC 00001")
-    patient_id = await _create_patient(client, session_factory)
+    patient_id = await _create_patient(client, session_factory, clinic_id=clinic_id)
+    other_patient_id = await _create_patient(client, session_factory, clinic_id=other_clinic_id)
 
     await client.post(
         "/api/v1/attendances/drafts",
@@ -385,7 +406,7 @@ async def test_list_attendances_filters_by_clinic(
         json={
             "clinic_id": other_clinic_id,
             "veterinarian_id": veterinarian_id,
-            "patient_id": patient_id,
+            "patient_id": other_patient_id,
             "service_date": "2026-02-10",
         },
     )
@@ -478,7 +499,7 @@ async def _create_confirmable_draft(
     veterinarian_id = await _create_veterinarian(
         client, name="Dra. Fabianna Garcia", crmv=f"CRMV-SC {unique}"
     )
-    patient_id = await _create_patient(client, session_factory)
+    patient_id = await _create_patient(client, session_factory, clinic_id=clinic_id)
     species_id = _get_species_id(session_factory, name="Canino")
     category_id = await _create_exam_category(client, f"Hematologia {unique}")
     exam_id = await _create_exam(

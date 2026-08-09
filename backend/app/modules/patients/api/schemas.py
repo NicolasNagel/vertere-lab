@@ -25,6 +25,7 @@ class SpeciesListResponse(BaseModel):
 
 class PatientRead(BaseModel):
     id: UUID
+    clinic_id: UUID | None
     name: str
     species_id: UUID
     sex: PatientSexLiteral
@@ -50,6 +51,7 @@ class PatientListResponse(BaseModel):
 class PatientCreateRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
+    clinic_id: UUID
     name: str = Field(min_length=1)
     species_id: UUID
     sex: PatientSexLiteral
@@ -75,3 +77,4 @@ class PatientUpdateRequest(BaseModel):
     status: PatientStatusLiteral
     notes: str | None = None
     expected_row_version: int
+    clinic_id: UUID | None = None

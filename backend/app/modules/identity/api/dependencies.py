@@ -18,18 +18,19 @@ from sqlalchemy.orm import Session as SqlAlchemySession
 
 from app.api.dependencies import get_session
 from app.core.config import Settings
-from app.modules.identity.application.dtos import AuthenticatedUserDTO
 from app.modules.identity.application.get_current_user import (
     ResolveSessionCommand,
     ResolveSessionUseCase,
 )
 from app.modules.identity.infrastructure.repositories import (
+    SqlAlchemyClinicMembershipRepository,
     SqlAlchemyLabMembershipRepository,
     SqlAlchemyRoleRepository,
     SqlAlchemySessionRepository,
     SqlAlchemyUserRepository,
 )
 from app.modules.identity.infrastructure.session_tokens import OpaqueSessionTokens
+from app.shared.application.authorization import ActorContext
 from app.shared.domain.errors import ForbiddenError, UnauthenticatedError
 from app.shared.infrastructure.clock import SystemClock
 
@@ -57,7 +58,7 @@ def get_current_user(
     request: Request,
     session: SqlAlchemySession = Depends(get_session),
     token: str | None = Depends(get_session_token),
-) -> AuthenticatedUserDTO:
+) -> ActorContext:
     if token is None:
         raise UnauthenticatedError("Sessão não encontrada.")
 
@@ -67,6 +68,7 @@ def get_current_user(
         users=SqlAlchemyUserRepository(session),
         roles=SqlAlchemyRoleRepository(session),
         memberships=SqlAlchemyLabMembershipRepository(session),
+        clinic_memberships=SqlAlchemyClinicMembershipRepository(session),
         token_generator=OpaqueSessionTokens(),
         clock=SystemClock(),
         session_ttl=timedelta(minutes=settings.session_ttl_minutes),
@@ -83,15 +85,15 @@ def get_current_user(
 
 def require_permission(
     permission_code: str, *, clinic_scoped: bool = False
-) -> Callable[..., AuthenticatedUserDTO]:
+) -> Callable[..., ActorContext]:
     if clinic_scoped:
         raise NotImplementedError(
             "Escopo de clínica ainda não implementado — chega com Clinic na Fase 2."
         )
 
     def _dependency(
-        current_user: AuthenticatedUserDTO = Depends(get_current_user),
-    ) -> AuthenticatedUserDTO:
+        current_user: ActorContext = Depends(get_current_user),
+    ) -> ActorContext:
         if permission_code not in current_user.permissions:
             raise ForbiddenError(f"Permissão ausente: {permission_code}")
         return current_user

@@ -11,6 +11,7 @@ def species_to_dto(species: Species) -> SpeciesDTO:
 def patient_to_dto(patient: Patient) -> PatientDTO:
     return PatientDTO(
         id=patient.id,
+        clinic_id=patient.clinic_id,
         name=patient.name,
         species_id=patient.species_id,
         sex=patient.sex.value,

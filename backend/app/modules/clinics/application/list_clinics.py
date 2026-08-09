@@ -6,7 +6,7 @@ from app.modules.clinics.application.dtos import ClinicDTO
 from app.modules.clinics.application.mappers import clinic_to_dto
 from app.modules.clinics.domain.entities import ClinicStatus
 from app.modules.clinics.domain.repositories import ClinicRepository
-from app.modules.identity.application.dtos import AuthenticatedUserDTO
+from app.shared.application.authorization import ActorContext
 from app.shared.application.dtos import PageDTO
 from app.shared.domain.errors import ForbiddenError
 
@@ -15,7 +15,7 @@ _REQUIRED_PERMISSION = "clinics.read"
 
 @dataclass(frozen=True, kw_only=True)
 class ListClinicsQuery:
-    actor: AuthenticatedUserDTO
+    actor: ActorContext
     page: int
     page_size: int
     status: ClinicStatus | None = None
@@ -35,6 +35,7 @@ class ListClinicsUseCase:
             page_size=query.page_size,
             status=query.status,
             search=query.search,
+            clinic_ids=query.actor.clinic_filter,
         )
         return PageDTO(
             items=[clinic_to_dto(clinic) for clinic in clinics],

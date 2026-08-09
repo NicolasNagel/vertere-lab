@@ -16,7 +16,7 @@ from uuid import UUID
 from app.modules.attendances.domain.repositories import AttendanceRepository
 from app.modules.audit.domain.entities import AuditEntry
 from app.modules.audit.domain.repositories import AuditLogReader
-from app.modules.identity.application.dtos import AuthenticatedUserDTO
+from app.shared.application.authorization import ActorContext
 from app.shared.domain.errors import ForbiddenError, NotFoundError
 
 _REQUIRED_PERMISSION = "attendances.read"
@@ -25,7 +25,7 @@ _ENTITY_TYPE = "attendance"
 
 @dataclass(frozen=True, kw_only=True)
 class GetAttendanceTimelineQuery:
-    actor: AuthenticatedUserDTO
+    actor: ActorContext
     attendance_id: UUID
     page: int
     page_size: int

@@ -5,7 +5,7 @@ pure use-case test is not the repository-under-test, so this is fine per
 
 from __future__ import annotations
 
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime
 from uuid import UUID
 
 from app.modules.audit.domain.entities import AuditEntry
@@ -59,6 +59,7 @@ class FakeClinicRepository:
         page_size: int,
         status: ClinicStatus | None,
         search: str | None,
+        clinic_ids: frozenset[UUID] | None = None,
     ) -> tuple[list[Clinic], int]:
         raise NotImplementedError
 
@@ -102,17 +103,23 @@ class FakeMonthlyClosureRepository:
     def __init__(self, active: MonthlyClosure | None = None) -> None:
         self._active = active
         self.added: list[MonthlyClosure] = []
-        self.lock_calls: list[tuple[UUID, int, int]] = []
+        self.lock_calls: list[UUID] = []
         self.updated: list[MonthlyClosure] = []
         self.adjustments: list[FinancialAdjustment] = []
 
-    def acquire_active_lock(self, *, clinic_id: UUID, year: int, month: int) -> None:
-        self.lock_calls.append((clinic_id, year, month))
+    def acquire_active_lock(self, *, clinic_id: UUID) -> None:
+        self.lock_calls.append(clinic_id)
 
     def get_active_for_clinic_and_period(
-        self, *, clinic_id: UUID, year: int, month: int
+        self, *, clinic_id: UUID, period_start: date, period_end: date
     ) -> MonthlyClosure | None:
-        if self._active is not None and self._active.status is ClosureStatus.CLOSED:
+        if (
+            self._active is not None
+            and self._active.status is ClosureStatus.CLOSED
+            and self._active.clinic_id == clinic_id
+            and self._active.period_start <= period_end
+            and self._active.period_end >= period_start
+        ):
             return self._active
         return None
 
@@ -127,14 +134,14 @@ class FakeMonthlyClosureRepository:
         return self.get_by_id(closure_id)
 
     def get_latest_for_clinic_and_period(
-        self, *, clinic_id: UUID, year: int, month: int
+        self, *, clinic_id: UUID, period_start: date, period_end: date
     ) -> MonthlyClosure | None:
         candidates = [
             closure
             for closure in [*self.added, *([self._active] if self._active is not None else [])]
             if closure.clinic_id == clinic_id
-            and closure.competence_year == year
-            and closure.competence_month == month
+            and closure.period_start <= period_end
+            and closure.period_end >= period_start
         ]
         return max(candidates, key=lambda closure: closure.version, default=None)
 

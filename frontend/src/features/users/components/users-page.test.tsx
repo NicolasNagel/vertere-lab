@@ -9,7 +9,7 @@ import { afterAll, afterEach, beforeAll, expect, test } from 'vitest'
 import { AuthProvider } from '../../auth/auth-provider'
 import { UsersPage } from './users-page'
 
-const server = setupServer()
+const server = setupServer(clinicsHandler())
 
 beforeAll(() => server.listen({ onUnhandledRequest: 'error' }))
 afterEach(() => server.resetHandlers())
@@ -74,6 +74,12 @@ function permissionsHandler() {
         master_only: true,
       },
     ]),
+  )
+}
+
+function clinicsHandler() {
+  return http.get('/api/v1/clinics', () =>
+    HttpResponse.json({ items: [], total: 0, page: 1, page_size: 100 }),
   )
 }
 
@@ -206,6 +212,58 @@ test('creates a user and shows the one-time temporary password', async () => {
 
   expect(await screen.findByText('sEnh4Temp0rar1a!')).toBeInTheDocument()
   expect(screen.getByText(/Nova Pessoa/)).toBeInTheDocument()
+})
+
+test('creates a CLINIC user with the selected memberships in the same request', async () => {
+  const user = userEvent.setup()
+  let requestBody: Record<string, unknown> | null = null
+  const clinicRole = { ...receptionRole, id: 'r-clinic', name: 'CLINIC_STAFF', scope: 'CLINIC' }
+  server.use(
+    meHandler(['users.read', 'users.create']),
+    usersListHandler(),
+    rolesListHandler([clinicRole]),
+    permissionsHandler(),
+    http.get('/api/v1/clinics', () =>
+      HttpResponse.json({
+        items: [{ id: 'c1', name: 'Clínica Central', status: 'ACTIVE' }],
+        total: 1,
+        page: 1,
+        page_size: 100,
+      }),
+    ),
+    http.post('/api/v1/users', async ({ request }) => {
+      requestBody = (await request.json()) as Record<string, unknown>
+      return HttpResponse.json(
+        {
+          user: {
+            id: 'u-clinic',
+            email: 'clinic@vertere.local',
+            full_name: 'Pessoa Clínica',
+            is_active: true,
+            role_id: 'r-clinic',
+            role_name: 'CLINIC_STAFF',
+            role_scope: 'CLINIC',
+            clinic_ids: ['c1'],
+            row_version: 1,
+            created_at: '2026-01-01T00:00:00Z',
+          },
+          temporary_password: 'Temp1234!',
+        },
+        { status: 201 },
+      )
+    }),
+  )
+  renderWithProviders(<UsersPage />)
+
+  await user.click(await screen.findByRole('button', { name: /Novo usuário/i }))
+  await user.type(screen.getByLabelText('Nome completo'), 'Pessoa Clínica')
+  await user.type(screen.getByLabelText('E-mail'), 'clinic@vertere.local')
+  await user.selectOptions(screen.getByLabelText('Perfil'), 'r-clinic')
+  await user.click(screen.getByLabelText('Clínica Central'))
+  await user.click(screen.getByRole('button', { name: 'Criar usuário' }))
+
+  await screen.findByText('Temp1234!')
+  expect(requestBody).toMatchObject({ role_id: 'r-clinic', clinic_ids: ['c1'] })
 })
 
 test('deactivates the selected user from the row menu', async () => {

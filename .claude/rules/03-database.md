@@ -49,7 +49,13 @@ paths:
   durante chamada externa.
 
 ## Fechamento (invariantes de banco)
-- Unique ativo por `(clinic_id, competence_year, competence_month)`.
+- Período de fechamento é livre (não só mês calendário — clínicas com fechamento quinzenal
+  escolhem qualquer `[period_start, period_end]`). Unicidade ativa é uma `EXCLUDE` constraint
+  (`btree_gist`) em `(clinic_id, daterange(period_start, period_end, '[]'))` filtrada por
+  `status = 'CLOSED'` — nunca `(clinic_id, competence_year, competence_month)`, que não
+  identifica um período livre. Advisory lock de fechamento é só por `clinic_id` (a exclusion
+  constraint é a fonte real de unicidade; o lock só serializa a checagem "já existe" contra
+  corrida).
 - Item fonte associado a **no máximo um** fechamento ativo por vez.
 - Snapshot contém valor suficiente para reprodução total sem consultar o atendimento original.
 - Soma dos itens verificada contra o cabeçalho **antes do commit**, não depois.

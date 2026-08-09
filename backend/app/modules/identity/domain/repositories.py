@@ -29,6 +29,10 @@ class UserRepository(Protocol):
 
     def save(self, user: User) -> None: ...
 
+    def change_role_if_version(
+        self, user_id: UUID, role_id: UUID, *, expected_row_version: int, now: datetime
+    ) -> bool: ...
+
     def list_page(
         self,
         *,
@@ -91,15 +95,25 @@ class LabMembershipRepository(Protocol):
 
     def get_active_by_user_id(self, user_id: UUID) -> LabMembership | None: ...
 
+    def set_active(
+        self, user_id: UUID, *, active: bool, now: datetime, granted_by: UUID
+    ) -> None: ...
+
 
 class ClinicMembershipRepository(Protocol):
     def add(self, membership: ClinicMembership) -> None: ...
+
+    def all_clinic_ids_exist(self, clinic_ids: frozenset[UUID]) -> bool: ...
 
     def list_active_clinic_ids_for_user(self, user_id: UUID) -> frozenset[UUID]: ...
 
     def get_active_by_user_and_clinic(
         self, user_id: UUID, clinic_id: UUID
     ) -> ClinicMembership | None: ...
+
+    def replace_active_clinic_ids(
+        self, user_id: UUID, clinic_ids: frozenset[UUID], *, now: datetime, granted_by: UUID
+    ) -> None: ...
 
 
 class LoginFailureRepository(Protocol):

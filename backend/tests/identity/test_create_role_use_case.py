@@ -15,7 +15,7 @@ _PERMISSION_CODES = frozenset({"clinics.read", "roles.manage", "attendances.view
 
 def _actor(permission_codes: frozenset[str]) -> AuthenticatedUserDTO:
     return AuthenticatedUserDTO(
-        id=uuid4(),
+        user_id=uuid4(),
         email="actor@vertere.local",
         full_name="Actor",
         role_id=uuid4(),

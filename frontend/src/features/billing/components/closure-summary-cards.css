@@ -1,0 +1,48 @@
+.closure-summary-cards {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 0.75rem; /* 12px */
+  margin-bottom: 1.125rem; /* 18px */
+}
+
+@media (max-width: 700px) {
+  .closure-summary-cards {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+.closure-summary-cards__card {
+  background: #ffffff;
+  border: 1px solid var(--color-border);
+  padding: 0.875rem 1rem; /* 14px 16px */
+}
+
+.closure-summary-cards__card[data-tone='warning'] .closure-summary-cards__value {
+  color: #a06d2c;
+}
+
+.closure-summary-cards__card[data-tone='total'] {
+  background: var(--color-brand-ink-deep);
+  border-color: var(--color-brand-ink-deep);
+}
+
+.closure-summary-cards__card[data-tone='total'] .closure-summary-cards__label,
+.closure-summary-cards__card[data-tone='total'] .closure-summary-cards__value {
+  color: #ffffff;
+}
+
+.closure-summary-cards__label {
+  font-family: var(--font-mono);
+  font-size: 0.59375rem; /* 9.5px */
+  color: var(--color-text-secondary);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.closure-summary-cards__value {
+  font-family: var(--font-display);
+  font-size: 1.875rem; /* 30px */
+  color: #1f3450;
+  line-height: 1;
+  margin-top: 0.25rem;
+}

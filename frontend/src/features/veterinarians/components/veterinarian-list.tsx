@@ -1,6 +1,6 @@
 import { SearchIcon } from '../../../shared/ui/icons'
 import { Pagination } from '../../../shared/ui/pagination'
-import { pluralize } from '../../../shared/lib/formatters'
+import { getInitials, pluralize } from '../../../shared/lib/formatters'
 import type { Veterinarian } from '../api/veterinarians-api'
 import './veterinarian-list.css'
 
@@ -16,11 +16,6 @@ const TYPE_FILTERS: { value: VeterinarianTypeFilter; label: string }[] = [
   { value: 'linked', label: 'Vinculados' },
   { value: 'autonomous', label: 'Autônomos' },
 ]
-
-function initials(name: string): string {
-  const parts = name.trim().split(/\s+/)
-  return `${parts[0]?.[0] ?? ''}${parts.at(-1)?.[0] ?? ''}`.toUpperCase()
-}
 
 interface VeterinarianListProps {
   veterinarians: Veterinarian[]
@@ -100,7 +95,7 @@ export function VeterinarianList({
             <div className="veterinarian-list__row-header">
               <span className="veterinarian-list__identity">
                 <span className="veterinarian-list__avatar" aria-hidden="true">
-                  {initials(veterinarian.name)}
+                  {getInitials(veterinarian.name)}
                 </span>
                 <span>
                   <span className="veterinarian-list__row-name">{veterinarian.name}</span>

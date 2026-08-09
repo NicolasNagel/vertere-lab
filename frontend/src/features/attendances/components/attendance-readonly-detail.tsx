@@ -29,7 +29,7 @@ interface AttendanceReadonlyDetailProps {
  * `.claude/rules/12-attendance.md` ("CONFIRMED: edição controlada"). Layout
  * de duas colunas inspirado em `assets/features/screens/Tela 18 - Detalhe
  * do Protocolo.html` — adaptado aos tokens/cards já usados em
- * `closure-detail-page.css`, não copiado do mockup. */
+ * `closure-existing-view.css`, não copiado do mockup. */
 export function AttendanceReadonlyDetail({ attendance }: AttendanceReadonlyDetailProps) {
   const { user } = useAuth()
   const canEditNotes = user?.permissions.includes('attendances.update') ?? false

@@ -79,6 +79,23 @@ def _get_species_id(session_factory: sessionmaker[Session], *, name: str) -> str
         return str(row[0])
 
 
+def _clinic_id(session_factory: sessionmaker[Session]) -> str:
+    with session_factory() as session:
+        existing = session.execute(text("SELECT id FROM clinics LIMIT 1")).scalar_one_or_none()
+        if existing is not None:
+            return str(existing)
+        clinic_id = uuid4()
+        session.execute(
+            text(
+                "INSERT INTO clinics (id, name, status, created_at, updated_at, row_version) "
+                "VALUES (:id, :name, 'ACTIVE', now(), now(), 1)"
+            ),
+            {"id": clinic_id, "name": "Clínica de Teste"},
+        )
+        session.commit()
+        return str(clinic_id)
+
+
 @pytest.fixture
 def settings(postgres_url: str) -> Settings:
     return Settings(
@@ -196,6 +213,7 @@ async def test_create_patient_without_permission_is_forbidden(
     response = await client.post(
         "/api/v1/patients",
         json={
+            "clinic_id": _clinic_id(session_factory),
             "name": "Rex",
             "species_id": species_id,
             "sex": "MALE",
@@ -218,6 +236,7 @@ async def test_create_and_get_patient(
     create_response = await client.post(
         "/api/v1/patients",
         json={
+            "clinic_id": _clinic_id(session_factory),
             "name": "Mimi",
             "species_id": species_id,
             "sex": "FEMALE",
@@ -252,6 +271,7 @@ async def test_create_patient_with_unknown_species_is_not_found(
     response = await client.post(
         "/api/v1/patients",
         json={
+            "clinic_id": _clinic_id(session_factory),
             "name": "Rex",
             "species_id": str(uuid4()),
             "sex": "MALE",
@@ -271,6 +291,7 @@ async def test_create_patient_allows_duplicate_owner_name(
     await _login(client, email="admin@vertere.local", password="s3nhaForte!")
     species_id = _get_species_id(session_factory, name="Canino")
     payload = {
+        "clinic_id": _clinic_id(session_factory),
         "name": "Rex",
         "species_id": species_id,
         "sex": "MALE",
@@ -295,6 +316,7 @@ async def test_update_patient_with_stale_row_version_conflicts(
     create_response = await client.post(
         "/api/v1/patients",
         json={
+            "clinic_id": _clinic_id(session_factory),
             "name": "Rex",
             "species_id": species_id,
             "sex": "MALE",
@@ -330,6 +352,7 @@ async def test_deactivate_patient_preserves_record(
     create_response = await client.post(
         "/api/v1/patients",
         json={
+            "clinic_id": _clinic_id(session_factory),
             "name": "Rex",
             "species_id": species_id,
             "sex": "MALE",
@@ -357,6 +380,7 @@ async def test_search_patients_by_owner_name(
     await client.post(
         "/api/v1/patients",
         json={
+            "clinic_id": _clinic_id(session_factory),
             "name": "Rex",
             "species_id": species_id,
             "sex": "MALE",
@@ -366,6 +390,7 @@ async def test_search_patients_by_owner_name(
     await client.post(
         "/api/v1/patients",
         json={
+            "clinic_id": _clinic_id(session_factory),
             "name": "Bidu",
             "species_id": species_id,
             "sex": "MALE",

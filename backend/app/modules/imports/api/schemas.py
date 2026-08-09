@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 from datetime import datetime
+from decimal import Decimal
 from typing import Literal
 from uuid import UUID
 
@@ -119,6 +120,18 @@ class PriceTableImportResponse(BaseModel):
     status: ImportBatchStatusLiteral
     imported_count: int
     skipped_existing_count: int
+    exceptions: list[ImportRowExceptionRead]
+
+
+class AttendanceHistoryImportResponse(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    batch_id: UUID
+    status: ImportBatchStatusLiteral
+    imported_count: int
+    skipped_existing_count: int
+    rejected_count: int
+    imported_grand_total: Decimal
     exceptions: list[ImportRowExceptionRead]
 
 

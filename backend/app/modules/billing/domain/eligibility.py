@@ -14,10 +14,10 @@ _CANCELLED = "CANCELLED"
 
 
 def is_eligible(item: ClosureCandidateItem, period: CompetencePeriod) -> tuple[bool, str | None]:
-    if item.billing_competence is None or (
-        item.billing_competence.year != period.year or item.billing_competence.month != period.month
+    if item.service_date is None or not (
+        period.period_start <= item.service_date <= period.period_end
     ):
-        return False, "Atendimento fora da competência selecionada."
+        return False, "Atendimento fora do período selecionado."
     if item.attendance_status == _CANCELLED:
         return False, "Atendimento cancelado."
     if item.item_status == _CANCELLED:

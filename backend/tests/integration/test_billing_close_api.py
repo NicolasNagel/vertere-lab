@@ -176,11 +176,19 @@ async def _create_veterinarian(client: httpx.AsyncClient, *, name: str, crmv: st
     return str(response.json()["id"])
 
 
-async def _create_patient(client: httpx.AsyncClient, session_factory: sessionmaker[Session]) -> str:
+async def _create_patient(
+    client: httpx.AsyncClient, session_factory: sessionmaker[Session], *, clinic_id: str
+) -> str:
     species_id = _get_species_id(session_factory)
     response = await client.post(
         "/api/v1/patients",
-        json={"name": "Rex", "species_id": species_id, "sex": "MALE", "owner_name": "Maria Souza"},
+        json={
+            "clinic_id": clinic_id,
+            "name": "Rex",
+            "species_id": species_id,
+            "sex": "MALE",
+            "owner_name": "Maria Souza",
+        },
     )
     assert response.status_code == 201
     return str(response.json()["id"])
@@ -244,7 +252,7 @@ async def _setup_clinic_with_confirmed_attendance(
 ) -> tuple[str, dict[str, object]]:
     clinic_id = await _create_clinic(client, f"Clinica {uuid4()}")
     vet_id = await _create_veterinarian(client, name="Dra. Ana", crmv=f"CRMV-{uuid4()}")
-    patient_id = await _create_patient(client, session_factory)
+    patient_id = await _create_patient(client, session_factory, clinic_id=clinic_id)
     exam_id = await _create_exam(
         client, session_factory, code=f"HEMO-{uuid4().hex[:6]}", price="100.00"
     )
@@ -273,7 +281,7 @@ async def test_close_creates_a_closure_and_locks_the_source_attendance(
 
     response = await client.post(
         "/api/v1/closures",
-        json={"clinic_id": clinic_id, "year": 2026, "month": 1},
+        json={"clinic_id": clinic_id, "period_start": "2026-01-01", "period_end": "2026-01-31"},
         headers=_close_headers("close-1"),
     )
 
@@ -285,6 +293,8 @@ async def test_close_creates_a_closure_and_locks_the_source_attendance(
     assert Decimal(body["grand_total"]) == Decimal("100.00")
     assert len(body["items"]) == 1
     assert body["items"][0]["attendance_id"] == attendance["id"]
+    assert body["items"][0]["service_level"] == "NORMAL"
+    assert body["items"][0]["exam_category"]
 
     with session_factory() as session:
         row = session.execute(
@@ -328,7 +338,7 @@ async def test_close_excludes_a_cancelled_item(
 
     response = await client.post(
         "/api/v1/closures",
-        json={"clinic_id": clinic_id, "year": 2026, "month": 1},
+        json={"clinic_id": clinic_id, "period_start": "2026-01-01", "period_end": "2026-01-31"},
         headers=_close_headers("close-excludes-cancelled"),
     )
 
@@ -343,7 +353,7 @@ async def test_close_rejects_when_there_is_nothing_eligible(
 
     response = await client.post(
         "/api/v1/closures",
-        json={"clinic_id": clinic_id, "year": 2026, "month": 1},
+        json={"clinic_id": clinic_id, "period_start": "2026-01-01", "period_end": "2026-01-31"},
         headers=_close_headers("close-empty"),
     )
 
@@ -359,7 +369,7 @@ async def test_close_rejects_a_second_active_closure_for_the_same_clinic_and_per
     )
     first = await client.post(
         "/api/v1/closures",
-        json={"clinic_id": clinic_id, "year": 2026, "month": 1},
+        json={"clinic_id": clinic_id, "period_start": "2026-01-01", "period_end": "2026-01-31"},
         headers=_close_headers("close-first"),
     )
     assert first.status_code == 201
@@ -373,7 +383,7 @@ async def test_close_rejects_a_second_active_closure_for_the_same_clinic_and_per
 
     second = await client.post(
         "/api/v1/closures",
-        json={"clinic_id": clinic_id, "year": 2026, "month": 1},
+        json={"clinic_id": clinic_id, "period_start": "2026-01-01", "period_end": "2026-01-31"},
         headers=_close_headers("close-second"),
     )
     assert second.status_code == 409
@@ -387,7 +397,7 @@ async def test_close_is_idempotent_for_the_same_key_and_payload(
     clinic_id, _attendance = await _setup_clinic_with_confirmed_attendance(
         client, session_factory, service_date="2026-01-10"
     )
-    payload = {"clinic_id": clinic_id, "year": 2026, "month": 1}
+    payload = {"clinic_id": clinic_id, "period_start": "2026-01-01", "period_end": "2026-01-31"}
     headers = _close_headers("close-idempotent")
 
     first = await client.post("/api/v1/closures", json=payload, headers=headers)
@@ -413,14 +423,14 @@ async def test_close_same_key_different_payload_conflicts(
 
     first = await client.post(
         "/api/v1/closures",
-        json={"clinic_id": clinic_id, "year": 2026, "month": 1},
+        json={"clinic_id": clinic_id, "period_start": "2026-01-01", "period_end": "2026-01-31"},
         headers=headers,
     )
     assert first.status_code == 201
 
     second = await client.post(
         "/api/v1/closures",
-        json={"clinic_id": clinic_id, "year": 2026, "month": 2},
+        json={"clinic_id": clinic_id, "period_start": "2026-02-01", "period_end": "2026-02-28"},
         headers=headers,
     )
     assert second.status_code == 409
@@ -431,14 +441,14 @@ async def test_concurrent_close_attempts_for_the_same_period_only_one_succeeds(
     client: httpx.AsyncClient, session_factory: sessionmaker[Session]
 ) -> None:
     """Real concurrency (`.claude/rules/08-testing.md`) — two closes for the
-    same clinic+competence fired at once, with different idempotency keys
-    (so the idempotency guard itself cannot be what serializes them; only
-    the advisory lock + unique index can)."""
+    same clinic+period fired at once, with different idempotency keys (so
+    the idempotency guard itself cannot be what serializes them; only the
+    advisory lock + EXCLUDE constraint can)."""
     await _login_admin(client, session_factory)
     clinic_id, _attendance = await _setup_clinic_with_confirmed_attendance(
         client, session_factory, service_date="2026-01-10"
     )
-    payload = {"clinic_id": clinic_id, "year": 2026, "month": 1}
+    payload = {"clinic_id": clinic_id, "period_start": "2026-01-01", "period_end": "2026-01-31"}
 
     responses = await asyncio.gather(
         client.post("/api/v1/closures", json=payload, headers=_close_headers("concurrent-a")),
@@ -465,7 +475,7 @@ async def test_close_header_totals_match_the_sum_of_its_items(
     await _login_admin(client, session_factory)
     clinic_id = await _create_clinic(client, f"Clinica {uuid4()}")
     vet_id = await _create_veterinarian(client, name="Dra. Ana", crmv=f"CRMV-{uuid4()}")
-    patient_id = await _create_patient(client, session_factory)
+    patient_id = await _create_patient(client, session_factory, clinic_id=clinic_id)
     exam_id = await _create_exam(
         client, session_factory, code=f"HEMO-{uuid4().hex[:6]}", price="80.00"
     )
@@ -490,7 +500,7 @@ async def test_close_header_totals_match_the_sum_of_its_items(
 
     response = await client.post(
         "/api/v1/closures",
-        json={"clinic_id": clinic_id, "year": 2026, "month": 1},
+        json={"clinic_id": clinic_id, "period_start": "2026-01-01", "period_end": "2026-01-31"},
         headers=_close_headers("close-sum-check"),
     )
 
@@ -523,7 +533,7 @@ async def test_close_includes_the_on_call_fee_once_per_attendance_not_per_item(
     await _login_admin(client, session_factory)
     clinic_id = await _create_clinic(client, f"Clinica {uuid4()}")
     vet_id = await _create_veterinarian(client, name="Dra. Ana", crmv=f"CRMV-{uuid4()}")
-    patient_id = await _create_patient(client, session_factory)
+    patient_id = await _create_patient(client, session_factory, clinic_id=clinic_id)
     exam_a_id = await _create_exam(
         client, session_factory, code=f"HEMO-{uuid4().hex[:6]}", price="100.00"
     )
@@ -559,7 +569,7 @@ async def test_close_includes_the_on_call_fee_once_per_attendance_not_per_item(
 
     response = await client.post(
         "/api/v1/closures",
-        json={"clinic_id": clinic_id, "year": 2026, "month": 1},
+        json={"clinic_id": clinic_id, "period_start": "2026-01-01", "period_end": "2026-01-31"},
         headers=_close_headers("close-on-call-fee"),
     )
 
@@ -609,7 +619,7 @@ async def test_close_without_permission_is_forbidden(
 
     response = await client.post(
         "/api/v1/closures",
-        json={"clinic_id": str(uuid4()), "year": 2026, "month": 1},
+        json={"clinic_id": str(uuid4()), "period_start": "2026-01-01", "period_end": "2026-01-31"},
         headers=_close_headers("close-forbidden"),
     )
 
@@ -623,7 +633,7 @@ async def test_close_unknown_clinic_is_not_found(
 
     response = await client.post(
         "/api/v1/closures",
-        json={"clinic_id": str(uuid4()), "year": 2026, "month": 1},
+        json={"clinic_id": str(uuid4()), "period_start": "2026-01-01", "period_end": "2026-01-31"},
         headers=_close_headers("close-unknown-clinic"),
     )
 
@@ -639,7 +649,8 @@ async def test_close_requires_idempotency_key_header(
     )
 
     response = await client.post(
-        "/api/v1/closures", json={"clinic_id": clinic_id, "year": 2026, "month": 1}
+        "/api/v1/closures",
+        json={"clinic_id": clinic_id, "period_start": "2026-01-01", "period_end": "2026-01-31"},
     )
 
     assert response.status_code == 422
@@ -654,7 +665,7 @@ async def test_reopen_releases_attendance_and_reclose_creates_next_version(
     )
     first = await client.post(
         "/api/v1/closures",
-        json={"clinic_id": clinic_id, "year": 2026, "month": 1},
+        json={"clinic_id": clinic_id, "period_start": "2026-01-01", "period_end": "2026-01-31"},
         headers=_close_headers("close-before-reopen"),
     )
     assert first.status_code == 201
@@ -683,7 +694,7 @@ async def test_reopen_releases_attendance_and_reclose_creates_next_version(
 
     second = await client.post(
         "/api/v1/closures",
-        json={"clinic_id": clinic_id, "year": 2026, "month": 1},
+        json={"clinic_id": clinic_id, "period_start": "2026-01-01", "period_end": "2026-01-31"},
         headers=_close_headers("close-after-reopen"),
     )
     assert second.status_code == 201
@@ -699,7 +710,7 @@ async def test_reopen_rejects_short_reason_and_second_attempt(
     )
     closed = await client.post(
         "/api/v1/closures",
-        json={"clinic_id": clinic_id, "year": 2026, "month": 1},
+        json={"clinic_id": clinic_id, "period_start": "2026-01-01", "period_end": "2026-01-31"},
         headers=_close_headers("close-invalid-reopen"),
     )
     closure_id = closed.json()["id"]
@@ -732,7 +743,7 @@ async def test_adjustment_is_append_only_visible_in_detail_and_export(
     )
     closed = await client.post(
         "/api/v1/closures",
-        json={"clinic_id": clinic_id, "year": 2026, "month": 1},
+        json={"clinic_id": clinic_id, "period_start": "2026-01-01", "period_end": "2026-01-31"},
         headers=_close_headers("close-before-adjustment"),
     )
     closure = closed.json()
@@ -784,7 +795,7 @@ async def test_adjustment_rejects_mass_assignment_and_foreign_item(
     )
     closed = await client.post(
         "/api/v1/closures",
-        json={"clinic_id": clinic_id, "year": 2026, "month": 1},
+        json={"clinic_id": clinic_id, "period_start": "2026-01-01", "period_end": "2026-01-31"},
         headers=_close_headers("close-before-invalid-adjustment"),
     )
     closure_id = closed.json()["id"]
@@ -810,3 +821,201 @@ async def test_adjustment_rejects_mass_assignment_and_foreign_item(
         },
     )
     assert foreign_item.status_code == 422
+
+
+async def test_get_closure_by_period_finds_the_closure_without_its_id(
+    client: httpx.AsyncClient, session_factory: sessionmaker[Session]
+) -> None:
+    await _login_admin(client, session_factory)
+    clinic_id, _attendance = await _setup_clinic_with_confirmed_attendance(
+        client, session_factory, service_date="2026-01-10"
+    )
+    closed = await client.post(
+        "/api/v1/closures",
+        json={"clinic_id": clinic_id, "period_start": "2026-01-01", "period_end": "2026-01-31"},
+        headers=_close_headers("close-by-period"),
+    )
+    assert closed.status_code == 201
+
+    response = await client.get(
+        "/api/v1/closures/by-period",
+        params={"clinic_id": clinic_id, "period_start": "2026-01-01", "period_end": "2026-01-31"},
+    )
+
+    assert response.status_code == 200
+    assert response.json()["id"] == closed.json()["id"]
+
+
+async def test_get_closure_by_period_returns_the_reopened_version_after_reopen(
+    client: httpx.AsyncClient, session_factory: sessionmaker[Session]
+) -> None:
+    await _login_admin(client, session_factory)
+    clinic_id, _attendance = await _setup_clinic_with_confirmed_attendance(
+        client, session_factory, service_date="2026-01-10"
+    )
+    closed = await client.post(
+        "/api/v1/closures",
+        json={"clinic_id": clinic_id, "period_start": "2026-01-01", "period_end": "2026-01-31"},
+        headers=_close_headers("close-by-period-reopen"),
+    )
+    await client.post(
+        f"/api/v1/closures/{closed.json()['id']}/reopen",
+        json={"reason": "Correção de competência autorizada."},
+    )
+
+    response = await client.get(
+        "/api/v1/closures/by-period",
+        params={"clinic_id": clinic_id, "period_start": "2026-01-01", "period_end": "2026-01-31"},
+    )
+
+    assert response.status_code == 200
+    assert response.json()["status"] == "REOPENED"
+
+
+async def test_get_closure_by_period_is_not_found_when_nothing_was_closed(
+    client: httpx.AsyncClient, session_factory: sessionmaker[Session]
+) -> None:
+    await _login_admin(client, session_factory)
+    clinic_id = await _create_clinic(client, f"Clinica {uuid4()}")
+
+    response = await client.get(
+        "/api/v1/closures/by-period",
+        params={"clinic_id": clinic_id, "period_start": "2026-01-01", "period_end": "2026-01-31"},
+    )
+
+    assert response.status_code == 404
+
+
+async def test_get_closure_by_period_without_permission_is_forbidden(
+    client: httpx.AsyncClient, session_factory: sessionmaker[Session]
+) -> None:
+    from app.modules.identity.infrastructure.seed import ROLE_TECHNICAL
+
+    with session_factory() as session:
+        now = datetime.now(UTC)
+        user = UserModel(
+            id=uuid4(),
+            email="tecnico2@vertere.local",
+            full_name="Tecnico",
+            password_hash=hash_password("s3nhaForte!"),
+            is_active=True,
+            role_id=ROLE_TECHNICAL,
+            created_at=now,
+            updated_at=now,
+        )
+        session.add(user)
+        session.flush()
+        session.add(LabMembershipModel(id=uuid4(), user_id=user.id, is_active=True, granted_at=now))
+        session.commit()
+    await _login(client, email="tecnico2@vertere.local", password="s3nhaForte!")
+
+    response = await client.get(
+        "/api/v1/closures/by-period",
+        params={
+            "clinic_id": str(uuid4()),
+            "period_start": "2026-01-01",
+            "period_end": "2026-01-31",
+        },
+    )
+
+    assert response.status_code == 403
+
+
+async def test_two_biweekly_closures_for_the_same_clinic_both_succeed_and_sum_to_the_month(
+    client: httpx.AsyncClient, session_factory: sessionmaker[Session]
+) -> None:
+    """The actual feature this fatia exists for: a clinic that closes
+    quinzenalmente instead of by full month — two attendances in the same
+    January, one per half, each closed under its own free period, neither
+    overlapping the other."""
+    await _login_admin(client, session_factory)
+    clinic_id = await _create_clinic(client, f"Clinica {uuid4()}")
+    vet_id = await _create_veterinarian(client, name="Dra. Ana", crmv=f"CRMV-{uuid4()}")
+    patient_id = await _create_patient(client, session_factory, clinic_id=clinic_id)
+    exam_id = await _create_exam(
+        client, session_factory, code=f"HEMO-{uuid4().hex[:6]}", price="100.00"
+    )
+    await _confirm_attendance(
+        client,
+        clinic_id=clinic_id,
+        veterinarian_id=vet_id,
+        patient_id=patient_id,
+        exam_id=exam_id,
+        service_date="2026-01-05",
+    )
+    await _confirm_attendance(
+        client,
+        clinic_id=clinic_id,
+        veterinarian_id=vet_id,
+        patient_id=patient_id,
+        exam_id=exam_id,
+        service_date="2026-01-20",
+    )
+
+    first_half = await client.post(
+        "/api/v1/closures",
+        json={
+            "clinic_id": clinic_id,
+            "period_start": "2026-01-01",
+            "period_end": "2026-01-15",
+        },
+        headers=_close_headers("quinzena-1"),
+    )
+    assert first_half.status_code == 201
+    assert first_half.json()["item_count"] == 1
+    assert first_half.json()["grand_total"] == "100.00"
+
+    second_half = await client.post(
+        "/api/v1/closures",
+        json={
+            "clinic_id": clinic_id,
+            "period_start": "2026-01-16",
+            "period_end": "2026-01-31",
+        },
+        headers=_close_headers("quinzena-2"),
+    )
+    assert second_half.status_code == 201
+    assert second_half.json()["item_count"] == 1
+    assert second_half.json()["grand_total"] == "100.00"
+
+    with session_factory() as session:
+        count = session.execute(
+            text(
+                "SELECT COUNT(*) FROM monthly_closures WHERE clinic_id = :clinic_id "
+                "AND status = 'CLOSED'"
+            ),
+            {"clinic_id": clinic_id},
+        ).scalar_one()
+        assert count == 2
+
+
+async def test_closing_an_overlapping_free_period_conflicts(
+    client: httpx.AsyncClient, session_factory: sessionmaker[Session]
+) -> None:
+    await _login_admin(client, session_factory)
+    clinic_id, _attendance = await _setup_clinic_with_confirmed_attendance(
+        client, session_factory, service_date="2026-01-05"
+    )
+
+    first = await client.post(
+        "/api/v1/closures",
+        json={
+            "clinic_id": clinic_id,
+            "period_start": "2026-01-01",
+            "period_end": "2026-01-20",
+        },
+        headers=_close_headers("overlap-1"),
+    )
+    assert first.status_code == 201
+
+    second = await client.post(
+        "/api/v1/closures",
+        json={
+            "clinic_id": clinic_id,
+            "period_start": "2026-01-15",
+            "period_end": "2026-01-31",
+        },
+        headers=_close_headers("overlap-2"),
+    )
+    assert second.status_code == 409
+    assert second.json()["error"]["code"] == "CLOSURE_ALREADY_EXISTS"

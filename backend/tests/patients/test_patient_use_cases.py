@@ -38,7 +38,7 @@ _SPECIES_ID = uuid4()
 
 def _actor(*, permissions: frozenset[str]) -> AuthenticatedUserDTO:
     return AuthenticatedUserDTO(
-        id=uuid4(),
+        user_id=uuid4(),
         email="user@vertere.local",
         full_name="User",
         role_id=uuid4(),
@@ -304,4 +304,38 @@ def test_get_patient_not_found() -> None:
             GetPatientQuery(
                 actor=_actor(permissions=frozenset({"patients.read"})), patient_id=uuid4()
             )
+        )
+
+
+def test_clinic_actor_cannot_list_or_read_another_clinics_patient() -> None:
+    own_clinic_id = uuid4()
+    other_clinic_id = uuid4()
+    patients = FakePatientRepository()
+    created = CreatePatientUseCase(
+        patients=patients,
+        species=_species_repo(),
+        audit=FakeAuditLogWriter(),
+        clock=FakeClock(_NOW),
+    ).execute(_create_command())
+    stored = patients.get_by_id(created.id)
+    assert stored is not None
+    stored.clinic_id = other_clinic_id
+    actor = AuthenticatedUserDTO(
+        user_id=uuid4(),
+        email="clinic@vertere.local",
+        full_name="Clinic User",
+        role_id=uuid4(),
+        role_name="CLINIC_STAFF",
+        role_scope="CLINIC",
+        permissions=frozenset({"patients.read"}),
+        clinic_ids=frozenset({own_clinic_id}),
+    )
+
+    page = ListPatientsUseCase(patients=patients).execute(
+        ListPatientsQuery(actor=actor, page=1, page_size=20)
+    )
+    assert page.total == 0
+    with pytest.raises(NotFoundError):
+        GetPatientUseCase(patients=patients).execute(
+            GetPatientQuery(actor=actor, patient_id=created.id)
         )

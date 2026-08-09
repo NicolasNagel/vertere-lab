@@ -26,3 +26,7 @@ Thumbs.db
 
 # QA exploratório (screenshots/logs locais)
 .codex-qa/
+
+# Dado real de negócio/PII — nunca versionado (.claude/rules/10-data-migration.md)
+assets/features/*.pdf
+assets/features/screens/*.xlsx

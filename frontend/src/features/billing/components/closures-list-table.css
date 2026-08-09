@@ -46,7 +46,7 @@
   background: var(--color-surface-cream);
 }
 
-.closures-list-table__competence {
+.closures-list-table__period {
   font-weight: 600;
   text-transform: capitalize;
 }

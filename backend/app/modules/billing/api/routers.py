@@ -11,6 +11,7 @@ recomputed.
 
 from __future__ import annotations
 
+from datetime import date
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, Header, Query, Response
@@ -46,6 +47,10 @@ from app.modules.billing.application.dtos import (
     MonthlyClosurePageDTO,
 )
 from app.modules.billing.application.export_monthly_closure import monthly_closure_to_csv
+from app.modules.billing.application.get_closure_by_period import (
+    GetClosureByPeriodQuery,
+    GetClosureByPeriodUseCase,
+)
 from app.modules.billing.application.get_monthly_closure import (
     GetMonthlyClosureQuery,
     GetMonthlyClosureUseCase,
@@ -69,7 +74,7 @@ from app.modules.billing.infrastructure.repositories import (
 )
 from app.modules.clinics.infrastructure.repositories import SqlAlchemyClinicRepository
 from app.modules.identity.api.dependencies import require_permission
-from app.modules.identity.application.dtos import AuthenticatedUserDTO
+from app.shared.application.authorization import ActorContext
 from app.shared.idempotency.application.guard import IdempotencyGuard
 from app.shared.idempotency.infrastructure.repositories import SqlAlchemyIdempotencyRecordRepository
 from app.shared.infrastructure.clock import SystemClock
@@ -114,6 +119,8 @@ def _closure_preview_read(dto: ClosurePreviewDTO) -> ClosurePreviewResponse:
                 protocol_number=item.protocol_number,
                 patient_name=item.patient_name,
                 exam_name=item.exam_name,
+                service_level=item.service_level,
+                exam_category=item.exam_category,
                 total_amount=item.total_amount,
             )
             for item in dto.eligible_items
@@ -168,6 +175,8 @@ def _monthly_closure_read(dto: MonthlyClosureDTO) -> MonthlyClosureRead:
                 discount_amount=item.discount_amount,
                 surcharge_amount=item.surcharge_amount,
                 total_amount=item.total_amount,
+                service_level=item.service_level,
+                exam_category=item.exam_category,
             )
             for item in dto.items
         ],
@@ -204,10 +213,10 @@ def _monthly_closure_page_read(dto: MonthlyClosurePageDTO) -> MonthlyClosureList
 @router.get("/preview", response_model=ClosurePreviewResponse)
 def preview_closure(
     clinic_id: UUID = Query(...),
-    year: int = Query(..., ge=2000, le=2100),
-    month: int = Query(..., ge=1, le=12),
+    period_start: date = Query(...),
+    period_end: date = Query(...),
     session: SqlAlchemySession = Depends(get_session),
-    current_user: AuthenticatedUserDTO = Depends(require_permission("closures.preview")),
+    current_user: ActorContext = Depends(require_permission("closures.preview")),
 ) -> ClosurePreviewResponse:
     use_case = PreviewClosureUseCase(
         clinics=SqlAlchemyClinicRepository(session),
@@ -215,7 +224,12 @@ def preview_closure(
         clock=SystemClock(),
     )
     result = use_case.execute(
-        PreviewClosureQuery(actor=current_user, clinic_id=clinic_id, year=year, month=month)
+        PreviewClosureQuery(
+            actor=current_user,
+            clinic_id=clinic_id,
+            period_start=period_start,
+            period_end=period_end,
+        )
     )
     return _closure_preview_read(result)
 
@@ -225,16 +239,17 @@ def close_monthly_period(
     payload: CloseMonthlyPeriodRequest,
     idempotency_key: str = Header(..., alias="Idempotency-Key", min_length=1, max_length=255),
     uow: SqlAlchemyUnitOfWork = Depends(get_unit_of_work),
-    current_user: AuthenticatedUserDTO = Depends(require_permission("closures.close")),
+    current_user: ActorContext = Depends(require_permission("closures.close")),
 ) -> MonthlyClosureRead:
     clock = SystemClock()
     with uow:
         guard = IdempotencyGuard(records=SqlAlchemyIdempotencyRecordRepository(uow.session))
-        # `operation` stays constant ("closures.close") — `clinic_id`/`year`/
-        # `month` live in the payload, not the operation string, precisely so
-        # that reusing the same key with different values collides as
-        # "mesma key, payload diferente" (`.claude/rules/02-backend.md`) instead
-        # of silently opening a brand new idempotency scope.
+        # `operation` stays constant ("closures.close") — `clinic_id`/
+        # `period_start`/`period_end` live in the payload, not the operation
+        # string, precisely so that reusing the same key with different
+        # values collides as "mesma key, payload diferente"
+        # (`.claude/rules/02-backend.md`) instead of silently opening a
+        # brand new idempotency scope.
         outcome = guard.begin(
             actor_id=current_user.id,
             operation="closures.close",
@@ -260,8 +275,8 @@ def close_monthly_period(
             CloseMonthlyPeriodCommand(
                 actor=current_user,
                 clinic_id=payload.clinic_id,
-                year=payload.year,
-                month=payload.month,
+                period_start=payload.period_start,
+                period_end=payload.period_end,
             )
         )
         response = _monthly_closure_read(result)
@@ -281,7 +296,7 @@ def list_monthly_closures(
     page: int = Query(1, ge=1),
     page_size: int = Query(20, ge=1, le=100),
     session: SqlAlchemySession = Depends(get_session),
-    current_user: AuthenticatedUserDTO = Depends(require_permission("closures.read")),
+    current_user: ActorContext = Depends(require_permission("closures.read")),
 ) -> MonthlyClosureListResponse:
     use_case = ListMonthlyClosuresUseCase(closures=SqlAlchemyMonthlyClosureRepository(session))
     result = use_case.execute(
@@ -292,11 +307,31 @@ def list_monthly_closures(
     return _monthly_closure_page_read(result)
 
 
+@router.get("/by-period", response_model=MonthlyClosureRead)
+def get_closure_by_period(
+    clinic_id: UUID = Query(...),
+    period_start: date = Query(...),
+    period_end: date = Query(...),
+    session: SqlAlchemySession = Depends(get_session),
+    current_user: ActorContext = Depends(require_permission("closures.read")),
+) -> MonthlyClosureRead:
+    use_case = GetClosureByPeriodUseCase(closures=SqlAlchemyMonthlyClosureRepository(session))
+    result = use_case.execute(
+        GetClosureByPeriodQuery(
+            actor=current_user,
+            clinic_id=clinic_id,
+            period_start=period_start,
+            period_end=period_end,
+        )
+    )
+    return _monthly_closure_read(result)
+
+
 @router.get("/{closure_id}", response_model=MonthlyClosureRead)
 def get_monthly_closure(
     closure_id: UUID,
     session: SqlAlchemySession = Depends(get_session),
-    current_user: AuthenticatedUserDTO = Depends(require_permission("closures.read")),
+    current_user: ActorContext = Depends(require_permission("closures.read")),
 ) -> MonthlyClosureRead:
     use_case = GetMonthlyClosureUseCase(closures=SqlAlchemyMonthlyClosureRepository(session))
     result = use_case.execute(GetMonthlyClosureQuery(actor=current_user, closure_id=closure_id))
@@ -308,7 +343,7 @@ def reopen_monthly_closure(
     closure_id: UUID,
     payload: ReopenMonthlyClosureRequest,
     uow: SqlAlchemyUnitOfWork = Depends(get_unit_of_work),
-    current_user: AuthenticatedUserDTO = Depends(require_permission("closures.reopen")),
+    current_user: ActorContext = Depends(require_permission("closures.reopen")),
 ) -> MonthlyClosureRead:
     with uow:
         use_case = ReopenMonthlyClosureUseCase(
@@ -339,7 +374,7 @@ def add_financial_adjustment(
     closure_id: UUID,
     payload: FinancialAdjustmentCreateRequest,
     uow: SqlAlchemyUnitOfWork = Depends(get_unit_of_work),
-    current_user: AuthenticatedUserDTO = Depends(require_permission("closures.adjust")),
+    current_user: ActorContext = Depends(require_permission("closures.adjust")),
 ) -> FinancialAdjustmentRead:
     with uow:
         use_case = AddFinancialAdjustmentUseCase(
@@ -367,7 +402,7 @@ def add_financial_adjustment(
 def export_monthly_closure(
     closure_id: UUID,
     session: SqlAlchemySession = Depends(get_session),
-    current_user: AuthenticatedUserDTO = Depends(require_permission("closures.read")),
+    current_user: ActorContext = Depends(require_permission("closures.read")),
 ) -> Response:
     use_case = GetMonthlyClosureUseCase(closures=SqlAlchemyMonthlyClosureRepository(session))
     result = use_case.execute(GetMonthlyClosureQuery(actor=current_user, closure_id=closure_id))

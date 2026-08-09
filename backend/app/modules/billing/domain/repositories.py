@@ -10,6 +10,7 @@ carry. `MonthlyClosureRepository` is the first writer in this module.
 
 from __future__ import annotations
 
+from datetime import date
 from typing import Protocol
 from uuid import UUID
 
@@ -48,17 +49,23 @@ class ClosureCandidateLockRepository(Protocol):
 
 
 class MonthlyClosureRepository(Protocol):
-    def acquire_active_lock(self, *, clinic_id: UUID, year: int, month: int) -> None:
-        """`pg_advisory_xact_lock` scoped to this clinic+competence —
-        released automatically at commit/rollback, never manually
-        (`.claude/rules/03-database.md`: "fechamento usa advisory lock
-        transacional... por clínica + competência")."""
+    def acquire_active_lock(self, *, clinic_id: UUID) -> None:
+        """`pg_advisory_xact_lock` scoped to this clinic — released
+        automatically at commit/rollback, never manually. Scoped to the
+        clinic only (not clinic+period): the real uniqueness invariant is
+        the DB's `EXCLUDE` constraint on the overlapping date range
+        (migration 0037), so this lock only needs to serialize concurrent
+        closes for the same clinic long enough for the "already exists"
+        check below to be race-free (`.claude/rules/03-database.md`:
+        "fechamento usa advisory lock transacional... por clínica")."""
         ...
 
     def get_active_for_clinic_and_period(
-        self, *, clinic_id: UUID, year: int, month: int
+        self, *, clinic_id: UUID, period_start: date, period_end: date
     ) -> MonthlyClosure | None:
-        """Only ever returns a `CLOSED` closure — there is no other status
+        """Any `CLOSED` closure whose period *overlaps* `[period_start,
+        period_end]` — not an exact match, since periods are now free-form.
+        Only ever returns a `CLOSED` closure — there is no other status
         this slice produces (`Incremento 4.3` will add `REOPENED` handling
         here)."""
         ...
@@ -70,8 +77,11 @@ class MonthlyClosureRepository(Protocol):
     def get_by_id_for_update(self, closure_id: UUID) -> MonthlyClosure | None: ...
 
     def get_latest_for_clinic_and_period(
-        self, *, clinic_id: UUID, year: int, month: int
-    ) -> MonthlyClosure | None: ...
+        self, *, clinic_id: UUID, period_start: date, period_end: date
+    ) -> MonthlyClosure | None:
+        """Highest-`version` closure (any status) whose period overlaps
+        `[period_start, period_end]`."""
+        ...
 
     def update_status(self, closure: MonthlyClosure) -> None: ...
 

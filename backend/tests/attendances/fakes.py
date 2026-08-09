@@ -71,6 +71,19 @@ class FakeAttendanceRepository:
     def get_by_id(self, attendance_id: UUID) -> AttendanceRecord | None:
         return self._attendances.get(attendance_id)
 
+    def get_by_legacy_source(
+        self, *, import_batch_id: UUID, source_row_number: int
+    ) -> AttendanceRecord | None:
+        return next(
+            (
+                a
+                for a in self._attendances.values()
+                if a.import_batch_id == import_batch_id
+                and a.legacy_source_row_number == source_row_number
+            ),
+            None,
+        )
+
     def list_page(
         self,
         *,
@@ -185,6 +198,7 @@ class FakeClinicRepository:
         page_size: int,
         status: ClinicStatus | None,
         search: str | None,
+        clinic_ids: frozenset[UUID] | None = None,
     ) -> tuple[list[Clinic], int]:
         raise NotImplementedError
 
@@ -219,6 +233,7 @@ class FakeVeterinarianRepository:
         is_autonomous: bool | None,
         search: str | None,
         available_for_clinic_id: UUID | None = None,
+        allowed_clinic_ids: frozenset[UUID] | None = None,
     ) -> tuple[list[Veterinarian], int]:
         raise NotImplementedError
 
@@ -284,6 +299,8 @@ class FakePatientRepository:
         page_size: int,
         status: PatientStatus | None,
         search: str | None,
+        clinic_ids: frozenset[UUID] | None = None,
+        clinic_id: UUID | None = None,
     ) -> tuple[list[Patient], int]:
         raise NotImplementedError
 

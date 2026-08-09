@@ -1,12 +1,13 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from uuid import UUID
 
-from app.modules.identity.application.dtos import AuthenticatedUserDTO
 from app.modules.patients.application.dtos import PatientDTO
 from app.modules.patients.application.mappers import patient_to_dto
 from app.modules.patients.domain.entities import PatientStatus
 from app.modules.patients.domain.repositories import PatientRepository
+from app.shared.application.authorization import ActorContext
 from app.shared.application.dtos import PageDTO
 from app.shared.domain.errors import ForbiddenError
 
@@ -15,11 +16,12 @@ _REQUIRED_PERMISSION = "patients.read"
 
 @dataclass(frozen=True, kw_only=True)
 class ListPatientsQuery:
-    actor: AuthenticatedUserDTO
+    actor: ActorContext
     page: int
     page_size: int
     status: PatientStatus | None = None
     search: str | None = None
+    clinic_id: UUID | None = None
 
 
 class ListPatientsUseCase:
@@ -30,11 +32,15 @@ class ListPatientsUseCase:
         if _REQUIRED_PERMISSION not in query.actor.permissions:
             raise ForbiddenError(f"Permissão ausente: {_REQUIRED_PERMISSION}")
 
+        if query.clinic_id is not None and not query.actor.can_access_clinic(query.clinic_id):
+            return PageDTO(items=[], total=0, page=query.page, page_size=query.page_size)
         patients, total = self._patients.list_page(
             page=query.page,
             page_size=query.page_size,
             status=query.status,
             search=query.search,
+            clinic_ids=query.actor.clinic_filter,
+            clinic_id=query.clinic_id,
         )
         return PageDTO(
             items=[patient_to_dto(patient) for patient in patients],

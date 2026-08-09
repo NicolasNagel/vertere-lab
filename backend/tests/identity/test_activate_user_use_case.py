@@ -51,7 +51,7 @@ def _setup() -> tuple[FakeUserRepository, FakeRoleRepository, User, Role]:
 
 def _actor_from(admin: User, role: Role) -> AuthenticatedUserDTO:
     return AuthenticatedUserDTO(
-        id=admin.id,
+        user_id=admin.id,
         email=str(admin.email),
         full_name=admin.full_name,
         role_id=role.id,

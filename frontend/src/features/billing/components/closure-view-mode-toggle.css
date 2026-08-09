@@ -1,0 +1,27 @@
+.closure-view-mode-toggle {
+  display: inline-flex;
+  border: 1px solid var(--color-border);
+  margin-bottom: 0.75rem;
+}
+
+.closure-view-mode-toggle__option {
+  font-family: inherit;
+  font-size: 0.6875rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--color-text-secondary);
+  background: #ffffff;
+  border: none;
+  padding: 0.5rem 0.75rem;
+  cursor: pointer;
+}
+
+.closure-view-mode-toggle__option + .closure-view-mode-toggle__option {
+  border-left: 1px solid var(--color-border);
+}
+
+.closure-view-mode-toggle__option[data-active='true'] {
+  background: var(--color-brand-ink-deep);
+  color: #ffffff;
+}

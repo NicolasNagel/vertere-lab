@@ -69,6 +69,9 @@ def session_factory(postgres_url: str) -> Iterator[sessionmaker[Session]]:
 def _reset_data(session_factory: sessionmaker[Session]) -> None:
     with session_factory() as session:
         session.execute(text("DELETE FROM import_exceptions"))
+        session.execute(text("DELETE FROM attendance_exams"))
+        session.execute(text("DELETE FROM attendances"))
+        session.execute(text("DELETE FROM attendance_sequences"))
         session.execute(text("DELETE FROM import_staging_rows"))
         session.execute(text("DELETE FROM import_batches"))
         session.execute(text("DELETE FROM veterinarian_clinics"))
@@ -930,3 +933,276 @@ async def test_commit_price_table_updates_price_and_reports_unmatched_exam(
 
     assert exceptions_count == 1
     assert audit_count == 1
+
+
+def _attendance_history_workbook() -> bytes:
+    dados_header: list[str | None] = [
+        "Clínica",
+        "Data",
+        "Hora",
+        "Ano",
+        "Nº",
+        "Protocolo",
+        "Método de Coleta",
+        "Veterinário",
+        "Paciente",
+        "Espécie",
+        "Raça",
+        "Sexo",
+        "Idade",
+        "Proprietário",
+        "Tipo de Exame",
+        "Exame",
+        "Tipo",
+        "Valor",
+        "Desconto",
+        "Adicional",
+        "Valor Total",
+    ]
+    return build_workbook(
+        {
+            "Cadastro Clínicas": [
+                ["CADASTRO DE CLÍNICAS"],
+                ["Clínica", "CNPJ", "Endereço", "Telefone", "E-mail", "Status", "Observação"],
+                ["Amizade", None, None, None, None, "Ativo", None],
+            ],
+            "Cadastro Veterinários": [
+                ["CADASTRO DE VETERINÁRIOS"],
+                ["Clínica", "Nome", "CRMV", "Telefone", "E-mail", "Status", "Observação"],
+                ["Amizade", "Amanda Pozzi", "11816", None, None, "Ativo", None],
+            ],
+            "Suporte": [[], ["Tipo Exame"], ["Hematológicos"], ["Perfis"], ["Urinários"]],
+            "Dados": [
+                ["REGISTRO DE ATENDIMENTOS"],
+                ["Período:"],
+                ["Clínica:"],
+                dados_header,
+                [
+                    "Amizade",
+                    "46025",
+                    "0.4",
+                    "2026",
+                    "1",
+                    "1/2026",
+                    "Motoboy",
+                    "Amanda Pozzi",
+                    "Rex",
+                    "Canino",
+                    "SRD",
+                    "Macho",
+                    "5a",
+                    "Maria",
+                    "Hematológicos",
+                    "Hemograma",
+                    "Normal",
+                    "75.00",
+                    None,
+                    None,
+                    "75.00",
+                ],
+                # Standalone occurrences so Fase 2/3 (exams-from-history)
+                # actually creates "Check-up 2" (120) and "Urinálise" (60)
+                # in the catalog — the combined line below can only resolve
+                # its components against exams that already exist.
+                [
+                    "Amizade",
+                    "46025",
+                    "0.41",
+                    "2026",
+                    "2",
+                    "2/2026",
+                    "Motoboy",
+                    "Amanda Pozzi",
+                    "Rex",
+                    "Canino",
+                    "SRD",
+                    "Macho",
+                    "5a",
+                    "Maria",
+                    "Perfis",
+                    "Check-up 2",
+                    "Normal",
+                    "120.00",
+                    None,
+                    None,
+                    "120.00",
+                ],
+                [
+                    "Amizade",
+                    "46025",
+                    "0.42",
+                    "2026",
+                    "3",
+                    "3/2026",
+                    "Motoboy",
+                    "Amanda Pozzi",
+                    "Rex",
+                    "Canino",
+                    "SRD",
+                    "Macho",
+                    "5a",
+                    "Maria",
+                    "Urinários",
+                    "Urinálise",
+                    "Normal",
+                    "60.00",
+                    None,
+                    None,
+                    "60.00",
+                ],
+                # Combined line — split proportionally by catalog weight
+                # (Check-up 2: 120 / Urinálise: 60 -> 2:1) over the real
+                # recorded total of 135 (a 45 discount was applied).
+                [
+                    "Amizade",
+                    "46025",
+                    "0.45",
+                    "2026",
+                    "4",
+                    "4/2026",
+                    "Motoboy",
+                    "Amanda Pozzi",
+                    "Rex",
+                    "Canino",
+                    "SRD",
+                    "Macho",
+                    "5a",
+                    "Maria",
+                    "Perfis",
+                    "Check-up 2 + Urinálise",
+                    "Normal",
+                    "180.00",
+                    "45.00",
+                    None,
+                    "135.00",
+                ],
+                # The known "linha TOTAIS" residual case — no clinic, a
+                # value with nothing behind it, must never become an
+                # AttendanceRecord.
+                [None] * 20 + ["100.00"],
+            ],
+        }
+    )
+
+
+async def _run_full_cadastro_pipeline(client: httpx.AsyncClient) -> str:
+    stage_response = await client.post(
+        "/api/v1/imports/spreadsheet/stage",
+        files={
+            "file": ("planilha.xlsx", _attendance_history_workbook(), "application/octet-stream")
+        },
+    )
+    batch_id: str = stage_response.json()["batch"]["id"]
+    for phase in ("clinics", "veterinarians", "veterinarian-clinics/backfill"):
+        response = await client.post(f"/api/v1/imports/{batch_id}/{phase}")
+        assert response.status_code == 200
+    for phase in ("exam-categories", "exams", "patients"):
+        response = await client.post(f"/api/v1/imports/{batch_id}/{phase}")
+        assert response.status_code == 200
+    return batch_id
+
+
+async def test_attendance_history_dry_run_persists_nothing(
+    client: httpx.AsyncClient, session_factory: sessionmaker[Session]
+) -> None:
+    _create_user(
+        session_factory, email="admin@vertere.local", password="s3nhaForte!", role_id=ROLE_LAB_ADMIN
+    )
+    await _login(client, email="admin@vertere.local", password="s3nhaForte!")
+    batch_id = await _run_full_cadastro_pipeline(client)
+
+    response = await client.post(f"/api/v1/imports/{batch_id}/attendances/dry-run")
+    assert response.status_code == 200
+    body = response.json()
+    assert body["status"] == "DRY_RUN_DONE"
+    assert body["imported_count"] == 4
+    assert body["rejected_count"] == 1
+    assert body["imported_grand_total"] == "390.00"
+
+    with session_factory() as session:
+        counts = session.execute(
+            text(
+                "SELECT (SELECT COUNT(*) FROM attendances) AS attendances, "
+                "(SELECT COUNT(*) FROM attendance_exams) AS items"
+            )
+        ).one()
+    assert counts.attendances == 0
+    assert counts.items == 0
+
+
+async def test_attendance_history_commit_creates_completed_attendances_with_real_protocols(
+    client: httpx.AsyncClient, session_factory: sessionmaker[Session]
+) -> None:
+    _create_user(
+        session_factory, email="admin@vertere.local", password="s3nhaForte!", role_id=ROLE_LAB_ADMIN
+    )
+    await _login(client, email="admin@vertere.local", password="s3nhaForte!")
+    batch_id = await _run_full_cadastro_pipeline(client)
+
+    response = await client.post(f"/api/v1/imports/{batch_id}/attendances/commit")
+    assert response.status_code == 200
+    body = response.json()
+    assert body["status"] == "COMMITTED"
+    assert body["imported_count"] == 4
+    assert body["rejected_count"] == 1
+    assert body["imported_grand_total"] == "390.00"
+
+    with session_factory() as session:
+        rows = session.execute(
+            text(
+                "SELECT status, grand_total, protocol_number, legacy_protocol_reference, "
+                "legacy_source_row_number, import_batch_id "
+                "FROM attendances ORDER BY legacy_source_row_number"
+            )
+        ).all()
+        item_count = session.execute(text("SELECT COUNT(*) FROM attendance_exams")).scalar_one()
+        protocol_count = session.execute(
+            text("SELECT COUNT(DISTINCT protocol_number) FROM attendances")
+        ).scalar_one()
+
+    assert len(rows) == 4
+    assert item_count == 5  # 1 + 1 + 1 (standalone) + 2 (combo split)
+    assert protocol_count == 4  # every one got a real, distinct protocol number
+    for row in rows:
+        assert row.status == "COMPLETED"
+        assert row.import_batch_id == UUID(batch_id)
+    assert [row.legacy_protocol_reference for row in rows] == [
+        "1/2026",
+        "2/2026",
+        "3/2026",
+        "4/2026",
+    ]
+    assert [row.grand_total for row in rows] == [75, 120, 60, 135]
+
+    # Re-committing the same batch must not duplicate anything (idempotent —
+    # `.claude/rules/10-data-migration.md`: "reprocessar não duplica").
+    second = await client.post(f"/api/v1/imports/{batch_id}/attendances/commit")
+    assert second.status_code == 200
+    assert second.json()["imported_count"] == 0
+    assert second.json()["skipped_existing_count"] == 4
+
+    with session_factory() as session:
+        attendance_count = session.execute(text("SELECT COUNT(*) FROM attendances")).scalar_one()
+    assert attendance_count == 4
+
+
+async def test_attendance_history_without_permission_is_forbidden(
+    client: httpx.AsyncClient, session_factory: sessionmaker[Session]
+) -> None:
+    _create_user(
+        session_factory, email="admin@vertere.local", password="s3nhaForte!", role_id=ROLE_LAB_ADMIN
+    )
+    await _login(client, email="admin@vertere.local", password="s3nhaForte!")
+    batch_id = await _run_full_cadastro_pipeline(client)
+    await client.post("/api/v1/auth/logout")
+
+    _create_user(
+        session_factory,
+        email="technical@vertere.local",
+        password="s3nhaForte!",
+        role_id=ROLE_TECHNICAL,
+    )
+    await _login(client, email="technical@vertere.local", password="s3nhaForte!")
+
+    response = await client.post(f"/api/v1/imports/{batch_id}/attendances/commit")
+    assert response.status_code == 403

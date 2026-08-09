@@ -32,6 +32,7 @@ from uuid import UUID, uuid4
 
 from app.modules.audit.domain.entities import ActorScope, AuditEntry
 from app.modules.audit.domain.repositories import AuditLogWriter
+from app.modules.imports.application.text_normalization import split_owner_name
 from app.modules.imports.domain.repositories import ImportStagingRowRepository
 from app.modules.patients.domain.entities import Patient, PatientSex, PatientStatus
 from app.modules.patients.domain.repositories import PatientRepository, SpeciesRepository
@@ -57,8 +58,8 @@ _SEX_BY_LABEL = {
     "femea": PatientSex.FEMALE,
 }
 
-_OWNER_SUFFIX_PATTERN = re.compile(r"^(?P<name>.*?)\s*\((?P<code>[^()]*)\)\s*$")
 _NI_CODES = {"ni", "n/i", "não informado", "nao informado"}
+_OWNER_CODE_PATTERN = re.compile(r"\((?P<code>[^()]*)\)\s*$")
 
 
 def _cell(raw_data: dict[str, object], column: str) -> str | None:
@@ -80,11 +81,9 @@ def _date_sort_key(raw_data: dict[str, object]) -> float:
 
 
 def _split_owner(raw: str) -> tuple[str, str | None]:
-    match = _OWNER_SUFFIX_PATTERN.match(raw)
-    if match is None:
-        return raw.strip(), None
-    name = match.group("name").strip() or raw.strip()
-    code = match.group("code").strip()
+    name = split_owner_name(raw)
+    code_match = _OWNER_CODE_PATTERN.search(raw)
+    code = code_match.group("code").strip() if code_match else ""
     if not code:
         return name, None
     if code.lower() in _NI_CODES:

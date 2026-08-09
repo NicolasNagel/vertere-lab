@@ -10,7 +10,7 @@ PDF at all — those exams simply never match a PDF row and keep whatever
 price Fase 2 (the spreadsheet-derived import) gave them; that's the intended
 outcome, not a gap to report.
 
-Matching is case+accent-folded (same `_fold_accents`/`_merge_key` pattern as
+Matching is case+accent-folded (`text_normalization.merge_key`, shared with
 `import_exams_from_history.py`) since the PDF's spelling of an exam name and
 the catalog's spelling — itself derived from the spreadsheet — are two
 independent sources that won't always agree on capitalization or accents.
@@ -22,7 +22,6 @@ list, and a same-price re-run shouldn't spam the audit log.
 
 from __future__ import annotations
 
-import unicodedata
 from dataclasses import dataclass
 from decimal import Decimal, InvalidOperation
 from uuid import UUID
@@ -31,20 +30,12 @@ from app.modules.audit.domain.entities import ActorScope, AuditEntry
 from app.modules.audit.domain.repositories import AuditLogWriter
 from app.modules.catalog.domain.repositories import ExamRepository
 from app.modules.imports.application.stage_price_table_pdf import SHEET_NAME
+from app.modules.imports.application.text_normalization import merge_key
 from app.modules.imports.domain.repositories import ImportStagingRowRepository
 from app.shared.application.clock import Clock
 from app.shared.domain.errors import ForbiddenError
 
 _REQUIRED_PERMISSION = "imports.execute"
-
-
-def _fold_accents(text: str) -> str:
-    normalized = unicodedata.normalize("NFKD", text)
-    return "".join(char for char in normalized if not unicodedata.combining(char))
-
-
-def _merge_key(name: str) -> str:
-    return _fold_accents(name).lower()
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -87,7 +78,7 @@ class ImportPriceTableUseCase:
 
         rows = self._staging_rows.list_by_batch(command.batch_id, sheet_name=SHEET_NAME)
         exam_ids_by_key = {
-            _merge_key(name): id_ for name, id_ in self._exams.list_all_names().items()
+            merge_key(name): id_ for name, id_ in self._exams.list_all_names().items()
         }
 
         updated = 0
@@ -119,7 +110,7 @@ class ImportPriceTableUseCase:
                 )
                 continue
 
-            exam_id = exam_ids_by_key.get(_merge_key(name))
+            exam_id = exam_ids_by_key.get(merge_key(name))
             if exam_id is None:
                 exceptions.append(
                     ImportRowException(

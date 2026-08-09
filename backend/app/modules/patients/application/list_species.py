@@ -16,15 +16,15 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from app.modules.identity.application.dtos import AuthenticatedUserDTO
 from app.modules.patients.application.dtos import SpeciesDTO
 from app.modules.patients.application.mappers import species_to_dto
 from app.modules.patients.domain.repositories import SpeciesRepository
+from app.shared.application.authorization import ActorContext
 
 
 @dataclass(frozen=True, kw_only=True)
 class ListSpeciesQuery:
-    actor: AuthenticatedUserDTO
+    actor: ActorContext
 
 
 class ListSpeciesUseCase:

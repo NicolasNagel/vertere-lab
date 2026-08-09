@@ -80,7 +80,7 @@ _EXAM_ID = uuid4()
 
 def _actor(*, permissions: frozenset[str]) -> AuthenticatedUserDTO:
     return AuthenticatedUserDTO(
-        id=uuid4(),
+        user_id=uuid4(),
         email="reception@vertere.local",
         full_name="Reception",
         role_id=uuid4(),

@@ -48,6 +48,8 @@ def validate_clinic_veterinarian_patient(
             raise ValidationError("Veterinário não está vinculado a esta clínica.")
 
     patient = patients.get_by_id(patient_id)
+    if patient is not None and patient.clinic_id is not None and patient.clinic_id != clinic_id:
+        raise ValidationError("Paciente não pertence à clínica do atendimento.")
     if patient is None:
         raise NotFoundError("Paciente não encontrado.")
     if patient.status != PatientStatus.ACTIVE:

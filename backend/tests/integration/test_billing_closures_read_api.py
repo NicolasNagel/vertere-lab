@@ -183,11 +183,19 @@ async def _create_veterinarian(client: httpx.AsyncClient, *, name: str, crmv: st
     return str(response.json()["id"])
 
 
-async def _create_patient(client: httpx.AsyncClient, session_factory: sessionmaker[Session]) -> str:
+async def _create_patient(
+    client: httpx.AsyncClient, session_factory: sessionmaker[Session], *, clinic_id: str
+) -> str:
     species_id = _get_species_id(session_factory)
     response = await client.post(
         "/api/v1/patients",
-        json={"name": "Rex", "species_id": species_id, "sex": "MALE", "owner_name": "Maria Souza"},
+        json={
+            "clinic_id": clinic_id,
+            "name": "Rex",
+            "species_id": species_id,
+            "sex": "MALE",
+            "owner_name": "Maria Souza",
+        },
     )
     assert response.status_code == 201
     return str(response.json()["id"])
@@ -219,13 +227,13 @@ async def _close_clinic_period(
     session_factory: sessionmaker[Session],
     *,
     service_date: str,
-    year: int,
-    month: int,
+    period_start: str,
+    period_end: str,
     idempotency_key: str,
 ) -> dict[str, object]:
     clinic_id = await _create_clinic(client, f"Clinica {uuid4()}")
     vet_id = await _create_veterinarian(client, name="Dra. Ana", crmv=f"CRMV-{uuid4()}")
-    patient_id = await _create_patient(client, session_factory)
+    patient_id = await _create_patient(client, session_factory, clinic_id=clinic_id)
     exam_id = await _create_exam(
         client, session_factory, code=f"HEMO-{uuid4().hex[:6]}", price="100.00"
     )
@@ -250,7 +258,7 @@ async def _close_clinic_period(
 
     close_response = await client.post(
         "/api/v1/closures",
-        json={"clinic_id": clinic_id, "year": year, "month": month},
+        json={"clinic_id": clinic_id, "period_start": period_start, "period_end": period_end},
         headers={"Idempotency-Key": idempotency_key},
     )
     assert close_response.status_code == 201
@@ -266,8 +274,8 @@ async def test_get_closure_returns_the_full_snapshot(
         client,
         session_factory,
         service_date="2026-03-10",
-        year=2026,
-        month=3,
+        period_start="2026-03-01",
+        period_end="2026-03-31",
         idempotency_key="get-closure-1",
     )
 
@@ -309,16 +317,16 @@ async def test_list_closures_is_paginated_and_filterable_by_clinic(
         client,
         session_factory,
         service_date="2026-04-10",
-        year=2026,
-        month=4,
+        period_start="2026-04-01",
+        period_end="2026-04-30",
         idempotency_key="list-closure-a",
     )
     closure_b = await _close_clinic_period(
         client,
         session_factory,
         service_date="2026-04-11",
-        year=2026,
-        month=4,
+        period_start="2026-04-01",
+        period_end="2026-04-30",
         idempotency_key="list-closure-b",
     )
 
@@ -347,8 +355,8 @@ async def test_export_closure_returns_a_csv_matching_the_snapshot(
         client,
         session_factory,
         service_date="2026-05-10",
-        year=2026,
-        month=5,
+        period_start="2026-05-01",
+        period_end="2026-05-31",
         idempotency_key="export-closure-1",
     )
 

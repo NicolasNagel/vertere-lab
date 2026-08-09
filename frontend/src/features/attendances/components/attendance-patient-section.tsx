@@ -7,6 +7,7 @@ import { PatientPicker } from './patient-picker'
 import './attendance-patient-section.css'
 
 interface AttendancePatientSectionProps {
+  clinicId: string
   selectedPatient: Patient | null
   disabled?: boolean
   onSelect: (patient: Patient) => void
@@ -19,6 +20,7 @@ interface AttendancePatientSectionProps {
  * histórico". O botão "Cancelar" do formulário de cadastro volta para o
  * modo de busca, que é o equivalente inline de "desistir de cadastrar". */
 export function AttendancePatientSection({
+  clinicId,
   selectedPatient,
   disabled,
   onSelect,
@@ -55,6 +57,7 @@ export function AttendancePatientSection({
 
       {mode === 'create' ? (
         <AttendancePatientForm
+          clinicId={clinicId}
           submitting={createMutation.isPending || Boolean(disabled)}
           error={createMutation.error}
           onCancel={() => setMode('search')}

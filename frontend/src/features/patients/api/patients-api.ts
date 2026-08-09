@@ -7,6 +7,7 @@ export type PatientStatus = 'ACTIVE' | 'INACTIVE'
 
 export interface Patient {
   id: string
+  clinicId: string | null
   name: string
   speciesId: string
   sex: PatientSex
@@ -30,6 +31,7 @@ export interface PatientPage {
 }
 
 export interface PatientListParams {
+  clinicId?: string
   search?: string
   status?: PatientStatus
   page?: number
@@ -37,6 +39,7 @@ export interface PatientListParams {
 }
 
 export interface PatientFormValues {
+  clinicId: string
   name: string
   speciesId: string
   sex: PatientSex
@@ -55,6 +58,7 @@ export interface Species {
 
 interface ApiPatient {
   id: string
+  clinic_id: string | null
   name: string
   species_id: string
   sex: PatientSex
@@ -86,6 +90,7 @@ interface ApiSpecies {
 function fromApiPatient(patient: ApiPatient): Patient {
   return {
     id: patient.id,
+    clinicId: patient.clinic_id,
     name: patient.name,
     speciesId: patient.species_id,
     sex: patient.sex,
@@ -104,6 +109,7 @@ function fromApiPatient(patient: ApiPatient): Patient {
 
 function toApiPayload(values: PatientFormValues): Record<string, unknown> {
   return {
+    clinic_id: values.clinicId,
     name: values.name,
     species_id: values.speciesId,
     sex: values.sex,
@@ -119,6 +125,7 @@ function toApiPayload(values: PatientFormValues): Record<string, unknown> {
 export async function fetchPatients(params: PatientListParams = {}): Promise<PatientPage> {
   const query = new URLSearchParams()
   if (params.search) query.set('search', params.search)
+  if (params.clinicId) query.set('clinic_id', params.clinicId)
   if (params.status) query.set('status', params.status)
   query.set('page', String(params.page ?? 1))
   query.set('page_size', String(params.pageSize ?? 20))

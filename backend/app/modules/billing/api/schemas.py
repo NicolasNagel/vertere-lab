@@ -17,6 +17,8 @@ class ClosurePreviewItemRead(BaseModel):
     protocol_number: str | None
     patient_name: str
     exam_name: str
+    service_level: str
+    exam_category: str
     total_amount: Decimal
 
 
@@ -53,8 +55,8 @@ class CloseMonthlyPeriodRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     clinic_id: UUID
-    year: int = Field(ge=2000, le=2100)
-    month: int = Field(ge=1, le=12)
+    period_start: date
+    period_end: date
 
 
 class ReopenMonthlyClosureRequest(BaseModel):
@@ -95,6 +97,8 @@ class MonthlyClosureItemRead(BaseModel):
     discount_amount: Decimal
     surcharge_amount: Decimal
     total_amount: Decimal
+    service_level: str | None = None
+    exam_category: str | None = None
 
 
 class MonthlyClosureRead(BaseModel):

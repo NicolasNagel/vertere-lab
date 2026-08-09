@@ -6,7 +6,7 @@ from uuid import UUID
 from app.modules.attendances.application.dtos import AttendanceDTO
 from app.modules.attendances.application.mappers import attendance_to_dto
 from app.modules.attendances.domain.repositories import AttendanceRepository
-from app.modules.identity.application.dtos import AuthenticatedUserDTO
+from app.shared.application.authorization import ActorContext
 from app.shared.domain.errors import ForbiddenError, NotFoundError
 
 _REQUIRED_PERMISSION = "attendances.read"
@@ -14,7 +14,7 @@ _REQUIRED_PERMISSION = "attendances.read"
 
 @dataclass(frozen=True, kw_only=True)
 class GetAttendanceQuery:
-    actor: AuthenticatedUserDTO
+    actor: ActorContext
     attendance_id: UUID
 
 

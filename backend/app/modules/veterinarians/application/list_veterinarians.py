@@ -3,11 +3,11 @@ from __future__ import annotations
 from dataclasses import dataclass
 from uuid import UUID
 
-from app.modules.identity.application.dtos import AuthenticatedUserDTO
 from app.modules.veterinarians.application.dtos import VeterinarianDTO
 from app.modules.veterinarians.application.mappers import veterinarian_to_dto
 from app.modules.veterinarians.domain.entities import VeterinarianStatus
 from app.modules.veterinarians.domain.repositories import VeterinarianRepository
+from app.shared.application.authorization import ActorContext
 from app.shared.application.dtos import PageDTO
 from app.shared.domain.errors import ForbiddenError
 
@@ -16,7 +16,7 @@ _REQUIRED_PERMISSION = "veterinarians.read"
 
 @dataclass(frozen=True, kw_only=True)
 class ListVeterinariansQuery:
-    actor: AuthenticatedUserDTO
+    actor: ActorContext
     page: int
     page_size: int
     status: VeterinarianStatus | None = None
@@ -33,6 +33,10 @@ class ListVeterinariansUseCase:
         if _REQUIRED_PERMISSION not in query.actor.permissions:
             raise ForbiddenError(f"Permissão ausente: {_REQUIRED_PERMISSION}")
 
+        if query.available_for_clinic_id is not None and not query.actor.can_access_clinic(
+            query.available_for_clinic_id
+        ):
+            return PageDTO(items=[], total=0, page=query.page, page_size=query.page_size)
         veterinarians, total = self._veterinarians.list_page(
             page=query.page,
             page_size=query.page_size,
@@ -40,6 +44,7 @@ class ListVeterinariansUseCase:
             is_autonomous=query.is_autonomous,
             search=query.search,
             available_for_clinic_id=query.available_for_clinic_id,
+            allowed_clinic_ids=query.actor.clinic_filter,
         )
         return PageDTO(
             items=[veterinarian_to_dto(veterinarian) for veterinarian in veterinarians],

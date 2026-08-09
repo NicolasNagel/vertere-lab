@@ -42,6 +42,7 @@ class PatientStatus(StrEnum):
 @dataclass(kw_only=True)
 class Patient:
     id: UUID
+    clinic_id: UUID | None = None
     name: str
     species_id: UUID
     sex: PatientSex
@@ -71,6 +72,7 @@ class Patient:
         owner_document: str | None,
         status: PatientStatus,
         notes: str | None,
+        clinic_id: UUID | None,
         updated_by: UUID | None,
         now: datetime,
     ) -> None:
@@ -84,6 +86,7 @@ class Patient:
         self.owner_document = owner_document
         self.status = status
         self.notes = notes
+        self.clinic_id = clinic_id
         self.updated_by = updated_by
         self.updated_at = now
 

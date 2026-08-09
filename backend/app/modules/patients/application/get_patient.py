@@ -3,10 +3,10 @@ from __future__ import annotations
 from dataclasses import dataclass
 from uuid import UUID
 
-from app.modules.identity.application.dtos import AuthenticatedUserDTO
 from app.modules.patients.application.dtos import PatientDTO
 from app.modules.patients.application.mappers import patient_to_dto
 from app.modules.patients.domain.repositories import PatientRepository
+from app.shared.application.authorization import ActorContext
 from app.shared.domain.errors import ForbiddenError, NotFoundError
 
 _REQUIRED_PERMISSION = "patients.read"
@@ -14,7 +14,7 @@ _REQUIRED_PERMISSION = "patients.read"
 
 @dataclass(frozen=True, kw_only=True)
 class GetPatientQuery:
-    actor: AuthenticatedUserDTO
+    actor: ActorContext
     patient_id: UUID
 
 
@@ -27,7 +27,7 @@ class GetPatientUseCase:
             raise ForbiddenError(f"Permissão ausente: {_REQUIRED_PERMISSION}")
 
         patient = self._patients.get_by_id(query.patient_id)
-        if patient is None:
+        if patient is None or not query.actor.can_access_clinic(patient.clinic_id):
             raise NotFoundError("Paciente não encontrado.")
 
         return patient_to_dto(patient)

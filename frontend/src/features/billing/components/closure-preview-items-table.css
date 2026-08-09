@@ -3,6 +3,10 @@
   border: 1px solid var(--color-border);
 }
 
+.closure-preview-items-table__protocol-group {
+  margin-bottom: 0.75rem;
+}
+
 .closure-preview-items-table__empty {
   padding: 1.5rem 1rem;
   font-size: 0.8125rem;

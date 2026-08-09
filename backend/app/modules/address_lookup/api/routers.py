@@ -18,7 +18,7 @@ from app.modules.address_lookup.api.schemas import CepAddressRead
 from app.modules.address_lookup.application.lookup_cep import LookupCepQuery, LookupCepUseCase
 from app.modules.address_lookup.application.ports import CepLookupPort
 from app.modules.identity.api.dependencies import get_current_user
-from app.modules.identity.application.dtos import AuthenticatedUserDTO
+from app.shared.application.authorization import ActorContext
 
 logger = logging.getLogger("app.address_lookup")
 
@@ -29,7 +29,7 @@ router = APIRouter(prefix="/address-lookup", tags=["address-lookup"])
 def lookup_cep(
     cep: str,
     provider: CepLookupPort = Depends(get_cep_lookup_port),
-    current_user: AuthenticatedUserDTO = Depends(get_current_user),
+    current_user: ActorContext = Depends(get_current_user),
 ) -> CepAddressRead:
     logger.debug("cep lookup requested", extra={"user_id": str(current_user.id)})
     use_case = LookupCepUseCase(provider=provider)

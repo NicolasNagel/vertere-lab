@@ -2,9 +2,10 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from app.modules.identity.application.dtos import AuthenticatedUserDTO, PermissionDTO
+from app.modules.identity.application.dtos import PermissionDTO
 from app.modules.identity.domain.constants import MASTER_ONLY_PERMISSIONS
 from app.modules.identity.domain.repositories import PermissionRepository
+from app.shared.application.authorization import ActorContext
 from app.shared.domain.errors import ForbiddenError
 
 _REQUIRED_PERMISSION = "permissions.read"
@@ -12,7 +13,7 @@ _REQUIRED_PERMISSION = "permissions.read"
 
 @dataclass(frozen=True, kw_only=True)
 class ListPermissionsQuery:
-    actor: AuthenticatedUserDTO
+    actor: ActorContext
 
 
 class ListPermissionsUseCase:

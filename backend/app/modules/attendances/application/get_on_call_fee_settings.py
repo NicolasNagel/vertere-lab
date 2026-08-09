@@ -11,7 +11,7 @@ from dataclasses import dataclass
 
 from app.modules.attendances.domain.entities import OnCallFeeSetting
 from app.modules.attendances.domain.repositories import OnCallFeeSettingRepository
-from app.modules.identity.application.dtos import AuthenticatedUserDTO
+from app.shared.application.authorization import ActorContext
 from app.shared.domain.errors import ForbiddenError
 
 _REQUIRED_PERMISSION = "pricing.read"
@@ -19,7 +19,7 @@ _REQUIRED_PERMISSION = "pricing.read"
 
 @dataclass(frozen=True, kw_only=True)
 class GetOnCallFeeSettingsQuery:
-    actor: AuthenticatedUserDTO
+    actor: ActorContext
 
 
 class GetOnCallFeeSettingsUseCase:
