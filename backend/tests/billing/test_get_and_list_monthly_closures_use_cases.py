@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from datetime import UTC, date, datetime
 from decimal import Decimal
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 import pytest
 
@@ -40,6 +40,19 @@ def _actor(*, permissions: frozenset[str]) -> AuthenticatedUserDTO:
         role_id=uuid4(),
         role_name="FINANCE",
         permissions=permissions,
+    )
+
+
+def _clinic_actor(*, clinic_ids: frozenset[UUID]) -> AuthenticatedUserDTO:
+    return AuthenticatedUserDTO(
+        user_id=uuid4(),
+        email="clinic@vertere.local",
+        full_name="Clinic",
+        role_id=uuid4(),
+        role_name="CLINIC_STAFF",
+        role_scope="CLINIC",
+        permissions=frozenset({"closures.read"}),
+        clinic_ids=clinic_ids,
     )
 
 
@@ -195,6 +208,26 @@ def test_list_returns_every_closure_added() -> None:
 
     assert result.total == 2
     assert len(result.items) == 2
+
+
+def test_clinic_actor_only_lists_and_reads_own_closures() -> None:
+    own_clinic_id = uuid4()
+    foreign_closure = _closure()
+    own_closure = _closure(clinic_id=own_clinic_id)
+    repository = FakeMonthlyClosureRepository()
+    repository.add(foreign_closure)
+    repository.add(own_closure)
+    actor = _clinic_actor(clinic_ids=frozenset({own_clinic_id}))
+
+    result = ListMonthlyClosuresUseCase(closures=repository).execute(
+        ListMonthlyClosuresQuery(actor=actor, clinic_id=None, page=1, page_size=20)
+    )
+
+    assert [item.id for item in result.items] == [own_closure.id]
+    with pytest.raises(NotFoundError):
+        GetMonthlyClosureUseCase(closures=repository).execute(
+            GetMonthlyClosureQuery(actor=actor, closure_id=foreign_closure.id)
+        )
 
 
 # ---------------- monthly_closure_to_csv ----------------

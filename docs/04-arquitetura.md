@@ -164,6 +164,10 @@ Não importa FastAPI, Pydantic, SQLAlchemy, Redis ou SDK externo.
 - mapeamento de erros;
 - OpenAPI.
 
+Routers limitam-se a HTTP, conversão de schema/comando e chamada do handler. `commit`,
+idempotência, audit e outbox pertencem ao caso de uso/handler e ao Unit of Work do módulo;
+repositories não finalizam transações isoladamente.
+
 ## 7. API
 
 - REST JSON versionada em `/api/v1`;
@@ -176,6 +180,10 @@ Não importa FastAPI, Pydantic, SQLAlchemy, Redis ou SDK externo.
 - `Idempotency-Key` em mutações críticas;
 - `If-Match` ou `row_version` em atualizações concorrentes críticas;
 - erros com código estável, mensagem segura e `request_id`.
+
+O frontend consome essa fronteira por um cliente HTTP compartilhado. Tipos TypeScript são
+regenerados a partir do OpenAPI com `npm run api:generate`; mappers de feature preservam modelos
+de apresentação sem duplicar o contrato de transporte.
 
 Exemplo de envelope de erro:
 
@@ -217,15 +225,15 @@ Estratégia recomendada:
 - constraint única em `(protocol_year, protocol_sequence)`;
 - protocolo formatado apenas para apresentação.
 
-## 10. Fechamento mensal
+## 10. Fechamento por período
 
 Fluxo técnico:
 
 1. prévia fora de transação longa;
-2. comando de fechamento recebe clínica, competência e idempotency key;
+2. comando de fechamento recebe clínica, `period_start`, `period_end` e idempotency key;
 3. inicia transação;
-4. obtém advisory lock transacional por clínica e competência;
-5. valida inexistência de fechamento ativo;
+4. obtém advisory lock transacional por clínica;
+5. valida inexistência de fechamento ativo sobreposto ao intervalo;
 6. seleciona itens elegíveis e bloqueia o conjunto necessário;
 7. recalcula totais no backend;
 8. cria fechamento e snapshots;

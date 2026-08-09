@@ -35,7 +35,10 @@ class ListMonthlyClosuresUseCase:
             raise ForbiddenError(f"Permissão ausente: {_REQUIRED_PERMISSION}")
 
         items, total = self._closures.list_page(
-            clinic_id=query.clinic_id, page=query.page, page_size=query.page_size
+            clinic_id=query.clinic_id,
+            page=query.page,
+            page_size=query.page_size,
+            clinic_ids=query.actor.clinic_filter,
         )
         return MonthlyClosurePageDTO(
             items=[monthly_closure_to_dto(item) for item in items],

@@ -18,7 +18,6 @@ from fastapi import APIRouter, Depends, Header, Query, Response
 from sqlalchemy.orm import Session as SqlAlchemySession
 
 from app.api.dependencies import get_session, get_unit_of_work
-from app.modules.audit.infrastructure.repositories import SqlAlchemyAuditLogWriter
 from app.modules.billing.api.schemas import (
     CloseMonthlyPeriodRequest,
     ClosurePreviewBlockedItemRead,
@@ -34,12 +33,11 @@ from app.modules.billing.api.schemas import (
 )
 from app.modules.billing.application.add_financial_adjustment import (
     AddFinancialAdjustmentCommand,
-    AddFinancialAdjustmentUseCase,
 )
 from app.modules.billing.application.close_monthly_period import (
     CloseMonthlyPeriodCommand,
-    CloseMonthlyPeriodUseCase,
 )
+from app.modules.billing.application.close_period_handler import ClosePeriodHandler
 from app.modules.billing.application.dtos import (
     ClosurePreviewDTO,
     FinancialAdjustmentDTO,
@@ -59,27 +57,28 @@ from app.modules.billing.application.list_monthly_closures import (
     ListMonthlyClosuresQuery,
     ListMonthlyClosuresUseCase,
 )
+from app.modules.billing.application.mutation_handlers import (
+    handle_add_financial_adjustment,
+    handle_reopen_monthly_closure,
+)
 from app.modules.billing.application.preview_closure import (
     PreviewClosureQuery,
     PreviewClosureUseCase,
 )
 from app.modules.billing.application.reopen_monthly_closure import (
     ReopenMonthlyClosureCommand,
-    ReopenMonthlyClosureUseCase,
 )
 from app.modules.billing.domain.entities import AdjustmentKind
 from app.modules.billing.infrastructure.repositories import (
     SqlAlchemyClosurePreviewRepository,
     SqlAlchemyMonthlyClosureRepository,
 )
+from app.modules.billing.infrastructure.uow import SqlAlchemyBillingUnitOfWork
 from app.modules.clinics.infrastructure.repositories import SqlAlchemyClinicRepository
 from app.modules.identity.api.dependencies import require_permission
 from app.shared.application.authorization import ActorContext
-from app.shared.idempotency.application.guard import IdempotencyGuard
-from app.shared.idempotency.infrastructure.repositories import SqlAlchemyIdempotencyRecordRepository
 from app.shared.infrastructure.clock import SystemClock
 from app.shared.infrastructure.uow import SqlAlchemyUnitOfWork
-from app.shared.outbox.infrastructure.repositories import SqlAlchemyOutboxEventRepository
 
 router = APIRouter(prefix="/closures", tags=["billing"])
 
@@ -241,53 +240,18 @@ def close_monthly_period(
     uow: SqlAlchemyUnitOfWork = Depends(get_unit_of_work),
     current_user: ActorContext = Depends(require_permission("closures.close")),
 ) -> MonthlyClosureRead:
-    clock = SystemClock()
-    with uow:
-        guard = IdempotencyGuard(records=SqlAlchemyIdempotencyRecordRepository(uow.session))
-        # `operation` stays constant ("closures.close") — `clinic_id`/
-        # `period_start`/`period_end` live in the payload, not the operation
-        # string, precisely so that reusing the same key with different
-        # values collides as "mesma key, payload diferente"
-        # (`.claude/rules/02-backend.md`) instead of silently opening a
-        # brand new idempotency scope.
-        outcome = guard.begin(
-            actor_id=current_user.id,
-            operation="closures.close",
-            idempotency_key=idempotency_key,
-            payload=payload.model_dump(mode="json"),
-            now=clock.now(),
-        )
-        if outcome.replayed_response is not None:
-            uow.commit()
-            _, body = outcome.replayed_response
-            return MonthlyClosureRead.model_validate(body)
+    result = ClosePeriodHandler(uow=SqlAlchemyBillingUnitOfWork(uow), clock=SystemClock()).execute(
+        CloseMonthlyPeriodCommand(
+            actor=current_user,
+            clinic_id=payload.clinic_id,
+            period_start=payload.period_start,
+            period_end=payload.period_end,
+        ),
+        idempotency_key=idempotency_key,
+    )
+    return _monthly_closure_read(result)
 
-        candidates_repository = SqlAlchemyClosurePreviewRepository(uow.session)
-        use_case = CloseMonthlyPeriodUseCase(
-            clinics=SqlAlchemyClinicRepository(uow.session),
-            candidates=candidates_repository,
-            closures=SqlAlchemyMonthlyClosureRepository(uow.session),
-            audit=SqlAlchemyAuditLogWriter(uow.session),
-            outbox=SqlAlchemyOutboxEventRepository(uow.session),
-            clock=clock,
-        )
-        result = use_case.execute(
-            CloseMonthlyPeriodCommand(
-                actor=current_user,
-                clinic_id=payload.clinic_id,
-                period_start=payload.period_start,
-                period_end=payload.period_end,
-            )
-        )
-        response = _monthly_closure_read(result)
-        guard.complete(
-            outcome.record_id,
-            status_code=201,
-            body=response.model_dump(mode="json"),
-            now=clock.now(),
-        )
-        uow.commit()
-    return response
+    # `operation` stays constant ("closures.close") — `clinic_id`/
 
 
 @router.get("", response_model=MonthlyClosureListResponse)
@@ -345,24 +309,16 @@ def reopen_monthly_closure(
     uow: SqlAlchemyUnitOfWork = Depends(get_unit_of_work),
     current_user: ActorContext = Depends(require_permission("closures.reopen")),
 ) -> MonthlyClosureRead:
-    with uow:
-        use_case = ReopenMonthlyClosureUseCase(
-            closures=SqlAlchemyMonthlyClosureRepository(uow.session),
-            candidates=SqlAlchemyClosurePreviewRepository(uow.session),
-            audit=SqlAlchemyAuditLogWriter(uow.session),
-            outbox=SqlAlchemyOutboxEventRepository(uow.session),
-            clock=SystemClock(),
-        )
-        result = use_case.execute(
-            ReopenMonthlyClosureCommand(
-                actor=current_user,
-                closure_id=closure_id,
-                reason=payload.reason,
-            )
-        )
-        response = _monthly_closure_read(result)
-        uow.commit()
-    return response
+    result = handle_reopen_monthly_closure(
+        uow=SqlAlchemyBillingUnitOfWork(uow),
+        command=ReopenMonthlyClosureCommand(
+            actor=current_user,
+            closure_id=closure_id,
+            reason=payload.reason,
+        ),
+        clock=SystemClock(),
+    )
+    return _monthly_closure_read(result)
 
 
 @router.post(
@@ -376,26 +332,19 @@ def add_financial_adjustment(
     uow: SqlAlchemyUnitOfWork = Depends(get_unit_of_work),
     current_user: ActorContext = Depends(require_permission("closures.adjust")),
 ) -> FinancialAdjustmentRead:
-    with uow:
-        use_case = AddFinancialAdjustmentUseCase(
-            closures=SqlAlchemyMonthlyClosureRepository(uow.session),
-            audit=SqlAlchemyAuditLogWriter(uow.session),
-            outbox=SqlAlchemyOutboxEventRepository(uow.session),
-            clock=SystemClock(),
-        )
-        result = use_case.execute(
-            AddFinancialAdjustmentCommand(
-                actor=current_user,
-                closure_id=closure_id,
-                closure_item_id=payload.monthly_closure_item_id,
-                kind=AdjustmentKind(payload.kind),
-                amount=payload.amount,
-                reason=payload.reason,
-            )
-        )
-        response = _financial_adjustment_read(result)
-        uow.commit()
-    return response
+    result = handle_add_financial_adjustment(
+        uow=SqlAlchemyBillingUnitOfWork(uow),
+        command=AddFinancialAdjustmentCommand(
+            actor=current_user,
+            closure_id=closure_id,
+            closure_item_id=payload.monthly_closure_item_id,
+            kind=AdjustmentKind(payload.kind),
+            amount=payload.amount,
+            reason=payload.reason,
+        ),
+        clock=SystemClock(),
+    )
+    return _financial_adjustment_read(result)
 
 
 @router.get("/{closure_id}/export")

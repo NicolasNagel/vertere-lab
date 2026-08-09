@@ -48,12 +48,12 @@ class ReopenMonthlyClosureUseCase:
             raise ForbiddenError(f"Permissão ausente: {_REQUIRED_PERMISSION}")
 
         closure = self._closures.get_by_id(command.closure_id)
-        if closure is None:
+        if closure is None or not command.actor.can_access_clinic(closure.clinic_id):
             raise NotFoundError("Fechamento não encontrado.")
 
         self._closures.acquire_active_lock(clinic_id=closure.clinic_id)
         closure = self._closures.get_by_id_for_update(command.closure_id)
-        if closure is None:
+        if closure is None or not command.actor.can_access_clinic(closure.clinic_id):
             raise NotFoundError("Fechamento não encontrado.")
         before_status = closure.status.value
         closure.reopen(reopened_at=self._clock.now())

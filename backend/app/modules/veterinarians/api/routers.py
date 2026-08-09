@@ -15,23 +15,30 @@ from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session as SqlAlchemySession
 
 from app.api.dependencies import get_session, get_unit_of_work
-from app.modules.audit.infrastructure.repositories import SqlAlchemyAuditLogWriter
 from app.modules.clinics.infrastructure.repositories import SqlAlchemyClinicRepository
 from app.modules.identity.api.dependencies import require_permission
 from app.modules.veterinarian_clinics.application.link_veterinarian_to_clinic import (
     LinkVeterinarianToClinicCommand,
-    LinkVeterinarianToClinicUseCase,
 )
 from app.modules.veterinarian_clinics.application.list_clinics_for_veterinarian import (
     ListClinicsForVeterinarianQuery,
     ListClinicsForVeterinarianUseCase,
 )
+from app.modules.veterinarian_clinics.application.mutation_handlers import (
+    handle_create_veterinarian,
+    handle_deactivate_veterinarian,
+    handle_link_veterinarian,
+    handle_unlink_veterinarian,
+    handle_update_veterinarian,
+)
 from app.modules.veterinarian_clinics.application.unlink_veterinarian_from_clinic import (
     UnlinkVeterinarianFromClinicCommand,
-    UnlinkVeterinarianFromClinicUseCase,
 )
 from app.modules.veterinarian_clinics.infrastructure.repositories import (
     SqlAlchemyVeterinarianClinicLinkRepository,
+)
+from app.modules.veterinarian_clinics.infrastructure.uow import (
+    SqlAlchemyClinicDirectoryUnitOfWork,
 )
 from app.modules.veterinarians.api.schemas import (
     VeterinarianCreateRequest,
@@ -45,11 +52,9 @@ from app.modules.veterinarians.api.schemas import (
 )
 from app.modules.veterinarians.application.create_veterinarian import (
     CreateVeterinarianCommand,
-    CreateVeterinarianUseCase,
 )
 from app.modules.veterinarians.application.deactivate_veterinarian import (
     DeactivateVeterinarianCommand,
-    DeactivateVeterinarianUseCase,
 )
 from app.modules.veterinarians.application.dtos import VeterinarianDTO
 from app.modules.veterinarians.application.get_veterinarian import (
@@ -62,7 +67,6 @@ from app.modules.veterinarians.application.list_veterinarians import (
 )
 from app.modules.veterinarians.application.update_veterinarian import (
     UpdateVeterinarianCommand,
-    UpdateVeterinarianUseCase,
 )
 from app.modules.veterinarians.domain.entities import VeterinarianStatus
 from app.modules.veterinarians.infrastructure.repositories import SqlAlchemyVeterinarianRepository
@@ -156,28 +160,21 @@ def create_veterinarian(
     uow: SqlAlchemyUnitOfWork = Depends(get_unit_of_work),
     current_user: ActorContext = Depends(require_permission("veterinarians.manage")),
 ) -> VeterinarianRead:
-    with uow:
-        use_case = CreateVeterinarianUseCase(
-            veterinarians=SqlAlchemyVeterinarianRepository(uow.session),
-            clinics=SqlAlchemyClinicRepository(uow.session),
-            links=SqlAlchemyVeterinarianClinicLinkRepository(uow.session),
-            audit=SqlAlchemyAuditLogWriter(uow.session),
-            clock=SystemClock(),
-        )
-        result = use_case.execute(
-            CreateVeterinarianCommand(
-                actor=current_user,
-                name=payload.name,
-                crmv=payload.crmv,
-                phone=payload.phone,
-                email=payload.email,
-                is_autonomous=payload.is_autonomous,
-                notes=payload.notes,
-                clinic_ids=tuple(payload.clinic_ids),
-                primary_clinic_id=payload.primary_clinic_id,
-            )
-        )
-        uow.commit()
+    result = handle_create_veterinarian(
+        uow=SqlAlchemyClinicDirectoryUnitOfWork(uow),
+        command=CreateVeterinarianCommand(
+            actor=current_user,
+            name=payload.name,
+            crmv=payload.crmv,
+            phone=payload.phone,
+            email=payload.email,
+            is_autonomous=payload.is_autonomous,
+            notes=payload.notes,
+            clinic_ids=tuple(payload.clinic_ids),
+            primary_clinic_id=payload.primary_clinic_id,
+        ),
+        clock=SystemClock(),
+    )
     return _veterinarian_read(result)
 
 
@@ -188,27 +185,22 @@ def update_veterinarian(
     uow: SqlAlchemyUnitOfWork = Depends(get_unit_of_work),
     current_user: ActorContext = Depends(require_permission("veterinarians.manage")),
 ) -> VeterinarianRead:
-    with uow:
-        use_case = UpdateVeterinarianUseCase(
-            veterinarians=SqlAlchemyVeterinarianRepository(uow.session),
-            audit=SqlAlchemyAuditLogWriter(uow.session),
-            clock=SystemClock(),
-        )
-        result = use_case.execute(
-            UpdateVeterinarianCommand(
-                actor=current_user,
-                veterinarian_id=veterinarian_id,
-                name=payload.name,
-                crmv=payload.crmv,
-                phone=payload.phone,
-                email=payload.email,
-                is_autonomous=payload.is_autonomous,
-                status=payload.status,
-                notes=payload.notes,
-                expected_row_version=payload.expected_row_version,
-            )
-        )
-        uow.commit()
+    result = handle_update_veterinarian(
+        uow=SqlAlchemyClinicDirectoryUnitOfWork(uow),
+        command=UpdateVeterinarianCommand(
+            actor=current_user,
+            veterinarian_id=veterinarian_id,
+            name=payload.name,
+            crmv=payload.crmv,
+            phone=payload.phone,
+            email=payload.email,
+            is_autonomous=payload.is_autonomous,
+            status=payload.status,
+            notes=payload.notes,
+            expected_row_version=payload.expected_row_version,
+        ),
+        clock=SystemClock(),
+    )
     return _veterinarian_read(result)
 
 
@@ -218,16 +210,11 @@ def deactivate_veterinarian(
     uow: SqlAlchemyUnitOfWork = Depends(get_unit_of_work),
     current_user: ActorContext = Depends(require_permission("veterinarians.manage")),
 ) -> VeterinarianRead:
-    with uow:
-        use_case = DeactivateVeterinarianUseCase(
-            veterinarians=SqlAlchemyVeterinarianRepository(uow.session),
-            audit=SqlAlchemyAuditLogWriter(uow.session),
-            clock=SystemClock(),
-        )
-        result = use_case.execute(
-            DeactivateVeterinarianCommand(actor=current_user, veterinarian_id=veterinarian_id)
-        )
-        uow.commit()
+    result = handle_deactivate_veterinarian(
+        uow=SqlAlchemyClinicDirectoryUnitOfWork(uow),
+        command=DeactivateVeterinarianCommand(actor=current_user, veterinarian_id=veterinarian_id),
+        clock=SystemClock(),
+    )
     return _veterinarian_read(result)
 
 
@@ -238,23 +225,16 @@ def link_veterinarian_clinic(
     uow: SqlAlchemyUnitOfWork = Depends(get_unit_of_work),
     current_user: ActorContext = Depends(require_permission("veterinarians.manage")),
 ) -> None:
-    with uow:
-        use_case = LinkVeterinarianToClinicUseCase(
-            veterinarians=SqlAlchemyVeterinarianRepository(uow.session),
-            clinics=SqlAlchemyClinicRepository(uow.session),
-            links=SqlAlchemyVeterinarianClinicLinkRepository(uow.session),
-            audit=SqlAlchemyAuditLogWriter(uow.session),
-            clock=SystemClock(),
-        )
-        use_case.execute(
-            LinkVeterinarianToClinicCommand(
-                actor=current_user,
-                veterinarian_id=veterinarian_id,
-                clinic_id=payload.clinic_id,
-                primary_clinic=payload.primary,
-            )
-        )
-        uow.commit()
+    handle_link_veterinarian(
+        uow=SqlAlchemyClinicDirectoryUnitOfWork(uow),
+        command=LinkVeterinarianToClinicCommand(
+            actor=current_user,
+            veterinarian_id=veterinarian_id,
+            clinic_id=payload.clinic_id,
+            primary_clinic=payload.primary,
+        ),
+        clock=SystemClock(),
+    )
 
 
 @router.delete("/{veterinarian_id}/clinics/{clinic_id}", status_code=204)
@@ -264,15 +244,9 @@ def unlink_veterinarian_clinic(
     uow: SqlAlchemyUnitOfWork = Depends(get_unit_of_work),
     current_user: ActorContext = Depends(require_permission("veterinarians.manage")),
 ) -> None:
-    with uow:
-        use_case = UnlinkVeterinarianFromClinicUseCase(
-            veterinarians=SqlAlchemyVeterinarianRepository(uow.session),
-            links=SqlAlchemyVeterinarianClinicLinkRepository(uow.session),
-            audit=SqlAlchemyAuditLogWriter(uow.session),
-        )
-        use_case.execute(
-            UnlinkVeterinarianFromClinicCommand(
-                actor=current_user, veterinarian_id=veterinarian_id, clinic_id=clinic_id
-            )
-        )
-        uow.commit()
+    handle_unlink_veterinarian(
+        uow=SqlAlchemyClinicDirectoryUnitOfWork(uow),
+        command=UnlinkVeterinarianFromClinicCommand(
+            actor=current_user, veterinarian_id=veterinarian_id, clinic_id=clinic_id
+        ),
+    )

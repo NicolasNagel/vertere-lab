@@ -250,8 +250,11 @@ class SqlAlchemyAttendanceRepository:
         owner_name: str | None,
         service_date_from: date | None,
         service_date_to: date | None,
+        clinic_ids: frozenset[UUID] | None = None,
     ) -> list[ColumnElement[bool]]:
         conditions: list[ColumnElement[bool]] = []
+        if clinic_ids is not None:
+            conditions.append(AttendanceModel.clinic_id.in_(clinic_ids))
         if clinic_id is not None:
             conditions.append(AttendanceModel.clinic_id == clinic_id)
         if veterinarian_id is not None:
@@ -286,6 +289,7 @@ class SqlAlchemyAttendanceRepository:
         owner_name: str | None,
         service_date_from: date | None,
         service_date_to: date | None,
+        clinic_ids: frozenset[UUID] | None = None,
     ) -> tuple[list[AttendanceRecord], int]:
         conditions = self._filter_conditions(
             clinic_id=clinic_id,
@@ -297,6 +301,7 @@ class SqlAlchemyAttendanceRepository:
             owner_name=owner_name,
             service_date_from=service_date_from,
             service_date_to=service_date_to,
+            clinic_ids=clinic_ids,
         )
 
         count_stmt = select(func.count()).select_from(AttendanceModel)
@@ -329,6 +334,7 @@ class SqlAlchemyAttendanceRepository:
         owner_name: str | None,
         service_date_from: date | None,
         service_date_to: date | None,
+        clinic_ids: frozenset[UUID] | None = None,
     ) -> dict[AttendanceStatus, int]:
         conditions = self._filter_conditions(
             clinic_id=clinic_id,
@@ -338,6 +344,7 @@ class SqlAlchemyAttendanceRepository:
             owner_name=owner_name,
             service_date_from=service_date_from,
             service_date_to=service_date_to,
+            clinic_ids=clinic_ids,
         )
         stmt = select(AttendanceModel.status, func.count()).group_by(AttendanceModel.status)
         if owner_name:

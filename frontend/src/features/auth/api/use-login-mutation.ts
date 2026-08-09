@@ -9,6 +9,7 @@ export function useLoginMutation() {
   return useMutation({
     mutationFn: login,
     onSuccess: (user) => {
+      queryClient.clear()
       queryClient.setQueryData(meQueryKey, user)
     },
   })

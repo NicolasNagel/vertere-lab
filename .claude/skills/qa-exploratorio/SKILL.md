@@ -55,6 +55,12 @@ o ambiente manualmente, assim:
    variável de ambiente passada na linha de comando pode não vencer o arquivo dependendo de como
    `Settings` foi carregado — não assuma que o servidor conectou onde você mandou; confirme
    consultando o próprio banco (`\dt` via `docker exec ... psql`) depois da primeira chamada.
+
+   No Windows/PowerShell, inicie o processo com `Start-Process -WindowStyle Hidden` e
+   `-RedirectStandardOutput`/`-RedirectStandardError` apontando para arquivos distintos dentro de
+   `$env:TEMP`. Guarde o PID retornado em uma variável da própria sessão. A captura não é
+   opcional: ao final, concatene os dois arquivos e rode `scripts/pii_log_grep.py` sobre o log
+   combinado. Sem arquivo capturado, a checagem de PII deve permanecer vermelha, nunca presumida.
 4. **Usuários de teste reais** — não existe seed sintético ainda; use o bootstrap que já existe
    e crie os demais papéis manualmente na mesma sessão:
    ```

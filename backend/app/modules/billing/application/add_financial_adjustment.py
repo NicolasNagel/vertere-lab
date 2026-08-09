@@ -54,7 +54,7 @@ class AddFinancialAdjustmentUseCase:
             raise ForbiddenError(f"Permissão ausente: {_REQUIRED_PERMISSION}")
 
         closure = self._closures.get_by_id_for_update(command.closure_id)
-        if closure is None:
+        if closure is None or not command.actor.can_access_clinic(closure.clinic_id):
             raise NotFoundError("Fechamento não encontrado.")
         if closure.status is not ClosureStatus.CLOSED:
             raise InvalidStateTransitionError(

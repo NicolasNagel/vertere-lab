@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import argparse
 import sys
+from urllib.parse import urlparse
 
 try:
     import httpx
@@ -22,7 +23,6 @@ except ImportError:
 # Cada entrada: (header, o que checar). Checagem simples de presença/valor plausível — não
 # valida a política inteira, só a ausência total, que é o erro mais comum.
 CHECAGENS = [
-    ("Strict-Transport-Security", lambda v: v is not None),
     ("X-Content-Type-Options", lambda v: v == "nosniff"),
     ("Content-Security-Policy", lambda v: v is not None),
     ("Cache-Control", lambda v: v is not None),  # sensível a resposta com dado de paciente/preço
@@ -32,6 +32,11 @@ CHECAGENS = [
 def main() -> int:
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument("--url", required=True)
+    p.add_argument(
+        "--require-hsts",
+        action="store_true",
+        help="exige HSTS mesmo ao testar um endpoint HTTP local configurado como produção",
+    )
     p.add_argument(
         "--header",
         action="append",
@@ -55,8 +60,17 @@ def main() -> int:
         return 2
 
     print(f"GET {args.url} -> {resp.status_code}\n")
+    checks = list(CHECAGENS)
+    if args.require_hsts or urlparse(args.url).scheme == "https":
+        checks.insert(0, ("Strict-Transport-Security", lambda v: v is not None))
+    else:
+        print(
+            "  Strict-Transport-Security: não exigido em HTTP local; "
+            "use --require-hsts para validar a configuração de produção"
+        )
+
     faltando = []
-    for nome, validador in CHECAGENS:
+    for nome, validador in checks:
         valor = resp.headers.get(nome)
         ok = validador(valor)
         status = "OK" if ok else "FALTANDO/INVÁLIDO"

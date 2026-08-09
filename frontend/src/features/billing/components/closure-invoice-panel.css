@@ -48,7 +48,7 @@
 .closure-invoice-panel__brand em {
   font-family: var(--font-script);
   font-size: 0.6875rem;
-  color: var(--color-accent-mist);
+  color: var(--color-brand-ink);
   font-style: italic;
   letter-spacing: 0;
   text-transform: none;

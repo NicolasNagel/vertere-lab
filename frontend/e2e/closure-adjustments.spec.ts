@@ -16,6 +16,7 @@ const closure = {
   subtotal: '100.00',
   discount_total: '0.00',
   surcharge_total: '0.00',
+  on_call_fee_total: '0.00',
   grand_total: '100.00',
   generated_by: null,
   closed_by: null,
@@ -53,12 +54,18 @@ test.beforeEach(async ({ page }) => {
           full_name: 'QA Financeiro',
           role_id: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
           role_name: 'FINANCE',
+          role_scope: 'LAB',
+          clinic_ids: [],
+          row_version: 1,
         },
         permissions: ['closures.read', 'closures.adjust', 'closures.reopen'],
       }),
     }),
   )
   await page.route(`**/api/v1/closures/${CLOSURE_ID}`, (route) =>
+    route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(closure) }),
+  )
+  await page.route('**/api/v1/closures/by-period?**', (route) =>
     route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(closure) }),
   )
   await page.route(`**/api/v1/clinics/${CLINIC_ID}`, (route) =>
@@ -112,7 +119,9 @@ test('financial adjustment modal validates, submits once and remains accessible'
     })
   })
 
-  await page.goto(`/financeiro/fechamentos/${CLOSURE_ID}`)
+  await page.goto(
+    `/financeiro/fechamento?clinicId=${CLINIC_ID}&periodStart=2026-07-01&periodEnd=2026-07-31`,
+  )
   await page.getByRole('button', { name: 'Adicionar ajuste' }).click()
   await expect(page.getByRole('dialog')).toBeVisible()
   await expect(page.getByLabel('Valor')).toBeFocused()

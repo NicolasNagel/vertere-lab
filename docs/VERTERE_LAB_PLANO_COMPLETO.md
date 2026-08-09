@@ -1,5 +1,11 @@
 # Vertere Lab — Plano Completo V2
 
+> Consolidação histórica. Para o estado implementado e contratos atuais, prevalecem
+> `docs/02-prd.md`, `docs/03-modelo-de-dominio.md`, `docs/04-arquitetura.md`,
+> `docs/07-nucleo-v1.md`, `docs/08-divida-tecnica.md` e os ADRs. Em particular, fechamento usa
+> período livre, acesso usa `ActorContext`/memberships e as compatibilidades temporárias estão no
+> ADR-011.
+
 ---
 <!-- Source: README.md -->
 

@@ -27,6 +27,8 @@ class GetOnCallFeeSettingsUseCase:
         self._on_call_fees = on_call_fees
 
     def execute(self, query: GetOnCallFeeSettingsQuery) -> list[OnCallFeeSetting]:
+        if query.actor.role_scope == "CLINIC":
+            raise ForbiddenError("Configuração de plantão é exclusiva do laboratório.")
         if _REQUIRED_PERMISSION not in query.actor.permissions:
             raise ForbiddenError(f"Permissão ausente: {_REQUIRED_PERMISSION}")
         return self._on_call_fees.list_all()

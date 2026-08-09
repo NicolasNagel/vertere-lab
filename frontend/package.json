@@ -10,6 +10,10 @@
     "typecheck": "tsc -b",
     "test": "vitest run",
     "test:e2e": "playwright test",
+    "api:export": "cd ../backend && uv run python -m scripts.export_openapi",
+    "api:types": "node scripts/generate-openapi-types.mjs",
+    "api:generate": "npm run api:export && npm run api:types",
+    "api:check": "npm run api:generate && git diff --exit-code -- openapi.json src/shared/api/generated.ts",
     "preview": "vite preview"
   },
   "dependencies": {

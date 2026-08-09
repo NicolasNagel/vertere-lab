@@ -1,6 +1,10 @@
-import { throwIfNotOk } from '../../../shared/api/errors'
-
-const API_BASE = '/api/v1'
+import { apiRequest } from '../../../shared/api/http-client'
+import type {
+  AttendanceListResponse as GeneratedAttendancePage,
+  AttendancePreviewResponse as GeneratedAttendancePreview,
+  AttendanceRead as GeneratedAttendance,
+  AttendanceTimelineResponse as GeneratedAttendanceTimelinePage,
+} from '../../../shared/api/generated'
 
 export type AttendanceStatus =
   | 'DRAFT'
@@ -150,7 +154,7 @@ interface ApiAttendanceExamItem {
   status: 'ACTIVE' | 'CANCELLED'
 }
 
-interface ApiAttendance {
+interface ApiAttendance extends GeneratedAttendance {
   id: string
   clinic_id: string
   veterinarian_id: string
@@ -174,14 +178,14 @@ interface ApiAttendance {
   row_version: number
 }
 
-interface ApiAttendancePage {
+interface ApiAttendancePage extends GeneratedAttendancePage {
   items: ApiAttendance[]
   total: number
   page: number
   page_size: number
 }
 
-interface ApiAttendancePreview {
+interface ApiAttendancePreview extends GeneratedAttendancePreview {
   attendance_id: string
   clinic_id: string
   veterinarian_id: string
@@ -207,7 +211,7 @@ interface ApiAttendanceTimelineEntry {
   reason: string | null
 }
 
-interface ApiAttendanceTimelinePage {
+interface ApiAttendanceTimelinePage extends GeneratedAttendanceTimelinePage {
   items: ApiAttendanceTimelineEntry[]
   total: number
   page: number
@@ -309,11 +313,7 @@ export async function fetchAttendances(params: AttendanceListParams = {}): Promi
   query.set('page', String(params.page ?? 1))
   query.set('page_size', String(params.pageSize ?? 20))
 
-  const response = await fetch(`${API_BASE}/attendances?${query.toString()}`, {
-    credentials: 'include',
-  })
-  await throwIfNotOk(response)
-  const body = (await response.json()) as ApiAttendancePage
+  const body = await apiRequest<ApiAttendancePage>(`/attendances?${query.toString()}`)
   return {
     items: body.items.map(fromApiAttendance),
     total: body.total,
@@ -336,32 +336,25 @@ export async function fetchAttendanceStatusCounts(
   if (params.serviceDateFrom) query.set('service_date_from', params.serviceDateFrom)
   if (params.serviceDateTo) query.set('service_date_to', params.serviceDateTo)
 
-  const response = await fetch(`${API_BASE}/attendances/status-counts?${query.toString()}`, {
-    credentials: 'include',
-  })
-  await throwIfNotOk(response)
-  const body = (await response.json()) as { total: number; by_status: Record<string, number> }
+  const body = await apiRequest<{ total: number; by_status: Record<string, number> }>(
+    `/attendances/status-counts?${query.toString()}`,
+  )
   return { total: body.total, byStatus: body.by_status as Partial<Record<AttendanceStatus, number>> }
 }
 
 export async function fetchAttendance(id: string): Promise<Attendance> {
-  const response = await fetch(`${API_BASE}/attendances/${id}`, { credentials: 'include' })
-  await throwIfNotOk(response)
-  return fromApiAttendance((await response.json()) as ApiAttendance)
+  return fromApiAttendance(await apiRequest<ApiAttendance>(`/attendances/${id}`))
 }
 
 export async function previewAttendance(
   id: string,
   items: AttendanceConfirmItemInput[],
 ): Promise<AttendancePreview> {
-  const response = await fetch(`${API_BASE}/attendances/${id}/preview`, {
+  const body = await apiRequest<ApiAttendancePreview>(`/attendances/${id}/preview`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    credentials: 'include',
-    body: JSON.stringify({ items: toApiConfirmItems(items) }),
+    body: { items: toApiConfirmItems(items) },
   })
-  await throwIfNotOk(response)
-  return fromApiPreview((await response.json()) as ApiAttendancePreview)
+  return fromApiPreview(body)
 }
 
 export async function confirmAttendance(
@@ -369,25 +362,20 @@ export async function confirmAttendance(
   items: AttendanceConfirmItemInput[],
   idempotencyKey: string,
 ): Promise<Attendance> {
-  const response = await fetch(`${API_BASE}/attendances/${id}/confirm`, {
+  const body = await apiRequest<ApiAttendance>(`/attendances/${id}/confirm`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'Idempotency-Key': idempotencyKey },
-    credentials: 'include',
-    body: JSON.stringify({ items: toApiConfirmItems(items) }),
+    headers: { 'Idempotency-Key': idempotencyKey },
+    body: { items: toApiConfirmItems(items) },
   })
-  await throwIfNotOk(response)
-  return fromApiAttendance((await response.json()) as ApiAttendance)
+  return fromApiAttendance(body)
 }
 
 export async function cancelAttendance(id: string, reason: string): Promise<Attendance> {
-  const response = await fetch(`${API_BASE}/attendances/${id}/cancel`, {
+  const body = await apiRequest<ApiAttendance>(`/attendances/${id}/cancel`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    credentials: 'include',
-    body: JSON.stringify({ reason }),
+    body: { reason },
   })
-  await throwIfNotOk(response)
-  return fromApiAttendance((await response.json()) as ApiAttendance)
+  return fromApiAttendance(body)
 }
 
 export interface AttendanceUpdateInput {
@@ -418,14 +406,11 @@ export async function updateAttendance(
   if (input.serviceDate !== undefined) body.service_date = input.serviceDate
   if (input.notes !== undefined) body.notes = input.notes
 
-  const response = await fetch(`${API_BASE}/attendances/${id}`, {
+  const responseBody = await apiRequest<ApiAttendance>(`/attendances/${id}`, {
     method: 'PATCH',
-    headers: { 'Content-Type': 'application/json' },
-    credentials: 'include',
-    body: JSON.stringify(body),
+    body,
   })
-  await throwIfNotOk(response)
-  return fromApiAttendance((await response.json()) as ApiAttendance)
+  return fromApiAttendance(responseBody)
 }
 
 export async function fetchAttendanceTimeline(
@@ -434,11 +419,9 @@ export async function fetchAttendanceTimeline(
   pageSize: number,
 ): Promise<AttendanceTimelinePage> {
   const query = new URLSearchParams({ page: String(page), page_size: String(pageSize) })
-  const response = await fetch(`${API_BASE}/attendances/${id}/timeline?${query.toString()}`, {
-    credentials: 'include',
-  })
-  await throwIfNotOk(response)
-  const body = (await response.json()) as ApiAttendanceTimelinePage
+  const body = await apiRequest<ApiAttendanceTimelinePage>(
+    `/attendances/${id}/timeline?${query.toString()}`,
+  )
   return {
     items: body.items.map(fromApiTimelineEntry),
     total: body.total,
@@ -450,11 +433,9 @@ export async function fetchAttendanceTimeline(
 export async function createAttendanceDraft(
   values: AttendanceDraftFormValues,
 ): Promise<Attendance> {
-  const response = await fetch(`${API_BASE}/attendances/drafts`, {
+  const body = await apiRequest<ApiAttendance>('/attendances/drafts', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    credentials: 'include',
-    body: JSON.stringify({
+    body: {
       clinic_id: values.clinicId,
       veterinarian_id: values.veterinarianId,
       patient_id: values.patientId,
@@ -462,8 +443,7 @@ export async function createAttendanceDraft(
       service_level: values.serviceLevel,
       service_date: values.serviceDate,
       notes: values.notes,
-    }),
+    },
   })
-  await throwIfNotOk(response)
-  return fromApiAttendance((await response.json()) as ApiAttendance)
+  return fromApiAttendance(body)
 }

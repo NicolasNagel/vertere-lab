@@ -42,6 +42,8 @@ class UpdateOnCallFeeSettingUseCase:
         self._clock = clock
 
     def execute(self, command: UpdateOnCallFeeSettingCommand) -> OnCallFeeSetting:
+        if command.actor.role_scope == "CLINIC":
+            raise ForbiddenError("Configuração de plantão é exclusiva do laboratório.")
         if _REQUIRED_PERMISSION not in command.actor.permissions:
             raise ForbiddenError(f"Permissão ausente: {_REQUIRED_PERMISSION}")
 

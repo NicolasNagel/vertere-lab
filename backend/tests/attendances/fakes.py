@@ -98,8 +98,11 @@ class FakeAttendanceRepository:
         owner_name: str | None,
         service_date_from: date | None,
         service_date_to: date | None,
+        clinic_ids: frozenset[UUID] | None = None,
     ) -> tuple[list[AttendanceRecord], int]:
         items = list(self._attendances.values())
+        if clinic_ids is not None:
+            items = [item for item in items if item.clinic_id in clinic_ids]
         if clinic_id is not None:
             items = [a for a in items if a.clinic_id == clinic_id]
         if veterinarian_id is not None:
@@ -141,8 +144,11 @@ class FakeAttendanceRepository:
         owner_name: str | None,
         service_date_from: date | None,
         service_date_to: date | None,
+        clinic_ids: frozenset[UUID] | None = None,
     ) -> dict[AttendanceStatus, int]:
         items = list(self._attendances.values())
+        if clinic_ids is not None:
+            items = [item for item in items if item.clinic_id in clinic_ids]
         if clinic_id is not None:
             items = [a for a in items if a.clinic_id == clinic_id]
         if veterinarian_id is not None:

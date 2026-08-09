@@ -61,6 +61,11 @@ Qualquer erro nesse registro se propaga para histórico, laudo, comunicação, i
 - tabela de preços e vigência;
 - método de coleta e tipo de atendimento.
 
+Limites da implementação atual: tutor está embutido em `Patient`, preço vigente está diretamente
+em `Exam` e alguns códigos de coleta preservam nomes históricos. O fechamento, apesar do nome
+interno `MonthlyClosure`, aceita período civil livre. Esses limites não alteram os critérios de
+snapshot, tenant, auditoria e imutabilidade e estão detalhados em `docs/08-divida-tecnica.md`.
+
 #### Registro de Atendimento
 
 - criação em rascunho;

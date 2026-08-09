@@ -35,16 +35,14 @@ from app.modules.attendances.api.schemas import (
 from app.modules.attendances.application.attendance_items import AttendanceItemInput
 from app.modules.attendances.application.cancel_attendance import (
     CancelAttendanceCommand,
-    CancelAttendanceUseCase,
 )
 from app.modules.attendances.application.confirm_attendance import (
     ConfirmAttendanceCommand,
     ConfirmAttendanceItemInput,
-    ConfirmAttendanceUseCase,
 )
+from app.modules.attendances.application.confirm_attendance_handler import ConfirmAttendanceHandler
 from app.modules.attendances.application.create_attendance_draft import (
     CreateAttendanceDraftCommand,
-    CreateAttendanceDraftUseCase,
 )
 from app.modules.attendances.application.dtos import (
     AttendanceDTO,
@@ -69,17 +67,21 @@ from app.modules.attendances.application.list_attendances import (
     ListAttendancesQuery,
     ListAttendancesUseCase,
 )
+from app.modules.attendances.application.mutation_handlers import (
+    handle_cancel_attendance,
+    handle_create_attendance_draft,
+    handle_update_attendance,
+    handle_update_on_call_fee_setting,
+)
 from app.modules.attendances.application.preview_attendance import (
     PreviewAttendanceCommand,
     PreviewAttendanceUseCase,
 )
 from app.modules.attendances.application.update_attendance import (
     UpdateAttendanceCommand,
-    UpdateAttendanceUseCase,
 )
 from app.modules.attendances.application.update_on_call_fee_setting import (
     UpdateOnCallFeeSettingCommand,
-    UpdateOnCallFeeSettingUseCase,
 )
 from app.modules.attendances.domain.entities import (
     AttendanceStatus,
@@ -89,12 +91,11 @@ from app.modules.attendances.domain.entities import (
 )
 from app.modules.attendances.infrastructure.repositories import (
     SqlAlchemyAttendanceRepository,
-    SqlAlchemyAttendanceSequenceRepository,
     SqlAlchemyOnCallFeeSettingRepository,
 )
+from app.modules.attendances.infrastructure.uow import SqlAlchemyAttendanceUnitOfWork
 from app.modules.audit.infrastructure.repositories import (
     SqlAlchemyAuditLogReader,
-    SqlAlchemyAuditLogWriter,
 )
 from app.modules.catalog.infrastructure.repositories import SqlAlchemyExamRepository
 from app.modules.clinics.infrastructure.repositories import SqlAlchemyClinicRepository
@@ -105,10 +106,6 @@ from app.modules.veterinarian_clinics.infrastructure.repositories import (
 )
 from app.modules.veterinarians.infrastructure.repositories import SqlAlchemyVeterinarianRepository
 from app.shared.application.authorization import ActorContext
-from app.shared.idempotency.application.guard import IdempotencyGuard
-from app.shared.idempotency.infrastructure.repositories import (
-    SqlAlchemyIdempotencyRecordRepository,
-)
 from app.shared.infrastructure.clock import SystemClock
 from app.shared.infrastructure.uow import SqlAlchemyUnitOfWork
 
@@ -301,39 +298,28 @@ def update_attendance(
     uow: SqlAlchemyUnitOfWork = Depends(get_unit_of_work),
     current_user: ActorContext = Depends(require_permission("attendances.update")),
 ) -> AttendanceRead:
-    with uow:
-        use_case = UpdateAttendanceUseCase(
-            attendances=SqlAlchemyAttendanceRepository(uow.session),
-            clinics=SqlAlchemyClinicRepository(uow.session),
-            veterinarians=SqlAlchemyVeterinarianRepository(uow.session),
-            veterinarian_clinics=SqlAlchemyVeterinarianClinicLinkRepository(uow.session),
-            patients=SqlAlchemyPatientRepository(uow.session),
-            audit=SqlAlchemyAuditLogWriter(uow.session),
-            clock=SystemClock(),
-        )
-        result = use_case.execute(
-            UpdateAttendanceCommand(
-                actor=current_user,
-                attendance_id=attendance_id,
-                expected_row_version=payload.row_version,
-                clinic_id=payload.clinic_id,
-                veterinarian_id=payload.veterinarian_id,
-                patient_id=payload.patient_id,
-                collection_method=(
-                    CollectionMethod(payload.collection_method)
-                    if payload.collection_method is not None
-                    else None
-                ),
-                service_level=(
-                    ServiceLevel(payload.service_level)
-                    if payload.service_level is not None
-                    else None
-                ),
-                service_date=payload.service_date,
-                notes=payload.notes,
-            )
-        )
-        uow.commit()
+    result = handle_update_attendance(
+        uow=SqlAlchemyAttendanceUnitOfWork(uow),
+        command=UpdateAttendanceCommand(
+            actor=current_user,
+            attendance_id=attendance_id,
+            expected_row_version=payload.row_version,
+            clinic_id=payload.clinic_id,
+            veterinarian_id=payload.veterinarian_id,
+            patient_id=payload.patient_id,
+            collection_method=(
+                CollectionMethod(payload.collection_method)
+                if payload.collection_method is not None
+                else None
+            ),
+            service_level=(
+                ServiceLevel(payload.service_level) if payload.service_level is not None else None
+            ),
+            service_date=payload.service_date,
+            notes=payload.notes,
+        ),
+        clock=SystemClock(),
+    )
     return _attendance_read(result)
 
 
@@ -343,29 +329,20 @@ def create_attendance_draft(
     uow: SqlAlchemyUnitOfWork = Depends(get_unit_of_work),
     current_user: ActorContext = Depends(require_permission("attendances.create")),
 ) -> AttendanceRead:
-    with uow:
-        use_case = CreateAttendanceDraftUseCase(
-            attendances=SqlAlchemyAttendanceRepository(uow.session),
-            clinics=SqlAlchemyClinicRepository(uow.session),
-            veterinarians=SqlAlchemyVeterinarianRepository(uow.session),
-            veterinarian_clinics=SqlAlchemyVeterinarianClinicLinkRepository(uow.session),
-            patients=SqlAlchemyPatientRepository(uow.session),
-            audit=SqlAlchemyAuditLogWriter(uow.session),
-            clock=SystemClock(),
-        )
-        result = use_case.execute(
-            CreateAttendanceDraftCommand(
-                actor=current_user,
-                clinic_id=payload.clinic_id,
-                veterinarian_id=payload.veterinarian_id,
-                patient_id=payload.patient_id,
-                collection_method=CollectionMethod(payload.collection_method),
-                service_level=ServiceLevel(payload.service_level),
-                service_date=payload.service_date,
-                notes=payload.notes,
-            )
-        )
-        uow.commit()
+    result = handle_create_attendance_draft(
+        uow=SqlAlchemyAttendanceUnitOfWork(uow),
+        command=CreateAttendanceDraftCommand(
+            actor=current_user,
+            clinic_id=payload.clinic_id,
+            veterinarian_id=payload.veterinarian_id,
+            patient_id=payload.patient_id,
+            collection_method=CollectionMethod(payload.collection_method),
+            service_level=ServiceLevel(payload.service_level),
+            service_date=payload.service_date,
+            notes=payload.notes,
+        ),
+        clock=SystemClock(),
+    )
     return _attendance_read(result)
 
 
@@ -411,57 +388,25 @@ def confirm_attendance(
     uow: SqlAlchemyUnitOfWork = Depends(get_unit_of_work),
     current_user: ActorContext = Depends(require_permission("attendances.update")),
 ) -> AttendanceRead:
-    clock = SystemClock()
-    with uow:
-        guard = IdempotencyGuard(records=SqlAlchemyIdempotencyRecordRepository(uow.session))
-        outcome = guard.begin(
-            actor_id=current_user.id,
-            operation=f"attendances.confirm:{attendance_id}",
-            idempotency_key=idempotency_key,
-            payload=payload.model_dump(mode="json"),
-            now=clock.now(),
-        )
-        if outcome.replayed_response is not None:
-            uow.commit()
-            _, body = outcome.replayed_response
-            return AttendanceRead.model_validate(body)
-
-        use_case = ConfirmAttendanceUseCase(
-            attendances=SqlAlchemyAttendanceRepository(uow.session),
-            attendance_sequences=SqlAlchemyAttendanceSequenceRepository(uow.session),
-            clinics=SqlAlchemyClinicRepository(uow.session),
-            veterinarians=SqlAlchemyVeterinarianRepository(uow.session),
-            veterinarian_clinics=SqlAlchemyVeterinarianClinicLinkRepository(uow.session),
-            patients=SqlAlchemyPatientRepository(uow.session),
-            exams=SqlAlchemyExamRepository(uow.session),
-            on_call_fees=SqlAlchemyOnCallFeeSettingRepository(uow.session),
-            audit=SqlAlchemyAuditLogWriter(uow.session),
-            clock=clock,
-        )
-        result = use_case.execute(
-            ConfirmAttendanceCommand(
-                actor=current_user,
-                attendance_id=attendance_id,
-                items=[
-                    ConfirmAttendanceItemInput(
-                        exam_id=item.exam_id,
-                        quantity=item.quantity,
-                        discount_amount=item.discount_amount,
-                        override_reason=item.override_reason,
-                    )
-                    for item in payload.items
-                ],
-            )
-        )
-        response = _attendance_read(result)
-        guard.complete(
-            outcome.record_id,
-            status_code=200,
-            body=response.model_dump(mode="json"),
-            now=clock.now(),
-        )
-        uow.commit()
-    return response
+    result = ConfirmAttendanceHandler(
+        uow=SqlAlchemyAttendanceUnitOfWork(uow), clock=SystemClock()
+    ).execute(
+        ConfirmAttendanceCommand(
+            actor=current_user,
+            attendance_id=attendance_id,
+            items=[
+                ConfirmAttendanceItemInput(
+                    exam_id=item.exam_id,
+                    quantity=item.quantity,
+                    discount_amount=item.discount_amount,
+                    override_reason=item.override_reason,
+                )
+                for item in payload.items
+            ],
+        ),
+        idempotency_key=idempotency_key,
+    )
+    return _attendance_read(result)
 
 
 @router.post("/{attendance_id}/cancel", response_model=AttendanceRead)
@@ -471,20 +416,15 @@ def cancel_attendance(
     uow: SqlAlchemyUnitOfWork = Depends(get_unit_of_work),
     current_user: ActorContext = Depends(require_permission("attendances.cancel")),
 ) -> AttendanceRead:
-    with uow:
-        use_case = CancelAttendanceUseCase(
-            attendances=SqlAlchemyAttendanceRepository(uow.session),
-            audit=SqlAlchemyAuditLogWriter(uow.session),
-            clock=SystemClock(),
-        )
-        result = use_case.execute(
-            CancelAttendanceCommand(
-                actor=current_user,
-                attendance_id=attendance_id,
-                reason=payload.reason,
-            )
-        )
-        uow.commit()
+    result = handle_cancel_attendance(
+        uow=SqlAlchemyAttendanceUnitOfWork(uow),
+        command=CancelAttendanceCommand(
+            actor=current_user,
+            attendance_id=attendance_id,
+            reason=payload.reason,
+        ),
+        clock=SystemClock(),
+    )
     return _attendance_read(result)
 
 
@@ -521,20 +461,15 @@ def update_on_call_fee_setting(
     uow: SqlAlchemyUnitOfWork = Depends(get_unit_of_work),
     current_user: ActorContext = Depends(require_permission("pricing.manage")),
 ) -> OnCallFeeSettingRead:
-    with uow:
-        use_case = UpdateOnCallFeeSettingUseCase(
-            on_call_fees=SqlAlchemyOnCallFeeSettingRepository(uow.session),
-            audit=SqlAlchemyAuditLogWriter(uow.session),
-            clock=SystemClock(),
-        )
-        result = use_case.execute(
-            UpdateOnCallFeeSettingCommand(
-                actor=current_user,
-                service_level=ServiceLevel(service_level),
-                fee_amount=payload.fee_amount,
-                schedule_label=payload.schedule_label,
-                expected_row_version=payload.expected_row_version,
-            )
-        )
-        uow.commit()
+    result = handle_update_on_call_fee_setting(
+        uow=SqlAlchemyAttendanceUnitOfWork(uow),
+        command=UpdateOnCallFeeSettingCommand(
+            actor=current_user,
+            service_level=ServiceLevel(service_level),
+            fee_amount=payload.fee_amount,
+            schedule_label=payload.schedule_label,
+            expected_row_version=payload.expected_row_version,
+        ),
+        clock=SystemClock(),
+    )
     return _on_call_fee_setting_read(result)

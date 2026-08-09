@@ -35,7 +35,7 @@ class GetMonthlyClosureUseCase:
             raise ForbiddenError(f"Permissão ausente: {_REQUIRED_PERMISSION}")
 
         closure = self._closures.get_by_id(query.closure_id)
-        if closure is None:
+        if closure is None or not query.actor.can_access_clinic(closure.clinic_id):
             raise NotFoundError("Fechamento não encontrado.")
 
         return monthly_closure_to_dto(closure)

@@ -14,7 +14,6 @@ from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session as SqlAlchemySession
 
 from app.api.dependencies import get_session, get_unit_of_work
-from app.modules.audit.infrastructure.repositories import SqlAlchemyAuditLogWriter
 from app.modules.clinics.api.schemas import (
     ClinicCreateRequest,
     ClinicDetailRead,
@@ -24,15 +23,14 @@ from app.modules.clinics.api.schemas import (
     ClinicStatusLiteral,
     ClinicUpdateRequest,
 )
-from app.modules.clinics.application.create_clinic import CreateClinicCommand, CreateClinicUseCase
+from app.modules.clinics.application.create_clinic import CreateClinicCommand
 from app.modules.clinics.application.deactivate_clinic import (
     DeactivateClinicCommand,
-    DeactivateClinicUseCase,
 )
 from app.modules.clinics.application.dtos import ClinicDTO
 from app.modules.clinics.application.get_clinic import GetClinicQuery, GetClinicUseCase
 from app.modules.clinics.application.list_clinics import ListClinicsQuery, ListClinicsUseCase
-from app.modules.clinics.application.update_clinic import UpdateClinicCommand, UpdateClinicUseCase
+from app.modules.clinics.application.update_clinic import UpdateClinicCommand
 from app.modules.clinics.domain.entities import ClinicStatus
 from app.modules.clinics.infrastructure.repositories import SqlAlchemyClinicRepository
 from app.modules.identity.api.dependencies import require_permission
@@ -40,8 +38,16 @@ from app.modules.veterinarian_clinics.application.list_veterinarians_for_clinic 
     ListVeterinariansForClinicQuery,
     ListVeterinariansForClinicUseCase,
 )
+from app.modules.veterinarian_clinics.application.mutation_handlers import (
+    handle_create_clinic,
+    handle_deactivate_clinic,
+    handle_update_clinic,
+)
 from app.modules.veterinarian_clinics.infrastructure.repositories import (
     SqlAlchemyVeterinarianClinicLinkRepository,
+)
+from app.modules.veterinarian_clinics.infrastructure.uow import (
+    SqlAlchemyClinicDirectoryUnitOfWork,
 )
 from app.modules.veterinarians.infrastructure.repositories import SqlAlchemyVeterinarianRepository
 from app.shared.application.authorization import ActorContext
@@ -131,30 +137,25 @@ def create_clinic(
     uow: SqlAlchemyUnitOfWork = Depends(get_unit_of_work),
     current_user: ActorContext = Depends(require_permission("clinics.manage")),
 ) -> ClinicRead:
-    with uow:
-        use_case = CreateClinicUseCase(
-            clinics=SqlAlchemyClinicRepository(uow.session),
-            audit=SqlAlchemyAuditLogWriter(uow.session),
-            clock=SystemClock(),
-        )
-        result = use_case.execute(
-            CreateClinicCommand(
-                actor=current_user,
-                name=payload.name,
-                tax_id=payload.tax_id,
-                phone=payload.phone,
-                email=payload.email,
-                address_zip_code=payload.address_zip_code,
-                address_street=payload.address_street,
-                address_number=payload.address_number,
-                address_neighborhood=payload.address_neighborhood,
-                address_city=payload.address_city,
-                address_state=payload.address_state,
-                address_complement=payload.address_complement,
-                notes=payload.notes,
-            )
-        )
-        uow.commit()
+    result = handle_create_clinic(
+        uow=SqlAlchemyClinicDirectoryUnitOfWork(uow),
+        command=CreateClinicCommand(
+            actor=current_user,
+            name=payload.name,
+            tax_id=payload.tax_id,
+            phone=payload.phone,
+            email=payload.email,
+            address_zip_code=payload.address_zip_code,
+            address_street=payload.address_street,
+            address_number=payload.address_number,
+            address_neighborhood=payload.address_neighborhood,
+            address_city=payload.address_city,
+            address_state=payload.address_state,
+            address_complement=payload.address_complement,
+            notes=payload.notes,
+        ),
+        clock=SystemClock(),
+    )
     return _clinic_read(result)
 
 
@@ -165,33 +166,28 @@ def update_clinic(
     uow: SqlAlchemyUnitOfWork = Depends(get_unit_of_work),
     current_user: ActorContext = Depends(require_permission("clinics.manage")),
 ) -> ClinicRead:
-    with uow:
-        use_case = UpdateClinicUseCase(
-            clinics=SqlAlchemyClinicRepository(uow.session),
-            audit=SqlAlchemyAuditLogWriter(uow.session),
-            clock=SystemClock(),
-        )
-        result = use_case.execute(
-            UpdateClinicCommand(
-                actor=current_user,
-                clinic_id=clinic_id,
-                name=payload.name,
-                tax_id=payload.tax_id,
-                phone=payload.phone,
-                email=payload.email,
-                status=payload.status,
-                address_zip_code=payload.address_zip_code,
-                address_street=payload.address_street,
-                address_number=payload.address_number,
-                address_neighborhood=payload.address_neighborhood,
-                address_city=payload.address_city,
-                address_state=payload.address_state,
-                address_complement=payload.address_complement,
-                notes=payload.notes,
-                expected_row_version=payload.expected_row_version,
-            )
-        )
-        uow.commit()
+    result = handle_update_clinic(
+        uow=SqlAlchemyClinicDirectoryUnitOfWork(uow),
+        command=UpdateClinicCommand(
+            actor=current_user,
+            clinic_id=clinic_id,
+            name=payload.name,
+            tax_id=payload.tax_id,
+            phone=payload.phone,
+            email=payload.email,
+            status=payload.status,
+            address_zip_code=payload.address_zip_code,
+            address_street=payload.address_street,
+            address_number=payload.address_number,
+            address_neighborhood=payload.address_neighborhood,
+            address_city=payload.address_city,
+            address_state=payload.address_state,
+            address_complement=payload.address_complement,
+            notes=payload.notes,
+            expected_row_version=payload.expected_row_version,
+        ),
+        clock=SystemClock(),
+    )
     return _clinic_read(result)
 
 
@@ -201,12 +197,9 @@ def deactivate_clinic(
     uow: SqlAlchemyUnitOfWork = Depends(get_unit_of_work),
     current_user: ActorContext = Depends(require_permission("clinics.manage")),
 ) -> ClinicRead:
-    with uow:
-        use_case = DeactivateClinicUseCase(
-            clinics=SqlAlchemyClinicRepository(uow.session),
-            audit=SqlAlchemyAuditLogWriter(uow.session),
-            clock=SystemClock(),
-        )
-        result = use_case.execute(DeactivateClinicCommand(actor=current_user, clinic_id=clinic_id))
-        uow.commit()
+    result = handle_deactivate_clinic(
+        uow=SqlAlchemyClinicDirectoryUnitOfWork(uow),
+        command=DeactivateClinicCommand(actor=current_user, clinic_id=clinic_id),
+        clock=SystemClock(),
+    )
     return _clinic_read(result)

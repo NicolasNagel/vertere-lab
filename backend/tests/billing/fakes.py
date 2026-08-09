@@ -152,9 +152,19 @@ class FakeMonthlyClosureRepository:
         self.adjustments.append(adjustment)
 
     def list_page(
-        self, *, clinic_id: UUID | None, page: int, page_size: int
+        self,
+        *,
+        clinic_id: UUID | None,
+        page: int,
+        page_size: int,
+        clinic_ids: frozenset[UUID] | None = None,
     ) -> tuple[list[MonthlyClosure], int]:
-        return list(self.added), len(self.added)
+        items = list(self.added)
+        if clinic_ids is not None:
+            items = [item for item in items if item.clinic_id in clinic_ids]
+        if clinic_id is not None:
+            items = [item for item in items if item.clinic_id == clinic_id]
+        return items, len(items)
 
 
 class FakeAuditLogWriter:

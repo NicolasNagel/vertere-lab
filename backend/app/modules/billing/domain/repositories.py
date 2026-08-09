@@ -88,5 +88,10 @@ class MonthlyClosureRepository(Protocol):
     def add_adjustment(self, adjustment: FinancialAdjustment) -> None: ...
 
     def list_page(
-        self, *, clinic_id: UUID | None, page: int, page_size: int
+        self,
+        *,
+        clinic_id: UUID | None,
+        page: int,
+        page_size: int,
+        clinic_ids: frozenset[UUID] | None = None,
     ) -> tuple[list[MonthlyClosure], int]: ...

@@ -3,7 +3,7 @@ from __future__ import annotations
 from dataclasses import replace
 from datetime import UTC, date, datetime, timedelta
 from decimal import Decimal
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 import pytest
 
@@ -86,6 +86,21 @@ def _actor(*, permissions: frozenset[str]) -> AuthenticatedUserDTO:
         role_id=uuid4(),
         role_name="RECEPTION",
         permissions=permissions,
+    )
+
+
+def _clinic_actor(
+    *, permissions: frozenset[str], clinic_ids: frozenset[UUID]
+) -> AuthenticatedUserDTO:
+    return AuthenticatedUserDTO(
+        user_id=uuid4(),
+        email="clinic@vertere.local",
+        full_name="Clinic",
+        role_id=uuid4(),
+        role_name="CLINIC_STAFF",
+        role_scope="CLINIC",
+        permissions=permissions,
+        clinic_ids=clinic_ids,
     )
 
 
@@ -174,6 +189,36 @@ def test_create_draft_succeeds_and_audits() -> None:
     assert fixture.attendances.get_by_id(result.id) is not None
     assert fixture.audit.entries[-1].action == "attendances.draft_created"
     assert fixture.audit.entries[-1].entity_type == "attendance"
+
+
+def test_clinic_actor_cannot_create_or_read_attendance_in_another_clinic() -> None:
+    fixture = _Fixture()
+    foreign_actor = _clinic_actor(
+        permissions=frozenset({"attendances.create", "attendances.read"}),
+        clinic_ids=frozenset({uuid4()}),
+    )
+    with pytest.raises(NotFoundError):
+        fixture.use_case().execute(_command(actor=foreign_actor))
+
+    created = fixture.use_case().execute(_command())
+    with pytest.raises(NotFoundError):
+        GetAttendanceUseCase(attendances=fixture.attendances).execute(
+            GetAttendanceQuery(actor=foreign_actor, attendance_id=created.id)
+        )
+
+
+def test_clinic_actor_list_is_automatically_limited_to_memberships() -> None:
+    fixture = _Fixture()
+    fixture.use_case().execute(_command())
+    actor = _clinic_actor(
+        permissions=frozenset({"attendances.read"}), clinic_ids=frozenset({uuid4()})
+    )
+
+    result = ListAttendancesUseCase(attendances=fixture.attendances).execute(
+        ListAttendancesQuery(actor=actor, page=1, page_size=20)
+    )
+
+    assert result.total == 0
 
 
 def test_create_draft_without_permission_is_forbidden() -> None:

@@ -330,11 +330,19 @@ class SqlAlchemyMonthlyClosureRepository:
         )
 
     def list_page(
-        self, *, clinic_id: UUID | None, page: int, page_size: int
+        self,
+        *,
+        clinic_id: UUID | None,
+        page: int,
+        page_size: int,
+        clinic_ids: frozenset[UUID] | None = None,
     ) -> tuple[list[MonthlyClosure], int]:
         stmt = select(MonthlyClosureModel).options(selectinload(MonthlyClosureModel.items))
         stmt = stmt.options(selectinload(MonthlyClosureModel.adjustments))
         count_stmt = select(func.count()).select_from(MonthlyClosureModel)
+        if clinic_ids is not None:
+            stmt = stmt.where(MonthlyClosureModel.clinic_id.in_(clinic_ids))
+            count_stmt = count_stmt.where(MonthlyClosureModel.clinic_id.in_(clinic_ids))
         if clinic_id is not None:
             stmt = stmt.where(MonthlyClosureModel.clinic_id == clinic_id)
             count_stmt = count_stmt.where(MonthlyClosureModel.clinic_id == clinic_id)

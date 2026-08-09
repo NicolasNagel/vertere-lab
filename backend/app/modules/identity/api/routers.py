@@ -16,7 +16,6 @@ from sqlalchemy.orm import Session as SqlAlchemySession
 from app.api.dependencies import get_session, get_unit_of_work
 from app.core.config import Settings
 from app.core.logging import request_id_var
-from app.modules.audit.infrastructure.repositories import SqlAlchemyAuditLogWriter
 from app.modules.identity.api.dependencies import (
     get_current_user,
     get_session_token,
@@ -40,14 +39,12 @@ from app.modules.identity.api.schemas import (
 )
 from app.modules.identity.application.activate_user import (
     ActivateUserCommand,
-    ActivateUserUseCase,
 )
-from app.modules.identity.application.assign_role import AssignRoleCommand, AssignRoleUseCase
-from app.modules.identity.application.create_role import CreateRoleCommand, CreateRoleUseCase
-from app.modules.identity.application.create_user import CreateUserCommand, CreateUserUseCase
+from app.modules.identity.application.assign_role import AssignRoleCommand
+from app.modules.identity.application.create_role import CreateRoleCommand
+from app.modules.identity.application.create_user import CreateUserCommand
 from app.modules.identity.application.deactivate_user import (
     DeactivateUserCommand,
-    DeactivateUserUseCase,
 )
 from app.modules.identity.application.dtos import UserSummaryDTO
 from app.modules.identity.application.list_permissions import (
@@ -61,31 +58,36 @@ from app.modules.identity.application.list_roles import (
     ListRolesUseCase,
 )
 from app.modules.identity.application.list_users import ListUsersQuery, ListUsersUseCase
-from app.modules.identity.application.login import LoginCommand, LoginUseCase
-from app.modules.identity.application.logout import LogoutCommand, LogoutUseCase
+from app.modules.identity.application.login import LoginCommand
+from app.modules.identity.application.logout import LogoutCommand
+from app.modules.identity.application.mutation_handlers import (
+    handle_activate_user,
+    handle_assign_role,
+    handle_create_role,
+    handle_create_user,
+    handle_deactivate_user,
+    handle_login,
+    handle_logout,
+    handle_update_role_permissions,
+    handle_update_user_access,
+)
 from app.modules.identity.application.update_role_permissions import (
     UpdateRolePermissionsCommand,
-    UpdateRolePermissionsUseCase,
 )
 from app.modules.identity.application.update_user_access import (
     UpdateUserAccessCommand,
-    UpdateUserAccessUseCase,
 )
 from app.modules.identity.domain.entities import RoleScope
-from app.modules.identity.domain.errors import AccountInactiveError, InvalidCredentialsError
 from app.modules.identity.infrastructure.password_hasher import Argon2PasswordHasher
 from app.modules.identity.infrastructure.repositories import (
     SqlAlchemyClinicMembershipRepository,
-    SqlAlchemyLabMembershipRepository,
-    SqlAlchemyLoginFailureRepository,
     SqlAlchemyPermissionRepository,
     SqlAlchemyRoleRepository,
-    SqlAlchemySessionRepository,
     SqlAlchemyUserRepository,
 )
 from app.modules.identity.infrastructure.session_tokens import OpaqueSessionTokens
+from app.modules.identity.infrastructure.uow import SqlAlchemyIdentityUnitOfWork
 from app.shared.application.authorization import ActorContext
-from app.shared.domain.errors import RateLimitedError
 from app.shared.infrastructure.clock import SystemClock
 from app.shared.infrastructure.uow import SqlAlchemyUnitOfWork
 
@@ -138,45 +140,32 @@ def login(
     uow: SqlAlchemyUnitOfWork = Depends(get_unit_of_work),
 ) -> AuthResponse:
     settings = _settings(request)
-    with uow:
-        use_case = LoginUseCase(
-            users=SqlAlchemyUserRepository(uow.session),
-            roles=SqlAlchemyRoleRepository(uow.session),
-            sessions=SqlAlchemySessionRepository(uow.session),
-            memberships=SqlAlchemyLabMembershipRepository(uow.session),
-            clinic_memberships=SqlAlchemyClinicMembershipRepository(uow.session),
-            login_failures=SqlAlchemyLoginFailureRepository(uow.session),
-            password_hasher=Argon2PasswordHasher(),
-            token_generator=OpaqueSessionTokens(),
-            audit=SqlAlchemyAuditLogWriter(uow.session),
-            clock=SystemClock(),
-            session_ttl=timedelta(minutes=settings.session_ttl_minutes),
-            session_ttl_remember_me=timedelta(days=settings.session_ttl_remember_me_days),
-            rate_limit_max_attempts=settings.login_rate_limit_max_attempts,
-            rate_limit_window=timedelta(minutes=settings.login_rate_limit_window_minutes),
-        )
-        command = LoginCommand(
+    result = handle_login(
+        uow=SqlAlchemyIdentityUnitOfWork(uow),
+        command=LoginCommand(
             login=payload.login,
             password=payload.password,
             remember_me=payload.remember_me,
             ip_address=request.client.host if request.client else None,
             user_agent=request.headers.get("user-agent"),
             request_id=request_id_var.get(),
-        )
-        try:
-            result = use_case.execute(command)
-        except (InvalidCredentialsError, AccountInactiveError, RateLimitedError):
-            # Rejeição esperada (senha errada, conta inativa, rate limit) não
-            # é motivo para descartar o que o caso de uso já gravou nesta
-            # mesma transação — o registro de falha (para o rate limit) e o
-            # audit_log da tentativa precisam sobreviver, senão o rollback
-            # padrão do unit of work em qualquer exceção apaga os dois e o
-            # limite nunca é alcançado (achado ao testar o rate limit de
-            # verdade: a 6ª tentativa passava porque nenhuma falha anterior
-            # tinha sido persistida).
-            uow.commit()
-            raise
-        uow.commit()
+        ),
+        password_hasher=Argon2PasswordHasher(),
+        token_generator=OpaqueSessionTokens(),
+        clock=SystemClock(),
+        session_ttl=timedelta(minutes=settings.session_ttl_minutes),
+        session_ttl_remember_me=timedelta(days=settings.session_ttl_remember_me_days),
+        rate_limit_max_attempts=settings.login_rate_limit_max_attempts,
+        rate_limit_window=timedelta(minutes=settings.login_rate_limit_window_minutes),
+    )
+    # Rejeição esperada (senha errada, conta inativa, rate limit) não
+    # é motivo para descartar o que o caso de uso já gravou nesta
+    # mesma transação — o registro de falha (para o rate limit) e o
+    # audit_log da tentativa precisam sobreviver, senão o rollback
+    # padrão do unit of work em qualquer exceção apaga os dois e o
+    # limite nunca é alcançado (achado ao testar o rate limit de
+    # verdade: a 6ª tentativa passava porque nenhuma falha anterior
+    # tinha sido persistida).
 
     ttl = (
         timedelta(days=settings.session_ttl_remember_me_days)
@@ -205,14 +194,12 @@ def logout(
     token: str | None = Depends(get_session_token),
 ) -> Response:
     if token is not None:
-        with uow:
-            use_case = LogoutUseCase(
-                sessions=SqlAlchemySessionRepository(uow.session),
-                token_generator=OpaqueSessionTokens(),
-                clock=SystemClock(),
-            )
-            use_case.execute(LogoutCommand(token=token))
-            uow.commit()
+        handle_logout(
+            uow=SqlAlchemyIdentityUnitOfWork(uow),
+            command=LogoutCommand(token=token),
+            token_generator=OpaqueSessionTokens(),
+            clock=SystemClock(),
+        )
 
     settings = _settings(request)
     response.delete_cookie(settings.session_cookie_name)
@@ -268,26 +255,18 @@ def create_user(
     uow: SqlAlchemyUnitOfWork = Depends(get_unit_of_work),
     current_user: ActorContext = Depends(require_permission("users.create")),
 ) -> UserCreateResponse:
-    with uow:
-        use_case = CreateUserUseCase(
-            users=SqlAlchemyUserRepository(uow.session),
-            roles=SqlAlchemyRoleRepository(uow.session),
-            memberships=SqlAlchemyLabMembershipRepository(uow.session),
-            clinic_memberships=SqlAlchemyClinicMembershipRepository(uow.session),
-            password_hasher=Argon2PasswordHasher(),
-            audit=SqlAlchemyAuditLogWriter(uow.session),
-            clock=SystemClock(),
-        )
-        result = use_case.execute(
-            CreateUserCommand(
-                actor=current_user,
-                email=payload.email,
-                full_name=payload.full_name,
-                role_id=payload.role_id,
-                clinic_ids=frozenset(payload.clinic_ids),
-            )
-        )
-        uow.commit()
+    result = handle_create_user(
+        uow=SqlAlchemyIdentityUnitOfWork(uow),
+        command=CreateUserCommand(
+            actor=current_user,
+            email=payload.email,
+            full_name=payload.full_name,
+            role_id=payload.role_id,
+            clinic_ids=frozenset(payload.clinic_ids),
+        ),
+        password_hasher=Argon2PasswordHasher(),
+        clock=SystemClock(),
+    )
 
     return UserCreateResponse(
         user=_user_list_item_read(result.user), temporary_password=result.temporary_password
@@ -301,25 +280,17 @@ def update_user_access(
     uow: SqlAlchemyUnitOfWork = Depends(get_unit_of_work),
     current_user: ActorContext = Depends(require_permission("roles.assign")),
 ) -> UserListItemRead:
-    with uow:
-        result = UpdateUserAccessUseCase(
-            users=SqlAlchemyUserRepository(uow.session),
-            roles=SqlAlchemyRoleRepository(uow.session),
-            lab_memberships=SqlAlchemyLabMembershipRepository(uow.session),
-            clinic_memberships=SqlAlchemyClinicMembershipRepository(uow.session),
-            sessions=SqlAlchemySessionRepository(uow.session),
-            audit=SqlAlchemyAuditLogWriter(uow.session),
-            clock=SystemClock(),
-        ).execute(
-            UpdateUserAccessCommand(
-                actor=current_user,
-                user_id=user_id,
-                role_id=payload.role_id,
-                clinic_ids=frozenset(payload.clinic_ids),
-                expected_row_version=payload.expected_row_version,
-            )
-        )
-        uow.commit()
+    result = handle_update_user_access(
+        uow=SqlAlchemyIdentityUnitOfWork(uow),
+        command=UpdateUserAccessCommand(
+            actor=current_user,
+            user_id=user_id,
+            role_id=payload.role_id,
+            clinic_ids=frozenset(payload.clinic_ids),
+            expected_row_version=payload.expected_row_version,
+        ),
+        clock=SystemClock(),
+    )
     return _user_list_item_read(result)
 
 
@@ -330,18 +301,11 @@ def assign_role(
     uow: SqlAlchemyUnitOfWork = Depends(get_unit_of_work),
     current_user: ActorContext = Depends(require_permission("roles.assign")),
 ) -> UserListItemRead:
-    with uow:
-        use_case = AssignRoleUseCase(
-            users=SqlAlchemyUserRepository(uow.session),
-            roles=SqlAlchemyRoleRepository(uow.session),
-            sessions=SqlAlchemySessionRepository(uow.session),
-            audit=SqlAlchemyAuditLogWriter(uow.session),
-            clock=SystemClock(),
-        )
-        result = use_case.execute(
-            AssignRoleCommand(actor=current_user, user_id=user_id, new_role_id=payload.role_id)
-        )
-        uow.commit()
+    result = handle_assign_role(
+        uow=SqlAlchemyIdentityUnitOfWork(uow),
+        command=AssignRoleCommand(actor=current_user, user_id=user_id, new_role_id=payload.role_id),
+        clock=SystemClock(),
+    )
 
     return UserListItemRead(
         id=result.id,
@@ -360,16 +324,11 @@ def deactivate_user(
     uow: SqlAlchemyUnitOfWork = Depends(get_unit_of_work),
     current_user: ActorContext = Depends(require_permission("users.deactivate")),
 ) -> UserListItemRead:
-    with uow:
-        use_case = DeactivateUserUseCase(
-            users=SqlAlchemyUserRepository(uow.session),
-            roles=SqlAlchemyRoleRepository(uow.session),
-            sessions=SqlAlchemySessionRepository(uow.session),
-            audit=SqlAlchemyAuditLogWriter(uow.session),
-            clock=SystemClock(),
-        )
-        result = use_case.execute(DeactivateUserCommand(actor=current_user, user_id=user_id))
-        uow.commit()
+    result = handle_deactivate_user(
+        uow=SqlAlchemyIdentityUnitOfWork(uow),
+        command=DeactivateUserCommand(actor=current_user, user_id=user_id),
+        clock=SystemClock(),
+    )
 
     return UserListItemRead(
         id=result.id,
@@ -388,15 +347,11 @@ def activate_user(
     uow: SqlAlchemyUnitOfWork = Depends(get_unit_of_work),
     current_user: ActorContext = Depends(require_permission("users.activate")),
 ) -> UserListItemRead:
-    with uow:
-        use_case = ActivateUserUseCase(
-            users=SqlAlchemyUserRepository(uow.session),
-            roles=SqlAlchemyRoleRepository(uow.session),
-            audit=SqlAlchemyAuditLogWriter(uow.session),
-            clock=SystemClock(),
-        )
-        result = use_case.execute(ActivateUserCommand(actor=current_user, user_id=user_id))
-        uow.commit()
+    result = handle_activate_user(
+        uow=SqlAlchemyIdentityUnitOfWork(uow),
+        command=ActivateUserCommand(actor=current_user, user_id=user_id),
+        clock=SystemClock(),
+    )
 
     return UserListItemRead(
         id=result.id,
@@ -467,22 +422,16 @@ def create_permission_profile(
     uow: SqlAlchemyUnitOfWork = Depends(get_unit_of_work),
     current_user: ActorContext = Depends(require_permission("roles.manage")),
 ) -> RoleRead:
-    with uow:
-        use_case = CreateRoleUseCase(
-            roles=SqlAlchemyRoleRepository(uow.session),
-            permissions=SqlAlchemyPermissionRepository(uow.session),
-            audit=SqlAlchemyAuditLogWriter(uow.session),
-        )
-        role = use_case.execute(
-            CreateRoleCommand(
-                actor=current_user,
-                name=payload.name,
-                scope=RoleScope(payload.scope),
-                description=payload.description,
-                permission_codes=frozenset(payload.permissions),
-            )
-        )
-        uow.commit()
+    role = handle_create_role(
+        uow=SqlAlchemyIdentityUnitOfWork(uow),
+        command=CreateRoleCommand(
+            actor=current_user,
+            name=payload.name,
+            scope=RoleScope(payload.scope),
+            description=payload.description,
+            permission_codes=frozenset(payload.permissions),
+        ),
+    )
 
     return RoleRead(
         id=role.id,
@@ -502,22 +451,15 @@ def update_permission_profile(
     uow: SqlAlchemyUnitOfWork = Depends(get_unit_of_work),
     current_user: ActorContext = Depends(require_permission("roles.manage")),
 ) -> RoleRead:
-    with uow:
-        use_case = UpdateRolePermissionsUseCase(
-            roles=SqlAlchemyRoleRepository(uow.session),
-            permissions=SqlAlchemyPermissionRepository(uow.session),
-            users=SqlAlchemyUserRepository(uow.session),
-            audit=SqlAlchemyAuditLogWriter(uow.session),
-        )
-        role = use_case.execute(
-            UpdateRolePermissionsCommand(
-                actor=current_user,
-                role_id=role_id,
-                permission_codes=frozenset(payload.permissions),
-                expected_row_version=payload.expected_row_version,
-            )
-        )
-        uow.commit()
+    role = handle_update_role_permissions(
+        uow=SqlAlchemyIdentityUnitOfWork(uow),
+        command=UpdateRolePermissionsCommand(
+            actor=current_user,
+            role_id=role_id,
+            permission_codes=frozenset(payload.permissions),
+            expected_row_version=payload.expected_row_version,
+        ),
+    )
 
     return RoleRead(
         id=role.id,

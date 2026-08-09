@@ -1,6 +1,10 @@
 from __future__ import annotations
 
 import httpx
+from pydantic import SecretStr
+
+from app.core.config import Settings
+from app.main import create_app
 
 
 async def test_health_returns_ok(client: httpx.AsyncClient) -> None:
@@ -17,6 +21,23 @@ async def test_health_returns_ok(client: httpx.AsyncClient) -> None:
     assert response.headers["Referrer-Policy"] == "no-referrer"
     assert response.headers["X-Content-Type-Options"] == "nosniff"
     assert response.headers["X-Frame-Options"] == "DENY"
+    assert "Strict-Transport-Security" not in response.headers
+
+
+async def test_health_enables_hsts_in_production() -> None:
+    app = create_app(
+        Settings(
+            env="prod",
+            log_level="WARNING",
+            database_url=SecretStr("postgresql+psycopg://test:test@localhost:5499/test_unused"),
+        )
+    )
+    async with httpx.AsyncClient(
+        transport=httpx.ASGITransport(app=app), base_url="https://test"
+    ) as client:
+        response = await client.get("/api/v1/health")
+
+    assert response.headers["Strict-Transport-Security"] == ("max-age=31536000; includeSubDomains")
 
 
 async def test_unknown_route_returns_error_envelope(client: httpx.AsyncClient) -> None:

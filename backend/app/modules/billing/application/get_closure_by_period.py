@@ -43,6 +43,9 @@ class GetClosureByPeriodUseCase:
         if _REQUIRED_PERMISSION not in query.actor.permissions:
             raise ForbiddenError(f"Permissão ausente: {_REQUIRED_PERMISSION}")
 
+        if not query.actor.can_access_clinic(query.clinic_id):
+            raise NotFoundError("Fechamento não encontrado.")
+
         period = CompetencePeriod(period_start=query.period_start, period_end=query.period_end)
         closure = self._closures.get_latest_for_clinic_and_period(
             clinic_id=query.clinic_id,

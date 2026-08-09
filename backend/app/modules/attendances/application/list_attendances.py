@@ -70,6 +70,7 @@ class ListAttendancesUseCase:
             owner_name=query.owner_name,
             service_date_from=query.service_date_from,
             service_date_to=query.service_date_to,
+            clinic_ids=query.actor.clinic_filter,
         )
         return PageDTO(
             items=[attendance_to_dto(attendance) for attendance in attendances],
@@ -102,4 +103,5 @@ class CountAttendancesByStatusUseCase:
             owner_name=query.owner_name,
             service_date_from=query.service_date_from,
             service_date_to=query.service_date_to,
+            clinic_ids=query.actor.clinic_filter,
         )

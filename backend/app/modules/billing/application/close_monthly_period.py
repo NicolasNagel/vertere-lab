@@ -78,6 +78,9 @@ class CloseMonthlyPeriodUseCase:
         if _REQUIRED_PERMISSION not in command.actor.permissions:
             raise ForbiddenError(f"Permissão ausente: {_REQUIRED_PERMISSION}")
 
+        if not command.actor.can_access_clinic(command.clinic_id):
+            raise NotFoundError("Clínica não encontrada.")
+
         clinic = self._clinics.get_by_id(command.clinic_id)
         if clinic is None:
             raise NotFoundError("Clínica não encontrada.")

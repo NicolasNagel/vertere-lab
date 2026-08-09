@@ -14,25 +14,21 @@ from datetime import timedelta
 
 from fastapi import Depends, Request, Security
 from fastapi.security import APIKeyCookie
-from sqlalchemy.orm import Session as SqlAlchemySession
 
-from app.api.dependencies import get_session
+from app.api.dependencies import get_unit_of_work
 from app.core.config import Settings
 from app.modules.identity.application.get_current_user import (
     ResolveSessionCommand,
-    ResolveSessionUseCase,
 )
-from app.modules.identity.infrastructure.repositories import (
-    SqlAlchemyClinicMembershipRepository,
-    SqlAlchemyLabMembershipRepository,
-    SqlAlchemyRoleRepository,
-    SqlAlchemySessionRepository,
-    SqlAlchemyUserRepository,
+from app.modules.identity.application.session_handlers import (
+    handle_resolve_session,
 )
 from app.modules.identity.infrastructure.session_tokens import OpaqueSessionTokens
-from app.shared.application.authorization import ActorContext
+from app.modules.identity.infrastructure.uow import SqlAlchemyIdentityUnitOfWork
+from app.shared.application.authorization import ActorContext, RoleScope
 from app.shared.domain.errors import ForbiddenError, UnauthenticatedError
 from app.shared.infrastructure.clock import SystemClock
+from app.shared.infrastructure.uow import SqlAlchemyUnitOfWork
 
 session_cookie_scheme = APIKeyCookie(
     name="vertere_session",
@@ -56,35 +52,29 @@ def get_session_token(
 
 def get_current_user(
     request: Request,
-    session: SqlAlchemySession = Depends(get_session),
+    uow: SqlAlchemyUnitOfWork = Depends(get_unit_of_work),
     token: str | None = Depends(get_session_token),
 ) -> ActorContext:
     if token is None:
         raise UnauthenticatedError("Sessão não encontrada.")
 
     settings = _settings(request)
-    use_case = ResolveSessionUseCase(
-        sessions=SqlAlchemySessionRepository(session),
-        users=SqlAlchemyUserRepository(session),
-        roles=SqlAlchemyRoleRepository(session),
-        memberships=SqlAlchemyLabMembershipRepository(session),
-        clinic_memberships=SqlAlchemyClinicMembershipRepository(session),
+    return handle_resolve_session(
+        uow=SqlAlchemyIdentityUnitOfWork(uow),
+        command=ResolveSessionCommand(token=token),
         token_generator=OpaqueSessionTokens(),
         clock=SystemClock(),
         session_ttl=timedelta(minutes=settings.session_ttl_minutes),
         session_ttl_remember_me=timedelta(days=settings.session_ttl_remember_me_days),
         renewal_threshold=timedelta(minutes=settings.session_renewal_threshold_minutes),
     )
-    user = use_case.execute(ResolveSessionCommand(token=token))
-    # Exceção deliberada: esta dependency de leitura comita a renovação
-    # deslizante da sessão (um UPDATE pequeno), pois não há um caso de uso
-    # de escrita separado só para isso.
-    session.commit()
-    return user
 
 
 def require_permission(
-    permission_code: str, *, clinic_scoped: bool = False
+    permission_code: str,
+    *,
+    clinic_scoped: bool = False,
+    allowed_scopes: frozenset[RoleScope] | None = None,
 ) -> Callable[..., ActorContext]:
     if clinic_scoped:
         raise NotImplementedError(
@@ -96,6 +86,8 @@ def require_permission(
     ) -> ActorContext:
         if permission_code not in current_user.permissions:
             raise ForbiddenError(f"Permissão ausente: {permission_code}")
+        if allowed_scopes is not None and current_user.role_scope not in allowed_scopes:
+            raise ForbiddenError("Este recurso é exclusivo do laboratório.")
         return current_user
 
     return _dependency

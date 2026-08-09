@@ -11,8 +11,12 @@ export interface AuthContextValue {
 
 export const AuthContext = createContext<AuthContextValue | null>(null)
 
+export function useOptionalAuth(): AuthContextValue | null {
+  return useContext(AuthContext)
+}
+
 export function useAuth(): AuthContextValue {
-  const context = useContext(AuthContext)
+  const context = useOptionalAuth()
   if (context === null) {
     throw new Error('useAuth deve ser usado dentro de <AuthProvider>.')
   }

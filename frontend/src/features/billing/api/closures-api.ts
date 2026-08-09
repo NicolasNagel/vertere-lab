@@ -1,6 +1,9 @@
-import { throwIfNotOk } from '../../../shared/api/errors'
-
-const API_BASE = '/api/v1'
+import { apiRequest, apiUrl } from '../../../shared/api/http-client'
+import type {
+  ClosurePreviewResponse as GeneratedClosurePreview,
+  MonthlyClosureListResponse as GeneratedMonthlyClosurePage,
+  MonthlyClosureRead as GeneratedMonthlyClosure,
+} from '../../../shared/api/generated'
 
 export interface ClosurePreviewItem {
   attendanceId: string
@@ -57,7 +60,7 @@ interface ApiClosurePreviewBlockedItem extends ApiClosurePreviewItem {
   reason: string
 }
 
-interface ApiClosurePreview {
+interface ApiClosurePreview extends GeneratedClosurePreview {
   clinic_id: string
   competence_year: number
   competence_month: number
@@ -120,11 +123,9 @@ export async function fetchClosurePreview(params: ClosurePreviewParams): Promise
     period_start: params.periodStart,
     period_end: params.periodEnd,
   })
-  const response = await fetch(`${API_BASE}/closures/preview?${query.toString()}`, {
-    credentials: 'include',
-  })
-  await throwIfNotOk(response)
-  return fromApiClosurePreview((await response.json()) as ApiClosurePreview)
+  return fromApiClosurePreview(
+    await apiRequest<ApiClosurePreview>(`/closures/preview?${query.toString()}`),
+  )
 }
 
 export type MonthlyClosureStatus = 'CLOSED' | 'REOPENED'
@@ -220,7 +221,7 @@ interface ApiMonthlyClosureItem {
   exam_category: string | null
 }
 
-interface ApiMonthlyClosure {
+interface ApiMonthlyClosure extends GeneratedMonthlyClosure {
   id: string
   clinic_id: string
   competence_year: number
@@ -270,7 +271,7 @@ interface ApiMonthlyClosureSummary {
   version: number
 }
 
-interface ApiMonthlyClosurePage {
+interface ApiMonthlyClosurePage extends GeneratedMonthlyClosurePage {
   items: ApiMonthlyClosureSummary[]
   total: number
   page: number
@@ -361,18 +362,16 @@ export async function closeMonthlyPeriod(
   params: CloseMonthlyPeriodParams,
   idempotencyKey: string,
 ): Promise<MonthlyClosure> {
-  const response = await fetch(`${API_BASE}/closures`, {
+  const body = await apiRequest<ApiMonthlyClosure>('/closures', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'Idempotency-Key': idempotencyKey },
-    credentials: 'include',
-    body: JSON.stringify({
+    headers: { 'Idempotency-Key': idempotencyKey },
+    body: {
       clinic_id: params.clinicId,
       period_start: params.periodStart,
       period_end: params.periodEnd,
-    }),
+    },
   })
-  await throwIfNotOk(response)
-  return fromApiMonthlyClosure((await response.json()) as ApiMonthlyClosure)
+  return fromApiMonthlyClosure(body)
 }
 
 export interface MonthlyClosureListParams {
@@ -389,11 +388,7 @@ export async function fetchMonthlyClosures(
   query.set('page', String(params.page ?? 1))
   query.set('page_size', String(params.pageSize ?? 20))
 
-  const response = await fetch(`${API_BASE}/closures?${query.toString()}`, {
-    credentials: 'include',
-  })
-  await throwIfNotOk(response)
-  const body = (await response.json()) as ApiMonthlyClosurePage
+  const body = await apiRequest<ApiMonthlyClosurePage>(`/closures?${query.toString()}`)
   return {
     items: body.items.map(fromApiMonthlyClosureSummary),
     total: body.total,
@@ -403,9 +398,7 @@ export async function fetchMonthlyClosures(
 }
 
 export async function fetchMonthlyClosure(id: string): Promise<MonthlyClosure> {
-  const response = await fetch(`${API_BASE}/closures/${id}`, { credentials: 'include' })
-  await throwIfNotOk(response)
-  return fromApiMonthlyClosure((await response.json()) as ApiMonthlyClosure)
+  return fromApiMonthlyClosure(await apiRequest<ApiMonthlyClosure>(`/closures/${id}`))
 }
 
 export async function fetchClosureByPeriod(params: ClosurePreviewParams): Promise<MonthlyClosure> {
@@ -414,22 +407,17 @@ export async function fetchClosureByPeriod(params: ClosurePreviewParams): Promis
     period_start: params.periodStart,
     period_end: params.periodEnd,
   })
-  const response = await fetch(`${API_BASE}/closures/by-period?${query.toString()}`, {
-    credentials: 'include',
-  })
-  await throwIfNotOk(response)
-  return fromApiMonthlyClosure((await response.json()) as ApiMonthlyClosure)
+  return fromApiMonthlyClosure(
+    await apiRequest<ApiMonthlyClosure>(`/closures/by-period?${query.toString()}`),
+  )
 }
 
 export async function reopenMonthlyClosure(id: string, reason: string): Promise<MonthlyClosure> {
-  const response = await fetch(`${API_BASE}/closures/${id}/reopen`, {
+  const body = await apiRequest<ApiMonthlyClosure>(`/closures/${id}/reopen`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    credentials: 'include',
-    body: JSON.stringify({ reason }),
+    body: { reason },
   })
-  await throwIfNotOk(response)
-  return fromApiMonthlyClosure((await response.json()) as ApiMonthlyClosure)
+  return fromApiMonthlyClosure(body)
 }
 
 export interface AddFinancialAdjustmentParams {
@@ -443,21 +431,18 @@ export async function addFinancialAdjustment(
   closureId: string,
   params: AddFinancialAdjustmentParams,
 ): Promise<FinancialAdjustment> {
-  const response = await fetch(`${API_BASE}/closures/${closureId}/adjustments`, {
+  const body = await apiRequest<ApiFinancialAdjustment>(`/closures/${closureId}/adjustments`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    credentials: 'include',
-    body: JSON.stringify({
+    body: {
       monthly_closure_item_id: params.monthlyClosureItemId,
       kind: params.kind,
       amount: params.amount,
       reason: params.reason,
-    }),
+    },
   })
-  await throwIfNotOk(response)
-  return fromApiFinancialAdjustment((await response.json()) as ApiFinancialAdjustment)
+  return fromApiFinancialAdjustment(body)
 }
 
 export function monthlyClosureExportUrl(id: string): string {
-  return `${API_BASE}/closures/${id}/export`
+  return apiUrl(`/closures/${id}/export`)
 }

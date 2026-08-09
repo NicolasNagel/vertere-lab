@@ -62,6 +62,10 @@ audit.read
 imports.execute
 ```
 
+`owners.read` e `owners.manage` permanecem reservadas, sem grants automáticos e sem endpoints
+associados enquanto `Owner` estiver embutido em `Patient`. Acesso aos dados do tutor segue
+`patients.*` e o tenant do paciente.
+
 ### 2.3 Regras
 
 - deny by default;
@@ -83,6 +87,9 @@ PATCH /api/v1/users/{id}/access { role_id, clinic_ids, expected_row_version }
 PATCH /api/v1/users/{id}/role   # compatibilidade, depreciado
 ```
 
+Clientes novos não devem chamar `/role`. Sua remoção depende de medir uso e cumprir a janela de
+compatibilidade descrita em `docs/08-divida-tecnica.md`.
+
 Login e leituras de usuário expõem `role_scope`, `clinic_ids` e `row_version`. Papéis `CLINIC`
 exigem ao menos uma membership ativa; papéis `LAB`/`GLOBAL` exigem membership de laboratório
 ativa.
@@ -91,6 +98,13 @@ Cadastros estruturantes usam o mesmo contexto: atores `CLINIC` só listam suas c
 veterinários/pacientes associados a elas. `Patient` expõe e recebe `clinic_id`; linhas anteriores
 à migration `0038` podem permanecer `NULL`, ficam restritas a `LAB/GLOBAL` e só recebem clínica
 por atualização auditada. A confirmação de atendimento rejeita paciente de clínica diferente.
+
+O núcleo operacional aplica esse contexto em todas as leituras e mutações. Listagens sem
+`clinic_id` são limitadas automaticamente às memberships; filtros explícitos, recursos por ID,
+timeline, preview, confirmação, cancelamento, fechamento, ajuste, reabertura e exportação não
+revelam outro tenant (`404`). A versão de acesso participa do escopo de idempotência, impedindo
+replay de resposta após remoção de membership. Importações são exclusivas de `LAB/GLOBAL`, mesmo
+se `imports.execute` for concedida por engano a um papel `CLINIC`.
 
 ## 3. Registro de Atendimento
 

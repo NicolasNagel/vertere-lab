@@ -54,7 +54,7 @@ class GetAttendanceTimelineUseCase:
             raise ForbiddenError(f"Permissão ausente: {_REQUIRED_PERMISSION}")
 
         attendance = self._attendances.get_by_id(query.attendance_id)
-        if attendance is None:
+        if attendance is None or not query.actor.can_access_clinic(attendance.clinic_id):
             raise NotFoundError("Atendimento não encontrado.")
 
         entries, total = self._audit.list_for_entity(

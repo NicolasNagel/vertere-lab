@@ -48,6 +48,7 @@ class AttendanceRepository(Protocol):
         owner_name: str | None,
         service_date_from: date | None,
         service_date_to: date | None,
+        clinic_ids: frozenset[UUID] | None = None,
     ) -> tuple[list[AttendanceRecord], int]: ...
 
     def count_by_status(
@@ -60,6 +61,7 @@ class AttendanceRepository(Protocol):
         owner_name: str | None,
         service_date_from: date | None,
         service_date_to: date | None,
+        clinic_ids: frozenset[UUID] | None = None,
     ) -> dict[AttendanceStatus, int]: ...
 
 

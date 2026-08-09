@@ -1,6 +1,6 @@
-import { ApiError, type ApiErrorBody } from '../../../shared/api/errors'
-
-const API_BASE = '/api/v1'
+import { ApiError } from '../../../shared/api/errors'
+import type { AuthResponse as ApiAuthResponse } from '../../../shared/api/generated'
+import { apiRequest } from '../../../shared/api/http-client'
 
 export { ApiError }
 
@@ -22,32 +22,11 @@ export interface AuthenticatedUser {
   permissions: string[]
 }
 
-interface ApiUser {
-  id: string
-  email: string
-  full_name: string
-  role_id: string
-  role_name: string
-  role_scope: 'GLOBAL' | 'LAB' | 'CLINIC'
-  clinic_ids: string[]
-  row_version: number
+type CompleteApiAuthResponse = Omit<ApiAuthResponse, 'user'> & {
+  user: Required<ApiAuthResponse['user']>
 }
 
-interface ApiAuthResponse {
-  user: ApiUser
-  permissions: string[]
-}
-
-async function parseAuthResponse(response: Response): Promise<AuthenticatedUser> {
-  if (!response.ok) {
-    const body = (await response.json().catch(() => null)) as ApiErrorBody | null
-    throw new ApiError(
-      response.status,
-      body?.error?.code ?? 'UNKNOWN',
-      body?.error?.message ?? 'Erro desconhecido.',
-    )
-  }
-  const body = (await response.json()) as ApiAuthResponse
+function fromApiAuthResponse(body: CompleteApiAuthResponse): AuthenticatedUser {
   return {
     id: body.user.id,
     email: body.user.email,
@@ -62,24 +41,21 @@ async function parseAuthResponse(response: Response): Promise<AuthenticatedUser>
 }
 
 export async function login(payload: LoginPayload): Promise<AuthenticatedUser> {
-  const response = await fetch(`${API_BASE}/auth/login`, {
+  const body = await apiRequest<CompleteApiAuthResponse>('/auth/login', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    credentials: 'include',
-    body: JSON.stringify({
+    body: {
       login: payload.login,
       password: payload.password,
       remember_me: payload.rememberMe,
-    }),
+    },
   })
-  return parseAuthResponse(response)
+  return fromApiAuthResponse(body)
 }
 
 export async function logout(): Promise<void> {
-  await fetch(`${API_BASE}/auth/logout`, { method: 'POST', credentials: 'include' })
+  await apiRequest<void>('/auth/logout', { method: 'POST' })
 }
 
 export async function fetchMe(): Promise<AuthenticatedUser> {
-  const response = await fetch(`${API_BASE}/auth/me`, { credentials: 'include' })
-  return parseAuthResponse(response)
+  return fromApiAuthResponse(await apiRequest<CompleteApiAuthResponse>('/auth/me'))
 }

@@ -16,7 +16,6 @@ from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile
 from sqlalchemy.orm import Session as SqlAlchemySession
 
 from app.api.dependencies import get_session, get_unit_of_work
-from app.modules.audit.infrastructure.repositories import SqlAlchemyAuditLogWriter
 from app.modules.catalog.api.schemas import (
     ExamCategoryActiveListResponse,
     ExamCategoryCreateRequest,
@@ -32,18 +31,15 @@ from app.modules.catalog.api.schemas import (
     ExamStatusLiteral,
     ExamUpdateRequest,
 )
-from app.modules.catalog.application.create_exam import CreateExamCommand, CreateExamUseCase
+from app.modules.catalog.application.create_exam import CreateExamCommand
 from app.modules.catalog.application.create_exam_category import (
     CreateExamCategoryCommand,
-    CreateExamCategoryUseCase,
 )
 from app.modules.catalog.application.deactivate_exam import (
     DeactivateExamCommand,
-    DeactivateExamUseCase,
 )
 from app.modules.catalog.application.deactivate_exam_category import (
     DeactivateExamCategoryCommand,
-    DeactivateExamCategoryUseCase,
 )
 from app.modules.catalog.application.dtos import ExamCategoryDTO, ExamDTO
 from app.modules.catalog.application.get_exam import GetExamQuery, GetExamUseCase
@@ -54,7 +50,6 @@ from app.modules.catalog.application.get_exam_category import (
 from app.modules.catalog.application.import_exams import (
     ExamImportRow,
     ImportExamsCommand,
-    ImportExamsUseCase,
 )
 from app.modules.catalog.application.list_active_exam_categories import (
     ListActiveExamCategoriesQuery,
@@ -65,18 +60,26 @@ from app.modules.catalog.application.list_exam_categories import (
     ListExamCategoriesUseCase,
 )
 from app.modules.catalog.application.list_exams import ListExamsQuery, ListExamsUseCase
-from app.modules.catalog.application.update_exam import UpdateExamCommand, UpdateExamUseCase
+from app.modules.catalog.application.mutation_handlers import (
+    handle_create_category,
+    handle_create_exam,
+    handle_deactivate_category,
+    handle_deactivate_exam,
+    handle_import_exams,
+    handle_update_category,
+    handle_update_exam,
+)
+from app.modules.catalog.application.update_exam import UpdateExamCommand
 from app.modules.catalog.application.update_exam_category import (
     UpdateExamCategoryCommand,
-    UpdateExamCategoryUseCase,
 )
 from app.modules.catalog.domain.entities import ExamCategoryStatus, ExamStatus
 from app.modules.catalog.infrastructure.repositories import (
     SqlAlchemyExamCategoryRepository,
     SqlAlchemyExamRepository,
 )
+from app.modules.catalog.infrastructure.uow import SqlAlchemyCatalogUnitOfWork
 from app.modules.identity.api.dependencies import require_permission
-from app.modules.patients.infrastructure.repositories import SqlAlchemySpeciesRepository
 from app.shared.application.authorization import ActorContext
 from app.shared.infrastructure.clock import SystemClock
 from app.shared.infrastructure.uow import SqlAlchemyUnitOfWork
@@ -146,14 +149,11 @@ def create_exam_category(
     uow: SqlAlchemyUnitOfWork = Depends(get_unit_of_work),
     current_user: ActorContext = Depends(require_permission("catalog.manage")),
 ) -> ExamCategoryRead:
-    with uow:
-        use_case = CreateExamCategoryUseCase(
-            categories=SqlAlchemyExamCategoryRepository(uow.session),
-            audit=SqlAlchemyAuditLogWriter(uow.session),
-            clock=SystemClock(),
-        )
-        result = use_case.execute(CreateExamCategoryCommand(actor=current_user, name=payload.name))
-        uow.commit()
+    result = handle_create_category(
+        uow=SqlAlchemyCatalogUnitOfWork(uow),
+        command=CreateExamCategoryCommand(actor=current_user, name=payload.name),
+        clock=SystemClock(),
+    )
     return _category_read(result)
 
 
@@ -164,22 +164,17 @@ def update_exam_category(
     uow: SqlAlchemyUnitOfWork = Depends(get_unit_of_work),
     current_user: ActorContext = Depends(require_permission("catalog.manage")),
 ) -> ExamCategoryRead:
-    with uow:
-        use_case = UpdateExamCategoryUseCase(
-            categories=SqlAlchemyExamCategoryRepository(uow.session),
-            audit=SqlAlchemyAuditLogWriter(uow.session),
-            clock=SystemClock(),
-        )
-        result = use_case.execute(
-            UpdateExamCategoryCommand(
-                actor=current_user,
-                category_id=category_id,
-                name=payload.name,
-                status=payload.status,
-                expected_row_version=payload.expected_row_version,
-            )
-        )
-        uow.commit()
+    result = handle_update_category(
+        uow=SqlAlchemyCatalogUnitOfWork(uow),
+        command=UpdateExamCategoryCommand(
+            actor=current_user,
+            category_id=category_id,
+            name=payload.name,
+            status=payload.status,
+            expected_row_version=payload.expected_row_version,
+        ),
+        clock=SystemClock(),
+    )
     return _category_read(result)
 
 
@@ -189,16 +184,11 @@ def deactivate_exam_category(
     uow: SqlAlchemyUnitOfWork = Depends(get_unit_of_work),
     current_user: ActorContext = Depends(require_permission("catalog.manage")),
 ) -> ExamCategoryRead:
-    with uow:
-        use_case = DeactivateExamCategoryUseCase(
-            categories=SqlAlchemyExamCategoryRepository(uow.session),
-            audit=SqlAlchemyAuditLogWriter(uow.session),
-            clock=SystemClock(),
-        )
-        result = use_case.execute(
-            DeactivateExamCategoryCommand(actor=current_user, category_id=category_id)
-        )
-        uow.commit()
+    result = handle_deactivate_category(
+        uow=SqlAlchemyCatalogUnitOfWork(uow),
+        command=DeactivateExamCategoryCommand(actor=current_user, category_id=category_id),
+        clock=SystemClock(),
+    )
     return _category_read(result)
 
 
@@ -268,26 +258,19 @@ def create_exam(
     uow: SqlAlchemyUnitOfWork = Depends(get_unit_of_work),
     current_user: ActorContext = Depends(require_permission("catalog.manage")),
 ) -> ExamRead:
-    with uow:
-        use_case = CreateExamUseCase(
-            exams=SqlAlchemyExamRepository(uow.session),
-            categories=SqlAlchemyExamCategoryRepository(uow.session),
-            species=SqlAlchemySpeciesRepository(uow.session),
-            audit=SqlAlchemyAuditLogWriter(uow.session),
-            clock=SystemClock(),
-        )
-        result = use_case.execute(
-            CreateExamCommand(
-                actor=current_user,
-                code=payload.code,
-                name=payload.name,
-                category_id=payload.category_id,
-                price_base=payload.price_base,
-                description=payload.description,
-                species_ids=frozenset(payload.species_ids),
-            )
-        )
-        uow.commit()
+    result = handle_create_exam(
+        uow=SqlAlchemyCatalogUnitOfWork(uow),
+        command=CreateExamCommand(
+            actor=current_user,
+            code=payload.code,
+            name=payload.name,
+            category_id=payload.category_id,
+            price_base=payload.price_base,
+            description=payload.description,
+            species_ids=frozenset(payload.species_ids),
+        ),
+        clock=SystemClock(),
+    )
     return _exam_read(result)
 
 
@@ -298,29 +281,22 @@ def update_exam(
     uow: SqlAlchemyUnitOfWork = Depends(get_unit_of_work),
     current_user: ActorContext = Depends(require_permission("catalog.manage")),
 ) -> ExamRead:
-    with uow:
-        use_case = UpdateExamUseCase(
-            exams=SqlAlchemyExamRepository(uow.session),
-            categories=SqlAlchemyExamCategoryRepository(uow.session),
-            species=SqlAlchemySpeciesRepository(uow.session),
-            audit=SqlAlchemyAuditLogWriter(uow.session),
-            clock=SystemClock(),
-        )
-        result = use_case.execute(
-            UpdateExamCommand(
-                actor=current_user,
-                exam_id=exam_id,
-                code=payload.code,
-                name=payload.name,
-                category_id=payload.category_id,
-                price_base=payload.price_base,
-                description=payload.description,
-                species_ids=frozenset(payload.species_ids),
-                status=payload.status,
-                expected_row_version=payload.expected_row_version,
-            )
-        )
-        uow.commit()
+    result = handle_update_exam(
+        uow=SqlAlchemyCatalogUnitOfWork(uow),
+        command=UpdateExamCommand(
+            actor=current_user,
+            exam_id=exam_id,
+            code=payload.code,
+            name=payload.name,
+            category_id=payload.category_id,
+            price_base=payload.price_base,
+            description=payload.description,
+            species_ids=frozenset(payload.species_ids),
+            status=payload.status,
+            expected_row_version=payload.expected_row_version,
+        ),
+        clock=SystemClock(),
+    )
     return _exam_read(result)
 
 
@@ -330,14 +306,11 @@ def deactivate_exam(
     uow: SqlAlchemyUnitOfWork = Depends(get_unit_of_work),
     current_user: ActorContext = Depends(require_permission("catalog.manage")),
 ) -> ExamRead:
-    with uow:
-        use_case = DeactivateExamUseCase(
-            exams=SqlAlchemyExamRepository(uow.session),
-            audit=SqlAlchemyAuditLogWriter(uow.session),
-            clock=SystemClock(),
-        )
-        result = use_case.execute(DeactivateExamCommand(actor=current_user, exam_id=exam_id))
-        uow.commit()
+    result = handle_deactivate_exam(
+        uow=SqlAlchemyCatalogUnitOfWork(uow),
+        command=DeactivateExamCommand(actor=current_user, exam_id=exam_id),
+        clock=SystemClock(),
+    )
     return _exam_read(result)
 
 
@@ -396,16 +369,11 @@ async def import_exams(
 
     rows = _parse_import_rows(content)
 
-    with uow:
-        use_case = ImportExamsUseCase(
-            exams=SqlAlchemyExamRepository(uow.session),
-            categories=SqlAlchemyExamCategoryRepository(uow.session),
-            species=SqlAlchemySpeciesRepository(uow.session),
-            audit=SqlAlchemyAuditLogWriter(uow.session),
-            clock=SystemClock(),
-        )
-        result = use_case.execute(ImportExamsCommand(actor=current_user, rows=tuple(rows)))
-        uow.commit()
+    result = handle_import_exams(
+        uow=SqlAlchemyCatalogUnitOfWork(uow),
+        command=ImportExamsCommand(actor=current_user, rows=tuple(rows)),
+        clock=SystemClock(),
+    )
 
     return ExamImportResponse(
         imported_count=result.imported_count,

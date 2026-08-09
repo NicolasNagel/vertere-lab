@@ -79,8 +79,11 @@ class UpdateAttendanceUseCase:
             raise ForbiddenError(f"Permissão ausente: {_REQUIRED_PERMISSION}")
 
         attendance = self._attendances.get_by_id(command.attendance_id)
-        if attendance is None:
+        if attendance is None or not command.actor.can_access_clinic(attendance.clinic_id):
             raise NotFoundError("Atendimento não encontrado.")
+
+        if command.clinic_id is not None and not command.actor.can_access_clinic(command.clinic_id):
+            raise NotFoundError("Clínica não encontrada.")
 
         if command.expected_row_version != attendance.row_version:
             raise ConflictError(

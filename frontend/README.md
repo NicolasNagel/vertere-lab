@@ -1,32 +1,68 @@
-# React + TypeScript + Vite
+# Frontend do Vertere Lab
 
-This template provides a minimal setup to get React working in Vite with HMR and some Oxlint rules.
+Aplicação React 19 + TypeScript responsável pelos fluxos de identidade, cadastros, atendimento e
+fechamento financeiro.
 
-Currently, two official plugins are available:
+## Executar
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+Na raiz do repositório, instale o workspace Python. Nesta pasta:
 
-## React Compiler
-
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
-
-## Expanding the Oxlint configuration
-
-If you are developing a production application, we recommend enabling type-aware lint rules by installing `oxlint-tsgolint` and editing `.oxlintrc.json`:
-
-```json
-{
-  "$schema": "./node_modules/oxlint/configuration_schema.json",
-  "plugins": ["react", "typescript", "oxc"],
-  "options": {
-    "typeAware": true
-  },
-  "rules": {
-    "react/rules-of-hooks": "error",
-    "react/only-export-components": ["warn", { "allowConstantExport": true }]
-  }
-}
+```powershell
+npm ci
+npm run dev
 ```
 
-See the [Oxlint rules documentation](https://oxc.rs/docs/guide/usage/linter/rules) for the full list of rules and categories.
+O frontend usa `/api/v1` e envia o cookie de sessão com `credentials: include`. Em desenvolvimento,
+o proxy de [`vite.config.ts`](vite.config.ts) deve apontar para o backend local. Opcionalmente,
+`VITE_API_BASE_URL` define outra base no build.
+
+## Organização
+
+- `src/app`: providers e rotas;
+- `src/features`: APIs, hooks, formulários e componentes por domínio;
+- `src/shared/api`: cliente HTTP, erros e contratos gerados;
+- `src/shared/ui`: componentes reutilizáveis;
+- `e2e`: cenários Playwright com axe.
+
+Estado remoto pertence ao TanStack Query. Formulários complexos usam React Hook Form e Zod apenas
+para feedback de experiência; o backend permanece a autoridade de validação e autorização.
+
+## Contratos da API
+
+```powershell
+npm run api:generate
+npm run api:check
+```
+
+O primeiro comando exporta o OpenAPI do backend e gera `src/shared/api/generated.ts`. O segundo
+falha quando o contrato versionado diverge da regeneração. Mappers de feature convertem os nomes
+`snake_case` da API para modelos de apresentação em `camelCase`.
+
+## Qualidade
+
+```powershell
+npm run lint
+npm run typecheck
+npm run test
+npm run build
+npm run test:e2e
+```
+
+Playwright executa desktop, tablet e mobile. Fluxos críticos verificam acessibilidade com axe.
+Para reduzir falsos timeouts em máquinas limitadas, Vitest pode ser executado serialmente:
+
+```powershell
+npx vitest run --maxWorkers=1 --fileParallelism=false
+```
+
+## Segurança do cliente
+
+- não armazenar token ou cookie em `localStorage`;
+- tratar `401` e `403` separadamente;
+- limpar cache ao trocar usuário, papel ou memberships;
+- incluir escopo clínico nas query keys;
+- enviar `Idempotency-Key` ao confirmar atendimento ou fechar período;
+- nunca considerar botão oculto como autorização.
+
+Veja o [guia operacional principal](../README.md) e as
+[limitações conhecidas](../docs/08-divida-tecnica.md).

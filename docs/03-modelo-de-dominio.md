@@ -1,5 +1,10 @@
 # Modelo de Domínio — Vertere Lab V2
 
+> Este documento descreve o modelo-alvo. Na implementação atual, `Owner` está embutido em
+> `Patient`, o preço vigente está em `Exam` e métodos de coleta ainda preservam códigos
+> históricos. Essas diferenças deliberadas estão registradas em `docs/08-divida-tecnica.md` e
+> no ADR-011; snapshots de atendimento e fechamento continuam sendo a fonte histórica.
+
 ## 1. Contextos delimitados
 
 ### Identity & Access
@@ -111,6 +116,10 @@ Representar o fato operacional e financeiro de que uma clínica solicitou um ou 
 - `updated_at`;
 - `row_version` para concorrência otimista.
 
+Na implementação atual não há `owner_id`: nome e contato do tutor são dados cadastrais embutidos
+no paciente. Registros novos exigem `clinic_id`; legados com `clinic_id = NULL` são visíveis
+somente a atores `LAB/GLOBAL` até reconciliação auditada.
+
 ### Itens `AttendanceExam`
 
 Cada item preserva:
@@ -128,6 +137,9 @@ Cada item preserva:
 - usuário que autorizou override;
 - situação financeira;
 - referência ao fechamento quando consolidado.
+
+Enquanto `PriceTable` não existe, `price_base` é resolvido de `Exam` na confirmação e copiado para
+o item. Alterações posteriores do catálogo nunca recalculam esse snapshot.
 
 ### Estados iniciais
 
@@ -216,6 +228,10 @@ Toda autorização considera:
 - eventual regra de propriedade.
 
 Papéis são agrupadores de permissões, não regras hard-coded no domínio.
+
+`owners.read` e `owners.manage` estão reservadas e atualmente não protegem casos de uso, porque
+não existe agregado `Owner` independente. Isso não concede acesso implícito aos dados de tutor;
+eles seguem a autorização de `patients.*` e o tenant do paciente.
 
 ## 6. Fechamento por período
 

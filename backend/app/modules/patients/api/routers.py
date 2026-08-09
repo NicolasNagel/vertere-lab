@@ -14,8 +14,6 @@ from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session as SqlAlchemySession
 
 from app.api.dependencies import get_session, get_unit_of_work
-from app.modules.audit.infrastructure.repositories import SqlAlchemyAuditLogWriter
-from app.modules.clinics.infrastructure.repositories import SqlAlchemyClinicRepository
 from app.modules.identity.api.dependencies import get_current_user, require_permission
 from app.modules.patients.api.schemas import (
     PatientCreateRequest,
@@ -29,25 +27,28 @@ from app.modules.patients.api.schemas import (
 )
 from app.modules.patients.application.create_patient import (
     CreatePatientCommand,
-    CreatePatientUseCase,
 )
 from app.modules.patients.application.deactivate_patient import (
     DeactivatePatientCommand,
-    DeactivatePatientUseCase,
 )
 from app.modules.patients.application.dtos import PatientDTO
 from app.modules.patients.application.get_patient import GetPatientQuery, GetPatientUseCase
 from app.modules.patients.application.list_patients import ListPatientsQuery, ListPatientsUseCase
 from app.modules.patients.application.list_species import ListSpeciesQuery, ListSpeciesUseCase
+from app.modules.patients.application.mutation_handlers import (
+    handle_create_patient,
+    handle_deactivate_patient,
+    handle_update_patient,
+)
 from app.modules.patients.application.update_patient import (
     UpdatePatientCommand,
-    UpdatePatientUseCase,
 )
 from app.modules.patients.domain.entities import PatientStatus
 from app.modules.patients.infrastructure.repositories import (
     SqlAlchemyPatientRepository,
     SqlAlchemySpeciesRepository,
 )
+from app.modules.patients.infrastructure.uow import SqlAlchemyPatientUnitOfWork
 from app.shared.application.authorization import ActorContext
 from app.shared.infrastructure.clock import SystemClock
 from app.shared.infrastructure.uow import SqlAlchemyUnitOfWork
@@ -136,30 +137,23 @@ def create_patient(
     uow: SqlAlchemyUnitOfWork = Depends(get_unit_of_work),
     current_user: ActorContext = Depends(require_permission("patients.manage")),
 ) -> PatientRead:
-    with uow:
-        use_case = CreatePatientUseCase(
-            patients=SqlAlchemyPatientRepository(uow.session),
-            species=SqlAlchemySpeciesRepository(uow.session),
-            clinics=SqlAlchemyClinicRepository(uow.session),
-            audit=SqlAlchemyAuditLogWriter(uow.session),
-            clock=SystemClock(),
-        )
-        result = use_case.execute(
-            CreatePatientCommand(
-                actor=current_user,
-                clinic_id=payload.clinic_id,
-                name=payload.name,
-                species_id=payload.species_id,
-                sex=payload.sex,
-                breed=payload.breed,
-                age_description=payload.age_description,
-                owner_name=payload.owner_name,
-                owner_phone=payload.owner_phone,
-                owner_document=payload.owner_document,
-                notes=payload.notes,
-            )
-        )
-        uow.commit()
+    result = handle_create_patient(
+        uow=SqlAlchemyPatientUnitOfWork(uow),
+        command=CreatePatientCommand(
+            actor=current_user,
+            clinic_id=payload.clinic_id,
+            name=payload.name,
+            species_id=payload.species_id,
+            sex=payload.sex,
+            breed=payload.breed,
+            age_description=payload.age_description,
+            owner_name=payload.owner_name,
+            owner_phone=payload.owner_phone,
+            owner_document=payload.owner_document,
+            notes=payload.notes,
+        ),
+        clock=SystemClock(),
+    )
     return _patient_read(result)
 
 
@@ -170,33 +164,26 @@ def update_patient(
     uow: SqlAlchemyUnitOfWork = Depends(get_unit_of_work),
     current_user: ActorContext = Depends(require_permission("patients.manage")),
 ) -> PatientRead:
-    with uow:
-        use_case = UpdatePatientUseCase(
-            patients=SqlAlchemyPatientRepository(uow.session),
-            species=SqlAlchemySpeciesRepository(uow.session),
-            clinics=SqlAlchemyClinicRepository(uow.session),
-            audit=SqlAlchemyAuditLogWriter(uow.session),
-            clock=SystemClock(),
-        )
-        result = use_case.execute(
-            UpdatePatientCommand(
-                actor=current_user,
-                patient_id=patient_id,
-                clinic_id=payload.clinic_id,
-                name=payload.name,
-                species_id=payload.species_id,
-                sex=payload.sex,
-                breed=payload.breed,
-                age_description=payload.age_description,
-                owner_name=payload.owner_name,
-                owner_phone=payload.owner_phone,
-                owner_document=payload.owner_document,
-                status=payload.status,
-                notes=payload.notes,
-                expected_row_version=payload.expected_row_version,
-            )
-        )
-        uow.commit()
+    result = handle_update_patient(
+        uow=SqlAlchemyPatientUnitOfWork(uow),
+        command=UpdatePatientCommand(
+            actor=current_user,
+            patient_id=patient_id,
+            clinic_id=payload.clinic_id,
+            name=payload.name,
+            species_id=payload.species_id,
+            sex=payload.sex,
+            breed=payload.breed,
+            age_description=payload.age_description,
+            owner_name=payload.owner_name,
+            owner_phone=payload.owner_phone,
+            owner_document=payload.owner_document,
+            status=payload.status,
+            notes=payload.notes,
+            expected_row_version=payload.expected_row_version,
+        ),
+        clock=SystemClock(),
+    )
     return _patient_read(result)
 
 
@@ -206,14 +193,9 @@ def deactivate_patient(
     uow: SqlAlchemyUnitOfWork = Depends(get_unit_of_work),
     current_user: ActorContext = Depends(require_permission("patients.manage")),
 ) -> PatientRead:
-    with uow:
-        use_case = DeactivatePatientUseCase(
-            patients=SqlAlchemyPatientRepository(uow.session),
-            audit=SqlAlchemyAuditLogWriter(uow.session),
-            clock=SystemClock(),
-        )
-        result = use_case.execute(
-            DeactivatePatientCommand(actor=current_user, patient_id=patient_id)
-        )
-        uow.commit()
+    result = handle_deactivate_patient(
+        uow=SqlAlchemyPatientUnitOfWork(uow),
+        command=DeactivatePatientCommand(actor=current_user, patient_id=patient_id),
+        clock=SystemClock(),
+    )
     return _patient_read(result)

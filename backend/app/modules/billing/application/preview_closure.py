@@ -54,6 +54,9 @@ class PreviewClosureUseCase:
         if _REQUIRED_PERMISSION not in query.actor.permissions:
             raise ForbiddenError(f"Permissão ausente: {_REQUIRED_PERMISSION}")
 
+        if not query.actor.can_access_clinic(query.clinic_id):
+            raise NotFoundError("Clínica não encontrada.")
+
         clinic = self._clinics.get_by_id(query.clinic_id)
         if clinic is None:
             raise NotFoundError("Clínica não encontrada.")
