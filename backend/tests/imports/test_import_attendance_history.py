@@ -443,6 +443,7 @@ def test_ph_is_a_one_off_folded_out_of_the_split_but_the_row_still_imports() -> 
         ("Reti.", "Contagem de reticulócitos"),
         ("Cálcio Total", "Cálcio"),
         ("Centrifug (x2)", "Centrifugação (x2)"),
+        ("Taxa Plantão Hematócrito", "Hematócrito"),
     ],
 )
 def test_operator_confirmed_abbreviations_resolve_via_alias(

@@ -169,6 +169,13 @@ _EXAM_NAME_ALIASES: dict[str, str] = {
     derive_exam_code("Uroc.Atb"): "Urocultura e Antibiograma",
     derive_exam_code("Urocul."): "Urocultura e Antibiograma",
     derive_exam_code("Centrifug (x2)"): "Centrifugação (x2)",
+    # The sheet's only occurrence of this exact text (row 2264) is a
+    # Hematócrito done under plantão, recorded with `Valor`=0 and the whole
+    # R$150 folded into `Adicional` — not a standalone administrative fee,
+    # the lab's operator confirmed it resolves to the real "Hematócrito"
+    # catalog exam (`.claude/rules/10-data-migration.md` step 6: alias
+    # aprovado por humano, nunca fuzzy match).
+    derive_exam_code("Taxa Plantão Hematócrito"): "Hematócrito",
 }
 
 # Administrative fees typed into the `Exame` column alongside a real exam
@@ -186,7 +193,6 @@ _NON_EXAM_FEE_TOKENS: frozenset[str] = frozenset(
         "Tx Urgencia",
         "Tx urgencia",
         "Tx.Urgencia",
-        "Taxa Plantão Hematócrito",
     )
 )
 
