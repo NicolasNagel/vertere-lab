@@ -126,7 +126,7 @@ function attendanceItem(overrides: Record<string, unknown> = {}) {
     surcharge_total: '0.00',
     on_call_fee: '0.00',
     grand_total: '100.00',
-    protocol_number: '2026/000001',
+    protocol_number: 'P000001/26',
     cancel_reason: null,
     created_at: '2026-01-05T10:00:00Z',
     updated_at: '2026-01-05T10:00:00Z',
@@ -175,7 +175,7 @@ test('lists attendances with resolved clinic/veterinarian/patient names', async 
   )
   renderWithProviders(<AttendanceListPage />)
 
-  expect(await screen.findByText('2026/000001')).toBeInTheDocument()
+  expect(await screen.findByText('P000001/26')).toBeInTheDocument()
   expect(screen.getByText('Data · Hora')).toBeInTheDocument()
   expect(screen.getByText(/05\/07 · \d{2}:00/)).toBeInTheDocument()
   expect(screen.getByLabelText('Competência')).toBeInTheDocument()
@@ -258,7 +258,7 @@ test('re-filters by status and resets to page 1', async () => {
   )
   renderWithProviders(<AttendanceListPage />)
 
-  expect(await screen.findByText('2026/000001')).toBeInTheDocument()
+  expect(await screen.findByText('P000001/26')).toBeInTheDocument()
 
   await user.click(screen.getByRole('tab', { name: /Cancelado/ }))
 

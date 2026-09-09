@@ -472,7 +472,6 @@ async def _create_exam(
     response = await client.post(
         "/api/v1/exams",
         json={
-            "code": code,
             "name": "Hemograma",
             "category_id": category_id,
             "price_base": price_base,
@@ -695,7 +694,7 @@ async def test_confirm_attendance_succeeds_with_protocol_and_totals(
     assert Decimal(body["grand_total"]) == Decimal("200.00")
     assert Decimal(body["subtotal"]) == Decimal("200.00")
     assert body["billing_competence"] == "2026-01-01"
-    assert body["protocol_number"] == "2026/000001"
+    assert body["protocol_number"] == "P000001/26"
     assert len(body["items"]) == 1
     assert Decimal(body["items"][0]["total_amount"]) == Decimal("200.00")
 
@@ -922,7 +921,7 @@ async def test_confirm_attendance_concurrent_same_key_confirms_exactly_once(
             {"id": attendance_id},
         ).one()
         assert row.status == "CONFIRMED"
-        assert row.protocol_number == "2026/000001"
+        assert row.protocol_number == "P000001/26"
         item_count = session.execute(
             text("SELECT COUNT(*) FROM attendance_exams WHERE attendance_id = :id"),
             {"id": attendance_id},
@@ -980,8 +979,8 @@ async def test_confirm_attendance_protocol_sequence_increments_across_clinics(
         headers=_idempotency_header("confirm-seq-2"),
     )
 
-    assert first.json()["protocol_number"] == "2026/000001"
-    assert second.json()["protocol_number"] == "2026/000002"
+    assert first.json()["protocol_number"] == "P000001/26"
+    assert second.json()["protocol_number"] == "P000002/26"
 
 
 async def test_cancel_draft_attendance_succeeds_and_audits(

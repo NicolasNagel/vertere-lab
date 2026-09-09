@@ -16,7 +16,10 @@ afterAll(() => server.close())
 
 function renderWithProviders(children: ReactNode) {
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
-  return render(<QueryClientProvider client={queryClient}>{children}</QueryClientProvider>)
+  return {
+    ...render(<QueryClientProvider client={queryClient}>{children}</QueryClientProvider>),
+    queryClient,
+  }
 }
 
 test('disables the submit button while the request is in flight', async () => {
@@ -30,7 +33,7 @@ test('disables the submit button while the request is in flight', async () => {
       })
     }),
   )
-  renderWithProviders(<LoginForm />)
+  const { queryClient } = renderWithProviders(<LoginForm />)
 
   await user.type(screen.getByLabelText('Usuário'), 'reception')
   await user.type(screen.getByLabelText('Senha'), 'correct-password')
@@ -39,6 +42,8 @@ test('disables the submit button while the request is in flight', async () => {
 
   expect(screen.getByRole('button', { name: 'Entrando…' })).toBeDisabled()
   await waitFor(() => expect(screen.getByRole('button', { name: 'Entrar no sistema' })).toBeEnabled())
+  expect(queryClient.getMutationCache().getAll()).toHaveLength(1)
+  expect(queryClient.getMutationCache().getAll()[0]?.state.status).toBe('success')
 })
 
 test('shows a generic error for invalid credentials without revealing user existence', async () => {

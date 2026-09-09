@@ -1,6 +1,4 @@
-import { throwIfNotOk } from '../../../shared/api/errors'
-
-const API_BASE = '/api/v1'
+import { apiRequest } from '../../../shared/api/http-client'
 
 export type ClinicStatus = 'ACTIVE' | 'INACTIVE' | 'DELINQUENT' | 'SPECIAL'
 
@@ -148,11 +146,7 @@ export async function fetchClinics(params: ClinicListParams = {}): Promise<Clini
   query.set('page', String(params.page ?? 1))
   query.set('page_size', String(params.pageSize ?? 20))
 
-  const response = await fetch(`${API_BASE}/clinics?${query.toString()}`, {
-    credentials: 'include',
-  })
-  await throwIfNotOk(response)
-  const body = (await response.json()) as ApiClinicPage
+  const body = await apiRequest<ApiClinicPage>(`/clinics?${query.toString()}`)
   return {
     items: body.items.map(fromApiClinic),
     total: body.total,
@@ -162,45 +156,35 @@ export async function fetchClinics(params: ClinicListParams = {}): Promise<Clini
 }
 
 export async function fetchClinic(id: string): Promise<Clinic> {
-  const response = await fetch(`${API_BASE}/clinics/${id}`, { credentials: 'include' })
-  await throwIfNotOk(response)
-  return fromApiClinic((await response.json()) as ApiClinic)
+  return fromApiClinic(await apiRequest<ApiClinic>(`/clinics/${id}`))
 }
 
 export async function createClinic(values: ClinicFormValues): Promise<Clinic> {
-  const response = await fetch(`${API_BASE}/clinics`, {
+  const clinic = await apiRequest<ApiClinic>('/clinics', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    credentials: 'include',
-    body: JSON.stringify(toApiPayload(values)),
+    body: toApiPayload(values),
   })
-  await throwIfNotOk(response)
-  return fromApiClinic((await response.json()) as ApiClinic)
+  return fromApiClinic(clinic)
 }
 
 export async function updateClinic(
   id: string,
   values: ClinicFormValues & { status: ClinicStatus; expectedRowVersion: number },
 ): Promise<Clinic> {
-  const response = await fetch(`${API_BASE}/clinics/${id}`, {
+  const clinic = await apiRequest<ApiClinic>(`/clinics/${id}`, {
     method: 'PATCH',
-    headers: { 'Content-Type': 'application/json' },
-    credentials: 'include',
-    body: JSON.stringify({
+    body: {
       ...toApiPayload(values),
       status: values.status,
       expected_row_version: values.expectedRowVersion,
-    }),
+    },
   })
-  await throwIfNotOk(response)
-  return fromApiClinic((await response.json()) as ApiClinic)
+  return fromApiClinic(clinic)
 }
 
 export async function deactivateClinic(id: string): Promise<Clinic> {
-  const response = await fetch(`${API_BASE}/clinics/${id}/deactivate`, {
+  const clinic = await apiRequest<ApiClinic>(`/clinics/${id}/deactivate`, {
     method: 'POST',
-    credentials: 'include',
   })
-  await throwIfNotOk(response)
-  return fromApiClinic((await response.json()) as ApiClinic)
+  return fromApiClinic(clinic)
 }

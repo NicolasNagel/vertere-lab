@@ -16,13 +16,14 @@ from app.modules.billing.domain.entities import (
     MonthlyClosure,
     MonthlyClosureItem,
 )
+from app.shared.domain.protocol_number import present_protocol_number
 
 
 def _item_to_dto(item: ClosurePreviewItem) -> ClosurePreviewItemDTO:
     return ClosurePreviewItemDTO(
         attendance_id=item.attendance_id,
         attendance_exam_id=item.attendance_exam_id,
-        protocol_number=item.protocol_number,
+        protocol_number=present_protocol_number(item.protocol_number),
         patient_name=item.patient_name,
         exam_name=item.exam_name,
         service_level=item.service_level,
@@ -35,7 +36,7 @@ def _blocked_item_to_dto(item: ClosurePreviewBlockedItem) -> ClosurePreviewBlock
     return ClosurePreviewBlockedItemDTO(
         attendance_id=item.attendance_id,
         attendance_exam_id=item.attendance_exam_id,
-        protocol_number=item.protocol_number,
+        protocol_number=present_protocol_number(item.protocol_number),
         patient_name=item.patient_name,
         exam_name=item.exam_name,
         total_amount=item.total_amount,
@@ -69,7 +70,7 @@ def _closure_item_to_dto(item: MonthlyClosureItem) -> MonthlyClosureItemDTO:
         id=item.id,
         attendance_id=item.attendance_id,
         attendance_exam_id=item.attendance_exam_id,
-        protocol_number=item.protocol_number,
+        protocol_number=present_protocol_number(item.protocol_number),
         patient_name=item.patient_name,
         exam_name=item.exam_name,
         price_base=item.price_base,

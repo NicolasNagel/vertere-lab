@@ -1,6 +1,4 @@
-import { throwIfNotOk } from '../../../shared/api/errors'
-
-const API_BASE = '/api/v1'
+import { apiRequest } from '../../../shared/api/http-client'
 
 export type ExamCategoryStatus = 'ACTIVE' | 'INACTIVE'
 export type ExamStatus = 'ACTIVE' | 'INACTIVE'
@@ -45,7 +43,6 @@ export interface ExamListParams {
 }
 
 export interface ExamFormValues {
-  code: string
   name: string
   categoryId: string
   priceBase: string
@@ -110,7 +107,6 @@ function fromApiExam(exam: ApiExam): Exam {
 
 function toApiExamPayload(values: ExamFormValues): Record<string, unknown> {
   return {
-    code: values.code,
     name: values.name,
     category_id: values.categoryId,
     price_base: values.priceBase,
@@ -120,30 +116,23 @@ function toApiExamPayload(values: ExamFormValues): Record<string, unknown> {
 }
 
 export async function fetchActiveExamCategories(): Promise<ExamCategory[]> {
-  const response = await fetch(`${API_BASE}/exam-categories/active`, { credentials: 'include' })
-  await throwIfNotOk(response)
-  const body = (await response.json()) as ApiExamCategoryListResponse
+  const body = await apiRequest<ApiExamCategoryListResponse>('/exam-categories/active')
   return body.items.map(fromApiCategory)
 }
 
 export async function createExamCategory(name: string): Promise<ExamCategory> {
-  const response = await fetch(`${API_BASE}/exam-categories`, {
+  const category = await apiRequest<ApiExamCategory>('/exam-categories', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    credentials: 'include',
-    body: JSON.stringify({ name }),
+    body: { name },
   })
-  await throwIfNotOk(response)
-  return fromApiCategory((await response.json()) as ApiExamCategory)
+  return fromApiCategory(category)
 }
 
 // Fetches a single category regardless of status — used to resolve the
 // label of an exam's category when it has since been deactivated and so
 // no longer appears in fetchActiveExamCategories().
 export async function fetchExamCategory(id: string): Promise<ExamCategory> {
-  const response = await fetch(`${API_BASE}/exam-categories/${id}`, { credentials: 'include' })
-  await throwIfNotOk(response)
-  return fromApiCategory((await response.json()) as ApiExamCategory)
+  return fromApiCategory(await apiRequest<ApiExamCategory>(`/exam-categories/${id}`))
 }
 
 export async function fetchExams(params: ExamListParams = {}): Promise<ExamPage> {
@@ -155,11 +144,7 @@ export async function fetchExams(params: ExamListParams = {}): Promise<ExamPage>
   query.set('page', String(params.page ?? 1))
   query.set('page_size', String(params.pageSize ?? 20))
 
-  const response = await fetch(`${API_BASE}/exams?${query.toString()}`, {
-    credentials: 'include',
-  })
-  await throwIfNotOk(response)
-  const body = (await response.json()) as ApiExamPage
+  const body = await apiRequest<ApiExamPage>(`/exams?${query.toString()}`)
   return {
     items: body.items.map(fromApiExam),
     total: body.total,
@@ -169,47 +154,37 @@ export async function fetchExams(params: ExamListParams = {}): Promise<ExamPage>
 }
 
 export async function fetchExam(id: string): Promise<Exam> {
-  const response = await fetch(`${API_BASE}/exams/${id}`, { credentials: 'include' })
-  await throwIfNotOk(response)
-  return fromApiExam((await response.json()) as ApiExam)
+  return fromApiExam(await apiRequest<ApiExam>(`/exams/${id}`))
 }
 
 export async function createExam(values: ExamFormValues): Promise<Exam> {
-  const response = await fetch(`${API_BASE}/exams`, {
+  const exam = await apiRequest<ApiExam>('/exams', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    credentials: 'include',
-    body: JSON.stringify(toApiExamPayload(values)),
+    body: toApiExamPayload(values),
   })
-  await throwIfNotOk(response)
-  return fromApiExam((await response.json()) as ApiExam)
+  return fromApiExam(exam)
 }
 
 export async function updateExam(
   id: string,
   values: ExamFormValues & { status: ExamStatus; expectedRowVersion: number },
 ): Promise<Exam> {
-  const response = await fetch(`${API_BASE}/exams/${id}`, {
+  const exam = await apiRequest<ApiExam>(`/exams/${id}`, {
     method: 'PATCH',
-    headers: { 'Content-Type': 'application/json' },
-    credentials: 'include',
-    body: JSON.stringify({
+    body: {
       ...toApiExamPayload(values),
       status: values.status,
       expected_row_version: values.expectedRowVersion,
-    }),
+    },
   })
-  await throwIfNotOk(response)
-  return fromApiExam((await response.json()) as ApiExam)
+  return fromApiExam(exam)
 }
 
 export async function deactivateExam(id: string): Promise<Exam> {
-  const response = await fetch(`${API_BASE}/exams/${id}/deactivate`, {
+  const exam = await apiRequest<ApiExam>(`/exams/${id}/deactivate`, {
     method: 'POST',
-    credentials: 'include',
   })
-  await throwIfNotOk(response)
-  return fromApiExam((await response.json()) as ApiExam)
+  return fromApiExam(exam)
 }
 
 export interface ExamImportRowError {
@@ -230,13 +205,10 @@ interface ApiExamImportResponse {
 export async function importExams(file: File): Promise<ExamImportResult> {
   const formData = new FormData()
   formData.append('file', file)
-  const response = await fetch(`${API_BASE}/exams/import`, {
+  const body = await apiRequest<ApiExamImportResponse>('/exams/import', {
     method: 'POST',
-    credentials: 'include',
     body: formData,
   })
-  await throwIfNotOk(response)
-  const body = (await response.json()) as ApiExamImportResponse
   return {
     importedCount: body.imported_count,
     errors: body.errors.map((error) => ({ line: error.line, message: error.message })),

@@ -78,3 +78,23 @@ async def test_mutation_from_same_origin_reaches_the_endpoint(client: httpx.Asyn
     )
 
     assert response.status_code == 404
+
+
+async def test_mutation_from_trusted_vite_origin_reaches_the_endpoint() -> None:
+    app = create_app(
+        Settings(
+            env="dev",
+            log_level="WARNING",
+            database_url=SecretStr("postgresql+psycopg://test:test@localhost:5499/test_unused"),
+        )
+    )
+    async with httpx.AsyncClient(
+        transport=httpx.ASGITransport(app=app), base_url="http://localhost:8200"
+    ) as client:
+        response = await client.post(
+            "/api/v1/does-not-exist",
+            headers={"Origin": "http://localhost:5173"},
+            json={},
+        )
+
+    assert response.status_code == 404

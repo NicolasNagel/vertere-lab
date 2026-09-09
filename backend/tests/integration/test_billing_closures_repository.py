@@ -200,7 +200,6 @@ async def _confirmed_attendance_exam(
     exam_response = await client.post(
         "/api/v1/exams",
         json={
-            "code": f"HEMO-{uuid4().hex[:6]}",
             "name": "Hemograma",
             "category_id": category_id,
             "price_base": "100.00",

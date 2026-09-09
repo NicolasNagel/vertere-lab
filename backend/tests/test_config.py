@@ -29,6 +29,18 @@ def test_database_url_never_leaks_in_repr() -> None:
     assert "supersecret" not in str(settings.database_url)
 
 
+def test_development_requires_the_vite_browser_origin() -> None:
+    with pytest.raises(ValidationError) as excinfo:
+        Settings(
+            env="dev",
+            database_url="postgresql+psycopg://test:test@localhost/test",
+            trusted_browser_origins=("http://127.0.0.1:5173",),
+            _env_file=None,
+        )
+
+    assert "http://localhost:5173" in str(excinfo.value)
+
+
 def test_json_formatter_emits_valid_json_with_request_id() -> None:
     token = request_id_var.set("req-log-1")
     try:

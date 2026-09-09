@@ -54,7 +54,7 @@ def test_create_from_legacy_import_lands_directly_in_completed() -> None:
     assert attendance.status == AttendanceStatus.COMPLETED
     assert attendance.grand_total == Decimal("75.00")
     assert attendance.subtotal == Decimal("75.00")
-    assert attendance.protocol_number == "2026/000001"
+    assert attendance.protocol_number == "P000001/26"
     assert attendance.billing_competence == date(2026, 1, 1)
     assert attendance.legacy_source_row_number == 5
     assert attendance.legacy_protocol_reference == "1/2026"

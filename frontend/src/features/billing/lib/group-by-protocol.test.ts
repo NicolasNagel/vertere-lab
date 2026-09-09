@@ -7,7 +7,7 @@ describe('groupItemsByProtocol', () => {
     const groups = groupItemsByProtocol([
       {
         attendanceId: 'att-1',
-        protocolNumber: '2026/000001',
+        protocolNumber: 'P000001/26',
         patientName: 'Rex',
         examName: 'Hemograma',
         serviceLevel: 'NORMAL',
@@ -15,7 +15,7 @@ describe('groupItemsByProtocol', () => {
       },
       {
         attendanceId: 'att-1',
-        protocolNumber: '2026/000001',
+        protocolNumber: 'P000001/26',
         patientName: 'Rex',
         examName: 'Bioquímico renal',
         serviceLevel: 'NORMAL',
@@ -36,7 +36,7 @@ describe('groupItemsByProtocol', () => {
     const groups = groupItemsByProtocol([
       {
         attendanceId: 'att-1',
-        protocolNumber: '2026/000001',
+        protocolNumber: 'P000001/26',
         patientName: 'Akira',
         examName: 'Hemograma',
         serviceLevel: 'PLANTAO_ESPECIAL',
@@ -51,7 +51,7 @@ describe('groupItemsByProtocol', () => {
     const groups = groupItemsByProtocol([
       {
         attendanceId: 'att-1',
-        protocolNumber: '2026/000001',
+        protocolNumber: 'P000001/26',
         patientName: 'Rex',
         examName: 'Hemograma',
         serviceLevel: 'NORMAL',
@@ -59,7 +59,7 @@ describe('groupItemsByProtocol', () => {
       },
       {
         attendanceId: 'att-2',
-        protocolNumber: '2026/000002',
+        protocolNumber: 'P000002/26',
         patientName: 'Mia',
         examName: 'Urinálise',
         serviceLevel: 'NORMAL',

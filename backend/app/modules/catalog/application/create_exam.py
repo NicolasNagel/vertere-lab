@@ -16,6 +16,10 @@ from uuid import UUID, uuid4
 from app.modules.audit.domain.entities import ActorScope, AuditEntry
 from app.modules.audit.domain.repositories import AuditLogWriter
 from app.modules.catalog.application.dtos import ExamDTO
+from app.modules.catalog.application.exam_code_generator import (
+    ExamCodeGenerator,
+    generate_exam_code,
+)
 from app.modules.catalog.application.mappers import exam_to_dto
 from app.modules.catalog.domain.entities import Exam, ExamStatus
 from app.modules.catalog.domain.errors import DuplicateExamCodeError
@@ -33,7 +37,6 @@ _PRICE_PERMISSION = "pricing.read"
 @dataclass(frozen=True, kw_only=True)
 class CreateExamCommand:
     actor: ActorContext
-    code: str
     name: str
     category_id: UUID
     price_base: Decimal
@@ -50,12 +53,14 @@ class CreateExamUseCase:
         species: SpeciesRepository,
         audit: AuditLogWriter,
         clock: Clock,
+        code_generator: ExamCodeGenerator = generate_exam_code,
     ) -> None:
         self._exams = exams
         self._categories = categories
         self._species = species
         self._audit = audit
         self._clock = clock
+        self._code_generator = code_generator
 
     def execute(self, command: CreateExamCommand) -> ExamDTO:
         if _REQUIRED_PERMISSION not in command.actor.permissions:
@@ -68,10 +73,7 @@ class CreateExamUseCase:
         if not command.species_ids <= known_species_ids:
             raise ValidationError("Uma ou mais espécies selecionadas não existem.")
 
-        code = ExamCode(command.code)
-        if self._exams.get_by_code(str(code)) is not None:
-            raise DuplicateExamCodeError("Código de exame já cadastrado.")
-
+        code = self._next_available_code()
         now = self._clock.now()
         try:
             exam = Exam(
@@ -105,3 +107,10 @@ class CreateExamUseCase:
         )
 
         return exam_to_dto(exam, include_price=_PRICE_PERMISSION in command.actor.permissions)
+
+    def _next_available_code(self) -> ExamCode:
+        for _attempt in range(10):
+            code = ExamCode(self._code_generator())
+            if self._exams.get_by_code(str(code)) is None:
+                return code
+        raise DuplicateExamCodeError("Não foi possível gerar um código único para o exame.")

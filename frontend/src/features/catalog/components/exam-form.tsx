@@ -16,7 +16,6 @@ import type { Exam, ExamFormValues, ExamStatus } from '../api/catalog-api'
 import './exam-form.css'
 
 const examSchema = z.object({
-  code: z.string().trim().min(1, 'Informe o código do exame.'),
   name: z.string().trim().min(1, 'Informe o nome do exame.'),
   categoryId: z.string().trim().min(1, 'Selecione a categoria.'),
   description: z.string().trim(),
@@ -33,7 +32,6 @@ const STATUS_OPTIONS: { value: ExamStatus; label: string }[] = [
 
 function toFormFields(exam: Exam | null): ExamFormFields {
   return {
-    code: exam?.code ?? '',
     name: exam?.name ?? '',
     categoryId: exam?.categoryId ?? '',
     description: exam?.description ?? '',
@@ -44,7 +42,6 @@ function toFormFields(exam: Exam | null): ExamFormFields {
 
 function toApiValues(fields: ExamFormFields, speciesIds: string[]): ExamFormValues {
   return {
-    code: fields.code,
     name: fields.name,
     categoryId: fields.categoryId,
     description: fields.description || null,
@@ -199,9 +196,8 @@ export function ExamForm({
               <TextField
                 id="exam-code"
                 label="Código"
-                disabled={submitting}
-                errorMessage={errors.code?.message}
-                {...register('code')}
+                disabled
+                value={exam?.code ?? 'Gerado automaticamente ao salvar'}
               />
             </div>
 

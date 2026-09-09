@@ -20,7 +20,6 @@ from app.modules.catalog.application.get_exam import GetExamQuery, GetExamUseCas
 from app.modules.catalog.application.list_exams import ListExamsQuery, ListExamsUseCase
 from app.modules.catalog.application.update_exam import UpdateExamCommand, UpdateExamUseCase
 from app.modules.catalog.domain.entities import ExamStatus
-from app.modules.catalog.domain.errors import DuplicateExamCodeError
 from app.modules.identity.application.dtos import AuthenticatedUserDTO
 from app.modules.patients.domain.entities import Species
 from app.shared.domain.errors import ConflictError, ForbiddenError, NotFoundError, ValidationError
@@ -71,7 +70,6 @@ def _seed_category(categories: FakeExamCategoryRepository) -> ExamCategoryDTO:
 def _create_command(category_id: object, **overrides: object) -> CreateExamCommand:
     defaults: dict[str, object] = {
         "actor": _actor(permissions=frozenset({"catalog.manage", "pricing.read"})),
-        "code": "HEM001",
         "name": "Hemograma completo",
         "category_id": category_id,
         "price_base": Decimal("85.00"),
@@ -93,6 +91,7 @@ def test_create_exam_succeeds_and_audits() -> None:
         species=_species_repo(),
         audit=audit,
         clock=FakeClock(_NOW),
+        code_generator=lambda: "HEM001",
     )
 
     result = use_case.execute(_create_command(category.id))
@@ -153,22 +152,24 @@ def test_create_exam_with_unknown_species_is_invalid() -> None:
         use_case.execute(_create_command(category.id, species_ids=frozenset({uuid4()})))
 
 
-def test_create_exam_with_duplicate_code_conflicts() -> None:
+def test_create_exam_retries_generated_code_collision() -> None:
     categories = FakeExamCategoryRepository()
     category = _seed_category(categories)
     exams = FakeExamRepository()
     audit = FakeAuditLogWriter()
+    generated_codes = iter(("HEM001", "HEM001", "BIO00001"))
     use_case = CreateExamUseCase(
         exams=exams,
         categories=categories,
         species=_species_repo(),
         audit=audit,
         clock=FakeClock(_NOW),
+        code_generator=lambda: next(generated_codes),
     )
     use_case.execute(_create_command(category.id))
+    second = use_case.execute(_create_command(category.id, name="Outro exame"))
 
-    with pytest.raises(DuplicateExamCodeError):
-        use_case.execute(_create_command(category.id, name="Outro exame", code="hem001"))
+    assert second.code == "BIO00001"
 
 
 def test_get_exam_omits_price_without_pricing_permission() -> None:
@@ -241,7 +242,6 @@ def test_update_exam_with_stale_row_version_conflicts() -> None:
             UpdateExamCommand(
                 actor=_actor(permissions=frozenset({"catalog.manage"})),
                 exam_id=created.id,
-                code=created.code,
                 name="Hemograma completo renomeado",
                 category_id=category.id,
                 price_base=Decimal("90.00"),

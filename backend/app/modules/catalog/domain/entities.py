@@ -92,7 +92,6 @@ class Exam:
     def update_details(
         self,
         *,
-        code: ExamCode,
         name: str,
         category_id: UUID,
         price_base: Decimal,
@@ -109,7 +108,6 @@ class Exam:
         if price_base != self.price_base:
             self.price_valid_from = now.date()
             self.price_valid_to = None
-        self.code = code
         self.name = name
         self.category_id = category_id
         self.price_base = price_base

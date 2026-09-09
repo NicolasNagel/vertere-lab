@@ -9,9 +9,7 @@ from app.modules.audit.domain.repositories import AuditLogWriter
 from app.modules.catalog.application.dtos import ExamDTO
 from app.modules.catalog.application.mappers import exam_to_dto
 from app.modules.catalog.domain.entities import ExamStatus
-from app.modules.catalog.domain.errors import DuplicateExamCodeError
 from app.modules.catalog.domain.repositories import ExamCategoryRepository, ExamRepository
-from app.modules.catalog.domain.value_objects import ExamCode
 from app.modules.patients.domain.repositories import SpeciesRepository
 from app.shared.application.authorization import ActorContext
 from app.shared.application.clock import Clock
@@ -30,7 +28,6 @@ _PRICE_PERMISSION = "pricing.read"
 class UpdateExamCommand:
     actor: ActorContext
     exam_id: UUID
-    code: str
     name: str
     category_id: UUID
     price_base: Decimal
@@ -76,16 +73,10 @@ class UpdateExamUseCase:
         if not command.species_ids <= known_species_ids:
             raise ValidationError("Uma ou mais espécies selecionadas não existem.")
 
-        code = ExamCode(command.code)
-        existing = self._exams.get_by_code(str(code))
-        if existing is not None and existing.id != exam.id:
-            raise DuplicateExamCodeError("Código de exame já cadastrado.")
-
         before_state = {"code": str(exam.code), "name": exam.name}
 
         try:
             exam.update_details(
-                code=code,
                 name=command.name,
                 category_id=command.category_id,
                 price_base=command.price_base,

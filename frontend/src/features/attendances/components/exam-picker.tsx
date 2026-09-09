@@ -18,15 +18,15 @@ export function ExamPicker({ disabled, excludeExamIds, onSelect }: ExamPickerPro
   const [query, setQuery] = useState('')
   const debouncedQuery = useDebouncedValue(query, 300)
 
-  const examsQuery = useExamsQuery(
-    debouncedQuery.trim()
-      ? { search: debouncedQuery.trim(), status: 'ACTIVE', pageSize: 10 }
-      : null,
-  )
+  const examsQuery = useExamsQuery({
+    search: debouncedQuery.trim() || undefined,
+    status: 'ACTIVE',
+    pageSize: 10,
+  })
 
-  const results = query.trim()
-    ? (examsQuery.data?.items ?? []).filter((exam) => !excludeExamIds.includes(exam.id))
-    : []
+  const results = (examsQuery.data?.items ?? []).filter(
+    (exam) => !excludeExamIds.includes(exam.id),
+  )
 
   return (
     <div className="exam-picker">
@@ -41,35 +41,43 @@ export function ExamPicker({ disabled, excludeExamIds, onSelect }: ExamPickerPro
         onChange={(event) => setQuery(event.target.value)}
       />
 
-      {query.trim() && (
-        <div className="exam-picker__results" role="listbox" aria-label="Exames encontrados">
-          {examsQuery.isLoading && <p className="exam-picker__hint">Buscando…</p>}
+      <div className="exam-picker__results" role="listbox" aria-label="Exames encontrados">
+        {examsQuery.isLoading && <p className="exam-picker__hint">Buscando…</p>}
 
-          {!examsQuery.isLoading && results.length === 0 && (
-            <p className="exam-picker__hint">Nenhum exame ativo encontrado.</p>
-          )}
-
-          {results.map((exam) => (
-            <button
-              key={exam.id}
-              type="button"
-              role="option"
-              aria-selected={false}
-              className="exam-picker__result"
-              onClick={() => {
-                onSelect(exam)
-                setQuery('')
-              }}
-            >
-              <span className="exam-picker__result-name">{exam.name}</span>
-              <span className="exam-picker__result-code">{exam.code}</span>
-              <span className="exam-picker__result-price">
-                {exam.priceBase ? formatCurrencyBRL(exam.priceBase) : '—'}
-              </span>
+        {examsQuery.isError && (
+          <p className="exam-picker__hint" role="alert">
+            Não foi possível carregar os exames.{' '}
+            <button type="button" onClick={() => void examsQuery.refetch()}>
+              Tentar novamente
             </button>
-          ))}
-        </div>
-      )}
+          </p>
+        )}
+
+        {!examsQuery.isLoading && !examsQuery.isError && results.length === 0 && (
+          <p className="exam-picker__hint">Nenhum exame ativo encontrado.</p>
+        )}
+
+        {results.map((exam) => (
+          <button
+            key={exam.id}
+            type="button"
+            role="option"
+            aria-selected={false}
+            className="exam-picker__result"
+            disabled={disabled}
+            onClick={() => {
+              onSelect(exam)
+              setQuery('')
+            }}
+          >
+            <span className="exam-picker__result-name">{exam.name}</span>
+            <span className="exam-picker__result-code">{exam.code}</span>
+            <span className="exam-picker__result-price">
+              {exam.priceBase ? formatCurrencyBRL(exam.priceBase) : '—'}
+            </span>
+          </button>
+        ))}
+      </div>
     </div>
   )
 }

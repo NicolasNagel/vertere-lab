@@ -329,7 +329,6 @@ export type ExamCategoryUpdateRequest = {
 }
 
 export type ExamCreateRequest = {
-  "code": string
   "name": string
   "category_id": string
   "price_base": number | string
@@ -373,7 +372,6 @@ export type ExamRead = {
 export type ExamStatus = "ACTIVE" | "INACTIVE"
 
 export type ExamUpdateRequest = {
-  "code": string
   "name": string
   "category_id": string
   "price_base": number | string

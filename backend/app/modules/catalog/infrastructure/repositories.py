@@ -196,6 +196,7 @@ class SqlAlchemyExamRepository:
         model.updated_by = exam.updated_by
         model.updated_at = exam.updated_at
         model.row_version = exam.row_version + 1
+        exam.row_version = model.row_version
         self._sync_species(exam.id, exam.species_ids)
 
     def list_page(

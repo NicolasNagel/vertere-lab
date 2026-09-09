@@ -288,7 +288,6 @@ async def test_create_exam_without_permission_is_forbidden(
     response = await client.post(
         "/api/v1/exams",
         json={
-            "code": "HEM001",
             "name": "Hemograma completo",
             "category_id": category_id,
             "price_base": "85.00",
@@ -312,7 +311,6 @@ async def test_create_and_get_exam_with_price_visible_to_pricing_read(
     create_response = await client.post(
         "/api/v1/exams",
         json={
-            "code": "hem001",
             "name": "Hemograma completo",
             "category_id": category_id,
             "price_base": "85.00",
@@ -321,7 +319,9 @@ async def test_create_and_get_exam_with_price_visible_to_pricing_read(
     )
     assert create_response.status_code == 201
     body = create_response.json()
-    assert body["code"] == "HEM001"
+    assert len(body["code"]) == 8
+    assert body["code"].isalnum()
+    assert body["code"] == body["code"].upper()
     assert Decimal(body["price_base"]) == Decimal("85.00")
 
     get_response = await client.get(f"/api/v1/exams/{body['id']}")
@@ -341,7 +341,6 @@ async def test_exam_price_hidden_without_pricing_read(
     create_response = await client.post(
         "/api/v1/exams",
         json={
-            "code": "HEM001",
             "name": "Hemograma completo",
             "category_id": category_id,
             "price_base": "85.00",
@@ -365,7 +364,7 @@ async def test_exam_price_hidden_without_pricing_read(
     assert body["price_base"] is None
 
 
-async def test_create_exam_with_duplicate_code_conflicts(
+async def test_create_exams_generates_distinct_codes(
     client: httpx.AsyncClient, session_factory: sessionmaker[Session]
 ) -> None:
     _create_user(
@@ -375,7 +374,6 @@ async def test_create_exam_with_duplicate_code_conflicts(
     species_id = _get_species_id(session_factory, name="Canino")
     category_id = await _create_category(client)
     payload = {
-        "code": "HEM001",
         "name": "Hemograma completo",
         "category_id": category_id,
         "price_base": "85.00",
@@ -385,8 +383,61 @@ async def test_create_exam_with_duplicate_code_conflicts(
     first = await client.post("/api/v1/exams", json=payload)
     assert first.status_code == 201
 
-    second = await client.post("/api/v1/exams", json={**payload, "code": "hem001", "name": "Outro"})
-    assert second.status_code == 409
+    second = await client.post("/api/v1/exams", json={**payload, "name": "Outro"})
+    assert second.status_code == 201
+    assert second.json()["code"] != first.json()["code"]
+
+
+async def test_update_exam_returns_version_accepted_by_the_next_update(
+    client: httpx.AsyncClient, session_factory: sessionmaker[Session]
+) -> None:
+    _create_user(
+        session_factory, email="admin@vertere.local", password="s3nhaForte!", role_id=ROLE_LAB_ADMIN
+    )
+    await _login(client, email="admin@vertere.local", password="s3nhaForte!")
+    species_id = _get_species_id(session_factory, name="Canino")
+    category_id = await _create_category(client)
+    created = await client.post(
+        "/api/v1/exams",
+        json={
+            "name": "Hemograma completo",
+            "category_id": category_id,
+            "price_base": "85.00",
+            "species_ids": [species_id],
+        },
+    )
+    assert created.status_code == 201
+    exam = created.json()
+
+    first_update = await client.patch(
+        f"/api/v1/exams/{exam['id']}",
+        json={
+            "name": "Hemograma revisado",
+            "category_id": category_id,
+            "price_base": "85.00",
+            "species_ids": [species_id],
+            "status": "ACTIVE",
+            "expected_row_version": exam["row_version"],
+        },
+    )
+    assert first_update.status_code == 200
+    first_body = first_update.json()
+    assert first_body["row_version"] == exam["row_version"] + 1
+
+    second_update = await client.patch(
+        f"/api/v1/exams/{exam['id']}",
+        json={
+            "name": "Hemograma revisado novamente",
+            "category_id": category_id,
+            "price_base": "85.00",
+            "species_ids": [species_id],
+            "status": "ACTIVE",
+            "expected_row_version": first_body["row_version"],
+        },
+    )
+
+    assert second_update.status_code == 200
+    assert second_update.json()["row_version"] == first_body["row_version"] + 1
 
 
 async def test_deactivate_exam_preserves_record(
@@ -401,7 +452,6 @@ async def test_deactivate_exam_preserves_record(
     create_response = await client.post(
         "/api/v1/exams",
         json={
-            "code": "HEM001",
             "name": "Hemograma completo",
             "category_id": category_id,
             "price_base": "85.00",
@@ -499,7 +549,6 @@ async def test_filter_exams_by_species(
     await client.post(
         "/api/v1/exams",
         json={
-            "code": "HEM001",
             "name": "Hemograma canino",
             "category_id": category_id,
             "price_base": "85.00",
@@ -509,7 +558,6 @@ async def test_filter_exams_by_species(
     await client.post(
         "/api/v1/exams",
         json={
-            "code": "HEM002",
             "name": "Hemograma felino",
             "category_id": category_id,
             "price_base": "90.00",

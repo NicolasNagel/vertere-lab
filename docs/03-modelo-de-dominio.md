@@ -37,6 +37,10 @@
 - `CollectionMethod`;
 - `ServiceType`.
 
+`Exam.code` é um identificador interno imutável de oito caracteres alfanuméricos maiúsculos,
+gerado pelo servidor na criação comum. A importação CSV preserva o código externo informado para
+permitir reconciliação e detecção de duplicidades.
+
 ### Attendance
 
 - `AttendanceRecord` — raiz do agregado operacional;
@@ -93,6 +97,9 @@ Representar o fato operacional e financeiro de que uma clínica solicitou um ou 
 - `protocol_year`;
 - `protocol_sequence`;
 - `protocol_number` de negócio;
+- formato de apresentação `P` + sequência anual com seis dígitos + `/` + dois últimos dígitos
+  do ano (ex.: `P000001/26`); valores históricos permanecem armazenados sem reescrita e são
+  normalizados somente nas leituras;
 - `clinic_id`;
 - `veterinarian_id`;
 - `owner_id`;

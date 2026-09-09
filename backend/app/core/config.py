@@ -9,7 +9,7 @@ from __future__ import annotations
 from functools import lru_cache
 from typing import Literal
 
-from pydantic import SecretStr
+from pydantic import SecretStr, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -50,6 +50,14 @@ class Settings(BaseSettings):
     # como Function stateless (rule: AGENTS.md, "Vercel é stateless").
     login_rate_limit_max_attempts: int = 5
     login_rate_limit_window_minutes: int = 15
+
+    @model_validator(mode="after")
+    def require_vite_origin_in_development(self) -> Settings:
+        if self.env == "dev" and "http://localhost:5173" not in self.trusted_browser_origins:
+            raise ValueError(
+                "TRUSTED_BROWSER_ORIGINS precisa incluir http://localhost:5173 em desenvolvimento."
+            )
+        return self
 
 
 @lru_cache

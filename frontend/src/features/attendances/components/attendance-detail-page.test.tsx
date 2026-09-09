@@ -256,7 +256,7 @@ test('shows the read-only view for a non-draft attendance', async () => {
       attendanceHandler(
         draftAttendance({
           status: 'CONFIRMED',
-          protocol_number: '2026/000001',
+          protocol_number: 'P000001/26',
           items: [
             {
               id: 'i1',
@@ -283,7 +283,7 @@ test('shows the read-only view for a non-draft attendance', async () => {
     ],
   )
 
-  expect(await screen.findByText('2026/000001')).toBeInTheDocument()
+  expect(await screen.findByText('P000001/26')).toBeInTheDocument()
   expect(screen.getAllByText('Hemograma').length).toBeGreaterThan(0)
   expect(await screen.findByText('Hematológico')).toBeInTheDocument()
   expect(document.querySelector('.attendance-readonly-detail__total-value')).toHaveTextContent(
@@ -298,7 +298,7 @@ test('adds an exam, shows the backend-computed preview total, and confirms', asy
   let currentAttendance = draftAttendance()
   const confirmedAttendance = draftAttendance({
     status: 'CONFIRMED',
-    protocol_number: '2026/000001',
+    protocol_number: 'P000001/26',
     items: [
       {
         id: 'i1',
@@ -362,7 +362,7 @@ test('adds an exam, shows the backend-computed preview total, and confirms', asy
 
   await waitFor(() => expect(confirmedBody).not.toBeNull())
   expect(confirmedBody).toMatchObject({ items: [{ exam_id: 'e1', quantity: 2 }] })
-  expect(await screen.findByText('2026/000001')).toBeInTheDocument()
+  expect(await screen.findByText('P000001/26')).toBeInTheDocument()
 })
 
 test('confirm button is disabled without any exam selected', async () => {
@@ -448,7 +448,7 @@ test('edits the notes of a CONFIRMED attendance', async () => {
   let updatedBody: Record<string, unknown> | null = null
   let currentAttendance = draftAttendance({
     status: 'CONFIRMED',
-    protocol_number: '2026/000001',
+    protocol_number: 'P000001/26',
     notes: 'Observação original',
     row_version: 2,
   })
@@ -459,7 +459,7 @@ test('edits the notes of a CONFIRMED attendance', async () => {
       updatedBody = (await request.json()) as Record<string, unknown>
       currentAttendance = draftAttendance({
         status: 'CONFIRMED',
-        protocol_number: '2026/000001',
+        protocol_number: 'P000001/26',
         notes: 'Nova observação',
         row_version: 3,
       })
@@ -517,7 +517,7 @@ test('does not show a notes edit button for a user without attendances.update', 
 test('expands the timeline and paginates through history entries', async () => {
   const user = userEvent.setup()
   server.use(
-    attendanceHandler(draftAttendance({ status: 'CONFIRMED', protocol_number: '2026/000001' })),
+    attendanceHandler(draftAttendance({ status: 'CONFIRMED', protocol_number: 'P000001/26' })),
     http.get('/api/v1/attendances/a1/timeline', ({ request }) => {
       const url = new URL(request.url)
       const page = url.searchParams.get('page')
@@ -530,7 +530,7 @@ test('expands the timeline and paginates through history entries', async () => {
   )
   renderPage(['attendances.read'])
 
-  await screen.findByText('2026/000001')
+  await screen.findByText('P000001/26')
   await user.click(screen.getByRole('button', { name: 'Ver histórico' }))
 
   expect(await screen.findByText('Atendimento confirmado')).toBeInTheDocument()
@@ -578,7 +578,7 @@ test('never offers a header edit button on a non-DRAFT attendance', async () => 
   renderPage(
     ['attendances.read', 'attendances.update'],
     [
-      attendanceHandler(draftAttendance({ status: 'CONFIRMED', protocol_number: '2026/000001' })),
+      attendanceHandler(draftAttendance({ status: 'CONFIRMED', protocol_number: 'P000001/26' })),
       timelineHandler([]),
       ...headerDetailsHandlers(),
     ],

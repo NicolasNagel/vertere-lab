@@ -98,7 +98,7 @@ function previewResponseBody(overrides: Record<string, unknown> = {}) {
       {
         attendance_id: 'att-1',
         attendance_exam_id: 'exam-1',
-        protocol_number: '2026/000001',
+        protocol_number: 'P000001/26',
         patient_name: 'Rex',
         exam_name: 'Hemograma',
         service_level: 'NORMAL',
@@ -110,7 +110,7 @@ function previewResponseBody(overrides: Record<string, unknown> = {}) {
       {
         attendance_id: 'att-2',
         attendance_exam_id: 'exam-2',
-        protocol_number: '2026/000002',
+        protocol_number: 'P000002/26',
         patient_name: 'Mia',
         exam_name: 'Urinálise',
         service_level: 'NORMAL',
@@ -150,7 +150,7 @@ function closureResponseBody(overrides: Record<string, unknown> = {}) {
         id: 'item-1',
         attendance_id: 'att-1',
         attendance_exam_id: 'exam-1',
-        protocol_number: '2026/000001',
+        protocol_number: 'P000001/26',
         patient_name: 'Rex',
         exam_name: 'Hemograma',
         price_base: '100.00',
@@ -533,7 +533,7 @@ test('toggling to "Por protocolo" groups the eligible items by atendimento', asy
             {
               attendance_id: 'att-1',
               attendance_exam_id: 'exam-1',
-              protocol_number: '2026/000001',
+              protocol_number: 'P000001/26',
               patient_name: 'Rex',
               exam_name: 'Hemograma',
               service_level: 'NORMAL',
@@ -543,7 +543,7 @@ test('toggling to "Por protocolo" groups the eligible items by atendimento', asy
             {
               attendance_id: 'att-1',
               attendance_exam_id: 'exam-2',
-              protocol_number: '2026/000001',
+              protocol_number: 'P000001/26',
               patient_name: 'Rex',
               exam_name: 'Bioquímico renal',
               service_level: 'NORMAL',

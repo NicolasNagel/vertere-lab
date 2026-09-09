@@ -202,10 +202,10 @@ def test_import_reports_duplicate_code_already_in_database() -> None:
         species=_species_repo(),
         audit=audit,
         clock=FakeClock(_NOW),
+        code_generator=lambda: "HEM001",
     ).execute(
         CreateExamCommand(
             actor=_actor(permissions=frozenset({"catalog.manage"})),
-            code="HEM001",
             name="Já existente",
             category_id=category.id,
             price_base=Decimal("50.00"),

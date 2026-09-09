@@ -242,7 +242,7 @@ def test_csv_export_has_a_header_and_one_row_per_item() -> None:
     lines = csv_content.strip("\r\n").split("\r\n")
     assert lines[0] == "protocolo,paciente,exame,preco_base,quantidade,desconto,adicional,total"
     assert len(lines) == 2
-    assert lines[1] == "2026/000001,Rex,Hemograma,100.00,1,0,0,100.00"
+    assert lines[1] == "P000001/26,Rex,Hemograma,100.00,1,0,0,100.00"
 
 
 def test_csv_export_includes_the_on_call_fee_total_line() -> None:

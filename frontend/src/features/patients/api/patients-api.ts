@@ -1,6 +1,4 @@
-import { throwIfNotOk } from '../../../shared/api/errors'
-
-const API_BASE = '/api/v1'
+import { apiRequest } from '../../../shared/api/http-client'
 
 export type PatientSex = 'MALE' | 'FEMALE'
 export type PatientStatus = 'ACTIVE' | 'INACTIVE'
@@ -130,11 +128,7 @@ export async function fetchPatients(params: PatientListParams = {}): Promise<Pat
   query.set('page', String(params.page ?? 1))
   query.set('page_size', String(params.pageSize ?? 20))
 
-  const response = await fetch(`${API_BASE}/patients?${query.toString()}`, {
-    credentials: 'include',
-  })
-  await throwIfNotOk(response)
-  const body = (await response.json()) as ApiPatientPage
+  const body = await apiRequest<ApiPatientPage>(`/patients?${query.toString()}`)
   return {
     items: body.items.map(fromApiPatient),
     total: body.total,
@@ -144,52 +138,40 @@ export async function fetchPatients(params: PatientListParams = {}): Promise<Pat
 }
 
 export async function fetchPatient(id: string): Promise<Patient> {
-  const response = await fetch(`${API_BASE}/patients/${id}`, { credentials: 'include' })
-  await throwIfNotOk(response)
-  return fromApiPatient((await response.json()) as ApiPatient)
+  return fromApiPatient(await apiRequest<ApiPatient>(`/patients/${id}`))
 }
 
 export async function createPatient(values: PatientFormValues): Promise<Patient> {
-  const response = await fetch(`${API_BASE}/patients`, {
+  const patient = await apiRequest<ApiPatient>('/patients', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    credentials: 'include',
-    body: JSON.stringify(toApiPayload(values)),
+    body: toApiPayload(values),
   })
-  await throwIfNotOk(response)
-  return fromApiPatient((await response.json()) as ApiPatient)
+  return fromApiPatient(patient)
 }
 
 export async function updatePatient(
   id: string,
   values: PatientFormValues & { status: PatientStatus; expectedRowVersion: number },
 ): Promise<Patient> {
-  const response = await fetch(`${API_BASE}/patients/${id}`, {
+  const patient = await apiRequest<ApiPatient>(`/patients/${id}`, {
     method: 'PATCH',
-    headers: { 'Content-Type': 'application/json' },
-    credentials: 'include',
-    body: JSON.stringify({
+    body: {
       ...toApiPayload(values),
       status: values.status,
       expected_row_version: values.expectedRowVersion,
-    }),
+    },
   })
-  await throwIfNotOk(response)
-  return fromApiPatient((await response.json()) as ApiPatient)
+  return fromApiPatient(patient)
 }
 
 export async function deactivatePatient(id: string): Promise<Patient> {
-  const response = await fetch(`${API_BASE}/patients/${id}/deactivate`, {
+  const patient = await apiRequest<ApiPatient>(`/patients/${id}/deactivate`, {
     method: 'POST',
-    credentials: 'include',
   })
-  await throwIfNotOk(response)
-  return fromApiPatient((await response.json()) as ApiPatient)
+  return fromApiPatient(patient)
 }
 
 export async function fetchSpecies(): Promise<Species[]> {
-  const response = await fetch(`${API_BASE}/species`, { credentials: 'include' })
-  await throwIfNotOk(response)
-  const body = (await response.json()) as { items: ApiSpecies[] }
+  const body = await apiRequest<{ items: ApiSpecies[] }>('/species')
   return body.items.map((item) => ({ id: item.id, name: item.name }))
 }

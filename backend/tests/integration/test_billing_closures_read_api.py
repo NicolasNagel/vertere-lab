@@ -211,7 +211,6 @@ async def _create_exam(
     response = await client.post(
         "/api/v1/exams",
         json={
-            "code": code,
             "name": "Hemograma",
             "category_id": category_id,
             "price_base": price,

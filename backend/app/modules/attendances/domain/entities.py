@@ -26,6 +26,7 @@ from app.shared.domain.errors import (
     ValidationError,
 )
 from app.shared.domain.money import round_currency
+from app.shared.domain.protocol_number import format_protocol_number
 
 
 class AttendanceStatus(StrEnum):
@@ -264,7 +265,7 @@ class AttendanceRecord:
             grand_total=totals.grand_total,
             protocol_year=protocol_year,
             protocol_sequence=protocol_sequence,
-            protocol_number=f"{protocol_year}/{protocol_sequence:06d}",
+            protocol_number=format_protocol_number(year=protocol_year, sequence=protocol_sequence),
             legacy_source_row_number=legacy_source_row_number,
             legacy_protocol_reference=legacy_protocol_reference,
             import_batch_id=import_batch_id,
@@ -299,7 +300,9 @@ class AttendanceRecord:
         self.grand_total = totals.grand_total
         self.protocol_year = protocol_year
         self.protocol_sequence = protocol_sequence
-        self.protocol_number = f"{protocol_year}/{protocol_sequence:06d}"
+        self.protocol_number = format_protocol_number(
+            year=protocol_year, sequence=protocol_sequence
+        )
         self.billing_competence = self.service_date.replace(day=1)
         self.status = AttendanceStatus.CONFIRMED
         self.updated_by = confirmed_by

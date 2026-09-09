@@ -315,7 +315,6 @@ async def _create_exam(client: httpx.AsyncClient, session_factory: sessionmaker[
     response = await client.post(
         "/api/v1/exams",
         json={
-            "code": "HEM01",
             "name": "Hemograma",
             "category_id": category.json()["id"],
             "price_base": "80.00",

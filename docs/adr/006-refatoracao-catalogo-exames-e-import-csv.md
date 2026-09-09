@@ -168,3 +168,11 @@ busca por nome, importação de CSV com 1 linha válida + 1 linha com categoria 
 exibido no formulário. Nenhum erro de console ou requisição falha atribuível a este código; o bug
 do "Ticket médio" (acima) foi o único encontrado, e já corrigido antes desta entrega ser dada como
 concluída. Dado de teste removido ao final da verificação.
+
+## Complemento — 2026-08-12: código automático
+
+Criações comuns de exame deixaram de aceitar código fornecido pelo cliente. O servidor gera oito
+caracteres alfanuméricos maiúsculos com fonte criptograficamente segura, verifica unicidade e
+retenta colisões; o código não pode ser alterado depois. A importação CSV permanece separada e
+preserva seus códigos externos, pois eles participam da reconciliação do arquivo. A restrição
+única em `exams.code` continua sendo a garantia final contra colisões concorrentes.

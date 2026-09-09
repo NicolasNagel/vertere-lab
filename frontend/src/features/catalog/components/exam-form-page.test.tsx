@@ -72,7 +72,7 @@ test('creates an exam via the header submit button and returns to the list', asy
       return HttpResponse.json(
         {
           id: 'e2',
-          code: body.code,
+          code: 'A1B2C3D4',
           name: body.name,
           category_id: body.category_id,
           description: body.description,
@@ -90,7 +90,7 @@ test('creates an exam via the header submit button and returns to the list', asy
 
   expect(await screen.findByRole('heading', { name: 'Cadastro de exame' })).toBeInTheDocument()
 
-  await user.type(screen.getByLabelText('Código'), 'URI001')
+  expect(screen.getByLabelText('Código')).toHaveValue('Gerado automaticamente ao salvar')
   await user.type(screen.getByLabelText('Nome'), 'Urinálise')
   await user.selectOptions(await screen.findByLabelText('Categoria'), 'Hematologia')
   await user.type(screen.getByLabelText('Preço base'), '40.00')
@@ -132,7 +132,6 @@ test('blocks exam creation without at least one species', async () => {
   )
   renderApp(['/cadastros/exames/novo'])
 
-  await user.type(screen.getByLabelText('Código'), 'URI001')
   await user.type(screen.getByLabelText('Nome'), 'Urinálise')
   await user.selectOptions(await screen.findByLabelText('Categoria'), 'Hematologia')
   await user.type(screen.getByLabelText('Preço base'), '40.00')

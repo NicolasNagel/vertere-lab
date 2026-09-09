@@ -434,7 +434,7 @@ def test_confirm_attendance_succeeds_and_computes_totals() -> None:
     assert result.grand_total == Decimal("200.00")
     assert result.subtotal == Decimal("200.00")
     assert result.billing_competence == date(2026, 1, 1)
-    assert result.protocol_number == "2026/000001"
+    assert result.protocol_number == "P000001/26"
     assert len(result.items) == 1
     assert result.items[0].total_amount == Decimal("200.00")
     assert fixture.audit.entries[-1].action == "attendances.confirmed"
@@ -647,8 +647,8 @@ def test_confirm_attendance_protocol_sequence_increments_per_year() -> None:
     second_draft = fixture.use_case().execute(_command())
     second = fixture.confirm_use_case().execute(_confirm_command(attendance_id=second_draft.id))
 
-    assert first.protocol_number == "2026/000001"
-    assert second.protocol_number == "2026/000002"
+    assert first.protocol_number == "P000001/26"
+    assert second.protocol_number == "P000002/26"
 
 
 def _preview_command(**overrides: object) -> PreviewAttendanceCommand:

@@ -33,7 +33,7 @@ Variáveis principais do backend:
 | `ENV` | não | `dev`, `test`, `staging` ou `prod` |
 | `LOG_LEVEL` | não | nível de logging |
 | `SESSION_COOKIE_SECURE` | produção | deve ser `true` sob HTTPS |
-| `TRUSTED_BROWSER_ORIGINS` | produção | array JSON com as origens aceitas pelo controle CSRF |
+| `TRUSTED_BROWSER_ORIGINS` | sim | array JSON de origens aceitas pelo CSRF; em desenvolvimento deve incluir `http://localhost:5173` |
 | `SESSION_TTL_MINUTES` | não | duração da sessão comum |
 | `SESSION_TTL_REMEMBER_ME_DAYS` | não | duração de “lembrar-me” |
 | `VIACEP_BASE_URL` | não | endpoint da consulta de CEP |
@@ -80,6 +80,8 @@ npm run dev
 
 O proxy de desenvolvimento encaminha `/api` ao backend configurado em
 [`vite.config.ts`](frontend/vite.config.ts).
+Depois de alterar `TRUSTED_BROWSER_ORIGINS`, reinicie o backend: a configuração é carregada na
+inicialização e um processo antigo continuará aplicando a lista anterior.
 
 Para criar o primeiro administrador em um banco novo:
 

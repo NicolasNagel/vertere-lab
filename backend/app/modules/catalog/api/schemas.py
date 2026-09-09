@@ -77,7 +77,6 @@ class ExamListResponse(BaseModel):
 class ExamCreateRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    code: str = Field(min_length=1)
     name: str = Field(min_length=1)
     category_id: UUID
     price_base: Decimal = Field(gt=0)
@@ -88,7 +87,6 @@ class ExamCreateRequest(BaseModel):
 class ExamUpdateRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    code: str = Field(min_length=1)
     name: str = Field(min_length=1)
     category_id: UUID
     price_base: Decimal = Field(gt=0)

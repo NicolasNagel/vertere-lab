@@ -6643,11 +6643,6 @@
       },
       "ExamCreateRequest": {
         "properties": {
-          "code": {
-            "type": "string",
-            "minLength": 1,
-            "title": "Code"
-          },
           "name": {
             "type": "string",
             "minLength": 1,
@@ -6695,7 +6690,6 @@
         "additionalProperties": false,
         "type": "object",
         "required": [
-          "code",
           "name",
           "category_id",
           "price_base",
@@ -6899,11 +6893,6 @@
       },
       "ExamUpdateRequest": {
         "properties": {
-          "code": {
-            "type": "string",
-            "minLength": 1,
-            "title": "Code"
-          },
           "name": {
             "type": "string",
             "minLength": 1,
@@ -6963,7 +6952,6 @@
         "additionalProperties": false,
         "type": "object",
         "required": [
-          "code",
           "name",
           "category_id",
           "price_base",

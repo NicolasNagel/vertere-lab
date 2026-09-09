@@ -1,5 +1,43 @@
 # Handoff — 2026-07-30 · fatias 1–7 · worktree não commitado
 
+## Addendum — 2026-08-27 · remediações em validação
+
+O `main` está em `a5fbd7a`; o worktree continua não commitado e deve ser preservado. A leva atual
+inclui geração automática e imutável de `Exam.code`, apresentação do protocolo como
+`P000001/26`, normalização de contratos OpenAPI, uso compartilhado do cliente HTTP no frontend,
+correção do cache após login, carregamento inicial/erro do `ExamPicker` e configuração explícita
+da origem Vite confiável em desenvolvimento.
+
+Durante QA real foi encontrado e corrigido um bug em `SqlAlchemyExamRepository.save`: o ORM
+incrementava `row_version`, mas a entidade usada para montar o DTO permanecia com a versão
+anterior. O repositório agora sincroniza a entidade, e um teste de integração executa dois PATCH
+consecutivos usando a versão retornada pela primeira resposta.
+
+Validações executadas nesta sessão:
+
+- Ruff check e format-check: verdes, 431 arquivos formatados;
+- mypy: verde, 431 arquivos;
+- pytest completo antes do ajuste final de `Exam.row_version`: 636 testes passaram em 5m58s;
+- após o ajuste: teste de integração novo e testes focados de catálogo verdes;
+- frontend: oxlint, TypeScript, 164 testes, build e regeneração OpenAPI/types verdes;
+- QA real em PostgreSQL 17 descartável, head Alembic única `0038`: login/CSRF, criação de exame,
+  código automático/imutável, 30 criações concorrentes com 31/31 códigos distintos no banco,
+  dois PATCH consecutivos retornando versões 3 e 4, protocolo em confirmação/leitura/listagem e
+  preview de fechamento, formulário desktop/mobile, auditoria, headers de segurança e PII grep
+  verdes;
+- backend, Vite, container e logs temporários do QA foram encerrados/removidos.
+
+Limites declarados do QA: não foi executada a matriz integral dos 13 itens de segurança, o retry
+do `ExamPicker` após remover a interceptação não terminou, o clique final de criação do exame no
+navegador excedeu o tempo (API real e formulário foram validados separadamente), e o protocolo no
+financeiro foi verificado no preview, não em um fechamento definitivo.
+
+Próxima fatia recomendada — `row_version` transversal: a auditoria read-only confirmou o mesmo
+DTO desatualizado em clínicas, pacientes, veterinários e categorias de exame. Em identidade,
+ativação/desativação devolvem a versão default `1`, enquanto `AssignRole` compensa manualmente o
+repositório. Corrigir as cinco implementações de `save`, remover a compensação e adicionar testes
+API encadeados. Não iniciar sem o checkpoint explícito exigido pelo `AGENTS.md`.
+
 ## Estado consolidado
 
 O `main` permanece em `eb97cda`. Todo o trabalho descrito abaixo está no worktree e ainda não foi

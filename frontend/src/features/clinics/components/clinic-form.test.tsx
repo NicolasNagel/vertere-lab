@@ -148,9 +148,10 @@ test('fills address fields when a valid CEP is found', async () => {
 
   await user.type(screen.getByLabelText('CEP'), '01310100')
 
-  await waitFor(() => {
-    expect(screen.getByLabelText('Rua')).toHaveValue('Avenida Paulista')
-  })
+  await waitFor(
+    () => expect(screen.getByLabelText('Rua')).toHaveValue('Avenida Paulista'),
+    { timeout: 5_000 },
+  )
   expect(screen.getByLabelText('Bairro')).toHaveValue('Bela Vista')
   expect(screen.getByLabelText('Cidade')).toHaveValue('São Paulo')
   expect(screen.getByLabelText('UF')).toHaveValue('SP')

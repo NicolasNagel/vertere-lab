@@ -1,6 +1,4 @@
-import { throwIfNotOk } from '../../../shared/api/errors'
-
-const API_BASE = '/api/v1'
+import { apiRequest } from '../../../shared/api/http-client'
 
 export type VeterinarianStatus = 'ACTIVE' | 'INACTIVE'
 
@@ -126,11 +124,7 @@ export async function fetchVeterinarians(
   query.set('page', String(params.page ?? 1))
   query.set('page_size', String(params.pageSize ?? 20))
 
-  const response = await fetch(`${API_BASE}/veterinarians?${query.toString()}`, {
-    credentials: 'include',
-  })
-  await throwIfNotOk(response)
-  const body = (await response.json()) as ApiVeterinarianPage
+  const body = await apiRequest<ApiVeterinarianPage>(`/veterinarians?${query.toString()}`)
   return {
     items: body.items.map(fromApiVeterinarian),
     total: body.total,
@@ -140,9 +134,7 @@ export async function fetchVeterinarians(
 }
 
 export async function fetchVeterinarian(id: string): Promise<Veterinarian> {
-  const response = await fetch(`${API_BASE}/veterinarians/${id}`, { credentials: 'include' })
-  await throwIfNotOk(response)
-  return fromApiVeterinarian((await response.json()) as ApiVeterinarian)
+  return fromApiVeterinarian(await apiRequest<ApiVeterinarian>(`/veterinarians/${id}`))
 }
 
 export async function createVeterinarian(
@@ -154,45 +146,37 @@ export async function createVeterinarian(
   // creation, not only on unlink) — the first clinic in the list is the
   // primary one, same convention as before when this was a separate
   // POST .../clinics call per clinic.
-  const response = await fetch(`${API_BASE}/veterinarians`, {
+  const veterinarian = await apiRequest<ApiVeterinarian>('/veterinarians', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    credentials: 'include',
-    body: JSON.stringify({
+    body: {
       ...toApiPayload(values),
       clinic_ids: clinicIds,
       primary_clinic_id: clinicIds[0] ?? null,
-    }),
+    },
   })
-  await throwIfNotOk(response)
-  return fromApiVeterinarian((await response.json()) as ApiVeterinarian)
+  return fromApiVeterinarian(veterinarian)
 }
 
 export async function updateVeterinarian(
   id: string,
   values: VeterinarianFormValues & { status: VeterinarianStatus; expectedRowVersion: number },
 ): Promise<Veterinarian> {
-  const response = await fetch(`${API_BASE}/veterinarians/${id}`, {
+  const veterinarian = await apiRequest<ApiVeterinarian>(`/veterinarians/${id}`, {
     method: 'PATCH',
-    headers: { 'Content-Type': 'application/json' },
-    credentials: 'include',
-    body: JSON.stringify({
+    body: {
       ...toApiPayload(values),
       status: values.status,
       expected_row_version: values.expectedRowVersion,
-    }),
+    },
   })
-  await throwIfNotOk(response)
-  return fromApiVeterinarian((await response.json()) as ApiVeterinarian)
+  return fromApiVeterinarian(veterinarian)
 }
 
 export async function deactivateVeterinarian(id: string): Promise<Veterinarian> {
-  const response = await fetch(`${API_BASE}/veterinarians/${id}/deactivate`, {
+  const veterinarian = await apiRequest<ApiVeterinarian>(`/veterinarians/${id}/deactivate`, {
     method: 'POST',
-    credentials: 'include',
   })
-  await throwIfNotOk(response)
-  return fromApiVeterinarian((await response.json()) as ApiVeterinarian)
+  return fromApiVeterinarian(veterinarian)
 }
 
 export async function linkVeterinarianClinic(
@@ -200,22 +184,17 @@ export async function linkVeterinarianClinic(
   clinicId: string,
   primary = false,
 ): Promise<void> {
-  const response = await fetch(`${API_BASE}/veterinarians/${veterinarianId}/clinics`, {
+  await apiRequest<void>(`/veterinarians/${veterinarianId}/clinics`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    credentials: 'include',
-    body: JSON.stringify({ clinic_id: clinicId, primary }),
+    body: { clinic_id: clinicId, primary },
   })
-  await throwIfNotOk(response)
 }
 
 export async function unlinkVeterinarianClinic(
   veterinarianId: string,
   clinicId: string,
 ): Promise<void> {
-  const response = await fetch(
-    `${API_BASE}/veterinarians/${veterinarianId}/clinics/${clinicId}`,
-    { method: 'DELETE', credentials: 'include' },
-  )
-  await throwIfNotOk(response)
+  await apiRequest<void>(`/veterinarians/${veterinarianId}/clinics/${clinicId}`, {
+    method: 'DELETE',
+  })
 }

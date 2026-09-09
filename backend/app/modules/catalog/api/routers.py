@@ -262,7 +262,6 @@ def create_exam(
         uow=SqlAlchemyCatalogUnitOfWork(uow),
         command=CreateExamCommand(
             actor=current_user,
-            code=payload.code,
             name=payload.name,
             category_id=payload.category_id,
             price_base=payload.price_base,
@@ -286,7 +285,6 @@ def update_exam(
         command=UpdateExamCommand(
             actor=current_user,
             exam_id=exam_id,
-            code=payload.code,
             name=payload.name,
             category_id=payload.category_id,
             price_base=payload.price_base,

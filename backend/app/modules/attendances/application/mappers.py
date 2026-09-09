@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from app.modules.attendances.application.dtos import AttendanceDTO, AttendanceExamDTO
 from app.modules.attendances.domain.entities import AttendanceExam, AttendanceRecord
+from app.shared.domain.protocol_number import present_protocol_number
 
 
 def attendance_exam_to_dto(item: AttendanceExam) -> AttendanceExamDTO:
@@ -38,7 +39,7 @@ def attendance_to_dto(attendance: AttendanceRecord) -> AttendanceDTO:
         surcharge_total=attendance.surcharge_total,
         on_call_fee=attendance.on_call_fee,
         grand_total=attendance.grand_total,
-        protocol_number=attendance.protocol_number,
+        protocol_number=present_protocol_number(attendance.protocol_number),
         cancel_reason=attendance.cancel_reason,
         created_at=attendance.created_at,
         updated_at=attendance.updated_at,

@@ -223,7 +223,8 @@ Estratégia recomendada:
 - `INSERT ... ON CONFLICT ... DO UPDATE` ou linha bloqueada com `FOR UPDATE`;
 - incremento dentro da mesma transação de confirmação;
 - constraint única em `(protocol_year, protocol_sequence)`;
-- protocolo formatado apenas para apresentação.
+- protocolo formatado como `P000001/26`; registros históricos no formato `2026/000001` são
+  convertidos somente para apresentação, sem alterar persistência ou snapshots de fechamento.
 
 ## 10. Fechamento por período
 

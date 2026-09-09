@@ -181,7 +181,7 @@ def test_single_exam_row_is_imported_as_completed_with_matching_totals() -> None
     assert attendance.grand_total == Decimal("75.00")
     assert attendance.legacy_source_row_number == 5
     assert attendance.legacy_protocol_reference == "1/2026"
-    assert attendance.protocol_number == "2026/000001"
+    assert attendance.protocol_number == "P000001/26"
     assert len(attendance.items) == 1
     assert attendance.items[0].exam_name == "Hemograma"
 

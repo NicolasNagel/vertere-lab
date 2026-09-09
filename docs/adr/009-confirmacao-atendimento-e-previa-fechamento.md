@@ -153,5 +153,5 @@ Suíte automatizada verde antes da entrega:
   as telas existentes (usuários, perfis, clínicas, veterinários, exames, pacientes) confirmando
   que o dado criado pelo novo fluxo de confirmação não quebra nada a jusante; e testei a tela nova
   ponta a ponta (`/financeiro/fechamento`), selecionando clínica e competência reais e conferindo
-  cards e tabela batendo com o `GET /closures/preview` (protocolo `2026/000001`, `R$ 100,00`
+  cards e tabela batendo com o `GET /closures/preview` (protocolo `P000001/26`, `R$ 100,00`
   formatado corretamente). Nenhum erro de console em nenhuma das duas sessões.

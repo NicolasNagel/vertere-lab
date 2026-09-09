@@ -14,6 +14,7 @@ from app.modules.catalog.application.deactivate_exam_category import (
     DeactivateExamCategoryUseCase,
 )
 from app.modules.catalog.application.dtos import ExamCategoryDTO, ExamDTO
+from app.modules.catalog.application.exam_code_generator import generate_exam_code
 from app.modules.catalog.application.import_exams import (
     ImportExamsCommand,
     ImportExamsResult,
@@ -71,6 +72,7 @@ def handle_create_exam(
             species=uow.species,
             audit=uow.audit,
             clock=clock,
+            code_generator=generate_exam_code,
         ).execute(command)
         uow.commit()
         return r
