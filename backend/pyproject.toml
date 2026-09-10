@@ -23,3 +23,9 @@ build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
 packages = ["app"]
+
+# Vercel Python runtime — reads dependencies straight from this file (no
+# requirements.txt needed) and loads `app` from `app/asgi.py` as the ASGI
+# handler (docs/04-arquitetura.md §15).
+[tool.vercel]
+entrypoint = "app.asgi:app"

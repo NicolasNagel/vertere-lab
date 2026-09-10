@@ -324,8 +324,13 @@ Métricas:
 
 ### Backend
 
-- projeto Vercel separado do frontend ou roteamento claramente definido;
-- entrypoint FastAPI único;
+- projeto Vercel separado do frontend, com **Root Directory = `backend`** no painel — cada
+  projeto builda e faz deploy independente;
+- entrypoint FastAPI único: `backend/app/asgi.py` expõe `app` (instância real, construída a
+  partir do ambiente) e é referenciado por `[tool.vercel] entrypoint` em `backend/pyproject.toml`
+  — mantido separado de `app/main.py` para a fábrica `create_app` continuar livre de efeito
+  colateral de import nos testes. Dependências lidas direto do `pyproject.toml` (com `uv.lock`),
+  sem `requirements.txt` duplicado;
 - sem estado local;
 - migrations executadas por job controlado fora da inicialização da aplicação;
 - health endpoint sem consulta pesada;
