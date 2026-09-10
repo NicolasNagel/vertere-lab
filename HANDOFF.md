@@ -1,5 +1,38 @@
 # Handoff — 2026-07-30 · fatias 1–7 · worktree não commitado
 
+## Addendum — 2026-09-09 · fatia 08-27 commitada; entrypoint Vercel do backend
+
+`main` está em `959c130`. O worktree que ficou pendente desde o addendum de 2026-08-27 (código
+automático/imutável de `Exam`, protocolo `P000001/26`, fix de `row_version`, ajustes de frontend)
+foi revalidado do zero (ruff, format-check, mypy, 637 testes backend, oxlint, tsc, 164 testes
+frontend — tudo verde) e commitado em `c3a56b7`. CI verde em ambos os pushes.
+
+Em seguida, a pedido do usuário ("continue com o desenvolvimento e os ajustes necessários para
+deploy"), foi criado o entrypoint Python do backend para a Vercel (`959c130`):
+`backend/app/asgi.py` expõe `app` (instância real, construída do ambiente) referenciado por
+`[tool.vercel] entrypoint` em `backend/pyproject.toml`; `backend/vercel.json` exclui
+`tests/alembic/scripts` do bundle da função. Dependências continuam só em `pyproject.toml`/
+`uv.lock` — Vercel lê isso direto, sem `requirements.txt` duplicado. Teste novo
+(`tests/test_asgi.py`) cobre que o módulo expõe a app real via env. Suite completa depois disso:
+638 testes backend em 22m38s (mais lento que o normal — sem causa identificada, sem falha).
+
+**Docker Desktop estava totalmente parado** no início desta sessão (por isso os 195 erros de
+integração na primeira tentativa) — foi religado manualmente. Containers órfãos de Testcontainers
+(`festive_poincare`, `intelligent_northcutt`, `musing_hamilton` — todos "Exited (255)" há 13 dias,
+mesma data de uma queda do Docker Desktop) foram removidos; `vertere-qa-pg` (dado real da Fase 4,
+porta 55432) e `vertere-postgres` (dev via docker-compose, porta 5432) foram preservados e
+religados — `vertere-qa-pg` confirmado com os 2651 atendimentos intactos.
+
+**Pendências reais de deploy — decisão de infra/conta, não de código:**
+- criar os dois projetos Vercel (frontend com Root Directory `frontend`, backend com Root
+  Directory `backend`) — sem CLI autenticado nesta máquina, não foi possível fazer isso aqui;
+- provisionar PostgreSQL gerenciado de produção (com backup/pooler) e apontar `DATABASE_URL`;
+- definir o domínio real do frontend em produção e setar `TRUSTED_BROWSER_ORIGINS` no projeto
+  backend da Vercel (formato `["https://dominio-real"]`) — sem isso, todo login/mutação autenticada
+  falha com `403 CSRF_ORIGIN_FORBIDDEN` (já documentado em `docs/04-arquitetura.md §15`);
+- decidir e configurar como as migrations (`alembic upgrade head`) rodam contra o banco de
+  produção — como job controlado fora da inicialização da função (nunca dentro do lifespan).
+
 ## Addendum — 2026-08-27 · remediações em validação
 
 O `main` está em `a5fbd7a`; o worktree continua não commitado e deve ser preservado. A leva atual
