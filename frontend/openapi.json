@@ -4733,6 +4733,13 @@
             "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
             "title": "Price Base"
           },
+          "components": {
+            "items": {
+              "$ref": "#/components/schemas/ExamComponentRead"
+            },
+            "type": "array",
+            "title": "Components"
+          },
           "quantity": {
             "type": "integer",
             "title": "Quantity"
@@ -4779,6 +4786,7 @@
           "exam_code",
           "exam_name",
           "price_base",
+          "components",
           "quantity",
           "discount_amount",
           "surcharge_amount",
@@ -6647,6 +6655,24 @@
         ],
         "title": "ExamCategoryUpdateRequest"
       },
+      "ExamComponentRead": {
+        "properties": {
+          "code": {
+            "type": "string",
+            "title": "Code"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          }
+        },
+        "type": "object",
+        "required": [
+          "code",
+          "name"
+        ],
+        "title": "ExamComponentRead"
+      },
       "ExamCreateRequest": {
         "properties": {
           "name": {
@@ -6691,6 +6717,14 @@
             "type": "array",
             "minItems": 1,
             "title": "Species Ids"
+          },
+          "component_exam_ids": {
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "type": "array",
+            "title": "Component Exam Ids"
           }
         },
         "additionalProperties": false,
@@ -6812,6 +6846,18 @@
             "type": "array",
             "title": "Species Ids"
           },
+          "component_exam_ids": {
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "type": "array",
+            "title": "Component Exam Ids"
+          },
+          "is_panel": {
+            "type": "boolean",
+            "title": "Is Panel"
+          },
           "status": {
             "type": "string",
             "enum": [
@@ -6879,6 +6925,8 @@
           "category_id",
           "description",
           "species_ids",
+          "component_exam_ids",
+          "is_panel",
           "status",
           "created_at",
           "updated_at",
@@ -6941,6 +6989,14 @@
             "type": "array",
             "minItems": 1,
             "title": "Species Ids"
+          },
+          "component_exam_ids": {
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "type": "array",
+            "title": "Component Exam Ids"
           },
           "status": {
             "type": "string",

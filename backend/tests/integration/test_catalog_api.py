@@ -24,6 +24,7 @@ pytestmark = pytest.mark.integration
 def _reset_data(session_factory: sessionmaker[Session]) -> None:
     with session_factory() as session:
         session.execute(text("DELETE FROM audit_log"))
+        session.execute(text("DELETE FROM exam_panel_items"))
         session.execute(text("DELETE FROM exam_species"))
         session.execute(text("DELETE FROM exams"))
         session.execute(text("DELETE FROM exam_categories"))
@@ -266,3 +267,138 @@ async def test_import_exams_is_permission_gated_csv_only_and_reports_row_errors(
 
     listed = await client.get("/api/v1/exams", params={"search": "HEM001"})
     assert listed.json()["total"] == 1
+
+
+async def test_exam_panels_compose_validate_snapshot_and_block_unsafe_changes(
+    client: httpx.AsyncClient, session_factory: sessionmaker[Session]
+) -> None:
+    await _login_as(client, session_factory, email="admin@vertere.local", role_id=ROLE_LAB_ADMIN)
+    dog_id = _get_species_id(session_factory, name="Canino")
+    category_id = await _create_category(client)
+
+    async def create(name: str, price: str, **extra: object) -> dict[str, object]:
+        response = await client.post(
+            "/api/v1/exams",
+            json={
+                "name": name,
+                "category_id": category_id,
+                "price_base": price,
+                "species_ids": [dog_id],
+                **extra,
+            },
+        )
+        assert response.status_code == 201, response.text
+        return dict(response.json())
+
+    hemograma = await create("Hemograma", "40.00")
+    alt = await create("ALT", "20.00")
+    ureia = await create("Ureia", "20.00")
+    assert (hemograma["is_panel"], hemograma["component_exam_ids"]) == (False, [])
+
+    # Pacote tem preço próprio (não é a soma dos componentes) e guarda a ordem escolhida.
+    panel = await create(
+        "CHECK-UP 1", "70.00", component_exam_ids=[alt["id"], hemograma["id"], ureia["id"]]
+    )
+    assert panel["is_panel"] is True
+    assert panel["component_exam_ids"] == [alt["id"], hemograma["id"], ureia["id"]]
+    assert Decimal(str(panel["price_base"])) == Decimal("70.00")
+    refetched = await client.get(f"/api/v1/exams/{panel['id']}")
+    assert refetched.json()["component_exam_ids"] == panel["component_exam_ids"]
+
+    # Regras: sem aninhar pacote, sem repetir, sem componente inexistente ou inativo.
+    nested = await client.post(
+        "/api/v1/exams",
+        json={
+            "name": "Pacote de pacote",
+            "category_id": category_id,
+            "price_base": "10.00",
+            "species_ids": [dog_id],
+            "component_exam_ids": [panel["id"]],
+        },
+    )
+    assert nested.status_code == 422
+    repeated = await client.post(
+        "/api/v1/exams",
+        json={
+            "name": "Repetido",
+            "category_id": category_id,
+            "price_base": "10.00",
+            "species_ids": [dog_id],
+            "component_exam_ids": [alt["id"], alt["id"]],
+        },
+    )
+    assert repeated.status_code == 422
+    missing = await client.post(
+        "/api/v1/exams",
+        json={
+            "name": "Fantasma",
+            "category_id": category_id,
+            "price_base": "10.00",
+            "species_ids": [dog_id],
+            "component_exam_ids": [str(uuid4())],
+        },
+    )
+    assert missing.status_code == 422
+
+    # Componente de pacote ativo não pode ser inativado (nem por PATCH nem por deactivate).
+    blocked = await client.post(f"/api/v1/exams/{alt['id']}/deactivate")
+    assert blocked.status_code == 409
+    assert "CHECK-UP 1" in blocked.json()["error"]["message"]
+    blocked_patch = await client.patch(
+        f"/api/v1/exams/{alt['id']}",
+        json={
+            "name": "ALT",
+            "category_id": category_id,
+            "price_base": "20.00",
+            "species_ids": [dog_id],
+            "status": "INACTIVE",
+            "expected_row_version": alt["row_version"],
+        },
+    )
+    assert blocked_patch.status_code == 409
+
+    # Exame simples não vira pacote, nem o contrário.
+    to_panel = await client.patch(
+        f"/api/v1/exams/{ureia['id']}",
+        json={
+            "name": "Ureia",
+            "category_id": category_id,
+            "price_base": "20.00",
+            "species_ids": [dog_id],
+            "component_exam_ids": [alt["id"]],
+            "status": "ACTIVE",
+            "expected_row_version": ureia["row_version"],
+        },
+    )
+    assert to_panel.status_code == 422
+    to_plain = await client.patch(
+        f"/api/v1/exams/{panel['id']}",
+        json={
+            "name": "CHECK-UP 1",
+            "category_id": category_id,
+            "price_base": "70.00",
+            "species_ids": [dog_id],
+            "component_exam_ids": [],
+            "status": "ACTIVE",
+            "expected_row_version": panel["row_version"],
+        },
+    )
+    assert to_plain.status_code == 422
+
+    # Editar a composição funciona e muda a versão; pacote inativado libera o componente.
+    edited = await client.patch(
+        f"/api/v1/exams/{panel['id']}",
+        json={
+            "name": "CHECK-UP 1",
+            "category_id": category_id,
+            "price_base": "70.00",
+            "species_ids": [dog_id],
+            "component_exam_ids": [hemograma["id"], alt["id"]],
+            "status": "ACTIVE",
+            "expected_row_version": panel["row_version"],
+        },
+    )
+    assert edited.status_code == 200
+    assert edited.json()["component_exam_ids"] == [hemograma["id"], alt["id"]]
+    assert (await client.post(f"/api/v1/exams/{panel['id']}/deactivate")).status_code == 200
+    assert (await client.post(f"/api/v1/exams/{alt['id']}/deactivate")).status_code == 200

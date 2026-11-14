@@ -20,6 +20,9 @@ export interface Exam {
   categoryId: string
   description: string | null
   speciesIds: string[]
+  /** Pacote/perfil: exames que o compõem (vazio para exame avulso). */
+  componentExamIds: string[]
+  isPanel: boolean
   status: ExamStatus
   rowVersion: number
   priceBase: string | null
@@ -48,6 +51,7 @@ export interface ExamFormValues {
   priceBase: string
   description: string | null
   speciesIds: string[]
+  componentExamIds?: string[]
 }
 
 interface ApiExamCategory {
@@ -68,6 +72,8 @@ interface ApiExam {
   category_id: string
   description: string | null
   species_ids: string[]
+  component_exam_ids: string[]
+  is_panel: boolean
   status: ExamStatus
   row_version: number
   price_base: string | null
@@ -98,6 +104,8 @@ function fromApiExam(exam: ApiExam): Exam {
     categoryId: exam.category_id,
     description: exam.description,
     speciesIds: exam.species_ids,
+    componentExamIds: exam.component_exam_ids,
+    isPanel: exam.is_panel,
     status: exam.status,
     rowVersion: exam.row_version,
     priceBase: exam.price_base,
@@ -112,6 +120,7 @@ function toApiExamPayload(values: ExamFormValues): Record<string, unknown> {
     price_base: values.priceBase,
     description: values.description || null,
     species_ids: values.speciesIds,
+    component_exam_ids: values.componentExamIds ?? [],
   }
 }
 

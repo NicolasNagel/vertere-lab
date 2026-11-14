@@ -19,9 +19,14 @@ from uuid import UUID, uuid4
 from app.modules.attendances.application.party_validation import (
     validate_clinic_veterinarian_patient,
 )
-from app.modules.attendances.domain.entities import AttendanceExam, AttendanceRecord, ServiceLevel
+from app.modules.attendances.domain.entities import (
+    AttendanceExam,
+    AttendanceRecord,
+    ExamComponentSnapshot,
+    ServiceLevel,
+)
 from app.modules.attendances.domain.repositories import OnCallFeeSettingRepository
-from app.modules.catalog.domain.entities import ExamStatus
+from app.modules.catalog.domain.entities import Exam, ExamStatus
 from app.modules.catalog.domain.repositories import ExamRepository
 from app.modules.clinics.domain.repositories import ClinicRepository
 from app.modules.patients.domain.repositories import PatientRepository
@@ -60,6 +65,20 @@ def resolve_on_call_fee(
     if setting is None:
         raise LookupError(f"Configuração de taxa de plantão ausente para {service_level.value}.")
     return setting.fee_amount
+
+
+def _component_snapshot(exam: Exam, exams: ExamRepository) -> tuple[ExamComponentSnapshot, ...]:
+    """Freeze a panel's composition now; plain exams have none. Order follows the panel."""
+    if not exam.is_panel:
+        return ()
+    by_id = {
+        component.id: component for component in exams.get_many_by_ids(list(exam.component_ids))
+    }
+    return tuple(
+        ExamComponentSnapshot(code=str(by_id[component_id].code), name=by_id[component_id].name)
+        for component_id in exam.component_ids
+        if component_id in by_id
+    )
 
 
 def validate_and_snapshot_items(
@@ -117,6 +136,7 @@ def validate_and_snapshot_items(
                 exam_code=str(exam.code),
                 exam_name=exam.name,
                 price_base=exam.price_base,
+                components=_component_snapshot(exam, exams),
                 quantity=item_input.quantity,
                 discount_amount=discount_amount,
                 # O adicional de plantão não é mais por item — é uma taxa

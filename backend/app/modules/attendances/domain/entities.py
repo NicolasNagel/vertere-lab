@@ -97,6 +97,14 @@ class OnCallFeeSetting:
         self.updated_at = now
 
 
+@dataclass(frozen=True)
+class ExamComponentSnapshot:
+    """One exam inside a panel (pacote), frozen when the panel was added to the attendance."""
+
+    code: str
+    name: str
+
+
 @dataclass(kw_only=True)
 class AttendanceExam:
     """An exam item snapshotted onto a confirmed attendance.
@@ -115,6 +123,7 @@ class AttendanceExam:
     exam_code: str
     exam_name: str
     price_base: Decimal
+    components: tuple[ExamComponentSnapshot, ...] = ()
     quantity: int = 1
     discount_amount: Decimal = Decimal("0")
     surcharge_amount: Decimal = Decimal("0")

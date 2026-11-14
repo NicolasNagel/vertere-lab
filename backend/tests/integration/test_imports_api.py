@@ -38,6 +38,7 @@ def _reset_data(session_factory: sessionmaker[Session]) -> None:
         session.execute(text("DELETE FROM veterinarian_clinics"))
         session.execute(text("DELETE FROM veterinarians"))
         session.execute(text("DELETE FROM clinics"))
+        session.execute(text("DELETE FROM exam_panel_items"))
         session.execute(text("DELETE FROM exam_species"))
         session.execute(text("DELETE FROM exams"))
         session.execute(text("DELETE FROM exam_categories"))

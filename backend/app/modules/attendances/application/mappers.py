@@ -12,6 +12,7 @@ def attendance_exam_to_dto(item: AttendanceExam) -> AttendanceExamDTO:
         exam_code=item.exam_code,
         exam_name=item.exam_name,
         price_base=item.price_base,
+        components=tuple((component.code, component.name) for component in item.components),
         quantity=item.quantity,
         discount_amount=item.discount_amount,
         surcharge_amount=item.surcharge_amount,

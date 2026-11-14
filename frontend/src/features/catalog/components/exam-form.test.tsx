@@ -30,6 +30,8 @@ const existingExam: Exam = {
   categoryId: 'cat-inactive',
   description: null,
   speciesIds: ['s1'],
+  componentExamIds: [],
+  isPanel: false,
   status: 'ACTIVE',
   rowVersion: 1,
   priceBase: '85.00',

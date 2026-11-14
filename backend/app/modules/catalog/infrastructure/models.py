@@ -70,6 +70,25 @@ class ExamModel(Base):
     row_version: Mapped[int] = mapped_column(nullable=False, default=1)
 
 
+class ExamPanelItemModel(Base):
+    """Component of a panel (pacote). Both ends are `exams` rows; nesting is rejected by the
+    use cases. The component FK is NO ACTION (not CASCADE): a component can't be deleted while a
+    panel references it, but bulk deletes within one statement still work."""
+
+    __tablename__ = "exam_panel_items"
+    __table_args__ = (
+        UniqueConstraint("panel_id", "component_id", name="uq_exam_panel_items_panel_component"),
+        CheckConstraint("panel_id <> component_id", name="ck_exam_panel_items_not_self"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
+    panel_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("exams.id", ondelete="CASCADE"), nullable=False
+    )
+    component_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("exams.id"), nullable=False)
+    position: Mapped[int] = mapped_column(nullable=False, default=0)
+
+
 class ExamSpeciesModel(Base):
     __tablename__ = "exam_species"
     __table_args__ = (

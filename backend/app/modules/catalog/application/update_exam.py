@@ -8,6 +8,10 @@ from app.modules.audit.domain.entities import ActorScope, AuditEntry
 from app.modules.audit.domain.repositories import AuditLogWriter
 from app.modules.catalog.application.dtos import ExamDTO
 from app.modules.catalog.application.mappers import exam_to_dto
+from app.modules.catalog.application.panel_components import (
+    ensure_not_in_active_panels,
+    validate_panel_components,
+)
 from app.modules.catalog.domain.entities import ExamStatus
 from app.modules.catalog.domain.repositories import ExamCategoryRepository, ExamRepository
 from app.modules.patients.domain.repositories import SpeciesRepository
@@ -35,6 +39,7 @@ class UpdateExamCommand:
     species_ids: frozenset[UUID]
     status: str
     expected_row_version: int
+    component_exam_ids: tuple[UUID, ...] = ()
 
 
 class UpdateExamUseCase:
@@ -73,7 +78,18 @@ class UpdateExamUseCase:
         if not command.species_ids <= known_species_ids:
             raise ValidationError("Uma ou mais espécies selecionadas não existem.")
 
-        before_state = {"code": str(exam.code), "name": exam.name}
+        component_ids = validate_panel_components(
+            exams=self._exams, component_ids=command.component_exam_ids
+        )
+        new_status = ExamStatus(command.status)
+        if new_status == ExamStatus.INACTIVE and exam.status == ExamStatus.ACTIVE:
+            ensure_not_in_active_panels(exams=self._exams, exam=exam)
+
+        before_state = {
+            "code": str(exam.code),
+            "name": exam.name,
+            "component_count": len(exam.component_ids),
+        }
 
         try:
             exam.update_details(
@@ -82,7 +98,8 @@ class UpdateExamUseCase:
                 price_base=command.price_base,
                 description=command.description,
                 species_ids=command.species_ids,
-                status=ExamStatus(command.status),
+                component_ids=component_ids,
+                status=new_status,
                 updated_by=command.actor.id,
                 now=self._clock.now(),
             )
@@ -99,7 +116,11 @@ class UpdateExamUseCase:
                 entity_type="exam",
                 entity_id=str(exam.id),
                 before_state=before_state,
-                after_state={"code": str(exam.code), "name": exam.name},
+                after_state={
+                    "code": str(exam.code),
+                    "name": exam.name,
+                    "component_count": len(exam.component_ids),
+                },
             )
         )
 

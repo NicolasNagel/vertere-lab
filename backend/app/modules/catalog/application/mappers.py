@@ -23,6 +23,8 @@ def exam_to_dto(exam: Exam, *, include_price: bool) -> ExamDTO:
         category_id=exam.category_id,
         description=exam.description,
         species_ids=exam.species_ids,
+        component_exam_ids=exam.component_ids,
+        is_panel=exam.is_panel,
         status=exam.status.value,
         created_at=exam.created_at,
         updated_at=exam.updated_at,

@@ -55,6 +55,8 @@ class ExamRead(BaseModel):
     category_id: UUID
     description: str | None
     species_ids: list[UUID]
+    component_exam_ids: list[UUID]
+    is_panel: bool
     status: ExamStatusLiteral
     created_at: datetime
     updated_at: datetime
@@ -82,6 +84,7 @@ class ExamCreateRequest(BaseModel):
     price_base: Decimal = Field(gt=0)
     description: str | None = None
     species_ids: list[UUID] = Field(min_length=1)
+    component_exam_ids: list[UUID] = Field(default_factory=list)
 
 
 class ExamUpdateRequest(BaseModel):
@@ -92,6 +95,7 @@ class ExamUpdateRequest(BaseModel):
     price_base: Decimal = Field(gt=0)
     description: str | None = None
     species_ids: list[UUID] = Field(min_length=1)
+    component_exam_ids: list[UUID] = Field(default_factory=list)
     status: ExamStatusLiteral
     expected_row_version: int
 

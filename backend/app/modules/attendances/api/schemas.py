@@ -18,12 +18,18 @@ CollectionMethodLiteral = Literal["HELITO_NICOLAS", "INTERNAL", "MARLI", "COURIE
 ServiceLevelLiteral = Literal["NORMAL", "PLANTAO_NORMAL", "PLANTAO_ESPECIAL"]
 
 
+class ExamComponentRead(BaseModel):
+    code: str
+    name: str
+
+
 class AttendanceExamRead(BaseModel):
     id: UUID
     exam_id: UUID
     exam_code: str
     exam_name: str
     price_base: Decimal
+    components: list[ExamComponentRead]
     quantity: int
     discount_amount: Decimal
     surcharge_amount: Decimal

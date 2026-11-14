@@ -20,6 +20,7 @@ from app.modules.attendances.domain.entities import (
     AttendanceRecord,
     AttendanceStatus,
     CollectionMethod,
+    ExamComponentSnapshot,
     OnCallFeeSetting,
     ServiceLevel,
 )
@@ -33,6 +34,10 @@ from app.modules.patients.infrastructure.models import PatientModel
 from app.shared.infrastructure.sql import LIKE_ESCAPE, contains_pattern
 
 
+def _components_to_json(item: AttendanceExam) -> list[dict[str, str]]:
+    return [{"code": component.code, "name": component.name} for component in item.components]
+
+
 def _item_to_domain(model: AttendanceExamModel) -> AttendanceExam:
     return AttendanceExam(
         id=model.id,
@@ -41,6 +46,10 @@ def _item_to_domain(model: AttendanceExamModel) -> AttendanceExam:
         exam_code=model.exam_code,
         exam_name=model.exam_name,
         price_base=model.price_base,
+        components=tuple(
+            ExamComponentSnapshot(code=component["code"], name=component["name"])
+            for component in model.components_snapshot
+        ),
         quantity=model.quantity,
         discount_amount=model.discount_amount,
         surcharge_amount=model.surcharge_amount,
@@ -153,6 +162,7 @@ class SqlAlchemyAttendanceRepository:
                         exam_code=item.exam_code,
                         exam_name=item.exam_name,
                         price_base=item.price_base,
+                        components_snapshot=_components_to_json(item),
                         quantity=item.quantity,
                         discount_amount=item.discount_amount,
                         surcharge_amount=item.surcharge_amount,
@@ -219,6 +229,7 @@ class SqlAlchemyAttendanceRepository:
                     exam_code=item.exam_code,
                     exam_name=item.exam_name,
                     price_base=item.price_base,
+                    components_snapshot=_components_to_json(item),
                     quantity=item.quantity,
                     discount_amount=item.discount_amount,
                     surcharge_amount=item.surcharge_amount,

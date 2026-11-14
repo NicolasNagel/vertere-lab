@@ -7,6 +7,7 @@ from app.modules.audit.domain.entities import ActorScope, AuditEntry
 from app.modules.audit.domain.repositories import AuditLogWriter
 from app.modules.catalog.application.dtos import ExamDTO
 from app.modules.catalog.application.mappers import exam_to_dto
+from app.modules.catalog.application.panel_components import ensure_not_in_active_panels
 from app.modules.catalog.domain.repositories import ExamRepository
 from app.shared.application.authorization import ActorContext
 from app.shared.application.clock import Clock
@@ -46,6 +47,7 @@ class DeactivateExamUseCase:
         if exam is None:
             raise NotFoundError("Exame não encontrado.")
 
+        ensure_not_in_active_panels(exams=self._exams, exam=exam)
         before_status = exam.status.value
         exam.deactivate(updated_by=command.actor.id, now=self._clock.now())
         self._exams.save(exam)

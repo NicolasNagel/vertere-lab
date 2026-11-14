@@ -36,6 +36,7 @@ export type AttendanceExamRead = {
   "exam_code": string
   "exam_name": string
   "price_base": string
+  "components": Array<ExamComponentRead>
   "quantity": number
   "discount_amount": string
   "surcharge_amount": string
@@ -329,12 +330,18 @@ export type ExamCategoryUpdateRequest = {
   "expected_row_version": number
 }
 
+export type ExamComponentRead = {
+  "code": string
+  "name": string
+}
+
 export type ExamCreateRequest = {
   "name": string
   "category_id": string
   "price_base": number | string
   "description"?: string | null
   "species_ids": Array<string>
+  "component_exam_ids"?: Array<string>
 }
 
 export type ExamImportResponse = {
@@ -361,6 +368,8 @@ export type ExamRead = {
   "category_id": string
   "description": string | null
   "species_ids": Array<string>
+  "component_exam_ids": Array<string>
+  "is_panel": boolean
   "status": "ACTIVE" | "INACTIVE"
   "created_at": string
   "updated_at": string
@@ -378,6 +387,7 @@ export type ExamUpdateRequest = {
   "price_base": number | string
   "description"?: string | null
   "species_ids": Array<string>
+  "component_exam_ids"?: Array<string>
   "status": "ACTIVE" | "INACTIVE"
   "expected_row_version": number
 }

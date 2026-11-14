@@ -106,6 +106,7 @@ def test_alembic_upgrade_head_runs_on_empty_database(
             "patients",
             "exam_categories",
             "exams",
+            "exam_panel_items",
             "exam_species",
             "attendances",
             "attendance_exams",

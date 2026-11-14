@@ -16,6 +16,7 @@ class AttendanceExamDTO:
     exam_code: str
     exam_name: str
     price_base: Decimal
+    components: tuple[tuple[str, str], ...]
     quantity: int
     discount_amount: Decimal
     surcharge_amount: Decimal

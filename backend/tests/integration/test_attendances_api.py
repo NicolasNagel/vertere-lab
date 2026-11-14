@@ -30,6 +30,7 @@ def _reset_data(session_factory: sessionmaker[Session]) -> None:
         session.execute(text("DELETE FROM attendance_exams"))
         session.execute(text("DELETE FROM attendances"))
         session.execute(text("DELETE FROM attendance_sequences"))
+        session.execute(text("DELETE FROM exam_panel_items"))
         session.execute(text("DELETE FROM exams"))
         session.execute(text("DELETE FROM exam_categories"))
         session.execute(text("DELETE FROM veterinarian_clinics"))
@@ -796,3 +797,71 @@ async def test_status_counts_bills_only_confirmed_attendances_across_the_whole_f
             params={"service_date_from": "2026-02-01", "service_date_to": "2026-01-01"},
         )
     ).status_code == 422
+
+
+async def test_panel_item_freezes_its_composition_on_the_attendance(
+    client: httpx.AsyncClient, session_factory: sessionmaker[Session]
+) -> None:
+    await _login_admin(client, session_factory)
+    attendance_id, hemograma_id = await _create_confirmable_draft(client, session_factory)
+    species_id = _get_species_id(session_factory, name="Canino")
+    category_id = await _create_exam_category(client, f"Perfis {uuid4().hex[:6]}")
+    alt_response = await client.post(
+        "/api/v1/exams",
+        json={
+            "name": "ALT",
+            "category_id": category_id,
+            "price_base": "30.00",
+            "species_ids": [species_id],
+        },
+    )
+    assert alt_response.status_code == 201
+    panel_response = await client.post(
+        "/api/v1/exams",
+        json={
+            "name": "BÁSICO 1",
+            "category_id": category_id,
+            "price_base": "110.00",
+            "species_ids": [species_id],
+            "component_exam_ids": [hemograma_id, alt_response.json()["id"]],
+        },
+    )
+    assert panel_response.status_code == 201
+    panel = panel_response.json()
+
+    # Pacote + exame avulso no mesmo atendimento; o total usa o preço do pacote.
+    confirmed = await client.post(
+        f"/api/v1/attendances/{attendance_id}/confirm",
+        json={
+            "items": [
+                {"exam_id": panel["id"], "quantity": 1},
+                {"exam_id": alt_response.json()["id"], "quantity": 1},
+            ]
+        },
+        headers=_idempotency_header("panel-confirm"),
+    )
+    assert confirmed.status_code == 200, confirmed.text
+    body = confirmed.json()
+    assert Decimal(body["subtotal"]) == Decimal("140.00")
+    by_name = {item["exam_name"]: item for item in body["items"]}
+    assert [c["name"] for c in by_name["BÁSICO 1"]["components"]] == ["Hemograma", "ALT"]
+    assert by_name["ALT"]["components"] == []
+
+    # Editar o pacote depois não reescreve o que o atendimento já continha.
+    edited = await client.patch(
+        f"/api/v1/exams/{panel['id']}",
+        json={
+            "name": "BÁSICO 1",
+            "category_id": category_id,
+            "price_base": "999.00",
+            "species_ids": [species_id],
+            "component_exam_ids": [alt_response.json()["id"]],
+            "status": "ACTIVE",
+            "expected_row_version": panel["row_version"],
+        },
+    )
+    assert edited.status_code == 200
+    reread = await client.get(f"/api/v1/attendances/{attendance_id}")
+    frozen = {item["exam_name"]: item for item in reread.json()["items"]}["BÁSICO 1"]
+    assert [c["name"] for c in frozen["components"]] == ["Hemograma", "ALT"]
+    assert Decimal(frozen["price_base"]) == Decimal("110.00")

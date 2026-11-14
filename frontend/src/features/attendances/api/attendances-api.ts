@@ -32,6 +32,8 @@ export interface AttendanceExamItem {
   examCode: string
   examName: string
   priceBase: string
+  /** Composição congelada quando o item é um pacote; vazio para exame avulso. */
+  components: { code: string; name: string }[]
   quantity: number
   discountAmount: string
   surchargeAmount: string
@@ -148,6 +150,7 @@ interface ApiAttendanceExamItem {
   exam_code: string
   exam_name: string
   price_base: string
+  components: { code: string; name: string }[]
   quantity: number
   discount_amount: string
   surcharge_amount: string
@@ -254,6 +257,7 @@ function fromApiItem(item: ApiAttendanceExamItem): AttendanceExamItem {
     examCode: item.exam_code,
     examName: item.exam_name,
     priceBase: item.price_base,
+    components: item.components,
     quantity: item.quantity,
     discountAmount: item.discount_amount,
     surchargeAmount: item.surcharge_amount,

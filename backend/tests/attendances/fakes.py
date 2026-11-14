@@ -335,6 +335,12 @@ class FakeExamRepository:
     def get_by_code(self, code: str) -> Exam | None:
         raise NotImplementedError
 
+    def get_many_by_ids(self, exam_ids: list[UUID]) -> list[Exam]:
+        return [self._exams[exam_id] for exam_id in exam_ids if exam_id in self._exams]
+
+    def list_active_panels_containing(self, exam_id: UUID) -> list[Exam]:
+        return [e for e in self._exams.values() if exam_id in e.component_ids]
+
     def list_all_names(self) -> dict[str, UUID]:
         return {exam.name.casefold(): exam.id for exam in self._exams.values()}
 

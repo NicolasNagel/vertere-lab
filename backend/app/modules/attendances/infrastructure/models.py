@@ -7,7 +7,8 @@ import uuid
 from datetime import date, datetime
 from decimal import Decimal
 
-from sqlalchemy import CheckConstraint, ForeignKey, UniqueConstraint, func
+from sqlalchemy import CheckConstraint, ForeignKey, UniqueConstraint, func, text
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.shared.infrastructure.database import Base
@@ -121,6 +122,9 @@ class AttendanceExamModel(Base):
     exam_code: Mapped[str] = mapped_column(nullable=False)
     exam_name: Mapped[str] = mapped_column(nullable=False)
     price_base: Mapped[Decimal] = mapped_column(nullable=False)
+    components_snapshot: Mapped[list[dict[str, str]]] = mapped_column(
+        JSONB, nullable=False, default=list, server_default=text("'[]'::jsonb")
+    )
     quantity: Mapped[int] = mapped_column(nullable=False, default=1)
     discount_amount: Mapped[Decimal] = mapped_column(nullable=False, default=Decimal("0"))
     surcharge_amount: Mapped[Decimal] = mapped_column(nullable=False, default=Decimal("0"))
