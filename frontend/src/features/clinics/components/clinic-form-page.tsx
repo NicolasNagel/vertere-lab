@@ -1,3 +1,4 @@
+import { useRef } from 'react'
 import { useNavigate, useParams } from 'react-router'
 
 import { useAuth } from '../../auth/auth-context'
@@ -20,6 +21,9 @@ export function ClinicFormPage() {
   const detailQuery = useClinicQuery(clinicId ?? null)
   const createMutation = useCreateClinicMutation()
   const updateMutation = useUpdateClinicMutation()
+
+  // Impede um segundo envio (duplo clique) antes de o estado de "salvando" chegar à tela.
+  const submittingRef = useRef(false)
 
   const isEditing = clinicId !== undefined
   const title = isEditing ? 'Editar clínica' : 'Nova clínica'
@@ -47,14 +51,27 @@ export function ClinicFormPage() {
         submitting={createMutation.isPending || updateMutation.isPending}
         error={isEditing ? updateMutation.error : createMutation.error}
         onCancel={() => goToList(clinicId)}
-        onSubmitCreate={(values) =>
-          createMutation.mutate(values, { onSuccess: (created) => goToList(created.id) })
-        }
+        onSubmitCreate={(values) => {
+          if (submittingRef.current) return
+          submittingRef.current = true
+          createMutation.mutate(values, {
+            onSuccess: (created) => goToList(created.id),
+            onError: () => {
+              submittingRef.current = false
+            },
+          })
+        }}
         onSubmitUpdate={(values) => {
-          if (!clinicId || !clinic) return
+          if (!clinicId || !clinic || submittingRef.current) return
+          submittingRef.current = true
           updateMutation.mutate(
             { id: clinicId, values: { ...values, expectedRowVersion: clinic.rowVersion } },
-            { onSuccess: () => goToList(clinicId) },
+            {
+              onSuccess: () => goToList(clinicId),
+              onError: () => {
+                submittingRef.current = false
+              },
+            },
           )
         }}
       />

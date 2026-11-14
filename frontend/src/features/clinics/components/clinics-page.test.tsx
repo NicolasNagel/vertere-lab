@@ -164,3 +164,30 @@ test('the form screen creates a clinic and returns to the list with it selected'
   expect(await screen.findByRole('heading', { name: 'Bicho Urbano' })).toBeInTheDocument()
   expect(screen.getByRole('heading', { name: 'Clínicas parceiras' })).toBeInTheDocument()
 })
+
+test('a double click on Salvar sends a single create request', async () => {
+  const user = userEvent.setup()
+  let posts = 0
+  server.use(
+    meHandler(['clinics.read', 'clinics.manage']),
+    clinicsListHandler(),
+    http.post('/api/v1/clinics', () => {
+      posts += 1
+      return HttpResponse.json(apiClinic(), { status: 201 })
+    }),
+    http.get('/api/v1/clinics/c2', () => HttpResponse.json(apiClinic())),
+  )
+  renderWithProviders(
+    <Routes>
+      <Route path="/cadastros/clinicas/nova" element={<ClinicFormPage />} />
+      <Route path="/cadastros/clinicas" element={<ClinicsPage />} />
+    </Routes>,
+    '/cadastros/clinicas/nova',
+  )
+
+  await user.type(await screen.findByLabelText('Nome da clínica'), 'Bicho Urbano')
+  await user.dblClick(screen.getByRole('button', { name: 'Salvar' }))
+
+  expect(await screen.findByRole('heading', { name: 'Bicho Urbano' })).toBeInTheDocument()
+  expect(posts).toBe(1)
+})
