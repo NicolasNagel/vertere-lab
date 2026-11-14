@@ -55,7 +55,7 @@
 }
 
 .attendance-list-table__table tr[data-cancelled] td {
-  color: #8793a1;
+  color: var(--color-text-secondary);
 }
 
 .attendance-list-table__table tr[data-cancelled] .attendance-list-table__value {
