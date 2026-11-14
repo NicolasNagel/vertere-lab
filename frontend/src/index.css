@@ -15,6 +15,34 @@
   --color-border: #e5e2db;
   --color-accent-mist: #9cbfc2;
 
+  /* Fundação do redesign ERP (ADR-012, B0). Tokens aditivos: cada um repete o valor de um hex
+   * hoje espalhado pelos CSS, para a troca ser mecânica e a tela não mudar. A paleta nova
+   * só entra num passo separado, editando estes valores. */
+  --color-surface: #ffffff;
+  --color-surface-subtle: #f4f1ea;
+  --color-surface-muted: #f0ede5;
+  --color-border-strong: #c5ced8;
+  --color-info-bg: #e8f1f1;
+  --color-success: #4f6b3f;
+  --color-success-bg: #e5ebe2;
+  --color-warning: #a06d2c;
+  --color-warning-ink: #a0492c;
+  --color-danger: #b3261e;
+  --color-danger-bg: #fdf1ef;
+
+  /* Espaçamento, raio, sombra e densidade (valores já usados nos CSS). */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 24px;
+  --radius-sm: 2px;
+  --radius-md: 4px;
+  --radius-lg: 10px;
+  --shadow-popover: 0 4px 16px rgba(28, 45, 69, 0.12);
+  --shadow-modal: 0 8px 24px rgba(28, 45, 69, 0.12);
+  --row-height: 44px;
+
   --font-display: 'Big Shoulders Display', system-ui, sans-serif;
   --font-script: 'Cormorant Garamond', Georgia, serif;
   --font-body: 'Manrope', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
