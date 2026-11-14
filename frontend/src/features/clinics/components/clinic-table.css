@@ -178,3 +178,41 @@
   font-size: 0.8125rem;
   color: var(--color-text-secondary);
 }
+
+.clinic-table__actions-head,
+.clinic-table__actions {
+  width: 2.75rem;
+  padding-right: 0.5rem;
+  text-align: right;
+}
+
+.clinic-table__sr {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.clinic-table__edit {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.875rem;
+  height: 1.875rem;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  color: var(--color-text-secondary);
+}
+
+.clinic-table__edit:hover {
+  background: var(--color-info-bg);
+  border-color: #b9cde6;
+  color: var(--color-brand-ink-deep);
+}
+
+.clinic-table__edit:focus-visible {
+  outline: 2px solid var(--color-brand-ink-deep);
+  outline-offset: 1px;
+}

@@ -54,6 +54,7 @@ export function ClinicsPage() {
         <ClinicTable
           clinics={clinics}
           activeCount={activeCount}
+          canManage={canManage}
           selectedId={selectedId}
           search={search}
           status={status}

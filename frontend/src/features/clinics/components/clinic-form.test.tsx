@@ -126,6 +126,7 @@ test('the CEP lookup fills the address, and a miss or provider failure never blo
   )
   let view = renderForm(<ClinicForm clinic={null} submitting={false} onCancel={() => {}} />)
   await user.type(screen.getByLabelText('CEP'), '01310100')
+  expect(screen.getByLabelText('CEP')).toHaveValue('01310-100')
   await waitFor(() => expect(screen.getByLabelText('Rua')).toHaveValue('Avenida Paulista'), {
     timeout: 5_000,
   })

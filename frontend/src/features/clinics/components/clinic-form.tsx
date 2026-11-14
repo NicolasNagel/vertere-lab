@@ -8,8 +8,7 @@ import { Button } from '../../../shared/ui/button'
 import { SelectField } from '../../../shared/ui/select'
 import { TextField } from '../../../shared/ui/text-field'
 import { ApiError } from '../../../shared/api/errors'
-import { formatTaxId } from '../../../shared/lib/formatters'
-import { useDebouncedValue } from '../../../shared/lib/use-debounced-value'
+import { formatCep, formatTaxId } from '../../../shared/lib/formatters'
 import type { Clinic, ClinicFormValues, ClinicStatus } from '../api/clinics-api'
 import './clinic-form.css'
 
@@ -128,8 +127,8 @@ export function ClinicForm({
     defaultValues: toFormFields(clinic),
   })
 
-  const debouncedZipCode = useDebouncedValue(watch('addressZipCode'), 500)
-  const cepLookup = useCepLookupQuery(debouncedZipCode)
+  // A consulta só dispara com 8 dígitos, então não precisa de debounce: busca assim que o CEP fecha.
+  const cepLookup = useCepLookupQuery(watch('addressZipCode'))
 
   useEffect(() => {
     if (!cepLookup.data) return
@@ -228,7 +227,14 @@ export function ClinicForm({
               className="clinic-form__span-2"
               disabled={submitting}
               errorMessage={errors.addressZipCode?.message}
-              {...register('addressZipCode')}
+              inputMode="numeric"
+              maxLength={9}
+              {...register('addressZipCode', {
+                onChange: (event) =>
+                  setValue('addressZipCode', formatCep(event.target.value), {
+                    shouldDirty: true,
+                  }),
+              })}
             />
             <TextField
               id="clinic-street"
@@ -306,7 +312,7 @@ export function ClinicForm({
       </div>
 
       <div className="clinic-form__actions">
-        <Button type="button" variant="ghost" onClick={onCancel} disabled={submitting}>
+        <Button type="button" variant="secondary" onClick={onCancel} disabled={submitting}>
           Cancelar
         </Button>
         <Button type="submit" className="clinic-form__submit" disabled={submitting}>

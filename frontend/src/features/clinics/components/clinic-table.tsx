@@ -1,4 +1,6 @@
-import { SearchIcon } from '../../../shared/ui/icons'
+import { Link } from 'react-router'
+
+import { PencilIcon, SearchIcon } from '../../../shared/ui/icons'
 import { Pagination } from '../../../shared/ui/pagination'
 import { formatTaxId, pluralize } from '../../../shared/lib/formatters'
 import type { Clinic, ClinicStatus } from '../api/clinics-api'
@@ -16,6 +18,7 @@ const STATUS_FILTERS: { value: ClinicStatus | undefined; label: string }[] = [
 interface ClinicTableProps {
   clinics: Clinic[]
   activeCount: number
+  canManage: boolean
   selectedId: string | null
   search: string
   status: ClinicStatus | undefined
@@ -33,6 +36,7 @@ interface ClinicTableProps {
 export function ClinicTable({
   clinics,
   activeCount,
+  canManage,
   selectedId,
   search,
   status,
@@ -90,6 +94,11 @@ export function ClinicTable({
                 Telefone
               </th>
               <th scope="col">Status</th>
+              {canManage && (
+                <th scope="col" className="clinic-table__actions-head">
+                  <span className="clinic-table__sr">Ações</span>
+                </th>
+              )}
             </tr>
           </thead>
           <tbody>
@@ -112,6 +121,18 @@ export function ClinicTable({
                 <td>
                   <ClinicStatusBadge status={clinic.status} />
                 </td>
+                {canManage && (
+                  <td className="clinic-table__actions">
+                    <Link
+                      className="clinic-table__edit"
+                      to={`/cadastros/clinicas/${clinic.id}/editar`}
+                      aria-label={`Editar ${clinic.name}`}
+                      title="Editar clínica"
+                    >
+                      <PencilIcon />
+                    </Link>
+                  </td>
+                )}
               </tr>
             ))}
           </tbody>

@@ -52,22 +52,24 @@
   }
 }
 
+/* Secundário neutro (Cancelar, Editar): fundo branco, borda cinza; no hover ganha fundo suave. */
 .button--secondary {
   display: inline-flex;
   align-items: center;
-  gap: 0.5rem; /* 8px */
+  justify-content: center;
+  gap: 0.5rem;
   width: auto;
   background: var(--color-surface);
-  border: 1px solid var(--color-border);
-  color: var(--color-brand-ink);
-  font-size: 0.75rem; /* 12px */
-  font-weight: 500;
+  border: 1px solid var(--color-border-strong, var(--color-border));
+  color: var(--color-text-primary);
+  font-size: 0.8125rem;
+  font-weight: 600;
   padding: 0.5rem 1rem;
 }
 
 .button--secondary:hover:not(:disabled) {
-  background: var(--color-surface-muted);
-  border-color: var(--color-border-strong);
+  background: var(--color-surface-subtle);
+  border-color: var(--color-text-secondary);
 }
 
 .button--ghost {

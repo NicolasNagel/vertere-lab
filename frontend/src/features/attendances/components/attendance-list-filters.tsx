@@ -1,7 +1,7 @@
 import { useState } from 'react'
 
 import { SelectField, type SelectOption } from '../../../shared/ui/select'
-import { CalendarIcon } from '../../../shared/ui/icons'
+import { CalendarIcon, ClinicsIcon, CloseIcon, TagIcon } from '../../../shared/ui/icons'
 import { SERVICE_LEVEL_LABELS, type ServiceLevel } from '../api/attendances-api'
 import './attendance-list-filters.css'
 
@@ -12,7 +12,20 @@ const SERVICE_LEVEL_FILTER_OPTIONS: SelectOption[] = [
   { value: 'PLANTAO_ESPECIAL', label: `Tipo: ${SERVICE_LEVEL_LABELS.PLANTAO_ESPECIAL}` },
 ]
 
-const PERIOD_MONTH_LABELS = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez']
+const PERIOD_MONTH_LABELS = [
+  'Jan',
+  'Fev',
+  'Mar',
+  'Abr',
+  'Mai',
+  'Jun',
+  'Jul',
+  'Ago',
+  'Set',
+  'Out',
+  'Nov',
+  'Dez',
+]
 const currentMonth = new Date()
 const currentMonthIndex = currentMonth.getFullYear() * 12 + currentMonth.getMonth()
 const PERIOD_OPTIONS: SelectOption[] = Array.from({ length: 36 }, (_, index) => {
@@ -60,8 +73,16 @@ export function AttendanceListFilters({
     onServiceDateToChange(`${period}-${String(lastDay).padStart(2, '0')}`)
   }
 
+  const hasActiveFilters = selectedPeriod !== '' || clinicId !== '' || serviceLevel !== ''
+
+  function handleClear() {
+    handlePeriodChange('')
+    onClinicChange('')
+    onServiceLevelChange('')
+  }
+
   return (
-    <div className="attendance-list-filters">
+    <div className="attendance-list-filters" role="group" aria-label="Filtros">
       <SelectField
         label="Competência"
         id="attendance-list-period"
@@ -75,7 +96,8 @@ export function AttendanceListFilters({
       <SelectField
         label="Clínica"
         id="attendance-list-clinic"
-        className="attendance-list-filters__field"
+        className="attendance-list-filters__field attendance-list-filters__field--wide"
+        leadingIcon={<ClinicsIcon />}
         options={[{ value: '', label: 'Clínica: Todas' }, ...clinicOptions]}
         value={clinicId}
         disabled={disabled}
@@ -85,11 +107,17 @@ export function AttendanceListFilters({
         label="Tipo"
         id="attendance-list-service-level"
         className="attendance-list-filters__field"
+        leadingIcon={<TagIcon />}
         options={SERVICE_LEVEL_FILTER_OPTIONS}
         value={serviceLevel}
         disabled={disabled}
         onChange={(event) => onServiceLevelChange(event.target.value as ServiceLevel | '')}
       />
+      {hasActiveFilters && (
+        <button type="button" className="attendance-list-filters__clear" onClick={handleClear}>
+          <CloseIcon /> Limpar filtros
+        </button>
+      )}
     </div>
   )
 }

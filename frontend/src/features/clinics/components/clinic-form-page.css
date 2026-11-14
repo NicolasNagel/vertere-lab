@@ -19,3 +19,18 @@
     margin: 0.75rem 0.75rem 0;
   }
 }
+
+.clinic-form-page__conflict {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  margin-bottom: 0.75rem;
+  padding: 0.625rem 0.875rem;
+  font-size: 0.8125rem;
+  color: var(--color-warning);
+  background: #fdf6e6;
+  border: 1px solid #f0d9a8;
+  border-radius: var(--radius-md);
+}

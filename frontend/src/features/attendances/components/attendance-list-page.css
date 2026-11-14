@@ -53,17 +53,12 @@
   box-shadow: 0 1px 2px rgb(20 35 55 / 4%);
 }
 
+/* Abas de status em cima, filtros numa linha própria logo abaixo: cada um com espaço para respirar. */
 .attendance-list-page__filter-row {
-  padding: 0.625rem 0.875rem;
+  display: grid;
+  gap: 0.625rem;
+  padding: 0.625rem 0.875rem 0.75rem;
   border-bottom: 1px solid var(--color-border);
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-  flex-wrap: wrap;
-}
-
-.attendance-list-page__filter-row .attendance-list-filters {
-  margin-left: auto;
 }
 
 .attendance-list-page__body {

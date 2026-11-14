@@ -1,6 +1,9 @@
 import { useRef } from 'react'
 import { useNavigate, useParams } from 'react-router'
 
+import { ApiError } from '../../../shared/api/errors'
+import { Button } from '../../../shared/ui/button'
+
 import { useAuth } from '../../auth/auth-context'
 import { PageHeader } from '../../../shared/ui/page-header'
 import { useClinicQuery } from '../api/use-clinic-query'
@@ -45,36 +48,57 @@ export function ClinicFormPage() {
       return <p className="clinic-form-page__notice">Clínica não encontrada.</p>
     }
     const clinic = detailQuery.data ?? null
+    const isConflict =
+      updateMutation.error instanceof ApiError && updateMutation.error.status === 409
     return (
-      <ClinicForm
-        clinic={isEditing ? clinic : null}
-        submitting={createMutation.isPending || updateMutation.isPending}
-        error={isEditing ? updateMutation.error : createMutation.error}
-        onCancel={() => goToList(clinicId)}
-        onSubmitCreate={(values) => {
-          if (submittingRef.current) return
-          submittingRef.current = true
-          createMutation.mutate(values, {
-            onSuccess: (created) => goToList(created.id),
-            onError: () => {
-              submittingRef.current = false
-            },
-          })
-        }}
-        onSubmitUpdate={(values) => {
-          if (!clinicId || !clinic || submittingRef.current) return
-          submittingRef.current = true
-          updateMutation.mutate(
-            { id: clinicId, values: { ...values, expectedRowVersion: clinic.rowVersion } },
-            {
-              onSuccess: () => goToList(clinicId),
+      <>
+        {isEditing && isConflict && (
+          <div className="clinic-form-page__conflict" role="status">
+            <span>Os dados desta clínica mudaram desde que você abriu a tela.</span>
+            <Button
+              type="button"
+              variant="secondary"
+              onClick={() => {
+                updateMutation.reset()
+                submittingRef.current = false
+                void detailQuery.refetch()
+              }}
+            >
+              Recarregar dados
+            </Button>
+          </div>
+        )}
+        <ClinicForm
+          key={clinic?.rowVersion ?? 'new'}
+          clinic={isEditing ? clinic : null}
+          submitting={createMutation.isPending || updateMutation.isPending}
+          error={isEditing ? updateMutation.error : createMutation.error}
+          onCancel={() => goToList(clinicId)}
+          onSubmitCreate={(values) => {
+            if (submittingRef.current) return
+            submittingRef.current = true
+            createMutation.mutate(values, {
+              onSuccess: (created) => goToList(created.id),
               onError: () => {
                 submittingRef.current = false
               },
-            },
-          )
-        }}
-      />
+            })
+          }}
+          onSubmitUpdate={(values) => {
+            if (!clinicId || !clinic || submittingRef.current) return
+            submittingRef.current = true
+            updateMutation.mutate(
+              { id: clinicId, values: { ...values, expectedRowVersion: clinic.rowVersion } },
+              {
+                onSuccess: () => goToList(clinicId),
+                onError: () => {
+                  submittingRef.current = false
+                },
+              },
+            )
+          }}
+        />
+      </>
     )
   }
 
