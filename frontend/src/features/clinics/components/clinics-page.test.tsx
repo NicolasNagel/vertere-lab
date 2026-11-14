@@ -18,7 +18,13 @@ afterAll(() => server.close())
 function meHandler(permissions: string[]) {
   return http.get('/api/v1/auth/me', () =>
     HttpResponse.json({
-      user: { id: 'u1', email: 'a@b.com', full_name: 'A', role_id: 'r1', role_name: 'LAB_ADMIN' },
+      user: {
+        id: 'u1',
+        email: 'a@b.com',
+        full_name: 'A',
+        role_id: 'r1',
+        role_name: 'LAB_ADMIN',
+      },
       permissions,
     }),
   )
@@ -56,7 +62,9 @@ function clinicsListHandler() {
 }
 
 function renderWithProviders(children: ReactNode) {
-  const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+  const queryClient = new QueryClient({
+    defaultOptions: { queries: { retry: false } },
+  })
   return render(
     <QueryClientProvider client={queryClient}>
       <AuthProvider>{children}</AuthProvider>
@@ -64,94 +72,47 @@ function renderWithProviders(children: ReactNode) {
   )
 }
 
-test('lists clinics returned by the API', async () => {
+function apiClinic(overrides: Record<string, unknown> = {}) {
+  return {
+    id: 'c2',
+    name: 'Bicho Urbano',
+    tax_id: null,
+    phone: null,
+    email: null,
+    status: 'ACTIVE',
+    address_zip_code: null,
+    address_street: null,
+    address_number: null,
+    address_neighborhood: null,
+    address_city: null,
+    address_state: null,
+    address_complement: null,
+    notes: null,
+    created_at: '2026-01-01T00:00:00Z',
+    updated_at: '2026-01-01T00:00:00Z',
+    row_version: 1,
+    ...overrides,
+  }
+}
+
+test('lists clinics with the masked CNPJ and singular count, without "Nova clínica" for read-only users', async () => {
   server.use(meHandler(['clinics.read']), clinicsListHandler())
   renderWithProviders(<ClinicsPage />)
 
   expect(await screen.findByText('Schweitzer')).toBeInTheDocument()
-})
-
-test('formats the CNPJ with the standard mask instead of raw digits', async () => {
-  server.use(meHandler(['clinics.read']), clinicsListHandler())
-  renderWithProviders(<ClinicsPage />)
-
-  expect(await screen.findByText('78.977.352/0001-99')).toBeInTheDocument()
+  expect(screen.getByText('78.977.352/0001-99')).toBeInTheDocument()
   expect(screen.queryByText('78977352000199')).not.toBeInTheDocument()
-})
-
-test('uses the singular form when there is exactly one active clinic', async () => {
-  server.use(meHandler(['clinics.read']), clinicsListHandler())
-  renderWithProviders(<ClinicsPage />)
-
-  await screen.findByText('Schweitzer')
   expect(screen.getByText('1 ativa')).toBeInTheDocument()
-})
-
-test('hides the "Nova clínica" action for a user without clinics.manage', async () => {
-  server.use(meHandler(['clinics.read']), clinicsListHandler())
-  renderWithProviders(<ClinicsPage />)
-
-  await screen.findByText('Schweitzer')
   expect(screen.queryByRole('button', { name: /Nova clínica/i })).not.toBeInTheDocument()
 })
 
-test('shows the "Nova clínica" action for a user with clinics.manage', async () => {
-  server.use(meHandler(['clinics.read', 'clinics.manage']), clinicsListHandler())
-  renderWithProviders(<ClinicsPage />)
-
-  expect(await screen.findByRole('button', { name: /Nova clínica/i })).toBeInTheDocument()
-})
-
-test('creates a clinic and returns to the detail view', async () => {
+test('with clinics.manage, creates a clinic and returns to the detail view', async () => {
   const user = userEvent.setup()
   server.use(
     meHandler(['clinics.read', 'clinics.manage']),
     clinicsListHandler(),
-    http.post('/api/v1/clinics', () =>
-      HttpResponse.json(
-        {
-          id: 'c2',
-          name: 'Bicho Urbano',
-          tax_id: null,
-          phone: null,
-          email: null,
-          status: 'ACTIVE',
-          address_zip_code: null,
-          address_street: null,
-          address_number: null,
-          address_neighborhood: null,
-          address_city: null,
-          address_state: null,
-          address_complement: null,
-          notes: null,
-          created_at: '2026-01-01T00:00:00Z',
-          updated_at: '2026-01-01T00:00:00Z',
-          row_version: 1,
-        },
-        { status: 201 },
-      ),
-    ),
-    http.get('/api/v1/clinics/c2', () =>
-      HttpResponse.json({
-        id: 'c2',
-        name: 'Bicho Urbano',
-        tax_id: null,
-        phone: null,
-        email: null,
-        status: 'ACTIVE',
-        address_zip_code: null,
-        address_street: null,
-        address_number: null,
-        address_neighborhood: null,
-        address_city: null,
-        address_state: null,
-        address_complement: null,
-        notes: null,
-        created_at: '2026-01-01T00:00:00Z',
-        updated_at: '2026-01-01T00:00:00Z',
-        row_version: 1,
-      }),
-    ),
+    http.post('/api/v1/clinics', () => HttpResponse.json(apiClinic(), { status: 201 })),
+    http.get('/api/v1/clinics/c2', () => HttpResponse.json(apiClinic())),
   )
   renderWithProviders(<ClinicsPage />)
 

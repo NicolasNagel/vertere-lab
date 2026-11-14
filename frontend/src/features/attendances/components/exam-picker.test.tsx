@@ -34,55 +34,48 @@ function exam(name: string, code: string) {
 function renderPicker({ disabled = false }: { disabled?: boolean } = {}) {
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   const onSelect = vi.fn()
-  render(
+  const view = render(
     <QueryClientProvider client={queryClient}>
       <ExamPicker disabled={disabled} excludeExamIds={[]} onSelect={onSelect} />
     </QueryClientProvider>,
   )
-  return onSelect
+  return { onSelect, view }
 }
 
-test('loads active exams before the user types', async () => {
+test('loads active exams before typing, selects one and searches by the typed name after debounce', async () => {
   server.use(
     http.get('/api/v1/exams', ({ request }) => {
       const query = new URL(request.url).searchParams
-      expect(query.get('status')).toBe('ACTIVE')
-      expect(query.has('search')).toBe(false)
+      const search = query.get('search')
+      if (!search) {
+        expect(query.get('status')).toBe('ACTIVE')
+        return HttpResponse.json({
+          items: [exam('Hemograma', 'A1B2C3D4')],
+          total: 1,
+          page: 1,
+          page_size: 10,
+        })
+      }
       return HttpResponse.json({
-        items: [exam('Hemograma', 'A1B2C3D4')],
+        items: [exam('Urinálise', 'U1R2I3N4')],
         total: 1,
         page: 1,
         page_size: 10,
       })
     }),
   )
-  const onSelect = renderPicker()
+  const { onSelect, view } = renderPicker()
 
   await userEvent.click(await screen.findByRole('option', { name: /Hemograma/ }))
-
   expect(onSelect).toHaveBeenCalledWith(expect.objectContaining({ code: 'A1B2C3D4' }))
-})
+  view.unmount()
 
-test('searches by the typed name after debounce', async () => {
-  server.use(
-    http.get('/api/v1/exams', ({ request }) => {
-      const search = new URL(request.url).searchParams.get('search')
-      return HttpResponse.json({
-        items: search ? [exam('Urinálise', 'U1R2I3N4')] : [],
-        total: search ? 1 : 0,
-        page: 1,
-        page_size: 10,
-      })
-    }),
-  )
   renderPicker()
-
   await userEvent.type(screen.getByLabelText('Adicionar exame'), 'urina')
-
   expect(await screen.findByText('Urinálise')).toBeInTheDocument()
 })
 
-test('offers a retry when loading exams fails', async () => {
+test('offers a retry when loading fails and blocks selection while disabled', async () => {
   let attempts = 0
   server.use(
     http.get('/api/v1/exams', () => {
@@ -96,28 +89,14 @@ test('offers a retry when loading exams fails', async () => {
       })
     }),
   )
-  renderPicker()
+  const { view } = renderPicker()
 
   await userEvent.click(await screen.findByRole('button', { name: 'Tentar novamente' }))
-
   expect(await screen.findByText('Hemograma')).toBeInTheDocument()
-})
+  view.unmount()
 
-test('prevents selecting a loaded exam while disabled', async () => {
-  server.use(
-    http.get('/api/v1/exams', () =>
-      HttpResponse.json({
-        items: [exam('Hemograma', 'A1B2C3D4')],
-        total: 1,
-        page: 1,
-        page_size: 10,
-      }),
-    ),
-  )
-  const onSelect = renderPicker({ disabled: true })
-
+  const { onSelect } = renderPicker({ disabled: true })
   const option = await screen.findByRole('option', { name: /Hemograma/ })
-
   expect(option).toBeDisabled()
   await userEvent.click(option)
   expect(onSelect).not.toHaveBeenCalled()

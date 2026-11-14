@@ -22,5 +22,7 @@ export default defineConfig({
     environment: 'jsdom',
     include: ['src/**/*.test.{ts,tsx}'],
     setupFiles: ['./src/test/setup.ts'],
+    // Testes de cenário encadeiam várias fases (render, interação, reinício); 5 s é pouco sob carga.
+    testTimeout: 20_000,
   },
 })

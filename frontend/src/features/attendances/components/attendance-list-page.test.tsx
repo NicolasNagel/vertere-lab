@@ -64,7 +64,9 @@ function veterinariansHandler() {
 
 function speciesHandler() {
   return http.get('/api/v1/species', () =>
-    HttpResponse.json({ items: [{ id: 's1', name: 'Canino', created_at: '2026-01-01T00:00:00Z' }] }),
+    HttpResponse.json({
+      items: [{ id: 's1', name: 'Canino', created_at: '2026-01-01T00:00:00Z' }],
+    }),
   )
 }
 
@@ -146,6 +148,7 @@ function statusCountsHandler(byStatus: Record<string, number> = { CONFIRMED: 1, 
     HttpResponse.json({
       total: Object.values(byStatus).reduce((sum, count) => sum + count, 0),
       by_status: byStatus,
+      billed_total: '0.00',
     }),
   )
 }
@@ -161,20 +164,28 @@ function renderWithProviders(children: ReactNode) {
   )
 }
 
-test('lists attendances with resolved clinic/veterinarian/patient names', async () => {
+test('lists attendances with resolved names, shows drafts without protocol or total and gates by permission', async () => {
+  const lookups = [clinicsHandler(), veterinariansHandler(), speciesHandler(), patientsHandler()]
+
+  // Sem attendances.read.
+  server.use(meHandler([]), ...lookups)
+  let view = renderWithProviders(<AttendanceListPage />)
+  expect(
+    await screen.findByText('Você não tem permissão para visualizar atendimentos.'),
+  ).toBeInTheDocument()
+  view.unmount()
+  server.resetHandlers()
+
+  // Confirmado: nomes resolvidos de clínica, veterinário e paciente.
   server.use(
     meHandler(['attendances.read']),
-    clinicsHandler(),
-    veterinariansHandler(),
-    speciesHandler(),
-    patientsHandler(),
+    ...lookups,
     statusCountsHandler(),
     attendancesHandler([
       attendanceItem({ service_date: '2026-07-05', created_at: '2026-08-01T10:00:00Z' }),
     ]),
   )
-  renderWithProviders(<AttendanceListPage />)
-
+  view = renderWithProviders(<AttendanceListPage />)
   expect(await screen.findByText('P000001/26')).toBeInTheDocument()
   expect(screen.getByText('Data · Hora')).toBeInTheDocument()
   expect(screen.getByText(/05\/07 · \d{2}:00/)).toBeInTheDocument()
@@ -188,59 +199,24 @@ test('lists attendances with resolved clinic/veterinarian/patient names', async 
   expect(dataRow.getByText(/4 anos/)).toBeInTheDocument()
   expect(dataRow.getByText('Hemograma')).toBeInTheDocument()
   expect(dataRow.getByText('R$ 100,00')).toBeInTheDocument()
-})
+  view.unmount()
+  server.resetHandlers()
 
-test('shows a permission-denied message for a user without attendances.read', async () => {
-  server.use(meHandler([]), clinicsHandler(), veterinariansHandler(), speciesHandler(), patientsHandler())
-  renderWithProviders(<AttendanceListPage />)
-
-  expect(
-    await screen.findByText('Você não tem permissão para visualizar atendimentos.'),
-  ).toBeInTheDocument()
-})
-
-test('shows the empty state when there are no attendances for the filters', async () => {
+  // Rascunho: sem protocolo nem total.
   server.use(
     meHandler(['attendances.read']),
-    clinicsHandler(),
-    veterinariansHandler(),
-    speciesHandler(),
-    patientsHandler(),
-    statusCountsHandler(),
-    attendancesHandler([]),
-  )
-  renderWithProviders(<AttendanceListPage />)
-
-  expect(
-    await screen.findByText('Nenhum atendimento encontrado para os filtros selecionados.'),
-  ).toBeInTheDocument()
-})
-
-test('shows a draft attendance without a protocol number or total', async () => {
-  server.use(
-    meHandler(['attendances.read']),
-    clinicsHandler(),
-    veterinariansHandler(),
-    speciesHandler(),
-    patientsHandler(),
+    ...lookups,
     statusCountsHandler(),
     attendancesHandler([
-      attendanceItem({
-        status: 'DRAFT',
-        items: [],
-        protocol_number: null,
-        grand_total: '0.00',
-      }),
+      attendanceItem({ status: 'DRAFT', items: [], protocol_number: null, grand_total: '0.00' }),
     ]),
   )
   renderWithProviders(<AttendanceListPage />)
-
-  const dashes = await screen.findAllByText('—')
-  expect(dashes.length).toBeGreaterThan(0)
+  expect((await screen.findAllByText('—')).length).toBeGreaterThan(0)
   expect(screen.getAllByText('Rascunho').length).toBeGreaterThan(1) // filtro + linha/status
 })
 
-test('re-filters by status and resets to page 1', async () => {
+test('re-filtering by status resets to page 1 and shows the empty state when nothing matches', async () => {
   const user = userEvent.setup()
   server.use(
     meHandler(['attendances.read']),
@@ -250,8 +226,7 @@ test('re-filters by status and resets to page 1', async () => {
     patientsHandler(),
     statusCountsHandler(),
     http.get('/api/v1/attendances', ({ request }) => {
-      const url = new URL(request.url)
-      const status = url.searchParams.get('status')
+      const status = new URL(request.url).searchParams.get('status')
       const items = status === 'CANCELLED' ? [] : [attendanceItem()]
       return HttpResponse.json({ items, total: items.length, page: 1, page_size: 20 })
     }),
@@ -259,7 +234,6 @@ test('re-filters by status and resets to page 1', async () => {
   renderWithProviders(<AttendanceListPage />)
 
   expect(await screen.findByText('P000001/26')).toBeInTheDocument()
-
   await user.click(screen.getByRole('tab', { name: /Cancelado/ }))
 
   await waitFor(() =>
@@ -267,4 +241,40 @@ test('re-filters by status and resets to page 1', async () => {
       screen.getByText('Nenhum atendimento encontrado para os filtros selecionados.'),
     ).toBeInTheDocument(),
   )
+})
+
+test('debounces the protocol search and warns when a name lookup fails', async () => {
+  const user = userEvent.setup()
+  const searches: (string | null)[] = []
+  server.use(
+    meHandler(['attendances.read']),
+    clinicsHandler(),
+    veterinariansHandler(),
+    speciesHandler(),
+    statusCountsHandler(),
+    http.get('/api/v1/patients', () => HttpResponse.json({}, { status: 500 })),
+    http.get('/api/v1/attendances', ({ request }) => {
+      searches.push(new URL(request.url).searchParams.get('protocol_number'))
+      return HttpResponse.json({
+        items: [attendanceItem()],
+        total: 1,
+        page: 1,
+        page_size: 20,
+      })
+    }),
+  )
+  renderWithProviders(<AttendanceListPage />)
+
+  // Falha ao carregar pacientes não some em silêncio: a lista segue e avisa.
+  expect(await screen.findByText('P000001/26')).toBeInTheDocument()
+  expect(
+    await screen.findByText(
+      /Não foi possível carregar nomes de clínicas, veterinários ou pacientes/,
+    ),
+  ).toBeInTheDocument()
+
+  // Uma digitação rápida gera uma única busca com o texto final, não uma por tecla.
+  await user.type(screen.getByPlaceholderText('Buscar protocolo...'), 'P0000')
+  await waitFor(() => expect(searches.at(-1)).toBe('P0000'))
+  expect(searches.filter((value) => value !== null)).toEqual(['P0000'])
 })

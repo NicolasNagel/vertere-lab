@@ -35,8 +35,22 @@ function clinicsListHandler() {
   return http.get('/api/v1/clinics', () =>
     HttpResponse.json({
       items: [
-        { id: 'clinic-a', name: 'Schweitzer', status: 'ACTIVE', created_at: '2026-01-01T00:00:00Z', updated_at: '2026-01-01T00:00:00Z', row_version: 1 },
-        { id: 'clinic-b', name: 'VetCenter', status: 'ACTIVE', created_at: '2026-01-01T00:00:00Z', updated_at: '2026-01-01T00:00:00Z', row_version: 1 },
+        {
+          id: 'clinic-a',
+          name: 'Schweitzer',
+          status: 'ACTIVE',
+          created_at: '2026-01-01T00:00:00Z',
+          updated_at: '2026-01-01T00:00:00Z',
+          row_version: 1,
+        },
+        {
+          id: 'clinic-b',
+          name: 'VetCenter',
+          status: 'ACTIVE',
+          created_at: '2026-01-01T00:00:00Z',
+          updated_at: '2026-01-01T00:00:00Z',
+          row_version: 1,
+        },
       ],
       total: 2,
       page: 1,
@@ -73,7 +87,13 @@ function clinicDetailHandler() {
 function byPeriodNotFoundHandler() {
   return http.get('/api/v1/closures/by-period', () =>
     HttpResponse.json(
-      { error: { code: 'NOT_FOUND', message: 'Nenhum fechamento encontrado.', details: [] } },
+      {
+        error: {
+          code: 'NOT_FOUND',
+          message: 'Nenhum fechamento encontrado.',
+          details: [],
+        },
+      },
       { status: 404 },
     ),
   )
@@ -168,7 +188,9 @@ function closureResponseBody(overrides: Record<string, unknown> = {}) {
 }
 
 function renderWithProviders(children: ReactNode, initialEntry = '/financeiro/fechamento') {
-  const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+  const queryClient = new QueryClient({
+    defaultOptions: { queries: { retry: false } },
+  })
   return render(
     <QueryClientProvider client={queryClient}>
       <AuthProvider>
@@ -178,120 +200,163 @@ function renderWithProviders(children: ReactNode, initialEntry = '/financeiro/fe
   )
 }
 
-test('hides the page for a user without closures.read or closures.preview', async () => {
-  server.use(meHandler(['clinics.read']), clinicsListHandler())
-  renderWithProviders(<ClosurePage />)
+// Cada fase reinicia a árvore e os handlers do MSW para não herdar resposta da anterior.
+function restart(view: ReturnType<typeof renderWithProviders>) {
+  view.unmount()
+  server.resetHandlers()
+}
 
+const periodUrl =
+  '/financeiro/fechamento?clinicId=clinic-a&periodStart=2026-01-01&periodEnd=2026-01-31'
+
+const historyRow = {
+  id: 'closure-1',
+  clinic_id: 'clinic-a',
+  competence_year: 2026,
+  competence_month: 1,
+  period_start: '2026-01-01',
+  period_end: '2026-01-31',
+  status: 'CLOSED',
+  item_count: 1,
+  grand_total: '100.00',
+  closed_by: 'u1',
+  closed_at: '2026-01-15T12:00:00Z',
+  version: 1,
+}
+
+function historyHandler() {
+  return http.get('/api/v1/closures', () =>
+    HttpResponse.json({
+      items: [historyRow],
+      total: 1,
+      page: 1,
+      page_size: 20,
+    }),
+  )
+}
+
+test('gates the page by permission, then shows the history and navigates into a closure', async () => {
+  const user = userEvent.setup()
+
+  // Sem closures.read nem closures.preview.
+  server.use(meHandler(['clinics.read']), clinicsListHandler())
+  let view = renderWithProviders(<ClosurePage />)
   expect(
     await screen.findByText('Você não tem permissão para visualizar fechamentos.'),
   ).toBeInTheDocument()
-})
+  restart(view)
 
-test('shows a plain hint before a clinic is selected for a user without closures.read', async () => {
+  // Só closures.preview: dica simples antes de escolher a clínica.
   server.use(meHandler(['closures.preview']), clinicsListHandler())
-  renderWithProviders(<ClosurePage />)
-
+  view = renderWithProviders(<ClosurePage />)
   expect(
     await screen.findByText('Selecione uma clínica para gerar a prévia do período.'),
   ).toBeInTheDocument()
-})
+  restart(view)
 
-test('shows the closures history instead of a hint when the user has closures.read', async () => {
+  // closures.read com falha ao carregar o histórico: mensagem de erro, não tela vazia.
   server.use(
     meHandler(['closures.read']),
     clinicsListHandler(),
-    http.get('/api/v1/closures', () =>
-      HttpResponse.json({
-        items: [
-          {
-            id: 'closure-1',
-            clinic_id: 'clinic-a',
-            competence_year: 2026,
-            competence_month: 1,
-            period_start: '2026-01-01',
-            period_end: '2026-01-31',
-            status: 'CLOSED',
-            item_count: 1,
-            grand_total: '100.00',
-            closed_by: 'u1',
-            closed_at: '2026-01-15T12:00:00Z',
-            version: 1,
-          },
-        ],
-        total: 1,
-        page: 1,
-        page_size: 20,
-      }),
-    ),
+    http.get('/api/v1/closures', () => HttpResponse.json({}, { status: 500 })),
   )
-  renderWithProviders(<ClosurePage />)
-
+  view = renderWithProviders(<ClosurePage />)
   expect(
-    screen.queryByText('Selecione uma clínica para gerar a prévia do período.'),
-  ).not.toBeInTheDocument()
-  expect(await screen.findByText('01 de jan. de 2026 – 31 de jan. de 2026')).toBeInTheDocument()
-})
+    await screen.findByText('Não foi possível carregar os fechamentos. Tente novamente.'),
+  ).toBeInTheDocument()
+  restart(view)
 
-test('clicking a row in the closures history navigates into its detail', async () => {
-  const user = userEvent.setup()
+  // closures.read: histórico no lugar da dica; clicar numa linha abre o detalhe.
   server.use(
     meHandler(['closures.read', 'closures.preview']),
     clinicsListHandler(),
     clinicDetailHandler(),
-    http.get('/api/v1/closures', () =>
-      HttpResponse.json({
-        items: [
-          {
-            id: 'closure-1',
-            clinic_id: 'clinic-a',
-            competence_year: 2026,
-            competence_month: 1,
-            period_start: '2026-01-01',
-            period_end: '2026-01-31',
-            status: 'CLOSED',
-            item_count: 1,
-            grand_total: '100.00',
-            closed_by: 'u1',
-            closed_at: '2026-01-15T12:00:00Z',
-            version: 1,
-          },
-        ],
-        total: 1,
-        page: 1,
-        page_size: 20,
-      }),
-    ),
+    historyHandler(),
     http.get('/api/v1/closures/by-period', () => HttpResponse.json(closureResponseBody())),
   )
   renderWithProviders(<ClosurePage />)
-
+  expect(
+    screen.queryByText('Selecione uma clínica para gerar a prévia do período.'),
+  ).not.toBeInTheDocument()
   await user.click(await screen.findByText('01 de jan. de 2026 – 31 de jan. de 2026'))
-
   expect(await screen.findByText('Fechado')).toBeInTheDocument()
 })
 
-test('shows the prévia when the user only has closures.preview', async () => {
+test('the prévia shows eligible and blocked items, the demonstrativo, grouping by protocol and never leaks the previous clinic', async () => {
   const user = userEvent.setup()
+  const twoItemsOfOneAttendance = [
+    {
+      attendance_id: 'att-1',
+      attendance_exam_id: 'exam-1',
+      protocol_number: 'P000001/26',
+      patient_name: 'Rex',
+      exam_name: 'Hemograma',
+      service_level: 'NORMAL',
+      exam_category: 'Hematológico',
+      total_amount: '75.00',
+    },
+    {
+      attendance_id: 'att-1',
+      attendance_exam_id: 'exam-2',
+      protocol_number: 'P000001/26',
+      patient_name: 'Rex',
+      exam_name: 'Bioquímico renal',
+      service_level: 'NORMAL',
+      exam_category: 'Bioquímico',
+      total_amount: '120.00',
+    },
+  ]
   server.use(
     meHandler(['closures.preview']),
     clinicsListHandler(),
     clinicDetailHandler(),
-    http.get('/api/v1/closures/preview', async () => {
+    http.get('/api/v1/closures/preview', async ({ request }) => {
+      const clinicId = new URL(request.url).searchParams.get('clinic_id')
       await delay(50)
-      return HttpResponse.json(previewResponseBody())
+      return HttpResponse.json(
+        previewResponseBody({
+          clinic_id: clinicId,
+          eligible_items: clinicId === 'clinic-a' ? previewResponseBody().eligible_items : [],
+          blocked_items: clinicId === 'clinic-a' ? previewResponseBody().blocked_items : [],
+        }),
+      )
     }),
   )
-  renderWithProviders(<ClosurePage />)
+  const view = renderWithProviders(<ClosurePage />)
 
+  // Carregando, elegíveis, bloqueados com motivo, demonstrativo e sem botão de fechar.
   await user.selectOptions(await screen.findByLabelText('Clínica'), 'clinic-a')
-
   expect(await screen.findByText('Carregando prévia…')).toBeInTheDocument()
   expect(await screen.findByText('Rex')).toBeInTheDocument()
   expect(screen.getByText('Mia')).toBeInTheDocument()
   expect(screen.getByText('Item de exame cancelado.')).toBeInTheDocument()
+  expect(await screen.findByText('78.977.352/0001-99')).toBeInTheDocument()
+  expect(screen.getByText('Hematológico · 1')).toBeInTheDocument()
+  expect(screen.queryByRole('button', { name: 'Fechar período' })).not.toBeInTheDocument()
+
+  // Trocar de clínica não deixa os dados da anterior na tela durante o carregamento.
+  await user.selectOptions(screen.getByLabelText('Clínica'), 'clinic-b')
+  await waitFor(() => expect(screen.queryByText('Rex')).not.toBeInTheDocument())
+  restart(view)
+
+  // "Por protocolo" agrupa os itens elegíveis por atendimento.
+  server.use(
+    meHandler(['closures.preview']),
+    clinicsListHandler(),
+    clinicDetailHandler(),
+    http.get('/api/v1/closures/preview', () =>
+      HttpResponse.json(previewResponseBody({ eligible_items: twoItemsOfOneAttendance })),
+    ),
+  )
+  renderWithProviders(<ClosurePage />)
+  await user.selectOptions(await screen.findByLabelText('Clínica'), 'clinic-a')
+  await screen.findByText('Hemograma')
+  await user.click(screen.getByRole('button', { name: 'Por protocolo' }))
+  expect(await screen.findByText('Hemograma, Bioquímico renal')).toBeInTheDocument()
+  expect(screen.getByText('R$ 195,00')).toBeInTheDocument()
 })
 
-test('shows the empty state when there is nothing in the period', async () => {
+test('the prévia shows an empty state and a dedicated message on 403', async () => {
   const user = userEvent.setup()
   server.use(
     meHandler(['closures.preview']),
@@ -310,114 +375,99 @@ test('shows the empty state when there is nothing in the period', async () => {
       ),
     ),
   )
-  renderWithProviders(<ClosurePage />)
-
+  const view = renderWithProviders(<ClosurePage />)
   await user.selectOptions(await screen.findByLabelText('Clínica'), 'clinic-a')
-
   expect(
     await screen.findByText('Nenhum atendimento encontrado para esta clínica e período.'),
   ).toBeInTheDocument()
-})
+  restart(view)
 
-test('shows a dedicated message on a 403 instead of crashing', async () => {
-  const user = userEvent.setup()
   server.use(
     meHandler(['closures.preview']),
     clinicsListHandler(),
     clinicDetailHandler(),
     http.get('/api/v1/closures/preview', () =>
       HttpResponse.json(
-        { error: { code: 'FORBIDDEN', message: 'Permissão ausente: closures.preview', details: [] } },
+        {
+          error: {
+            code: 'FORBIDDEN',
+            message: 'Permissão ausente: closures.preview',
+            details: [],
+          },
+        },
         { status: 403 },
       ),
     ),
   )
   renderWithProviders(<ClosurePage />)
-
   await user.selectOptions(await screen.findByLabelText('Clínica'), 'clinic-a')
-
   expect(
     await screen.findByText('Você não tem permissão para visualizar a prévia de fechamento.'),
   ).toBeInTheDocument()
 })
 
-test('checks for an existing closure first when the user has closures.read', async () => {
+test('an existing closure is looked up first and shown instead of the prévia, except when reopened', async () => {
   const user = userEvent.setup()
+
+  // Com closures.read, procura fechamento existente antes; sem ele, cai na prévia.
   let previewRequested = false
   server.use(
     meHandler(['closures.read', 'closures.preview']),
     clinicsListHandler(),
     clinicDetailHandler(),
+    historyHandler(),
     byPeriodNotFoundHandler(),
     http.get('/api/v1/closures/preview', () => {
       previewRequested = true
       return HttpResponse.json(previewResponseBody())
     }),
   )
-  renderWithProviders(<ClosurePage />)
-
+  let view = renderWithProviders(<ClosurePage />)
   await user.selectOptions(await screen.findByLabelText('Clínica'), 'clinic-a')
-
   expect(await screen.findByText('Rex')).toBeInTheDocument()
   expect(previewRequested).toBe(true)
-})
+  restart(view)
 
-test('renders the existing closure instead of the prévia when one is found', async () => {
+  // Fechamento encontrado: aparece no lugar da prévia, com demonstrativo e CSV do snapshot.
   server.use(
     meHandler(['closures.read', 'closures.preview']),
     clinicsListHandler(),
     clinicDetailHandler(),
     http.get('/api/v1/closures/by-period', () => HttpResponse.json(closureResponseBody())),
   )
-  renderWithProviders(
-    <ClosurePage />,
-    '/financeiro/fechamento?clinicId=clinic-a&periodStart=2026-01-01&periodEnd=2026-01-31',
-  )
-
+  view = renderWithProviders(<ClosurePage />, periodUrl)
   expect(await screen.findByText('Fechado')).toBeInTheDocument()
   expect(screen.getByText('Rex')).toBeInTheDocument()
   expect(screen.queryByText('Carregando prévia…')).not.toBeInTheDocument()
-})
+  expect(await screen.findByText('78.977.352/0001-99')).toBeInTheDocument()
+  expect(screen.getByText('Hematológico · 1')).toBeInTheDocument()
+  expect(screen.getByRole('link', { name: 'Baixar CSV do fechamento' })).toHaveAttribute(
+    'href',
+    '/api/v1/closures/closure-1/export',
+  )
+  restart(view)
 
-test('a reopened closure is shown alongside a fresh prévia so it can be closed again', async () => {
+  // Reaberto: continua visível como histórico e oferece nova prévia para fechar de novo.
   server.use(
     meHandler(['closures.read', 'closures.preview', 'closures.close']),
     clinicsListHandler(),
     clinicDetailHandler(),
     http.get('/api/v1/closures/by-period', () =>
-      HttpResponse.json(closureResponseBody({ status: 'REOPENED', reopened_at: '2026-02-01T00:00:00Z' })),
+      HttpResponse.json(
+        closureResponseBody({
+          status: 'REOPENED',
+          reopened_at: '2026-02-01T00:00:00Z',
+        }),
+      ),
     ),
     http.get('/api/v1/closures/preview', () => HttpResponse.json(previewResponseBody())),
   )
-  renderWithProviders(
-    <ClosurePage />,
-    '/financeiro/fechamento?clinicId=clinic-a&periodStart=2026-01-01&periodEnd=2026-01-31',
-  )
-
-  // The reaberto record stays visible as history...
+  renderWithProviders(<ClosurePage />, periodUrl)
   expect(await screen.findByText('Reaberto')).toBeInTheDocument()
-  // ...but a fresh prévia (and the close action) is offered too, otherwise
-  // there would be no way to close the período again.
   expect(await screen.findByRole('button', { name: 'Fechar período' })).toBeInTheDocument()
 })
 
-test('hides the close button for a user without closures.close', async () => {
-  const user = userEvent.setup()
-  server.use(
-    meHandler(['closures.preview']),
-    clinicsListHandler(),
-    clinicDetailHandler(),
-    http.get('/api/v1/closures/preview', () => HttpResponse.json(previewResponseBody())),
-  )
-  renderWithProviders(<ClosurePage />)
-
-  await user.selectOptions(await screen.findByLabelText('Clínica'), 'clinic-a')
-
-  await screen.findByText('Rex')
-  expect(screen.queryByRole('button', { name: 'Fechar período' })).not.toBeInTheDocument()
-})
-
-test('closes the period after explicit confirmation and shows a success banner', async () => {
+test('closes the period only after explicit confirmation and shows a success banner', async () => {
   const user = userEvent.setup()
   let closedBody: Record<string, unknown> | null = null
   server.use(
@@ -427,7 +477,9 @@ test('closes the period after explicit confirmation and shows a success banner',
     http.get('/api/v1/closures/preview', () => HttpResponse.json(previewResponseBody())),
     http.post('/api/v1/closures', async ({ request }) => {
       closedBody = (await request.json()) as Record<string, unknown>
-      return HttpResponse.json(closureResponseBody({ items: [] }), { status: 201 })
+      return HttpResponse.json(closureResponseBody({ items: [] }), {
+        status: 201,
+      })
     }),
   )
   renderWithProviders(<ClosurePage />)
@@ -451,117 +503,4 @@ test('closes the period after explicit confirmation and shows a success banner',
     ),
   ).toBeInTheDocument()
   expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
-})
-
-test('switching clinics does not leave the previous clinic data visible during loading', async () => {
-  const user = userEvent.setup()
-  server.use(
-    meHandler(['closures.preview']),
-    clinicsListHandler(),
-    clinicDetailHandler(),
-    http.get('/api/v1/closures/preview', async ({ request }) => {
-      const url = new URL(request.url)
-      const clinicId = url.searchParams.get('clinic_id')
-      if (clinicId === 'clinic-b') {
-        await delay(50)
-      }
-      return HttpResponse.json(
-        previewResponseBody({
-          clinic_id: clinicId,
-          eligible_items: clinicId === 'clinic-a' ? previewResponseBody().eligible_items : [],
-          blocked_items: [],
-        }),
-      )
-    }),
-  )
-  renderWithProviders(<ClosurePage />)
-
-  await user.selectOptions(await screen.findByLabelText('Clínica'), 'clinic-a')
-  expect(await screen.findByText('Rex')).toBeInTheDocument()
-
-  await user.selectOptions(screen.getByLabelText('Clínica'), 'clinic-b')
-
-  await waitFor(() => expect(screen.queryByText('Rex')).not.toBeInTheDocument())
-})
-
-test('the demonstrativo panel shows the CNPJ and the category breakdown of the prévia', async () => {
-  const user = userEvent.setup()
-  server.use(
-    meHandler(['closures.preview']),
-    clinicsListHandler(),
-    clinicDetailHandler(),
-    http.get('/api/v1/closures/preview', () => HttpResponse.json(previewResponseBody())),
-  )
-  renderWithProviders(<ClosurePage />)
-
-  await user.selectOptions(await screen.findByLabelText('Clínica'), 'clinic-a')
-
-  expect(await screen.findByText('78.977.352/0001-99')).toBeInTheDocument()
-  expect(screen.getByText('Hematológico · 1')).toBeInTheDocument()
-})
-
-test('the demonstrativo panel reflects the closed fechamento when one already exists', async () => {
-  server.use(
-    meHandler(['closures.read', 'closures.preview']),
-    clinicsListHandler(),
-    clinicDetailHandler(),
-    http.get('/api/v1/closures/by-period', () => HttpResponse.json(closureResponseBody())),
-  )
-  renderWithProviders(
-    <ClosurePage />,
-    '/financeiro/fechamento?clinicId=clinic-a&periodStart=2026-01-01&periodEnd=2026-01-31',
-  )
-
-  expect(await screen.findByText('78.977.352/0001-99')).toBeInTheDocument()
-  expect(screen.getByText('Hematológico · 1')).toBeInTheDocument()
-  expect(screen.getByRole('link', { name: 'Baixar CSV do fechamento' })).toHaveAttribute(
-    'href',
-    '/api/v1/closures/closure-1/export',
-  )
-})
-
-test('toggling to "Por protocolo" groups the eligible items by atendimento', async () => {
-  const user = userEvent.setup()
-  server.use(
-    meHandler(['closures.preview']),
-    clinicsListHandler(),
-    clinicDetailHandler(),
-    http.get('/api/v1/closures/preview', () =>
-      HttpResponse.json(
-        previewResponseBody({
-          eligible_items: [
-            {
-              attendance_id: 'att-1',
-              attendance_exam_id: 'exam-1',
-              protocol_number: 'P000001/26',
-              patient_name: 'Rex',
-              exam_name: 'Hemograma',
-              service_level: 'NORMAL',
-              exam_category: 'Hematológico',
-              total_amount: '75.00',
-            },
-            {
-              attendance_id: 'att-1',
-              attendance_exam_id: 'exam-2',
-              protocol_number: 'P000001/26',
-              patient_name: 'Rex',
-              exam_name: 'Bioquímico renal',
-              service_level: 'NORMAL',
-              exam_category: 'Bioquímico',
-              total_amount: '120.00',
-            },
-          ],
-        }),
-      ),
-    ),
-  )
-  renderWithProviders(<ClosurePage />)
-
-  await user.selectOptions(await screen.findByLabelText('Clínica'), 'clinic-a')
-  await screen.findByText('Hemograma')
-
-  await user.click(screen.getByRole('button', { name: 'Por protocolo' }))
-
-  expect(await screen.findByText('Hemograma, Bioquímico renal')).toBeInTheDocument()
-  expect(screen.getByText('R$ 195,00')).toBeInTheDocument()
 })

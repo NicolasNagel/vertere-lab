@@ -18,7 +18,13 @@ afterAll(() => server.close())
 function meHandler(permissions: string[]) {
   return http.get('/api/v1/auth/me', () =>
     HttpResponse.json({
-      user: { id: 'u1', email: 'a@b.com', full_name: 'A', role_id: 'r1', role_name: 'LAB_ADMIN' },
+      user: {
+        id: 'u1',
+        email: 'a@b.com',
+        full_name: 'A',
+        role_id: 'r1',
+        role_name: 'LAB_ADMIN',
+      },
       permissions,
     }),
   )
@@ -50,7 +56,9 @@ function veterinariansListHandler() {
 }
 
 function renderWithProviders(children: ReactNode) {
-  const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+  const queryClient = new QueryClient({
+    defaultOptions: { queries: { retry: false } },
+  })
   return render(
     <QueryClientProvider client={queryClient}>
       <AuthProvider>{children}</AuthProvider>
@@ -58,176 +66,96 @@ function renderWithProviders(children: ReactNode) {
   )
 }
 
-test('lists veterinarians returned by the API', async () => {
+// Cada fase reinicia a árvore e os handlers do MSW para não herdar resposta da anterior.
+function restart(view: ReturnType<typeof renderWithProviders>) {
+  view.unmount()
+  server.resetHandlers()
+}
+
+function apiVeterinarian(overrides: Record<string, unknown> = {}) {
+  return {
+    id: 'v2',
+    name: 'Dr. Michael Neves',
+    crmv: 'CRMV-SC 08230',
+    phone: null,
+    email: null,
+    is_autonomous: true,
+    status: 'ACTIVE',
+    notes: null,
+    created_at: '2026-01-01T00:00:00Z',
+    updated_at: '2026-01-01T00:00:00Z',
+    row_version: 1,
+    ...overrides,
+  }
+}
+
+function emptyClinicsHandler() {
+  return http.get('/api/v1/clinics', () =>
+    HttpResponse.json({ items: [], total: 0, page: 1, page_size: 100 }),
+  )
+}
+
+test('lists veterinarians and offers "Novo vet" only with veterinarians.manage', async () => {
   server.use(meHandler(['veterinarians.read']), veterinariansListHandler())
-  renderWithProviders(<VeterinariansPage />)
+  const view = renderWithProviders(<VeterinariansPage />)
 
   expect(await screen.findByText('Dra. Fabianna Garcia')).toBeInTheDocument()
-})
-
-test('uses the singular form when there is exactly one active veterinarian', async () => {
-  server.use(meHandler(['veterinarians.read']), veterinariansListHandler())
-  renderWithProviders(<VeterinariansPage />)
-
-  await screen.findByText('Dra. Fabianna Garcia')
-  expect(screen.getByText('1 ativo')).toBeInTheDocument()
-})
-
-test('hides the "Novo vet" action for a user without veterinarians.manage', async () => {
-  server.use(meHandler(['veterinarians.read']), veterinariansListHandler())
-  renderWithProviders(<VeterinariansPage />)
-
-  await screen.findByText('Dra. Fabianna Garcia')
+  expect(screen.getByText('1 ativo')).toBeInTheDocument() // singular com um único ativo
   expect(screen.queryByRole('button', { name: /Novo vet/i })).not.toBeInTheDocument()
-})
+  restart(view)
 
-test('shows the "Novo vet" action for a user with veterinarians.manage', async () => {
   server.use(meHandler(['veterinarians.read', 'veterinarians.manage']), veterinariansListHandler())
   renderWithProviders(<VeterinariansPage />)
-
   expect(await screen.findByRole('button', { name: /Novo vet/i })).toBeInTheDocument()
 })
 
-test('creates a veterinarian and returns to the detail view', async () => {
-  const user = userEvent.setup()
-  server.use(
-    meHandler(['veterinarians.read', 'veterinarians.manage']),
-    veterinariansListHandler(),
-    http.get('/api/v1/clinics', () =>
-      HttpResponse.json({ items: [], total: 0, page: 1, page_size: 100 }),
-    ),
-    http.post('/api/v1/veterinarians', () =>
-      HttpResponse.json(
-        {
-          id: 'v2',
-          name: 'Dr. Michael Neves',
-          crmv: 'CRMV-SC 08230',
-          phone: null,
-          email: null,
-          is_autonomous: true,
-          status: 'ACTIVE',
-          notes: null,
-          created_at: '2026-01-01T00:00:00Z',
-          updated_at: '2026-01-01T00:00:00Z',
-          row_version: 1,
-        },
-        { status: 201 },
-      ),
-    ),
-    http.get('/api/v1/veterinarians/v2', () =>
-      HttpResponse.json({
-        id: 'v2',
-        name: 'Dr. Michael Neves',
-        crmv: 'CRMV-SC 08230',
-        phone: null,
-        email: null,
-        is_autonomous: true,
-        status: 'ACTIVE',
-        notes: null,
-        created_at: '2026-01-01T00:00:00Z',
-        updated_at: '2026-01-01T00:00:00Z',
-        row_version: 1,
-        clinics: [],
-      }),
-    ),
-  )
-  renderWithProviders(<VeterinariansPage />)
-
-  await user.click(await screen.findByRole('button', { name: /Novo vet/i }))
-  await user.type(screen.getByLabelText('Nome'), 'Dr. Michael Neves')
-  await user.type(screen.getByLabelText('CRMV'), 'CRMV-SC 08230')
-  await user.click(screen.getByLabelText('Veterinário autônomo'))
-  await user.click(screen.getByRole('button', { name: 'Salvar' }))
-
-  await waitFor(() =>
-    expect(screen.queryByRole('heading', { name: 'Novo vet' })).not.toBeInTheDocument(),
-  )
-  expect(await screen.findByRole('heading', { name: 'Dr. Michael Neves' })).toBeInTheDocument()
-})
-
-test('filters by autonomous type', async () => {
+test('filters by autonomous type and shows the inactive badge even for an autonomous veterinarian', async () => {
   const user = userEvent.setup()
   server.use(
     meHandler(['veterinarians.read']),
     http.get('/api/v1/veterinarians', ({ request }) => {
-      const url = new URL(request.url)
-      const isAutonomous = url.searchParams.get('is_autonomous')
-      if (isAutonomous === 'true') {
-        return HttpResponse.json({
-          items: [
-            {
-              id: 'v3',
-              name: 'Karin Witt',
-              crmv: 'CRMV-SC 04127',
-              phone: null,
-              email: null,
-              is_autonomous: true,
-              status: 'ACTIVE',
-              notes: null,
-              created_at: '2026-01-01T00:00:00Z',
-              updated_at: '2026-01-01T00:00:00Z',
-              row_version: 1,
-            },
-          ],
-          total: 1,
-          page: 1,
-          page_size: 100,
-        })
-      }
-      return HttpResponse.json({
-        items: [
-          {
-            id: 'v1',
-            name: 'Dra. Fabianna Garcia',
-            crmv: 'CRMV-SC 04567',
-            phone: null,
-            email: null,
-            is_autonomous: false,
-            status: 'ACTIVE',
-            notes: null,
-            created_at: '2026-01-01T00:00:00Z',
-            updated_at: '2026-01-01T00:00:00Z',
-            row_version: 1,
-          },
-        ],
-        total: 1,
-        page: 1,
-        page_size: 100,
-      })
+      const isAutonomous = new URL(request.url).searchParams.get('is_autonomous')
+      const items =
+        isAutonomous === 'true'
+          ? [
+              apiVeterinarian({
+                id: 'v3',
+                name: 'Karin Witt',
+                crmv: 'CRMV-SC 04127',
+              }),
+            ]
+          : [
+              apiVeterinarian({
+                id: 'v1',
+                name: 'Dra. Fabianna Garcia',
+                crmv: 'CRMV-SC 04567',
+                is_autonomous: false,
+              }),
+            ]
+      return HttpResponse.json({ items, total: 1, page: 1, page_size: 100 })
     }),
   )
-  renderWithProviders(<VeterinariansPage />)
+  const view = renderWithProviders(<VeterinariansPage />)
 
   expect(await screen.findByText('Dra. Fabianna Garcia')).toBeInTheDocument()
-
   await user.click(screen.getByRole('button', { name: 'Autônomos' }))
-
   expect(await screen.findByText('Karin Witt')).toBeInTheDocument()
   expect(screen.queryByText('Dra. Fabianna Garcia')).not.toBeInTheDocument()
-})
+  restart(view)
 
-test('shows inactive status in the list even for an autonomous veterinarian', async () => {
-  // Regression: the row badge used to be an if/else (Autônomo *or* status), so an inactive
-  // autonomous vet displayed identically to an active one in the list — only the detail panel
-  // showed both. Found via manual QA against real imported data ("Aline Cabral Silva").
+  // Regressão: o selo da linha era if/else (Autônomo *ou* status), então um autônomo
+  // inativo aparecia igual a um ativo na lista (achado em QA manual com dado importado).
   server.use(
     meHandler(['veterinarians.read']),
     http.get('/api/v1/veterinarians', () =>
       HttpResponse.json({
         items: [
-          {
+          apiVeterinarian({
             id: 'v9',
             name: 'Aline Cabral Silva',
             crmv: '13552',
-            phone: null,
-            email: null,
-            is_autonomous: true,
             status: 'INACTIVE',
-            notes: null,
-            created_at: '2026-01-01T00:00:00Z',
-            updated_at: '2026-01-01T00:00:00Z',
-            row_version: 1,
-          },
+          }),
         ],
         total: 1,
         page: 1,
@@ -236,46 +164,64 @@ test('shows inactive status in the list even for an autonomous veterinarian', as
     ),
   )
   renderWithProviders(<VeterinariansPage />)
-
-  const name = await screen.findByText('Aline Cabral Silva')
-  const row = name.closest('button') as HTMLElement
+  const row = (await screen.findByText('Aline Cabral Silva')).closest('button') as HTMLElement
   expect(within(row).getByText('Autônomo')).toBeInTheDocument()
   expect(within(row).getByText('Inativo')).toBeInTheDocument()
 })
 
-test('blocks create for a non-autonomous veterinarian without a linked clinic', async () => {
+test('creates veterinarians: autonomous, blocked without clinic, and with a linked clinic', async () => {
   const user = userEvent.setup()
-  const createSpy = vi.fn()
-  server.use(
+  const common = [
     meHandler(['veterinarians.read', 'veterinarians.manage']),
     veterinariansListHandler(),
-    http.get('/api/v1/clinics', () =>
-      HttpResponse.json({ items: [], total: 0, page: 1, page_size: 100 }),
+  ]
+
+  // Autônomo: cria e volta ao detalhe.
+  server.use(
+    ...common,
+    emptyClinicsHandler(),
+    http.post('/api/v1/veterinarians', () => HttpResponse.json(apiVeterinarian(), { status: 201 })),
+    http.get('/api/v1/veterinarians/v2', () =>
+      HttpResponse.json({ ...apiVeterinarian(), clinics: [] }),
     ),
+  )
+  let view = renderWithProviders(<VeterinariansPage />)
+  await user.click(await screen.findByRole('button', { name: /Novo vet/i }))
+  await user.type(screen.getByLabelText('Nome'), 'Dr. Michael Neves')
+  await user.type(screen.getByLabelText('CRMV'), 'CRMV-SC 08230')
+  await user.click(screen.getByLabelText('Veterinário autônomo'))
+  await user.click(screen.getByRole('button', { name: 'Salvar' }))
+  await waitFor(() =>
+    expect(screen.queryByRole('heading', { name: 'Novo vet' })).not.toBeInTheDocument(),
+  )
+  expect(await screen.findByRole('heading', { name: 'Dr. Michael Neves' })).toBeInTheDocument()
+  restart(view)
+
+  // Não autônomo sem clínica é bloqueado no cliente e nada é enviado.
+  const blockedSpy = vi.fn()
+  server.use(
+    ...common,
+    emptyClinicsHandler(),
     http.post('/api/v1/veterinarians', () => {
-      createSpy()
+      blockedSpy()
       return HttpResponse.json({}, { status: 201 })
     }),
   )
-  renderWithProviders(<VeterinariansPage />)
-
+  view = renderWithProviders(<VeterinariansPage />)
   await user.click(await screen.findByRole('button', { name: /Novo vet/i }))
   await user.type(screen.getByLabelText('Nome'), 'Vet Sem Clínica')
   await user.type(screen.getByLabelText('CRMV'), 'CRMV-SC 00001')
   await user.click(screen.getByRole('button', { name: 'Salvar' }))
-
   expect(
     await screen.findByText('Selecione ao menos uma clínica ou marque como autônomo.'),
   ).toBeInTheDocument()
-  expect(createSpy).not.toHaveBeenCalled()
-})
+  expect(blockedSpy).not.toHaveBeenCalled()
+  restart(view)
 
-test('creates a veterinarian sending the selected clinic in the same request', async () => {
-  const user = userEvent.setup()
+  // Não autônomo com clínica: envia a clínica na mesma requisição.
   const createSpy = vi.fn()
   server.use(
-    meHandler(['veterinarians.read', 'veterinarians.manage']),
-    veterinariansListHandler(),
+    ...common,
     http.get('/api/v1/clinics', () =>
       HttpResponse.json({
         items: [
@@ -306,48 +252,23 @@ test('creates a veterinarian sending the selected clinic in the same request', a
     ),
     http.post('/api/v1/veterinarians', async ({ request }) => {
       createSpy(await request.json())
-      return HttpResponse.json(
-        {
-          id: 'v2',
-          name: 'Dr. Michael Neves',
-          crmv: 'CRMV-SC 08230',
-          phone: null,
-          email: null,
-          is_autonomous: false,
-          status: 'ACTIVE',
-          notes: null,
-          created_at: '2026-01-01T00:00:00Z',
-          updated_at: '2026-01-01T00:00:00Z',
-          row_version: 1,
-        },
-        { status: 201 },
-      )
+      return HttpResponse.json(apiVeterinarian({ is_autonomous: false }), {
+        status: 201,
+      })
     }),
     http.get('/api/v1/veterinarians/v2', () =>
       HttpResponse.json({
-        id: 'v2',
-        name: 'Dr. Michael Neves',
-        crmv: 'CRMV-SC 08230',
-        phone: null,
-        email: null,
-        is_autonomous: false,
-        status: 'ACTIVE',
-        notes: null,
-        created_at: '2026-01-01T00:00:00Z',
-        updated_at: '2026-01-01T00:00:00Z',
-        row_version: 1,
+        ...apiVeterinarian({ is_autonomous: false }),
         clinics: [{ clinic_id: 'c1', clinic_name: 'Schweitzer', primary_clinic: true }],
       }),
     ),
   )
   renderWithProviders(<VeterinariansPage />)
-
   await user.click(await screen.findByRole('button', { name: /Novo vet/i }))
   await user.type(screen.getByLabelText('Nome'), 'Dr. Michael Neves')
   await user.type(screen.getByLabelText('CRMV'), 'CRMV-SC 08230')
   await user.click(await screen.findByLabelText('Schweitzer'))
   await user.click(screen.getByRole('button', { name: 'Salvar' }))
-
   await waitFor(() =>
     expect(createSpy).toHaveBeenCalledWith(
       expect.objectContaining({ clinic_ids: ['c1'], primary_clinic_id: 'c1' }),
@@ -362,22 +283,14 @@ test('unlinks a clinic from the veterinarian detail card', async () => {
   server.use(
     meHandler(['veterinarians.read', 'veterinarians.manage']),
     veterinariansListHandler(),
-    http.get('/api/v1/clinics', () =>
-      HttpResponse.json({ items: [], total: 0, page: 1, page_size: 100 }),
-    ),
+    emptyClinicsHandler(),
     http.get('/api/v1/veterinarians/v1', () =>
       HttpResponse.json({
-        id: 'v1',
-        name: 'Dra. Fabianna Garcia',
-        crmv: 'CRMV-SC 04567',
-        phone: null,
-        email: null,
-        is_autonomous: true,
-        status: 'ACTIVE',
-        notes: null,
-        created_at: '2026-01-01T00:00:00Z',
-        updated_at: '2026-01-01T00:00:00Z',
-        row_version: 1,
+        ...apiVeterinarian({
+          id: 'v1',
+          name: 'Dra. Fabianna Garcia',
+          crmv: 'CRMV-SC 04567',
+        }),
         clinics: [{ clinic_id: 'c1', clinic_name: 'Schweitzer', primary_clinic: false }],
       }),
     ),

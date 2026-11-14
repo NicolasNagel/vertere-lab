@@ -18,7 +18,13 @@ afterAll(() => server.close())
 function meHandler(permissions: string[]) {
   return http.get('/api/v1/auth/me', () =>
     HttpResponse.json({
-      user: { id: 'u1', email: 'admin@vertere.local', full_name: 'Admin', role_id: 'r1', role_name: 'LAB_ADMIN' },
+      user: {
+        id: 'u1',
+        email: 'admin@vertere.local',
+        full_name: 'Admin',
+        role_id: 'r1',
+        role_name: 'LAB_ADMIN',
+      },
       permissions,
     }),
   )
@@ -57,16 +63,36 @@ const receptionRole = {
 
 function rolesListHandler(roles: (typeof receptionRole)[] = [receptionRole]) {
   return http.get('/api/v1/permission-profiles', () =>
-    HttpResponse.json({ items: roles, total: roles.length, page: 1, page_size: 100 }),
+    HttpResponse.json({
+      items: roles,
+      total: roles.length,
+      page: 1,
+      page_size: 100,
+    }),
   )
 }
 
 function permissionsHandler() {
   return http.get('/api/v1/permissions', () =>
     HttpResponse.json([
-      { id: 'p1', code: 'clinics.read', description: 'Ver clínicas', master_only: false },
-      { id: 'p2', code: 'clinics.manage', description: 'Editar clínicas', master_only: false },
-      { id: 'p3', code: 'patients.read', description: 'Ver pacientes', master_only: false },
+      {
+        id: 'p1',
+        code: 'clinics.read',
+        description: 'Ver clínicas',
+        master_only: false,
+      },
+      {
+        id: 'p2',
+        code: 'clinics.manage',
+        description: 'Editar clínicas',
+        master_only: false,
+      },
+      {
+        id: 'p3',
+        code: 'patients.read',
+        description: 'Ver pacientes',
+        master_only: false,
+      },
       {
         id: 'p4',
         code: 'attendances.view_prices',
@@ -84,7 +110,9 @@ function clinicsHandler() {
 }
 
 function renderWithProviders(children: ReactNode) {
-  const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+  const queryClient = new QueryClient({
+    defaultOptions: { queries: { retry: false } },
+  })
   return render(
     <QueryClientProvider client={queryClient}>
       <AuthProvider>{children}</AuthProvider>
@@ -92,71 +120,76 @@ function renderWithProviders(children: ReactNode) {
   )
 }
 
-test('lists users returned by the API', async () => {
-  server.use(meHandler(['users.read']), usersListHandler(), rolesListHandler(), permissionsHandler())
-  renderWithProviders(<UsersPage />)
+// Cada fase reinicia a árvore e os handlers do MSW para não herdar resposta da anterior.
+function restart(view: ReturnType<typeof renderWithProviders>) {
+  view.unmount()
+  server.resetHandlers()
+}
 
+const financeRole = {
+  id: 'r3',
+  name: 'FINANCE',
+  scope: 'LAB',
+  description: 'Preços e fechamentos.',
+  is_system: true,
+  permissions: ['clinics.read'],
+  row_version: 1,
+}
+
+test('lists users and shows each action only to the permission that unlocks it', async () => {
+  const user = userEvent.setup()
+  const common = [usersListHandler(), rolesListHandler(), permissionsHandler()]
+
+  // Só leitura: lista, sem "Novo usuário" nem "Novo perfil".
+  server.use(meHandler(['users.read']), ...common)
+  let view = renderWithProviders(<UsersPage />)
   expect(await screen.findByText('Recepção Um')).toBeInTheDocument()
-})
-
-test('hides the "Novo usuário" action for a user without users.create', async () => {
-  server.use(meHandler(['users.read']), usersListHandler(), rolesListHandler(), permissionsHandler())
-  renderWithProviders(<UsersPage />)
-
-  await screen.findByText('Recepção Um')
   expect(screen.queryByRole('button', { name: /Novo usuário/i })).not.toBeInTheDocument()
-})
+  expect(screen.queryByRole('button', { name: /Novo perfil/i })).not.toBeInTheDocument()
+  restart(view)
 
-test('shows the "Novo usuário" action for a user with users.create', async () => {
-  server.use(
-    meHandler(['users.read', 'users.create']),
-    usersListHandler(),
-    rolesListHandler(),
-    permissionsHandler(),
-  )
-  renderWithProviders(<UsersPage />)
-
+  // users.create libera "Novo usuário", mas não "Novo perfil".
+  server.use(meHandler(['users.read', 'users.create']), ...common)
+  view = renderWithProviders(<UsersPage />)
   expect(await screen.findByRole('button', { name: /Novo usuário/i })).toBeInTheDocument()
-})
-
-test('hides the "Novo perfil" action for a user without roles.manage', async () => {
-  server.use(
-    meHandler(['users.read', 'users.create']),
-    usersListHandler(),
-    rolesListHandler(),
-    permissionsHandler(),
-  )
-  renderWithProviders(<UsersPage />)
-
   await screen.findByText('Recepção Um')
   expect(screen.queryByRole('button', { name: /Novo perfil/i })).not.toBeInTheDocument()
-})
+  restart(view)
 
-test('shows the "+ novo perfil" link next to the role chips for a user with roles.manage', async () => {
-  const user = userEvent.setup()
+  // roles.manage libera "+ novo perfil" ao lado dos chips.
+  server.use(meHandler(['users.read', 'roles.manage']), ...common)
+  view = renderWithProviders(<UsersPage />)
+  await user.click(await screen.findByRole('button', { name: '+ novo perfil' }))
+  expect(await screen.findByRole('button', { name: 'Criar perfil' })).toBeInTheDocument()
+  restart(view)
+
+  // 403 na listagem mostra "sem permissão", não uma lista vazia.
   server.use(
-    meHandler(['users.read', 'roles.manage']),
-    usersListHandler(),
+    meHandler(['clinics.read']),
+    http.get('/api/v1/users', () =>
+      HttpResponse.json(
+        {
+          error: {
+            code: 'FORBIDDEN',
+            message: 'Permissão ausente: users.read',
+            details: [],
+          },
+        },
+        { status: 403 },
+      ),
+    ),
     rolesListHandler(),
     permissionsHandler(),
   )
   renderWithProviders(<UsersPage />)
-
-  await user.click(await screen.findByRole('button', { name: '+ novo perfil' }))
-  expect(await screen.findByRole('button', { name: 'Criar perfil' })).toBeInTheDocument()
+  expect(
+    await screen.findByText('Você não tem permissão para visualizar usuários.'),
+  ).toBeInTheDocument()
+  expect(screen.queryByText('Nenhum usuário encontrado.')).not.toBeInTheDocument()
 })
 
-test('clicking a role chip shows its permissions without changing the highlighted user row', async () => {
+test('selecting a user shows the grouped permissions of the role, with master-only locked, and chips do not move the selection', async () => {
   const user = userEvent.setup()
-  const financeRole = {
-    id: 'r3',
-    name: 'FINANCE',
-    scope: 'LAB',
-    description: 'Preços e fechamentos.',
-    is_system: true,
-    permissions: ['clinics.read'],
-    row_version: 1,
-  }
   server.use(
     meHandler(['users.read', 'roles.manage']),
     usersListHandler(),
@@ -165,20 +198,128 @@ test('clicking a role chip shows its permissions without changing the highlighte
   )
   renderWithProviders(<UsersPage />)
 
-  // Seleção inicial: usuário Recepção Um → chip RECEPTION.
-  await screen.findByText('Perfil RECEPTION')
+  // Seleção inicial: usuário Recepção Um → perfil RECEPTION, permissões por categoria.
+  expect(await screen.findByText('Perfil RECEPTION')).toBeInTheDocument()
+  expect(screen.getByText('Cadastros')).toBeInTheDocument()
+  expect(screen.getByText('Operação')).toBeInTheDocument()
+  expect(screen.queryByText('Financeiro')).not.toBeInTheDocument()
+  expect(screen.getByText('Ver clínicas')).toBeInTheDocument()
+  expect(screen.getByText('Ver pacientes')).toBeInTheDocument()
+  expect(screen.getByText(/aplicado a 1 usuário/)).toBeInTheDocument()
+
+  // Permissão exclusiva do Master fica travada num perfil que não é Master.
+  const toggle = screen.getByLabelText('Ver preço ao montar atendimento')
+  expect(toggle).toBeDisabled()
+  expect(toggle).not.toBeChecked()
+  expect(screen.getByText('Definido pelo Master')).toBeInTheDocument()
+
+  // Clicar no chip de outro perfil não mexe na linha do usuário.
   const userRow = screen.getByText('Recepção Um').closest('[data-selected]')
   expect(userRow).toHaveAttribute('data-selected', 'true')
-
   await user.click(screen.getByRole('button', { name: 'FINANCE' }))
-
   expect(await screen.findByText('Perfil FINANCE')).toBeInTheDocument()
-  // A linha do usuário continua destacada — clicar no chip não mexe nela.
   expect(userRow).toHaveAttribute('data-selected', 'true')
 })
 
-test('creates a user and shows the one-time temporary password', async () => {
+test('saves permission changes and creates a profile, optionally cloned from another one', async () => {
   const user = userEvent.setup()
+  // O GET precisa refletir o resultado das mutações depois da invalidação da
+  // query — um mock estático faria o React Query manter a mesma referência
+  // (structural sharing) e o painel nunca re-sincronizaria.
+  let currentRole = receptionRole
+  server.use(
+    meHandler(['users.read', 'roles.manage']),
+    usersListHandler(),
+    http.get('/api/v1/permission-profiles', () =>
+      HttpResponse.json({
+        items: [currentRole],
+        total: 1,
+        page: 1,
+        page_size: 100,
+      }),
+    ),
+    permissionsHandler(),
+    http.patch('/api/v1/permission-profiles/r2', () => {
+      currentRole = {
+        ...receptionRole,
+        permissions: ['clinics.read', 'clinics.manage', 'patients.read'],
+        row_version: 2,
+      }
+      return HttpResponse.json(currentRole)
+    }),
+  )
+  let view = renderWithProviders(<UsersPage />)
+
+  await screen.findByText('Perfil RECEPTION')
+  await user.click(screen.getByLabelText('Editar clínicas'))
+  await user.click(screen.getByRole('button', { name: 'Salvar permissões' }))
+  await waitFor(() =>
+    expect(screen.queryByRole('button', { name: 'Salvar permissões' })).toBeDisabled(),
+  )
+  restart(view)
+
+  const auditorRole = {
+    id: 'r9',
+    name: 'AUDITOR',
+    scope: 'LAB',
+    description: '',
+    is_system: false,
+    permissions: ['clinics.read'],
+    row_version: 1,
+  }
+  let roles = [receptionRole]
+  server.use(
+    meHandler(['users.read', 'roles.manage']),
+    usersListHandler(),
+    http.get('/api/v1/permission-profiles', () =>
+      HttpResponse.json({
+        items: roles,
+        total: roles.length,
+        page: 1,
+        page_size: 100,
+      }),
+    ),
+    permissionsHandler(),
+    http.post('/api/v1/permission-profiles', () => {
+      roles = [...roles, auditorRole]
+      return HttpResponse.json(auditorRole, { status: 201 })
+    }),
+  )
+  view = renderWithProviders(<UsersPage />)
+
+  await user.click(await screen.findByRole('button', { name: /Novo perfil/i }))
+
+  // Novo perfil é sempre escopo LAB: a permissão exclusiva do Master vem travada.
+  expect(screen.getByLabelText('Ver preço ao montar atendimento')).toBeDisabled()
+  expect(screen.getByText('Definido pelo Master')).toBeInTheDocument()
+
+  // "Baseado em" clona as permissões do perfil base; "Começar do zero" limpa.
+  expect(screen.getByLabelText('Editar clínicas')).not.toBeChecked()
+  await user.selectOptions(screen.getByLabelText('Baseado em'), 'r2')
+  expect(screen.getByLabelText('Ver clínicas')).toBeChecked()
+  expect(screen.getByLabelText('Ver pacientes')).toBeChecked()
+  expect(screen.getByLabelText('Editar clínicas')).not.toBeChecked()
+  await user.selectOptions(screen.getByLabelText('Baseado em'), 'Começar do zero')
+  expect(screen.getByLabelText('Ver clínicas')).not.toBeChecked()
+  expect(screen.getByLabelText('Ver pacientes')).not.toBeChecked()
+
+  await user.type(screen.getByLabelText('Nome do perfil'), 'AUDITOR')
+  await user.click(screen.getByLabelText('Ver clínicas'))
+  await user.click(screen.getByRole('button', { name: 'Criar perfil' }))
+  expect(await screen.findByText('Perfil RECEPTION')).toBeInTheDocument()
+})
+
+test('creates users and shows the one-time temporary password, sending clinic memberships for CLINIC roles', async () => {
+  const user = userEvent.setup()
+  const createdUser = {
+    id: 'u3',
+    email: 'nova@vertere.local',
+    full_name: 'Nova Pessoa',
+    is_active: true,
+    role_id: 'r2',
+    role_name: 'RECEPTION',
+    created_at: '2026-01-01T00:00:00Z',
+  }
   server.use(
     meHandler(['users.read', 'users.create']),
     usersListHandler(),
@@ -186,38 +327,29 @@ test('creates a user and shows the one-time temporary password', async () => {
     permissionsHandler(),
     http.post('/api/v1/users', () =>
       HttpResponse.json(
-        {
-          user: {
-            id: 'u3',
-            email: 'nova@vertere.local',
-            full_name: 'Nova Pessoa',
-            is_active: true,
-            role_id: 'r2',
-            role_name: 'RECEPTION',
-            created_at: '2026-01-01T00:00:00Z',
-          },
-          temporary_password: 'sEnh4Temp0rar1a!',
-        },
+        { user: createdUser, temporary_password: 'sEnh4Temp0rar1a!' },
         { status: 201 },
       ),
     ),
   )
-  renderWithProviders(<UsersPage />)
+  let view = renderWithProviders(<UsersPage />)
 
   await user.click(await screen.findByRole('button', { name: /Novo usuário/i }))
   await user.type(screen.getByLabelText('Nome completo'), 'Nova Pessoa')
   await user.type(screen.getByLabelText('E-mail'), 'nova@vertere.local')
   await user.selectOptions(screen.getByLabelText('Perfil'), 'r2')
   await user.click(screen.getByRole('button', { name: 'Criar usuário' }))
-
   expect(await screen.findByText('sEnh4Temp0rar1a!')).toBeInTheDocument()
   expect(screen.getByText(/Nova Pessoa/)).toBeInTheDocument()
-})
+  restart(view)
 
-test('creates a CLINIC user with the selected memberships in the same request', async () => {
-  const user = userEvent.setup()
   let requestBody: Record<string, unknown> | null = null
-  const clinicRole = { ...receptionRole, id: 'r-clinic', name: 'CLINIC_STAFF', scope: 'CLINIC' }
+  const clinicRole = {
+    ...receptionRole,
+    id: 'r-clinic',
+    name: 'CLINIC_STAFF',
+    scope: 'CLINIC',
+  }
   server.use(
     meHandler(['users.read', 'users.create']),
     usersListHandler(),
@@ -236,16 +368,15 @@ test('creates a CLINIC user with the selected memberships in the same request', 
       return HttpResponse.json(
         {
           user: {
+            ...createdUser,
             id: 'u-clinic',
             email: 'clinic@vertere.local',
             full_name: 'Pessoa Clínica',
-            is_active: true,
             role_id: 'r-clinic',
             role_name: 'CLINIC_STAFF',
             role_scope: 'CLINIC',
             clinic_ids: ['c1'],
             row_version: 1,
-            created_at: '2026-01-01T00:00:00Z',
           },
           temporary_password: 'Temp1234!',
         },
@@ -253,7 +384,7 @@ test('creates a CLINIC user with the selected memberships in the same request', 
       )
     }),
   )
-  renderWithProviders(<UsersPage />)
+  view = renderWithProviders(<UsersPage />)
 
   await user.click(await screen.findByRole('button', { name: /Novo usuário/i }))
   await user.type(screen.getByLabelText('Nome completo'), 'Pessoa Clínica')
@@ -261,12 +392,14 @@ test('creates a CLINIC user with the selected memberships in the same request', 
   await user.selectOptions(screen.getByLabelText('Perfil'), 'r-clinic')
   await user.click(screen.getByLabelText('Clínica Central'))
   await user.click(screen.getByRole('button', { name: 'Criar usuário' }))
-
   await screen.findByText('Temp1234!')
-  expect(requestBody).toMatchObject({ role_id: 'r-clinic', clinic_ids: ['c1'] })
+  expect(requestBody).toMatchObject({
+    role_id: 'r-clinic',
+    clinic_ids: ['c1'],
+  })
 })
 
-test('deactivates the selected user from the row menu', async () => {
+test('deactivates a user from the row menu and surfaces the backend rejection instead of failing silently', async () => {
   const user = userEvent.setup()
   let isActive = true
   const targetUser = {
@@ -294,17 +427,15 @@ test('deactivates the selected user from the row menu', async () => {
       return HttpResponse.json({ ...targetUser, is_active: isActive })
     }),
   )
-  renderWithProviders(<UsersPage />)
+  let view = renderWithProviders(<UsersPage />)
 
   await user.click(await screen.findByText('Recepção Um'))
   await user.click(screen.getByRole('button', { name: 'Mais ações' }))
   await user.click(screen.getByRole('menuitem', { name: 'Desativar' }))
-
   await waitFor(() => expect(screen.getAllByText(/Inativo/).length).toBeGreaterThan(0))
-})
+  restart(view)
 
-test('shows the backend rejection message when deactivating would self-lockout, instead of failing silently', async () => {
-  const user = userEvent.setup()
+  // Autotrava: o 409 do backend aparece na tela.
   server.use(
     meHandler(['users.read', 'users.deactivate']),
     usersListHandler(),
@@ -323,178 +454,12 @@ test('shows the backend rejection message when deactivating would self-lockout, 
       ),
     ),
   )
-  renderWithProviders(<UsersPage />)
+  view = renderWithProviders(<UsersPage />)
 
   await user.click(await screen.findByText('Recepção Um'))
   await user.click(screen.getByRole('button', { name: 'Mais ações' }))
   await user.click(screen.getByRole('menuitem', { name: 'Desativar' }))
-
   expect(
     await screen.findByText('Esta ação removeria o último usuário capaz de gerenciar usuários.'),
   ).toBeInTheDocument()
-})
-
-test('shows the "sem permissão" message instead of an empty list when listing users is forbidden', async () => {
-  server.use(
-    meHandler(['clinics.read']),
-    http.get('/api/v1/users', () =>
-      HttpResponse.json(
-        { error: { code: 'FORBIDDEN', message: 'Permissão ausente: users.read', details: [] } },
-        { status: 403 },
-      ),
-    ),
-    rolesListHandler(),
-    permissionsHandler(),
-  )
-  renderWithProviders(<UsersPage />)
-
-  expect(
-    await screen.findByText('Você não tem permissão para visualizar usuários.'),
-  ).toBeInTheDocument()
-  expect(screen.queryByText('Nenhum usuário encontrado.')).not.toBeInTheDocument()
-})
-
-test('selecting a user shows the permissions of their role, grouped by business category', async () => {
-  server.use(
-    meHandler(['users.read', 'roles.manage']),
-    usersListHandler(),
-    rolesListHandler(),
-    permissionsHandler(),
-  )
-  renderWithProviders(<UsersPage />)
-
-  await screen.findByText('Recepção Um')
-
-  expect(await screen.findByText('Perfil RECEPTION')).toBeInTheDocument()
-  // RECEPTION (mock) tem clinics.read/patients.read (Cadastros) e
-  // attendances.view_prices (Operação, travada) — sem nenhuma em Financeiro.
-  expect(screen.getByText('Cadastros')).toBeInTheDocument()
-  expect(screen.getByText('Operação')).toBeInTheDocument()
-  expect(screen.queryByText('Financeiro')).not.toBeInTheDocument()
-  expect(screen.getByText('Ver clínicas')).toBeInTheDocument()
-  expect(screen.getByText('Ver pacientes')).toBeInTheDocument()
-  expect(screen.getByText(/aplicado a 1 usuário/)).toBeInTheDocument()
-})
-
-test('locks a master-only permission for a non-Master role, with the "Definido pelo Master" caption', async () => {
-  server.use(
-    meHandler(['users.read', 'roles.manage']),
-    usersListHandler(),
-    rolesListHandler(),
-    permissionsHandler(),
-  )
-  renderWithProviders(<UsersPage />)
-
-  await screen.findByText('Perfil RECEPTION')
-
-  const toggle = screen.getByLabelText('Ver preço ao montar atendimento')
-  expect(toggle).toBeDisabled()
-  expect(toggle).not.toBeChecked()
-  expect(screen.getByText('Definido pelo Master')).toBeInTheDocument()
-})
-
-test('saves permission changes for the selected user\'s role', async () => {
-  const user = userEvent.setup()
-  // O GET precisa refletir o resultado do PATCH depois da invalidação da
-  // query — um mock estático faria o React Query manter a mesma referência
-  // de objeto (structural sharing) e o painel nunca re-sincronizaria.
-  let currentRole = receptionRole
-  server.use(
-    meHandler(['users.read', 'roles.manage']),
-    usersListHandler(),
-    http.get('/api/v1/permission-profiles', () =>
-      HttpResponse.json({ items: [currentRole], total: 1, page: 1, page_size: 100 }),
-    ),
-    permissionsHandler(),
-    http.patch('/api/v1/permission-profiles/r2', () => {
-      currentRole = {
-        ...receptionRole,
-        permissions: ['clinics.read', 'clinics.manage', 'patients.read'],
-        row_version: 2,
-      }
-      return HttpResponse.json(currentRole)
-    }),
-  )
-  renderWithProviders(<UsersPage />)
-
-  await screen.findByText('Perfil RECEPTION')
-
-  await user.click(screen.getByLabelText('Editar clínicas'))
-  await user.click(screen.getByRole('button', { name: 'Salvar permissões' }))
-
-  await waitFor(() =>
-    expect(screen.queryByRole('button', { name: 'Salvar permissões' })).toBeDisabled(),
-  )
-})
-
-test('creates a new permission profile from the header action', async () => {
-  const user = userEvent.setup()
-  const auditorRole = {
-    id: 'r9',
-    name: 'AUDITOR',
-    scope: 'LAB',
-    description: '',
-    is_system: false,
-    permissions: ['clinics.read'],
-    row_version: 1,
-  }
-  // O GET precisa incluir o perfil recém-criado depois da invalidação da
-  // query, senão o painel de detalhe não encontra o perfil do usuário
-  // selecionado na lista.
-  let roles = [receptionRole]
-  server.use(
-    meHandler(['users.read', 'roles.manage']),
-    usersListHandler(),
-    http.get('/api/v1/permission-profiles', () =>
-      HttpResponse.json({ items: roles, total: roles.length, page: 1, page_size: 100 }),
-    ),
-    permissionsHandler(),
-    http.post('/api/v1/permission-profiles', () => {
-      roles = [...roles, auditorRole]
-      return HttpResponse.json(auditorRole, { status: 201 })
-    }),
-  )
-  renderWithProviders(<UsersPage />)
-
-  await user.click(await screen.findByRole('button', { name: /Novo perfil/i }))
-
-  // Novo perfil é sempre escopo LAB — a permissão master-only vem travada
-  // por padrão, sem exceção, neste formulário.
-  const masterOnlyToggle = screen.getByLabelText('Ver preço ao montar atendimento')
-  expect(masterOnlyToggle).toBeDisabled()
-  expect(screen.getByText('Definido pelo Master')).toBeInTheDocument()
-
-  await user.type(screen.getByLabelText('Nome do perfil'), 'AUDITOR')
-  await user.click(screen.getByLabelText('Ver clínicas'))
-  await user.click(screen.getByRole('button', { name: 'Criar perfil' }))
-
-  expect(await screen.findByText('Perfil RECEPTION')).toBeInTheDocument()
-})
-
-test('"Baseado em" clones the base role\'s permissions into the new profile form', async () => {
-  const user = userEvent.setup()
-  server.use(
-    meHandler(['users.read', 'roles.manage']),
-    usersListHandler(),
-    rolesListHandler(),
-    permissionsHandler(),
-  )
-  renderWithProviders(<UsersPage />)
-
-  await user.click(await screen.findByRole('button', { name: /Novo perfil/i }))
-
-  expect(screen.getByLabelText('Editar clínicas')).not.toBeChecked()
-
-  await user.selectOptions(screen.getByLabelText('Baseado em'), 'r2')
-
-  // RECEPTION (r2) tem clinics.read e patients.read na mock — clonados sem
-  // precisar marcar nada manualmente.
-  expect(screen.getByLabelText('Ver clínicas')).toBeChecked()
-  expect(screen.getByLabelText('Ver pacientes')).toBeChecked()
-  expect(screen.getByLabelText('Editar clínicas')).not.toBeChecked()
-
-  await user.selectOptions(screen.getByLabelText('Baseado em'), 'Começar do zero')
-
-  expect(screen.getByLabelText('Ver clínicas')).not.toBeChecked()
-  expect(screen.getByLabelText('Ver pacientes')).not.toBeChecked()
 })

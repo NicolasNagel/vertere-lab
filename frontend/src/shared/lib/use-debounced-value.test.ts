@@ -11,18 +11,11 @@ afterEach(() => {
   vi.useRealTimers()
 })
 
-test('keeps the initial value until the delay elapses', () => {
-  const { result } = renderHook(({ value }) => useDebouncedValue(value, 500), {
-    initialProps: { value: 'a' },
-  })
-
-  expect(result.current).toBe('a')
-})
-
-test('reflects the latest value only after the delay with no further changes', () => {
+test('keeps the initial value and reflects the latest one only after the delay with no further changes', () => {
   const { result, rerender } = renderHook(({ value }) => useDebouncedValue(value, 500), {
     initialProps: { value: 'a' },
   })
+  expect(result.current).toBe('a')
 
   rerender({ value: 'ab' })
   act(() => {

@@ -213,35 +213,11 @@ function renderPage(permissions: string[], handlers: ReturnType<typeof http.get>
   }
 }
 
-test('shows a permission-denied message for a user without attendances.create', async () => {
-  renderPage([])
-
-  expect(
-    await screen.findByText('Você não tem permissão para criar atendimentos.'),
-  ).toBeInTheDocument()
-})
-
-test('filters the veterinarian list by the selected clinic', async () => {
-  const user = userEvent.setup()
-  renderPage(['attendances.create'])
-
-  await screen.findByRole('option', { name: 'Clínica Central' })
-  await user.selectOptions(screen.getByLabelText('Clínica solicitante'), 'Clínica Central')
-
-  const vetSelect = screen.getByLabelText('Veterinário responsável') as HTMLSelectElement
-  const optionLabels = Array.from(vetSelect.options).map((option) => option.text)
-  expect(optionLabels).toContain('Dra. Ana (autônoma)')
-  expect(optionLabels).toContain('Dr. Bruno (vinculado c1)')
-
-  await user.selectOptions(screen.getByLabelText('Clínica solicitante'), 'Clínica Norte')
-  const optionLabelsAfter = Array.from(vetSelect.options).map((option) => option.text)
-  expect(optionLabelsAfter).toContain('Dra. Ana (autônoma)')
-  expect(optionLabelsAfter).not.toContain('Dr. Bruno (vinculado c1)')
-})
-
 function speciesHandler() {
   return http.get('/api/v1/species', () =>
-    HttpResponse.json({ items: [{ id: 's1', name: 'Canino', created_at: '2026-01-01T00:00:00Z' }] }),
+    HttpResponse.json({
+      items: [{ id: 's1', name: 'Canino', created_at: '2026-01-01T00:00:00Z' }],
+    }),
   )
 }
 
@@ -277,7 +253,31 @@ async function fillAndSavePatientForm(user: ReturnType<typeof userEvent.setup>) 
   await user.click(screen.getByRole('button', { name: 'Salvar' }))
 }
 
-test('auto-creates the draft as soon as clinic, veterinarian and patient are all set', async () => {
+test('requires attendances.create and filters the veterinarian list by the selected clinic', async () => {
+  const user = userEvent.setup()
+  const denied = renderPage([])
+  expect(
+    await screen.findByText('Você não tem permissão para criar atendimentos.'),
+  ).toBeInTheDocument()
+  denied.unmount()
+  server.resetHandlers()
+
+  renderPage(['attendances.create'])
+  await screen.findByRole('option', { name: 'Clínica Central' })
+  await user.selectOptions(screen.getByLabelText('Clínica solicitante'), 'Clínica Central')
+
+  const vetSelect = screen.getByLabelText('Veterinário responsável') as HTMLSelectElement
+  const optionLabels = Array.from(vetSelect.options).map((option) => option.text)
+  expect(optionLabels).toContain('Dra. Ana (autônoma)')
+  expect(optionLabels).toContain('Dr. Bruno (vinculado c1)')
+
+  await user.selectOptions(screen.getByLabelText('Clínica solicitante'), 'Clínica Norte')
+  const optionLabelsAfter = Array.from(vetSelect.options).map((option) => option.text)
+  expect(optionLabelsAfter).toContain('Dra. Ana (autônoma)')
+  expect(optionLabelsAfter).not.toContain('Dr. Bruno (vinculado c1)')
+})
+
+test('auto-creates the draft once clinic, veterinarian and patient are set, then confirms and returns to the list', async () => {
   const user = userEvent.setup()
   const onDraftCreated = vi.fn()
   server.use(
@@ -289,44 +289,8 @@ test('auto-creates the draft as soon as clinic, veterinarian and patient are all
       onDraftCreated(body)
       return HttpResponse.json(draftCreatedResponse(body), { status: 201 })
     }),
-  )
-  renderPage(['attendances.create'])
-
-  await screen.findByRole('option', { name: 'Clínica Central' })
-  await user.selectOptions(screen.getByLabelText('Clínica solicitante'), 'Clínica Central')
-  await user.selectOptions(screen.getByLabelText('Veterinário responsável'), 'Dr. Bruno (vinculado c1)')
-  expect(onDraftCreated).not.toHaveBeenCalled()
-
-  await fillAndSavePatientForm(user)
-
-  await waitFor(() => expect(onDraftCreated).toHaveBeenCalledTimes(1))
-  expect(onDraftCreated).toHaveBeenCalledWith(
-    expect.objectContaining({
-      clinic_id: 'c1',
-      veterinarian_id: 'v2',
-      patient_id: 'p1',
-      collection_method: 'INTERNAL',
-      service_level: 'NORMAL',
-    }),
-  )
-  // Os cards de Exames/Valor já estavam visíveis (layout estático) e ficam
-  // ativos assim que o rascunho existe.
-  expect(await screen.findByLabelText('Adicionar exame')).toBeEnabled()
-})
-
-test('shows the confirmation screen after the draft is created and navigates to the list once confirmed', async () => {
-  const user = userEvent.setup()
-  server.use(
-    ...confirmationFormDetailHandlers(),
-    speciesHandler(),
-    createPatientHandler(),
-    http.post('/api/v1/attendances/drafts', async ({ request }) => {
-      const body = (await request.json()) as Record<string, unknown>
-      return HttpResponse.json(draftCreatedResponse(body), { status: 201 })
-    }),
     http.get('/api/v1/exams', ({ request }) => {
-      const url = new URL(request.url)
-      const search = url.searchParams.get('search')
+      const search = new URL(request.url).searchParams.get('search')
       const items = search
         ? [
             {
@@ -392,17 +356,36 @@ test('shows the confirmation screen after the draft is created and navigates to 
 
   await screen.findByRole('option', { name: 'Clínica Central' })
   await user.selectOptions(screen.getByLabelText('Clínica solicitante'), 'Clínica Central')
-  await user.selectOptions(screen.getByLabelText('Veterinário responsável'), 'Dr. Bruno (vinculado c1)')
+  await user.selectOptions(
+    screen.getByLabelText('Veterinário responsável'),
+    'Dr. Bruno (vinculado c1)',
+  )
+  expect(onDraftCreated).not.toHaveBeenCalled() // ainda falta o paciente
+
   await fillAndSavePatientForm(user)
 
-  await user.type(await screen.findByLabelText('Adicionar exame'), 'Hemo')
+  await waitFor(() => expect(onDraftCreated).toHaveBeenCalledTimes(1))
+  expect(onDraftCreated).toHaveBeenCalledWith(
+    expect.objectContaining({
+      clinic_id: 'c1',
+      veterinarian_id: 'v2',
+      patient_id: 'p1',
+      collection_method: 'INTERNAL',
+      service_level: 'NORMAL',
+    }),
+  )
+  // Os cards de Exames/Valor já estavam visíveis (layout estático) e ficam
+  // ativos assim que o rascunho existe.
+  expect(await screen.findByLabelText('Adicionar exame')).toBeEnabled()
+
+  await user.type(screen.getByLabelText('Adicionar exame'), 'Hemo')
   await user.click(await screen.findByRole('option', { name: /Hemograma/ }))
   await user.click(await screen.findByRole('button', { name: 'Abrir protocolo' }))
 
   expect(await screen.findByText('Lista de atendimentos')).toBeInTheDocument()
 })
 
-test('toggling to "buscar do histórico" finds an existing patient without losing the already-filled clinic/veterinarian', async () => {
+test('finding an existing patient from the history keeps the already-filled clinic and veterinarian', async () => {
   const user = userEvent.setup()
   const onDraftCreated = vi.fn()
   server.use(
@@ -417,14 +400,16 @@ test('toggling to "buscar do histórico" finds an existing patient without losin
 
   await screen.findByRole('option', { name: 'Clínica Central' })
   await user.selectOptions(screen.getByLabelText('Clínica solicitante'), 'Clínica Central')
-  await user.selectOptions(screen.getByLabelText('Veterinário responsável'), 'Dr. Bruno (vinculado c1)')
+  await user.selectOptions(
+    screen.getByLabelText('Veterinário responsável'),
+    'Dr. Bruno (vinculado c1)',
+  )
 
   await user.click(screen.getByRole('button', { name: '+ buscar do histórico' }))
   await user.type(screen.getByLabelText('Paciente'), 'Bidu')
   await user.click(await screen.findByRole('option', { name: /Bidu/ }))
 
   await waitFor(() => expect(onDraftCreated).toHaveBeenCalledTimes(1))
-  // Clínica/veterinário já preenchidos entram no rascunho junto com o paciente encontrado na busca.
   expect(onDraftCreated).toHaveBeenCalledWith(
     expect.objectContaining({ clinic_id: 'c1', veterinarian_id: 'v2', patient_id: 'p1' }),
   )

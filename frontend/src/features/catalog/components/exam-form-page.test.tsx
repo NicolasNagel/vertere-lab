@@ -58,15 +58,42 @@ function renderApp(initialEntries: string[]) {
   )
 }
 
-test('creates an exam via the header submit button and returns to the list', async () => {
+test('the exam form blocks a save without species, cancels back to the list and creates an exam', async () => {
   const user = userEvent.setup()
-  server.use(
+  const common = [
     meHandler(['catalog.read', 'catalog.manage']),
     speciesHandler(),
     categoriesHandler(),
     http.get('/api/v1/exams', () =>
       HttpResponse.json({ items: [], total: 0, page: 1, page_size: 100 }),
     ),
+  ]
+
+  // Sem nenhuma espécie o envio é bloqueado.
+  server.use(...common)
+  let view = renderApp(['/cadastros/exames/novo'])
+  await user.type(await screen.findByLabelText('Nome'), 'Urinálise')
+  await user.selectOptions(await screen.findByLabelText('Categoria'), 'Hematologia')
+  await user.type(screen.getByLabelText('Preço base'), '40.00')
+  await user.click(screen.getByRole('button', { name: 'Salvar exame' }))
+  expect(await screen.findByText('Selecione ao menos uma espécie atendida.')).toBeInTheDocument()
+  view.unmount()
+  server.resetHandlers()
+
+  // Cancelar volta para a lista sem salvar.
+  server.use(...common)
+  view = renderApp(['/cadastros/exames/novo'])
+  await screen.findByRole('heading', { name: 'Cadastro de exame' })
+  await user.click(screen.getByRole('button', { name: 'Cancelar' }))
+  await waitFor(() =>
+    expect(screen.getByRole('heading', { name: 'Exames & Preços' })).toBeInTheDocument(),
+  )
+  view.unmount()
+  server.resetHandlers()
+
+  // Criar pelo botão do cabeçalho e voltar para a lista.
+  server.use(
+    ...common,
     http.post('/api/v1/exams', async ({ request }) => {
       const body = (await request.json()) as Record<string, unknown>
       return HttpResponse.json(
@@ -87,57 +114,12 @@ test('creates an exam via the header submit button and returns to the list', asy
     }),
   )
   renderApp(['/cadastros/exames/novo'])
-
   expect(await screen.findByRole('heading', { name: 'Cadastro de exame' })).toBeInTheDocument()
-
   expect(screen.getByLabelText('Código')).toHaveValue('Gerado automaticamente ao salvar')
   await user.type(screen.getByLabelText('Nome'), 'Urinálise')
   await user.selectOptions(await screen.findByLabelText('Categoria'), 'Hematologia')
   await user.type(screen.getByLabelText('Preço base'), '40.00')
   await user.click(await screen.findByLabelText('Gato'))
   await user.click(screen.getByRole('button', { name: 'Salvar exame' }))
-
   expect(await screen.findByRole('heading', { name: 'Exames & Preços' })).toBeInTheDocument()
-})
-
-test('cancel button returns to the list without saving', async () => {
-  const user = userEvent.setup()
-  server.use(
-    meHandler(['catalog.read', 'catalog.manage']),
-    speciesHandler(),
-    categoriesHandler(),
-    http.get('/api/v1/exams', () =>
-      HttpResponse.json({ items: [], total: 0, page: 1, page_size: 100 }),
-    ),
-  )
-  renderApp(['/cadastros/exames/novo'])
-
-  await screen.findByRole('heading', { name: 'Cadastro de exame' })
-  await user.click(screen.getByRole('button', { name: 'Cancelar' }))
-
-  await waitFor(() =>
-    expect(screen.getByRole('heading', { name: 'Exames & Preços' })).toBeInTheDocument(),
-  )
-})
-
-test('blocks exam creation without at least one species', async () => {
-  const user = userEvent.setup()
-  server.use(
-    meHandler(['catalog.read', 'catalog.manage']),
-    speciesHandler(),
-    categoriesHandler(),
-    http.get('/api/v1/exams', () =>
-      HttpResponse.json({ items: [], total: 0, page: 1, page_size: 100 }),
-    ),
-  )
-  renderApp(['/cadastros/exames/novo'])
-
-  await user.type(screen.getByLabelText('Nome'), 'Urinálise')
-  await user.selectOptions(await screen.findByLabelText('Categoria'), 'Hematologia')
-  await user.type(screen.getByLabelText('Preço base'), '40.00')
-  await user.click(screen.getByRole('button', { name: 'Salvar exame' }))
-
-  expect(
-    await screen.findByText('Selecione ao menos uma espécie atendida.'),
-  ).toBeInTheDocument()
 })

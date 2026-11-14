@@ -9,18 +9,14 @@ import { shouldRetry } from './query-retry'
 // mensagem de "sem permissão" — ver .claude/rules/05-frontend-web-mobile.md, "401 e 403
 // tratados como casos diferentes na UI" pressupõe que o estado de erro
 // realmente é alcançado.
-test('never retries a 4xx client error (permission/validation/not-found)', () => {
+test('never retries 4xx, retries 5xx and network failures exactly once', () => {
   expect(shouldRetry(0, new ApiError(403, 'FORBIDDEN', 'sem permissão'))).toBe(false)
   expect(shouldRetry(0, new ApiError(404, 'NOT_FOUND', 'não encontrado'))).toBe(false)
   expect(shouldRetry(0, new ApiError(422, 'VALIDATION_ERROR', 'inválido'))).toBe(false)
-})
 
-test('retries a 5xx server error once', () => {
   expect(shouldRetry(0, new ApiError(500, 'INTERNAL_ERROR', 'erro interno'))).toBe(true)
   expect(shouldRetry(1, new ApiError(500, 'INTERNAL_ERROR', 'erro interno'))).toBe(false)
-})
 
-test('retries a plain network failure once', () => {
   expect(shouldRetry(0, new TypeError('Failed to fetch'))).toBe(true)
   expect(shouldRetry(1, new TypeError('Failed to fetch'))).toBe(false)
 })

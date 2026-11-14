@@ -18,7 +18,13 @@ afterAll(() => server.close())
 function meHandler(permissions: string[]) {
   return http.get('/api/v1/auth/me', () =>
     HttpResponse.json({
-      user: { id: 'u1', email: 'a@b.com', full_name: 'A', role_id: 'r1', role_name: 'FINANCE' },
+      user: {
+        id: 'u1',
+        email: 'a@b.com',
+        full_name: 'A',
+        role_id: 'r1',
+        role_name: 'FINANCE',
+      },
       permissions,
     }),
   )
@@ -50,47 +56,43 @@ function settingsHandler() {
 }
 
 function renderPanel() {
-  const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+  const queryClient = new QueryClient({
+    defaultOptions: { queries: { retry: false } },
+  })
   return render(
-    <QueryClientProvider client={queryClient}>
-      <AuthProvider>
-        <OnCallFeeSettingsPanel />
-      </AuthProvider>
-    </QueryClientProvider> as ReactNode,
+    (
+      <QueryClientProvider client={queryClient}>
+        <AuthProvider>
+          <OnCallFeeSettingsPanel />
+        </AuthProvider>
+      </QueryClientProvider>
+    ) as ReactNode,
   )
 }
 
-test('hides the panel entirely without pricing.read', async () => {
+test('the panel is gated by pricing.read and read-only without pricing.manage', async () => {
   server.use(meHandler([]), settingsHandler())
-  renderPanel()
-
+  let view = renderPanel()
   await waitFor(() => expect(screen.queryByText('Taxas de plantão')).not.toBeInTheDocument())
-})
+  view.unmount()
+  server.resetHandlers()
 
-test('shows both tiers with values from the API', async () => {
   server.use(meHandler(['pricing.read']), settingsHandler())
-  renderPanel()
-
+  view = renderPanel()
   expect(await screen.findByText('Taxas de plantão')).toBeInTheDocument()
   expect(screen.getByText('Plantão normal')).toBeInTheDocument()
   expect(screen.getByText('Plantão especial / noturno')).toBeInTheDocument()
-  expect(screen.getByDisplayValue('100.00')).toBeInTheDocument()
-  expect(screen.getByDisplayValue('150.00')).toBeInTheDocument()
-})
-
-test('hides the save action and disables inputs without pricing.manage', async () => {
-  server.use(meHandler(['pricing.read']), settingsHandler())
-  renderPanel()
-
-  await screen.findByText('Taxas de plantão')
-  expect(screen.queryByRole('button', { name: /salvar alterações/i })).not.toBeInTheDocument()
   expect(screen.getByDisplayValue('100.00')).toBeDisabled()
+  expect(screen.getByDisplayValue('150.00')).toBeInTheDocument()
+  expect(screen.queryByRole('button', { name: /salvar alterações/i })).not.toBeInTheDocument()
 })
 
-test('editing a tier and saving sends the updated value with the current row version', async () => {
-  server.use(meHandler(['pricing.read', 'pricing.manage']), settingsHandler())
+test('saving sends the edited value with the current row version and a failure shows a per-tier message', async () => {
+  const user = userEvent.setup()
   let receivedBody: unknown = null
   server.use(
+    meHandler(['pricing.read', 'pricing.manage']),
+    settingsHandler(),
     http.patch('/api/v1/on-call-fee-settings/PLANTAO_NORMAL', async ({ request }) => {
       receivedBody = await request.json()
       return HttpResponse.json({
@@ -103,16 +105,13 @@ test('editing a tier and saving sends the updated value with the current row ver
       })
     }),
   )
-  const user = userEvent.setup()
-  renderPanel()
+  const view = renderPanel()
 
   await screen.findByText('Taxas de plantão')
   const feeInput = screen.getByDisplayValue('100.00')
   await user.clear(feeInput)
   await user.type(feeInput, '120.00')
-
   await user.click(screen.getByRole('button', { name: /salvar alterações/i }))
-
   await waitFor(() => expect(receivedBody).not.toBeNull())
   expect(receivedBody).toEqual({
     fee_amount: '120.00',
@@ -120,27 +119,30 @@ test('editing a tier and saving sends the updated value with the current row ver
     expected_row_version: 1,
   })
   expect(await screen.findByText('Alterações salvas.')).toBeInTheDocument()
-})
+  view.unmount()
+  server.resetHandlers()
 
-test('shows a per-tier error message when saving fails', async () => {
-  server.use(meHandler(['pricing.read', 'pricing.manage']), settingsHandler())
   server.use(
+    meHandler(['pricing.read', 'pricing.manage']),
+    settingsHandler(),
     http.patch('/api/v1/on-call-fee-settings/PLANTAO_NORMAL', () =>
       HttpResponse.json(
-        { error: { code: 'CONFLICT', message: 'Esta configuração foi alterada por outra pessoa.' } },
+        {
+          error: {
+            code: 'CONFLICT',
+            message: 'Esta configuração foi alterada por outra pessoa.',
+          },
+        },
         { status: 409 },
       ),
     ),
   )
-  const user = userEvent.setup()
   renderPanel()
-
   await screen.findByText('Taxas de plantão')
-  const feeInput = screen.getByDisplayValue('100.00')
-  await user.clear(feeInput)
-  await user.type(feeInput, '999.00')
+  const conflictInput = screen.getByDisplayValue('100.00')
+  await user.clear(conflictInput)
+  await user.type(conflictInput, '999.00')
   await user.click(screen.getByRole('button', { name: /salvar alterações/i }))
-
   expect(
     await screen.findByText('Esta configuração foi alterada por outra pessoa.'),
   ).toBeInTheDocument()

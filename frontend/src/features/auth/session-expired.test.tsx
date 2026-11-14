@@ -45,33 +45,41 @@ function mockUnauthenticated() {
   server.use(
     http.get('/api/v1/auth/me', () =>
       HttpResponse.json(
-        { error: { code: 'UNAUTHENTICATED', message: 'Sessão expirada.', request_id: 'r', details: [] } },
+        {
+          error: {
+            code: 'UNAUTHENTICATED',
+            message: 'Sessão expirada.',
+            request_id: 'r',
+            details: [],
+          },
+        },
         { status: 401 },
       ),
     ),
   )
 }
 
-test('shows a session-expired notice only when the user had an active session before', async () => {
+test('shows the session-expired notice only after an active session, and leaves /login after a successful login', async () => {
+  const user = userEvent.setup()
+
+  // Havia sessão ativa antes: avisa que expirou.
   markSessionActive()
   mockUnauthenticated()
-
-  renderApp()
-
+  let view = renderApp()
   expect(await screen.findByText('Sua sessão expirou. Faça login novamente.')).toBeInTheDocument()
-})
+  view.unmount()
+  server.resetHandlers()
+  sessionStorage.clear()
 
-test('does not show a session-expired notice for a plain first visit', async () => {
+  // Primeira visita: sem aviso.
   mockUnauthenticated()
-
-  renderApp()
-
+  view = renderApp()
   await screen.findByRole('button', { name: 'Entrar no sistema' })
   expect(screen.queryByText('Sua sessão expirou. Faça login novamente.')).not.toBeInTheDocument()
-})
+  view.unmount()
+  server.resetHandlers()
 
-test('leaves the login route after a successful login', async () => {
-  const user = userEvent.setup()
+  // Login bem-sucedido sai da rota /login.
   mockUnauthenticated()
   server.use(
     http.post('/api/v1/auth/login', () =>
@@ -91,10 +99,8 @@ test('leaves the login route after a successful login', async () => {
     ),
   )
   renderApp()
-
   await user.type(await screen.findByLabelText('Usuário'), 'admin@qa.local')
   await user.type(screen.getByLabelText('Senha'), 'correct-password')
   await user.click(screen.getByRole('button', { name: 'Entrar no sistema' }))
-
   expect(await screen.findByText('conteúdo protegido')).toBeInTheDocument()
 })
