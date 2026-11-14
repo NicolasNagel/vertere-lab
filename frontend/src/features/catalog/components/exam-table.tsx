@@ -108,6 +108,11 @@ export function ExamTable({
                     <span className="exam-table__status" data-status={exam.status}>
                       {STATUS_LABELS[exam.status]}
                     </span>
+                    {exam.isPanel && (
+                      <span className="exam-table__panel-badge">
+                        Pacote · {exam.componentExamIds.length} exames
+                      </span>
+                    )}
                   </div>
                   {exam.description && (
                     <div className="exam-table__description">{exam.description}</div>

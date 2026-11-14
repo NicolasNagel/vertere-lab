@@ -153,3 +153,14 @@
 .exam-table__menu {
   text-align: right;
 }
+
+.exam-table__panel-badge {
+  flex-shrink: 0;
+  padding: 0.125rem 0.5rem;
+  border-radius: 99px;
+  background: var(--color-info-bg);
+  font-size: 0.6875rem;
+  font-weight: 600;
+  white-space: nowrap;
+  color: var(--color-brand-ink);
+}

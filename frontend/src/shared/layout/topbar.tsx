@@ -14,6 +14,10 @@ const ROUTE_TRAILS: { match: RegExp; trail: string[] }[] = [
   { match: /^\/pacientes/, trail: ['Pacientes'] },
   { match: /^\/cadastros\/exames\/novo$/, trail: ['Cadastros', 'Exames & Preços', 'Novo exame'] },
   {
+    match: /^\/cadastros\/exames\/novo-pacote$/,
+    trail: ['Cadastros', 'Exames & Preços', 'Novo pacote'],
+  },
+  {
     match: /^\/cadastros\/exames\/[^/]+\/editar$/,
     trail: ['Cadastros', 'Exames & Preços', 'Editar'],
   },

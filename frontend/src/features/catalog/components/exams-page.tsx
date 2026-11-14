@@ -100,6 +100,13 @@ export function ExamsPage() {
             <ExamImportButton />
             <Button
               type="button"
+              variant="secondary"
+              onClick={() => navigate('/cadastros/exames/novo-pacote')}
+            >
+              <PlusIcon /> Novo pacote
+            </Button>
+            <Button
+              type="button"
               className="exams-page__new-button"
               onClick={() => navigate('/cadastros/exames/novo')}
             >

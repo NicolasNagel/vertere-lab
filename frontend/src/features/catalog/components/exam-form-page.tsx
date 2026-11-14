@@ -9,7 +9,12 @@ import './exam-form-page.css'
 
 const FORM_ID = 'exam-form'
 
-export function ExamFormPage() {
+interface ExamFormPageProps {
+  newPanel?: boolean
+}
+
+/** Tela de formulário de exame; `newPanel` abre o cadastro de pacote/perfil. */
+export function ExamFormPage({ newPanel = false }: ExamFormPageProps = {}) {
   const navigate = useNavigate()
   const { examId } = useParams<{ examId: string }>()
   const isEditing = examId !== undefined
@@ -39,6 +44,8 @@ export function ExamFormPage() {
   }
 
   const exam = isEditing ? (examQuery.data ?? null) : null
+  const isPanel = newPanel || (exam?.isPanel ?? false)
+  const noun = isPanel ? 'pacote' : 'exame'
   const submitting = isEditing ? updateMutation.isPending : createMutation.isPending
   const submitError = isEditing ? updateMutation.error : createMutation.error
 
@@ -51,10 +58,10 @@ export function ExamFormPage() {
               Exames &amp; Preços
             </button>
             <span aria-hidden="true">›</span>
-            <span>{isEditing ? (exam?.name ?? '') : 'Novo exame'}</span>
+            <span>{isEditing ? (exam?.name ?? '') : `Novo ${noun}`}</span>
           </div>
           <h1 className="exam-form-page__title">
-            {isEditing ? 'Editar exame' : 'Cadastro de exame'}
+            {isEditing ? `Editar ${noun}` : `Cadastro de ${noun}`}
           </h1>
         </div>
         <div className="exam-form-page__actions">
@@ -62,7 +69,7 @@ export function ExamFormPage() {
             Cancelar
           </Button>
           <Button type="submit" form={FORM_ID} disabled={submitting}>
-            {submitting ? 'Salvando…' : 'Salvar exame'}
+            {submitting ? 'Salvando…' : `Salvar ${noun}`}
           </Button>
         </div>
       </div>
@@ -74,6 +81,7 @@ export function ExamFormPage() {
           error={submitError}
           formId={FORM_ID}
           hideActions
+          panel={newPanel}
           onCancel={goToList}
           onSubmitCreate={(values) =>
             createMutation.mutate(values, { onSuccess: goToList })

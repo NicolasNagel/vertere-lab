@@ -12,6 +12,7 @@ import { ApiError } from '../../../shared/api/errors'
 import { useActiveExamCategoriesQuery } from '../api/use-active-exam-categories-query'
 import { useCreateExamCategoryMutation } from '../api/use-create-exam-category-mutation'
 import { useExamCategoryQuery } from '../api/use-exam-category-query'
+import { PanelComponentsField } from './panel-components-field'
 import type { Exam, ExamFormValues, ExamStatus } from '../api/catalog-api'
 import './exam-form.css'
 
@@ -40,8 +41,13 @@ function toFormFields(exam: Exam | null): ExamFormFields {
   }
 }
 
-function toApiValues(fields: ExamFormFields, speciesIds: string[]): ExamFormValues {
+function toApiValues(
+  fields: ExamFormFields,
+  speciesIds: string[],
+  componentExamIds: string[],
+): ExamFormValues {
   return {
+    componentExamIds,
     name: fields.name,
     categoryId: fields.categoryId,
     description: fields.description || null,
@@ -73,6 +79,8 @@ interface ExamFormProps {
   // nativo do HTML, sem duplicar a lógica de submissão.
   formId?: string
   hideActions?: boolean
+  /** Cadastro de pacote/perfil (a edição de um pacote existente já é detectada pelo exame). */
+  panel?: boolean
 }
 
 export function ExamForm({
@@ -84,7 +92,9 @@ export function ExamForm({
   onSubmitUpdate,
   formId,
   hideActions = false,
+  panel = false,
 }: ExamFormProps) {
+  const isPanel = panel || (exam?.isPanel ?? false)
   const {
     register,
     handleSubmit,
@@ -96,6 +106,8 @@ export function ExamForm({
   })
 
   const [speciesIds, setSpeciesIds] = useState<string[]>(exam?.speciesIds ?? [])
+  const [componentIds, setComponentIds] = useState<string[]>(exam?.componentExamIds ?? [])
+  const [componentsError, setComponentsError] = useState<string | null>(null)
   const [speciesError, setSpeciesError] = useState<string | null>(null)
   const [newCategoryName, setNewCategoryName] = useState('')
   const [pendingCategoryId, setPendingCategoryId] = useState<string | null>(null)
@@ -177,11 +189,17 @@ export function ExamForm({
       return
     }
     setSpeciesError(null)
-    if (exam) {
-      onSubmitUpdate?.({ ...toApiValues(fields, speciesIds), status: fields.status })
+    if (isPanel && componentIds.length < 2) {
+      setComponentsError('Um pacote precisa de ao menos 2 exames.')
       return
     }
-    onSubmitCreate?.(toApiValues(fields, speciesIds))
+    setComponentsError(null)
+    const ids = isPanel ? componentIds : []
+    if (exam) {
+      onSubmitUpdate?.({ ...toApiValues(fields, speciesIds, ids), status: fields.status })
+      return
+    }
+    onSubmitCreate?.(toApiValues(fields, speciesIds, ids))
   })
 
   const errorMessage = describeError(error)
@@ -203,7 +221,7 @@ export function ExamForm({
 
             <TextField
               id="exam-name"
-              label="Nome"
+              label={isPanel ? 'Nome do pacote' : 'Nome'}
               disabled={submitting}
               errorMessage={errors.name?.message}
               {...register('name')}
@@ -254,11 +272,25 @@ export function ExamForm({
         </div>
 
         <div className="exam-form__col exam-form__col--side">
+          {isPanel && (
+            <div className="exam-form__card">
+              <p className="exam-form__card-title">Exames do pacote</p>
+              <PanelComponentsField
+                selectedIds={componentIds}
+                disabled={submitting}
+                errorMessage={componentsError}
+                onChange={(ids) => {
+                  setComponentIds(ids)
+                  setComponentsError(null)
+                }}
+              />
+            </div>
+          )}
           <div className="exam-form__card">
             <p className="exam-form__card-title">Precificação</p>
             <TextField
               id="exam-price-base"
-              label="Preço base"
+              label={isPanel ? 'Preço do pacote' : 'Preço base'}
               disabled={submitting}
               errorMessage={errors.priceBase?.message}
               {...register('priceBase')}

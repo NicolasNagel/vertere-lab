@@ -107,3 +107,82 @@ test('creating a category inline selects it once the refetched list includes it'
     expect(screen.getByLabelText<HTMLSelectElement>('Categoria')).toHaveValue('cat2'),
   )
 })
+
+function apiExam(id: string, name: string, overrides: Record<string, unknown> = {}) {
+  return {
+    id,
+    code: `COD${id.toUpperCase()}`,
+    name,
+    category_id: 'cat1',
+    description: null,
+    species_ids: ['s1'],
+    component_exam_ids: [],
+    is_panel: false,
+    status: 'ACTIVE',
+    row_version: 1,
+    price_base: '20.00',
+    price_valid_from: null,
+    price_valid_to: null,
+    created_at: '2026-01-01T00:00:00Z',
+    updated_at: '2026-01-01T00:00:00Z',
+    ...overrides,
+  }
+}
+
+test('a new panel needs at least 2 exams and submits them in the chosen order', async () => {
+  const exams = [
+    apiExam('a', 'Hemograma'),
+    apiExam('b', 'ALT'),
+    apiExam('p', 'CHECK-UP', { is_panel: true, component_exam_ids: ['a', 'b'] }),
+  ]
+  server.use(
+    speciesHandler(),
+    http.get('/api/v1/exam-categories/active', () =>
+      HttpResponse.json({
+        items: [{ id: 'cat1', name: 'Perfis', status: 'ACTIVE', row_version: 1 }],
+      }),
+    ),
+    http.get('/api/v1/exams', () =>
+      HttpResponse.json({ items: exams, total: 3, page: 1, page_size: 10 }),
+    ),
+    http.get('/api/v1/exams/:id', ({ params }) =>
+      HttpResponse.json(exams.find((exam) => exam.id === params.id)),
+    ),
+  )
+  const onSubmitCreate = vi.fn()
+  const user = userEvent.setup()
+  renderWithProviders(
+    <ExamForm
+      exam={null}
+      panel
+      submitting={false}
+      onCancel={() => {}}
+      onSubmitCreate={onSubmitCreate}
+    />,
+  )
+
+  await user.type(await screen.findByLabelText('Nome do pacote'), 'BÁSICO 1')
+  await waitFor(() => expect(screen.getByLabelText('Categoria')).toHaveValue(''))
+  await user.selectOptions(screen.getByLabelText('Categoria'), 'cat1')
+  await user.type(screen.getByLabelText('Preço do pacote'), '70.00')
+  await user.click(await screen.findByLabelText('Cão'))
+
+  // Pacote não aparece como opção (sem aninhar): só Hemograma e ALT.
+  expect(await screen.findByRole('option', { name: /Hemograma/ })).toBeInTheDocument()
+  expect(screen.queryByRole('option', { name: /CHECK-UP/ })).not.toBeInTheDocument()
+
+  await user.click(screen.getByRole('option', { name: /Hemograma/ }))
+  await user.click(screen.getByRole('button', { name: 'Salvar' }))
+  expect(await screen.findByText('Um pacote precisa de ao menos 2 exames.')).toBeInTheDocument()
+  expect(onSubmitCreate).not.toHaveBeenCalled()
+
+  await user.click(await screen.findByRole('option', { name: /ALT/ }))
+  await user.click(await screen.findByRole('button', { name: 'Subir ALT' }))
+  await user.click(screen.getByRole('button', { name: 'Salvar' }))
+
+  await waitFor(() =>
+    expect(onSubmitCreate).toHaveBeenCalledWith(
+      expect.objectContaining({ name: 'BÁSICO 1', componentExamIds: ['b', 'a'] }),
+    ),
+  )
+})

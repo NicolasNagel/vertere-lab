@@ -90,6 +90,15 @@ export const router = createBrowserRouter([
         }),
       },
       {
+        path: '/cadastros/exames/novo-pacote',
+        lazy: async () => {
+          const { ExamFormPage } = await import(
+            '../features/catalog/components/exam-form-page'
+          )
+          return { Component: () => <ExamFormPage newPanel /> }
+        },
+      },
+      {
         path: '/cadastros/exames/:examId/editar',
         lazy: async () => ({
           Component: (await import('../features/catalog/components/exam-form-page')).ExamFormPage,
