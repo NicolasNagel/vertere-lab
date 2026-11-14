@@ -4,7 +4,7 @@ import { z } from 'zod'
 
 import { ApiError } from '../../../shared/api/errors'
 import { Button } from '../../../shared/ui/button'
-import { SelectField } from '../../../shared/ui/select'
+import { Dropdown } from '../../../shared/ui/dropdown'
 import { TextField } from '../../../shared/ui/text-field'
 import { useSpeciesQuery } from '../../patients/api/use-species-query'
 import type { PatientFormValues, PatientSex } from '../../patients/api/patients-api'
@@ -84,6 +84,7 @@ export function AttendancePatientForm({
   const speciesQuery = useSpeciesQuery()
   const speciesOptions = speciesQuery.data ?? []
   const sex = watch('sex')
+  const speciesId = watch('speciesId')
 
   const onSubmit = handleSubmit((fields) => {
     onSubmitCreate(toApiValues(fields, clinicId))
@@ -97,7 +98,7 @@ export function AttendancePatientForm({
 
   return (
     <form className="attendance-patient-form" onSubmit={onSubmit} noValidate>
-      <div className="attendance-patient-form__row">
+      <div className="attendance-patient-form__row attendance-patient-form__row--pair">
         <TextField
           id="attendance-patient-name"
           label="Nome do paciente"
@@ -105,24 +106,41 @@ export function AttendancePatientForm({
           errorMessage={errors.name?.message}
           {...register('name')}
         />
-        <SelectField
-          id="attendance-patient-species"
+        <TextField
+          id="attendance-patient-owner-name"
+          label="Tutor / Proprietário"
+          disabled={submitting}
+          errorMessage={errors.ownerName?.message}
+          {...register('ownerName')}
+        />
+      </div>
+
+      <div className="attendance-patient-form__row attendance-patient-form__row--details">
+        <Dropdown
+          variant="field"
           label="Espécie"
-          options={[
-            { value: '', label: speciesQuery.isLoading ? 'Carregando…' : 'Selecione…' },
-            ...speciesOptions.map((species) => ({ value: species.id, label: species.name })),
-          ]}
+          placeholder={speciesQuery.isLoading ? 'Carregando…' : 'Selecione…'}
+          options={speciesOptions.map((species) => ({ value: species.id, label: species.name }))}
           disabled={submitting || speciesQuery.isLoading}
+          value={speciesId}
           errorMessage={errors.speciesId?.message}
-          {...register('speciesId')}
+          onChange={(value) => setValue('speciesId', value, { shouldValidate: true })}
+        />
+        <TextField
+          id="attendance-patient-breed"
+          label="Raça"
+          disabled={submitting}
+          {...register('breed')}
+        />
+        <TextField
+          id="attendance-patient-age"
+          label="Idade"
+          disabled={submitting}
+          {...register('ageDescription')}
         />
         <div className="attendance-patient-form__field">
           <span className="attendance-patient-form__label">Sexo</span>
-          <div
-            className="attendance-patient-form__toggle-group"
-            role="group"
-            aria-label="Sexo"
-          >
+          <div className="attendance-patient-form__toggle-group" role="group" aria-label="Sexo">
             <button
               type="button"
               className="attendance-patient-form__toggle"
@@ -145,23 +163,6 @@ export function AttendancePatientForm({
             </button>
           </div>
         </div>
-      </div>
-
-      <div className="attendance-patient-form__row">
-        <TextField id="attendance-patient-breed" label="Raça" disabled={submitting} {...register('breed')} />
-        <TextField
-          id="attendance-patient-age"
-          label="Idade"
-          disabled={submitting}
-          {...register('ageDescription')}
-        />
-        <TextField
-          id="attendance-patient-owner-name"
-          label="Tutor / Proprietário"
-          disabled={submitting}
-          errorMessage={errors.ownerName?.message}
-          {...register('ownerName')}
-        />
       </div>
 
       {errorMessage && (

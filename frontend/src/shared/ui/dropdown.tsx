@@ -32,6 +32,11 @@ interface DropdownProps {
   searchable?: boolean
   disabled?: boolean
   className?: string
+  /** `filter` (padrão): botão compacto "Rótulo: valor". `field`: campo de formulário com rótulo acima. */
+  variant?: 'filter' | 'field'
+  /** Só no `field`: texto quando nada está selecionado. */
+  placeholder?: string
+  errorMessage?: string
 }
 
 function normalize(text: string): string {
@@ -61,6 +66,9 @@ export function Dropdown({
   searchable = false,
   disabled = false,
   className,
+  variant = 'filter',
+  placeholder = 'Selecione…',
+  errorMessage,
 }: DropdownProps) {
   const baseId = useId()
   const listboxId = `${baseId}-listbox`
@@ -80,8 +88,13 @@ export function Dropdown({
     return options.filter((option) => normalize(option.label).includes(needle))
   }, [options, query, searchable])
 
-  const selected = options.find((option) => option.value === value) ?? options[0]
-  const isActive = value !== emptyValue
+  const isField = variant === 'field'
+  const selected = isField
+    ? options.find((option) => option.value === value)
+    : (options.find((option) => option.value === value) ?? options[0])
+  const isActive = !isField && value !== emptyValue
+  const labelId = `${baseId}-label`
+  const textId = `${baseId}-text`
 
   const updatePosition = useCallback(() => {
     const trigger = triggerRef.current
@@ -196,14 +209,17 @@ export function Dropdown({
   const activeDescendant =
     visibleOptions.length > 0 ? `${baseId}-opt-${activeIndex}` : undefined
 
-  return (
-    <>
+  const trigger = (
       <button
         ref={triggerRef}
         type="button"
         className={`dropdown__trigger${className ? ` ${className}` : ''}`}
         data-active={isActive}
         data-open={open}
+        data-variant={variant}
+        data-empty={isField && !selected}
+        aria-labelledby={isField ? `${labelId} ${textId}` : undefined}
+        aria-invalid={errorMessage ? true : undefined}
         aria-haspopup="listbox"
         aria-expanded={open}
         aria-controls={open ? listboxId : undefined}
@@ -212,11 +228,21 @@ export function Dropdown({
         onKeyDown={handleTriggerKeyDown}
       >
         {icon && <span className="dropdown__icon">{icon}</span>}
-        <span className="dropdown__text">
-          <span className="dropdown__label">{label}:</span> {selected?.label}
+        <span className="dropdown__text" id={textId}>
+          {isField ? (
+            (selected?.label ?? placeholder)
+          ) : (
+            <>
+              <span className="dropdown__label">{label}:</span> {selected?.label}
+            </>
+          )}
         </span>
         <ChevronDownIcon className="dropdown__chevron" />
       </button>
+  )
+
+  const popover = (
+    <>
 
       {open &&
         position &&
@@ -289,5 +315,28 @@ export function Dropdown({
           document.body,
         )}
     </>
+  )
+
+  if (!isField) {
+    return (
+      <>
+        {trigger}
+        {popover}
+      </>
+    )
+  }
+  return (
+    <div className="dropdown-field">
+      <span className="dropdown-field__label" id={labelId}>
+        {label}
+      </span>
+      {trigger}
+      {errorMessage && (
+        <p role="alert" className="dropdown-field__error">
+          {errorMessage}
+        </p>
+      )}
+      {popover}
+    </div>
   )
 }

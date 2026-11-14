@@ -19,6 +19,14 @@ Formato: `[ ]` aberto · `[x]` resolvido.
 - [ ] Hora da coleta: decidido NÃO implementar.
 - [ ] Campo "Histórico/Observações" do papel: decidido não exibir (`notes` segue no backend).
 
+- [ ] Painel "Valor" ainda tem o selo numérico "5" e visual antigo; refazer na fatia do resumo.
+- [ ] Seções "Exames" e "Atendimento" da tela de protocolo ainda no visual antigo
+      (a grade por categoria entra na fatia 5).
+- [ ] Lista de exames aparece inteira antes de a clínica/paciente serem escolhidos (só desabilitada).
+- [ ] Axe/e2e não cobre a tela de novo protocolo; rodar verificação de acessibilidade nela.
+- [ ] Seta do dropdown de campo aparece "quebrada" quando aberto na captura imediata
+      (provável transição de 120 ms; confirmar com espera).
+
 ## Transversais
 - [ ] 401 no console do navegador durante roteiros de QA (não investigado).
 - [ ] Teste de frontend intermitente já visto uma vez (passou em 3 reexecuções), não diagnosticado.

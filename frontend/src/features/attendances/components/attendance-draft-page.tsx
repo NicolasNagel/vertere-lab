@@ -4,7 +4,8 @@ import { useQueryClient } from '@tanstack/react-query'
 
 import { ApiError } from '../../../shared/api/errors'
 import { Button } from '../../../shared/ui/button'
-import { SelectField, type SelectOption } from '../../../shared/ui/select'
+import { Dropdown, type DropdownOption } from '../../../shared/ui/dropdown'
+import { PageHeader } from '../../../shared/ui/page-header'
 import { TextField } from '../../../shared/ui/text-field'
 import { useAuth } from '../../auth/auth-context'
 import { useAllClinicsQuery } from '../../clinics/api/use-clinics-query'
@@ -87,11 +88,11 @@ export function AttendanceDraftPage() {
 
   const examSelections = useAttendanceExamSelections(attendance, () => navigate('/operacao'))
 
-  const clinicOptions: SelectOption[] = (clinicsQuery.data?.items ?? []).map((clinic) => ({
+  const clinicOptions: DropdownOption[] = (clinicsQuery.data?.items ?? []).map((clinic) => ({
     value: clinic.id,
     label: clinic.name,
   }))
-  const veterinarianOptions: SelectOption[] = (veterinariansQuery.data?.items ?? []).map(
+  const veterinarianOptions: DropdownOption[] = (veterinariansQuery.data?.items ?? []).map(
     (veterinarian) => ({ value: veterinarian.id, label: veterinarian.name }),
   )
   const selectedVeterinarian = veterinariansQuery.data?.items.find(
@@ -188,12 +189,7 @@ export function AttendanceDraftPage() {
 
   return (
     <div className="attendance-draft-page">
-      <div className="attendance-draft-page__header">
-        <div>
-          <div className="attendance-draft-page__eyebrow">Operação · Novo atendimento</div>
-          <h1 className="attendance-draft-page__title">Abertura de protocolo</h1>
-        </div>
-      </div>
+      <PageHeader title="Abertura de protocolo" />
 
       <div className="attendance-draft-page__body">
         {!canCreate ? (
@@ -205,40 +201,35 @@ export function AttendanceDraftPage() {
             <div className="attendance-draft-page__column">
               <section className="attendance-draft-page__section">
                 <h2 className="attendance-draft-page__section-title">
-                  <span className="attendance-draft-page__badge">1</span>
                   Solicitante
                 </h2>
                 <div className="attendance-draft-page__row">
-                  <SelectField
-                    id="attendance-draft-clinic"
+                  <Dropdown
+                    variant="field"
                     label="Clínica solicitante"
-                    options={[
-                      {
-                        value: '',
-                        label: clinicsQuery.isLoading ? 'Carregando…' : 'Selecione a clínica',
-                      },
-                      ...clinicOptions,
-                    ]}
+                    placeholder={clinicsQuery.isLoading ? 'Carregando…' : 'Selecione a clínica'}
+                    options={clinicOptions}
+                    searchable
                     disabled={fieldsDisabled}
                     value={clinicId}
-                    onChange={(event) => handleClinicChange(event.target.value)}
+                    onChange={handleClinicChange}
                   />
                   <div className="attendance-draft-page__field-group">
-                    <SelectField
-                      id="attendance-draft-veterinarian"
+                    <Dropdown
+                      variant="field"
                       label="Veterinário responsável"
-                      options={[
-                        {
-                          value: '',
-                          label: veterinariansQuery.isLoading
+                      placeholder={
+                        !clinicId
+                          ? 'Escolha a clínica primeiro'
+                          : veterinariansQuery.isLoading
                             ? 'Carregando…'
-                            : 'Selecione o veterinário',
-                        },
-                        ...veterinarianOptions,
-                      ]}
+                            : 'Selecione o veterinário'
+                      }
+                      options={veterinarianOptions}
+                      searchable
                       disabled={fieldsDisabled || !clinicId}
                       value={veterinarianId}
-                      onChange={(event) => handleVeterinarianChange(event.target.value)}
+                      onChange={handleVeterinarianChange}
                     />
                     {selectedVeterinarian && (
                       <p className="attendance-draft-page__hint attendance-draft-page__hint--compact attendance-draft-page__mono">
@@ -262,8 +253,7 @@ export function AttendanceDraftPage() {
 
               <section className="attendance-draft-page__section">
                 <h2 className="attendance-draft-page__section-title">
-                  <span className="attendance-draft-page__badge">2</span>
-                  Paciente
+                  Dados do animal
                 </h2>
                 <AttendancePatientSection
                   clinicId={clinicId}
@@ -277,7 +267,6 @@ export function AttendanceDraftPage() {
               <section className="attendance-draft-page__section">
                 <div className="attendance-draft-page__section-header">
                   <h2 className="attendance-draft-page__section-title">
-                    <span className="attendance-draft-page__badge">3</span>
                     Exames
                   </h2>
                   <span className="attendance-draft-page__count">
@@ -304,7 +293,6 @@ export function AttendanceDraftPage() {
             <div className="attendance-draft-page__column attendance-draft-page__column--side">
               <section className="attendance-draft-page__section">
                 <h2 className="attendance-draft-page__section-title">
-                  <span className="attendance-draft-page__badge">4</span>
                   Atendimento
                 </h2>
 

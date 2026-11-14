@@ -170,3 +170,41 @@
     transition: none;
   }
 }
+
+/* Variante de campo de formulário: rótulo acima, botão ocupa a largura da coluna. */
+.dropdown-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  min-width: 0;
+}
+
+.dropdown-field__label {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--color-text-primary);
+}
+
+.dropdown__trigger[data-variant='field'] {
+  width: 100%;
+  min-width: 0;
+}
+
+.dropdown__trigger[data-variant='field'] .dropdown__text {
+  flex: 1;
+  text-align: left;
+}
+
+.dropdown__trigger[data-variant='field'][data-empty='true'] .dropdown__text {
+  color: var(--color-text-secondary);
+}
+
+.dropdown__trigger[aria-invalid='true'] {
+  border-color: var(--color-danger);
+}
+
+.dropdown-field__error {
+  margin: 0;
+  font-size: 0.75rem;
+  color: var(--color-danger);
+}

@@ -246,9 +246,26 @@ function createPatientHandler() {
   })
 }
 
+type User = ReturnType<typeof userEvent.setup>
+
+/** Abre o menu suspenso do campo e escolhe a opção (o `<select>` nativo virou dropdown próprio). */
+async function chooseOption(user: User, field: string, option: string) {
+  const trigger = await screen.findByRole('button', { name: new RegExp(`^${field}`) })
+  await waitFor(() => expect(trigger).toBeEnabled())
+  await user.click(trigger)
+  await user.click(await screen.findByRole('option', { name: option }))
+}
+
+async function listOptions(user: User, field: string): Promise<string[]> {
+  await user.click(await screen.findByRole('button', { name: new RegExp(`^${field}`) }))
+  const labels = screen.getAllByRole('option').map((option) => option.textContent ?? '')
+  await user.keyboard('{Escape}')
+  return labels
+}
+
 async function fillAndSavePatientForm(user: ReturnType<typeof userEvent.setup>) {
   await user.type(screen.getByLabelText('Nome do paciente'), 'Bidu')
-  await user.selectOptions(await screen.findByLabelText('Espécie'), 'Canino')
+  await chooseOption(user, 'Espécie', 'Canino')
   await user.type(screen.getByLabelText('Tutor / Proprietário'), 'Maria Souza')
   await user.click(screen.getByRole('button', { name: 'Salvar' }))
 }
@@ -263,16 +280,14 @@ test('requires attendances.create and filters the veterinarian list by the selec
   server.resetHandlers()
 
   renderPage(['attendances.create'])
-  await screen.findByRole('option', { name: 'Clínica Central' })
-  await user.selectOptions(screen.getByLabelText('Clínica solicitante'), 'Clínica Central')
+  await chooseOption(user, 'Clínica solicitante', 'Clínica Central')
 
-  const vetSelect = screen.getByLabelText('Veterinário responsável') as HTMLSelectElement
-  const optionLabels = Array.from(vetSelect.options).map((option) => option.text)
+  const optionLabels = await listOptions(user, 'Veterinário responsável')
   expect(optionLabels).toContain('Dra. Ana (autônoma)')
   expect(optionLabels).toContain('Dr. Bruno (vinculado c1)')
 
-  await user.selectOptions(screen.getByLabelText('Clínica solicitante'), 'Clínica Norte')
-  const optionLabelsAfter = Array.from(vetSelect.options).map((option) => option.text)
+  await chooseOption(user, 'Clínica solicitante', 'Clínica Norte')
+  const optionLabelsAfter = await listOptions(user, 'Veterinário responsável')
   expect(optionLabelsAfter).toContain('Dra. Ana (autônoma)')
   expect(optionLabelsAfter).not.toContain('Dr. Bruno (vinculado c1)')
 })
@@ -354,12 +369,8 @@ test('auto-creates the draft once clinic, veterinarian and patient are set, then
   )
   renderPage(['attendances.create', 'attendances.update'])
 
-  await screen.findByRole('option', { name: 'Clínica Central' })
-  await user.selectOptions(screen.getByLabelText('Clínica solicitante'), 'Clínica Central')
-  await user.selectOptions(
-    screen.getByLabelText('Veterinário responsável'),
-    'Dr. Bruno (vinculado c1)',
-  )
+  await chooseOption(user, 'Clínica solicitante', 'Clínica Central')
+  await chooseOption(user, 'Veterinário responsável', 'Dr. Bruno (vinculado c1)')
   expect(onDraftCreated).not.toHaveBeenCalled() // ainda falta o paciente
 
   await fillAndSavePatientForm(user)
@@ -398,12 +409,8 @@ test('finding an existing patient from the history keeps the already-filled clin
   )
   renderPage(['attendances.create'], [patientSearchHandler([bidu()])])
 
-  await screen.findByRole('option', { name: 'Clínica Central' })
-  await user.selectOptions(screen.getByLabelText('Clínica solicitante'), 'Clínica Central')
-  await user.selectOptions(
-    screen.getByLabelText('Veterinário responsável'),
-    'Dr. Bruno (vinculado c1)',
-  )
+  await chooseOption(user, 'Clínica solicitante', 'Clínica Central')
+  await chooseOption(user, 'Veterinário responsável', 'Dr. Bruno (vinculado c1)')
 
   await user.click(screen.getByRole('button', { name: '+ buscar do histórico' }))
   await user.type(screen.getByLabelText('Paciente'), 'Bidu')
