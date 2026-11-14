@@ -1,11 +1,9 @@
 import { useEffect, useRef, useState } from 'react'
 
 import { ApiError } from '../../../shared/api/errors'
+import { parseMoneyInput } from '../../../shared/lib/money'
 import { Button } from '../../../shared/ui/button'
-import type {
-  AddFinancialAdjustmentParams,
-  FinancialAdjustmentKind,
-} from '../api/closures-api'
+import type { AddFinancialAdjustmentParams, FinancialAdjustmentKind } from '../api/closures-api'
 import './closure-reopen-modal.css'
 
 interface FinancialAdjustmentModalProps {
@@ -26,8 +24,8 @@ export function FinancialAdjustmentModal({
   const [reason, setReason] = useState('')
   const amountRef = useRef<HTMLInputElement>(null)
   const submittedRef = useRef(false)
-  const numericAmount = Number(amount.replace(',', '.'))
-  const isValid = Number.isFinite(numericAmount) && numericAmount > 0 && reason.trim().length >= 10
+  const parsedAmount = parseMoneyInput(amount)
+  const isValid = parsedAmount !== null && reason.trim().length >= 10
 
   useEffect(() => {
     amountRef.current?.focus()
@@ -89,12 +87,12 @@ export function FinancialAdjustmentModal({
             type="button"
             disabled={!isValid || isPending}
             onClick={() => {
-              if (submittedRef.current) return
+              if (submittedRef.current || parsedAmount === null) return
               submittedRef.current = true
               onConfirm({
                 monthlyClosureItemId: null,
                 kind,
-                amount: numericAmount.toFixed(2),
+                amount: parsedAmount,
                 reason: reason.trim(),
               })
             }}

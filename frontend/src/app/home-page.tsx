@@ -1,9 +1,11 @@
 import { Link } from 'react-router'
 
 import { useAttendancesQuery } from '../features/attendances/api/use-attendances-query'
+import { useAttendanceStatusCountsQuery } from '../features/attendances/api/use-attendance-status-counts-query'
 import { AttendanceStatusBadge } from '../features/attendances/components/attendance-status-badge'
 import { useAuth } from '../features/auth/auth-context'
 import { formatCurrencyBRL } from '../shared/lib/formatters'
+import { greetingFor } from './greeting'
 import './home-page.css'
 
 const dateFormatter = new Intl.DateTimeFormat('pt-BR', {
@@ -35,12 +37,11 @@ export function HomePage() {
       ? { serviceDateFrom: dateValue, serviceDateTo: dateValue, page: 1, pageSize: 5 }
       : null,
   )
+  const countsQuery = useAttendanceStatusCountsQuery(
+    canReadAttendances ? { serviceDateFrom: dateValue, serviceDateTo: dateValue } : null,
+  )
   const firstName = user?.fullName.trim().split(/\s+/)[0] ?? 'equipe'
   const attendances = attendancesQuery.data?.items ?? []
-  const billedToday = attendances.reduce(
-    (total, attendance) => total + Number(attendance.grandTotal),
-    0,
-  )
 
   return (
     <div className="dashboard-page">
@@ -48,7 +49,7 @@ export function HomePage() {
         <div>
           <div className="dashboard-page__date">{dateFormatter.format(today)}</div>
           <h1 className="dashboard-page__title">
-            Bom dia, <em>{firstName}.</em>
+            {greetingFor(today)}, <em>{firstName}.</em>
           </h1>
         </div>
         {user?.permissions.includes('attendances.create') && (
@@ -76,8 +77,10 @@ export function HomePage() {
         </article>
         <article className="dashboard-kpi dashboard-kpi--accent">
           <span>Atendido hoje</span>
-          <strong>{formatCurrencyBRL(billedToday.toFixed(2))}</strong>
-          <small>total dos protocolos exibidos</small>
+          <strong>
+            {countsQuery.data ? formatCurrencyBRL(countsQuery.data.billedTotal) : '—'}
+          </strong>
+          <small>protocolos de hoje, sem rascunhos e cancelados</small>
         </article>
       </section>
 

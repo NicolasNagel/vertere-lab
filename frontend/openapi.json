@@ -5180,12 +5180,18 @@
             },
             "type": "object",
             "title": "By Status"
+          },
+          "billed_total": {
+            "type": "string",
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Billed Total"
           }
         },
         "type": "object",
         "required": [
           "total",
-          "by_status"
+          "by_status",
+          "billed_total"
         ],
         "title": "AttendanceStatusCountsResponse"
       },

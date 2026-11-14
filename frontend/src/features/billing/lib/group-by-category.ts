@@ -2,6 +2,8 @@
  * category breakdown (Tela 15) — same non-authoritative regrouping caveat as
  * `group-by-protocol.ts`. */
 
+import { sumMoney } from '../../../shared/lib/money'
+
 export interface CategoryGroupableItem {
   examCategory: string | null
   totalAmount: string
@@ -16,17 +18,17 @@ export interface CategoryGroup {
 const UNCATEGORIZED_LABEL = 'Outros'
 
 export function groupItemsByCategory<T extends CategoryGroupableItem>(items: T[]): CategoryGroup[] {
-  const totals = new Map<string, { count: number; total: number }>()
+  const totals = new Map<string, { count: number; amounts: string[] }>()
   for (const item of items) {
     const category = item.examCategory ?? UNCATEGORIZED_LABEL
-    const entry = totals.get(category) ?? { count: 0, total: 0 }
+    const entry = totals.get(category) ?? { count: 0, amounts: [] }
     entry.count += 1
-    entry.total += Number(item.totalAmount)
+    entry.amounts.push(item.totalAmount)
     totals.set(category, entry)
   }
-  return Array.from(totals.entries()).map(([category, { count, total }]) => ({
+  return Array.from(totals.entries()).map(([category, { count, amounts }]) => ({
     category,
     count,
-    total: String(total),
+    total: sumMoney(amounts),
   }))
 }

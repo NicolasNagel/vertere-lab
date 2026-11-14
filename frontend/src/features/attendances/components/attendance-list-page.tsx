@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { Link } from 'react-router'
 
 import { ApiError } from '../../../shared/api/errors'
+import { useDebouncedValue } from '../../../shared/lib/use-debounced-value'
 import { PlusIcon, SearchIcon } from '../../../shared/ui/icons'
 import type { SelectOption } from '../../../shared/ui/select'
 import { useAuth } from '../../auth/auth-context'
@@ -34,6 +35,8 @@ export function AttendanceListPage() {
   const [serviceDateFrom, setServiceDateFrom] = useState('')
   const [serviceDateTo, setServiceDateTo] = useState('')
 
+  const debouncedProtocolNumber = useDebouncedValue(protocolNumber.trim(), 300)
+
   const clinicsQuery = useAllClinicsQuery()
   const veterinariansQuery = useAllVeterinariansQuery()
   const patientsQuery = useAllPatientsQuery()
@@ -47,7 +50,7 @@ export function AttendanceListPage() {
           status: status || undefined,
           clinicId: clinicId || undefined,
           serviceLevel: serviceLevel || undefined,
-          protocolNumber: protocolNumber.trim() || undefined,
+          protocolNumber: debouncedProtocolNumber || undefined,
           serviceDateFrom: serviceDateFrom || undefined,
           serviceDateTo: serviceDateTo || undefined,
         }
@@ -58,7 +61,7 @@ export function AttendanceListPage() {
       ? {
           clinicId: clinicId || undefined,
           serviceLevel: serviceLevel || undefined,
-          protocolNumber: protocolNumber.trim() || undefined,
+          protocolNumber: debouncedProtocolNumber || undefined,
           serviceDateFrom: serviceDateFrom || undefined,
           serviceDateTo: serviceDateTo || undefined,
         }
@@ -90,6 +93,11 @@ export function AttendanceListPage() {
     }),
   )
 
+  const lookupsFailed =
+    clinicsQuery.isError ||
+    veterinariansQuery.isError ||
+    patientsQuery.isError ||
+    speciesQuery.isError
   const isForbidden = attendancesQuery.error instanceof ApiError && attendancesQuery.error.status === 403
   const isGenericError = attendancesQuery.isError && !isForbidden
   const isLoading = canRead && attendancesQuery.isLoading
@@ -168,6 +176,13 @@ export function AttendanceListPage() {
             {isGenericError && (
               <p className="attendance-list-page__error">
                 Não foi possível carregar os atendimentos. Tente novamente.
+              </p>
+            )}
+
+            {lookupsFailed && (
+              <p className="attendance-list-page__error" role="status">
+                Não foi possível carregar nomes de clínicas, veterinários ou pacientes. Os campos
+                afetados aparecem como "—".
               </p>
             )}
 

@@ -106,6 +106,7 @@ export type AttendanceStatus = "DRAFT" | "CONFIRMED" | "IN_PROGRESS" | "COMPLETE
 export type AttendanceStatusCountsResponse = {
   "total": number
   "by_status": Record<string, unknown>
+  "billed_total": string
 }
 
 export type AttendanceTimelineEntryRead = {

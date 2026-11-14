@@ -88,6 +88,8 @@ export interface AttendanceListParams {
 export interface AttendanceStatusCounts {
   total: number
   byStatus: Partial<Record<AttendanceStatus, number>>
+  /** Server-computed: DRAFT and CANCELLED excluded, whole filter (not one page). */
+  billedTotal: string
 }
 
 export interface AttendanceDraftFormValues {
@@ -336,10 +338,18 @@ export async function fetchAttendanceStatusCounts(
   if (params.serviceDateFrom) query.set('service_date_from', params.serviceDateFrom)
   if (params.serviceDateTo) query.set('service_date_to', params.serviceDateTo)
 
-  const body = await apiRequest<{ total: number; by_status: Record<string, number> }>(
+  const body = await apiRequest<{
+    total: number
+    by_status: Record<string, number>
+    billed_total: string
+  }>(
     `/attendances/status-counts?${query.toString()}`,
   )
-  return { total: body.total, byStatus: body.by_status as Partial<Record<AttendanceStatus, number>> }
+  return {
+    total: body.total,
+    byStatus: body.by_status as Partial<Record<AttendanceStatus, number>>,
+    billedTotal: body.billed_total,
+  }
 }
 
 export async function fetchAttendance(id: string): Promise<Attendance> {
