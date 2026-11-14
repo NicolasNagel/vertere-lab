@@ -176,7 +176,7 @@ class LoginUseCase:
         self._audit.record(
             AuditEntry(
                 actor_user_id=user.id,
-                actor_scope=ActorScope.LAB,
+                actor_scope=ActorScope(role.scope.value),
                 action="auth.login_succeeded",
                 entity_type="user",
                 entity_id=str(user.id),

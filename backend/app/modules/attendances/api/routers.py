@@ -66,6 +66,7 @@ from app.modules.attendances.application.list_attendances import (
     CountAttendancesByStatusUseCase,
     ListAttendancesQuery,
     ListAttendancesUseCase,
+    SumBilledTotalUseCase,
 )
 from app.modules.attendances.application.mutation_handlers import (
     handle_cancel_attendance,
@@ -225,22 +226,23 @@ def get_attendance_status_counts(
     session: SqlAlchemySession = Depends(get_session),
     current_user: ActorContext = Depends(require_permission("attendances.read")),
 ) -> AttendanceStatusCountsResponse:
-    use_case = CountAttendancesByStatusUseCase(attendances=SqlAlchemyAttendanceRepository(session))
-    counts = use_case.execute(
-        CountAttendancesByStatusQuery(
-            actor=current_user,
-            clinic_id=clinic_id,
-            veterinarian_id=veterinarian_id,
-            service_level=service_level,
-            protocol_number=protocol_number,
-            owner_name=owner_name,
-            service_date_from=service_date_from,
-            service_date_to=service_date_to,
-        )
+    repository = SqlAlchemyAttendanceRepository(session)
+    query = CountAttendancesByStatusQuery(
+        actor=current_user,
+        clinic_id=clinic_id,
+        veterinarian_id=veterinarian_id,
+        service_level=service_level,
+        protocol_number=protocol_number,
+        owner_name=owner_name,
+        service_date_from=service_date_from,
+        service_date_to=service_date_to,
     )
+    counts = CountAttendancesByStatusUseCase(attendances=repository).execute(query)
+    billed_total = SumBilledTotalUseCase(attendances=repository).execute(query)
     return AttendanceStatusCountsResponse(
         total=sum(counts.values()),
         by_status={status.value: count for status, count in counts.items()},
+        billed_total=billed_total,
     )
 
 

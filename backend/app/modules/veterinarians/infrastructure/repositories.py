@@ -15,6 +15,7 @@ from app.modules.veterinarian_clinics.infrastructure.models import VeterinarianC
 from app.modules.veterinarians.domain.entities import Veterinarian, VeterinarianStatus
 from app.modules.veterinarians.domain.value_objects import Crmv
 from app.modules.veterinarians.infrastructure.models import VeterinarianModel
+from app.shared.infrastructure.sql import LIKE_ESCAPE, contains_pattern
 
 
 def _to_domain(model: VeterinarianModel) -> Veterinarian:
@@ -98,6 +99,20 @@ class SqlAlchemyVeterinarianRepository:
         model.updated_by = veterinarian.updated_by
         model.updated_at = veterinarian.updated_at
         model.row_version = veterinarian.row_version + 1
+        veterinarian.row_version = model.row_version
+
+    def is_linked_to_any_clinic(self, veterinarian_id: UUID, clinic_ids: frozenset[UUID]) -> bool:
+        if not clinic_ids:
+            return False
+        stmt = (
+            select(VeterinarianClinicModel.id)
+            .where(
+                VeterinarianClinicModel.veterinarian_id == veterinarian_id,
+                VeterinarianClinicModel.clinic_id.in_(clinic_ids),
+            )
+            .limit(1)
+        )
+        return self._session.execute(stmt).first() is not None
 
     def list_page(
         self,
@@ -116,11 +131,11 @@ class SqlAlchemyVeterinarianRepository:
         if is_autonomous is not None:
             conditions.append(VeterinarianModel.is_autonomous == is_autonomous)
         if search:
-            like_pattern = f"%{search.lower()}%"
+            like_pattern = contains_pattern(search.lower())
             conditions.append(
                 or_(
-                    func.lower(VeterinarianModel.name).like(like_pattern),
-                    func.lower(VeterinarianModel.crmv).like(like_pattern),
+                    func.lower(VeterinarianModel.name).like(like_pattern, escape=LIKE_ESCAPE),
+                    func.lower(VeterinarianModel.crmv).like(like_pattern, escape=LIKE_ESCAPE),
                 )
             )
         if available_for_clinic_id is not None:

@@ -7,6 +7,7 @@ ORM models never leak past this file (rule: .claude/rules/03-database.md).
 from __future__ import annotations
 
 from datetime import date
+from decimal import Decimal
 from uuid import UUID
 
 from sqlalchemy import ColumnElement, func, select
@@ -29,6 +30,7 @@ from app.modules.attendances.infrastructure.models import (
     OnCallFeeSettingModel,
 )
 from app.modules.patients.infrastructure.models import PatientModel
+from app.shared.infrastructure.sql import LIKE_ESCAPE, contains_pattern
 
 
 def _item_to_domain(model: AttendanceExamModel) -> AttendanceExam:
@@ -266,13 +268,21 @@ class SqlAlchemyAttendanceRepository:
         if service_level is not None:
             conditions.append(AttendanceModel.service_level == service_level.value)
         if protocol_number:
-            conditions.append(AttendanceModel.protocol_number.ilike(f"%{protocol_number.strip()}%"))
+            conditions.append(
+                AttendanceModel.protocol_number.ilike(
+                    contains_pattern(protocol_number.strip()), escape=LIKE_ESCAPE
+                )
+            )
         if service_date_from is not None:
             conditions.append(AttendanceModel.service_date >= service_date_from)
         if service_date_to is not None:
             conditions.append(AttendanceModel.service_date <= service_date_to)
         if owner_name:
-            conditions.append(PatientModel.owner_name.ilike(f"%{owner_name.strip()}%"))
+            conditions.append(
+                PatientModel.owner_name.ilike(
+                    contains_pattern(owner_name.strip()), escape=LIKE_ESCAPE
+                )
+            )
         return conditions
 
     def list_page(
@@ -353,6 +363,39 @@ class SqlAlchemyAttendanceRepository:
             stmt = stmt.where(condition)
         rows = self._session.execute(stmt).all()
         return {AttendanceStatus(status): count for status, count in rows}
+
+    def sum_billed_total(
+        self,
+        *,
+        clinic_id: UUID | None,
+        veterinarian_id: UUID | None,
+        service_level: ServiceLevel | None,
+        protocol_number: str | None,
+        owner_name: str | None,
+        service_date_from: date | None,
+        service_date_to: date | None,
+        clinic_ids: frozenset[UUID] | None = None,
+    ) -> Decimal:
+        conditions = self._filter_conditions(
+            clinic_id=clinic_id,
+            veterinarian_id=veterinarian_id,
+            service_level=service_level,
+            protocol_number=protocol_number,
+            owner_name=owner_name,
+            service_date_from=service_date_from,
+            service_date_to=service_date_to,
+            clinic_ids=clinic_ids,
+        )
+        stmt = select(func.coalesce(func.sum(AttendanceModel.grand_total), 0)).where(
+            AttendanceModel.status.not_in(
+                [AttendanceStatus.DRAFT.value, AttendanceStatus.CANCELLED.value]
+            )
+        )
+        if owner_name:
+            stmt = stmt.join(PatientModel, PatientModel.id == AttendanceModel.patient_id)
+        for condition in conditions:
+            stmt = stmt.where(condition)
+        return Decimal(self._session.execute(stmt).scalar_one())
 
 
 class SqlAlchemyAttendanceSequenceRepository:

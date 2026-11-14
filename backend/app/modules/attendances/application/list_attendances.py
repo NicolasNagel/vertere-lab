@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import date
+from decimal import Decimal
 from uuid import UUID
 
 from app.modules.attendances.application.dtos import AttendanceDTO
@@ -80,22 +81,46 @@ class ListAttendancesUseCase:
         )
 
 
+def _check_filters(query: CountAttendancesByStatusQuery) -> None:
+    if _REQUIRED_PERMISSION not in query.actor.permissions:
+        raise ForbiddenError(f"Permissão ausente: {_REQUIRED_PERMISSION}")
+
+    if (
+        query.service_date_from is not None
+        and query.service_date_to is not None
+        and query.service_date_from > query.service_date_to
+    ):
+        raise ValidationError("O intervalo de datas informado e invalido.")
+
+
 class CountAttendancesByStatusUseCase:
     def __init__(self, *, attendances: AttendanceRepository) -> None:
         self._attendances = attendances
 
     def execute(self, query: CountAttendancesByStatusQuery) -> dict[AttendanceStatus, int]:
-        if _REQUIRED_PERMISSION not in query.actor.permissions:
-            raise ForbiddenError(f"Permissão ausente: {_REQUIRED_PERMISSION}")
-
-        if (
-            query.service_date_from is not None
-            and query.service_date_to is not None
-            and query.service_date_from > query.service_date_to
-        ):
-            raise ValidationError("O intervalo de datas informado e invalido.")
-
+        _check_filters(query)
         return self._attendances.count_by_status(
+            clinic_id=query.clinic_id,
+            veterinarian_id=query.veterinarian_id,
+            service_level=query.service_level,
+            protocol_number=query.protocol_number,
+            owner_name=query.owner_name,
+            service_date_from=query.service_date_from,
+            service_date_to=query.service_date_to,
+            clinic_ids=query.actor.clinic_filter,
+        )
+
+
+class SumBilledTotalUseCase:
+    """Billable total (DRAFT and CANCELLED excluded) of every attendance that
+    matches the filters — not just the visible page."""
+
+    def __init__(self, *, attendances: AttendanceRepository) -> None:
+        self._attendances = attendances
+
+    def execute(self, query: CountAttendancesByStatusQuery) -> Decimal:
+        _check_filters(query)
+        return self._attendances.sum_billed_total(
             clinic_id=query.clinic_id,
             veterinarian_id=query.veterinarian_id,
             service_level=query.service_level,

@@ -5,6 +5,7 @@ from uuid import UUID
 
 from app.modules.veterinarians.application.dtos import VeterinarianDTO
 from app.modules.veterinarians.application.mappers import veterinarian_to_dto
+from app.modules.veterinarians.application.visibility import ensure_veterinarian_visible
 from app.modules.veterinarians.domain.repositories import VeterinarianRepository
 from app.shared.application.authorization import ActorContext
 from app.shared.domain.errors import ForbiddenError, NotFoundError
@@ -29,5 +30,6 @@ class GetVeterinarianUseCase:
         veterinarian = self._veterinarians.get_by_id(query.veterinarian_id)
         if veterinarian is None:
             raise NotFoundError("Veterinário não encontrado.")
+        ensure_veterinarian_visible(query.actor, veterinarian, self._veterinarians)
 
         return veterinarian_to_dto(veterinarian)

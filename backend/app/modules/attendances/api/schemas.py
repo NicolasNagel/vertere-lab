@@ -66,6 +66,7 @@ class AttendanceListResponse(BaseModel):
 class AttendanceStatusCountsResponse(BaseModel):
     total: int
     by_status: dict[str, int]
+    billed_total: Decimal
 
 
 class AttendanceDraftCreateRequest(BaseModel):

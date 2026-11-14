@@ -125,7 +125,7 @@ class UpdateAttendanceUseCase:
         self._audit.record(
             AuditEntry(
                 actor_user_id=command.actor.id,
-                actor_scope=ActorScope.LAB,
+                actor_scope=ActorScope(command.actor.role_scope),
                 action="attendances.updated",
                 entity_type="attendance",
                 entity_id=str(attendance.id),

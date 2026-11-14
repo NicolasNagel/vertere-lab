@@ -14,6 +14,7 @@ from sqlalchemy.orm import Session as SqlAlchemySession
 from app.modules.catalog.domain.entities import Exam, ExamCategory, ExamCategoryStatus, ExamStatus
 from app.modules.catalog.domain.value_objects import ExamCode
 from app.modules.catalog.infrastructure.models import ExamCategoryModel, ExamModel, ExamSpeciesModel
+from app.shared.infrastructure.sql import LIKE_ESCAPE, contains_pattern
 
 
 def _category_to_domain(model: ExamCategoryModel) -> ExamCategory:
@@ -66,6 +67,7 @@ class SqlAlchemyExamCategoryRepository:
         model.updated_by = category.updated_by
         model.updated_at = category.updated_at
         model.row_version = category.row_version + 1
+        category.row_version = model.row_version
 
     def list_page(
         self,
@@ -79,8 +81,10 @@ class SqlAlchemyExamCategoryRepository:
         if status is not None:
             conditions.append(ExamCategoryModel.status == status.value)
         if search:
-            like_pattern = f"%{search.lower()}%"
-            conditions.append(func.lower(ExamCategoryModel.name).like(like_pattern))
+            like_pattern = contains_pattern(search.lower())
+            conditions.append(
+                func.lower(ExamCategoryModel.name).like(like_pattern, escape=LIKE_ESCAPE)
+            )
 
         count_stmt = select(func.count()).select_from(ExamCategoryModel)
         list_stmt = select(ExamCategoryModel).order_by(ExamCategoryModel.name)
@@ -215,11 +219,11 @@ class SqlAlchemyExamRepository:
         if category_id is not None:
             conditions.append(ExamModel.category_id == category_id)
         if search:
-            like_pattern = f"%{search.lower()}%"
+            like_pattern = contains_pattern(search.lower())
             conditions.append(
                 or_(
-                    func.lower(ExamModel.name).like(like_pattern),
-                    func.lower(ExamModel.code).like(like_pattern),
+                    func.lower(ExamModel.name).like(like_pattern, escape=LIKE_ESCAPE),
+                    func.lower(ExamModel.code).like(like_pattern, escape=LIKE_ESCAPE),
                 )
             )
 

@@ -78,7 +78,7 @@ class AssignRoleUseCase:
         self._audit.record(
             AuditEntry(
                 actor_user_id=command.actor.id,
-                actor_scope=ActorScope.LAB,
+                actor_scope=ActorScope(command.actor.role_scope),
                 action="users.role_changed",
                 entity_type="user",
                 entity_id=str(user.id),
@@ -96,6 +96,6 @@ class AssignRoleUseCase:
             role_name=new_role.name,
             role_scope=new_role.scope.value,
             clinic_ids=frozenset(),
-            row_version=user.row_version + 1,
+            row_version=user.row_version,
             created_at=user.created_at,
         )

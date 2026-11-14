@@ -8,6 +8,7 @@ does.
 from __future__ import annotations
 
 from datetime import date
+from decimal import Decimal
 from typing import Protocol
 from uuid import UUID
 
@@ -63,6 +64,23 @@ class AttendanceRepository(Protocol):
         service_date_to: date | None,
         clinic_ids: frozenset[UUID] | None = None,
     ) -> dict[AttendanceStatus, int]: ...
+
+    def sum_billed_total(
+        self,
+        *,
+        clinic_id: UUID | None,
+        veterinarian_id: UUID | None,
+        service_level: ServiceLevel | None,
+        protocol_number: str | None,
+        owner_name: str | None,
+        service_date_from: date | None,
+        service_date_to: date | None,
+        clinic_ids: frozenset[UUID] | None = None,
+    ) -> Decimal:
+        """Sum of `grand_total` over every match, excluding DRAFT and CANCELLED
+        (neither is billable). Computed in the database so the dashboard never
+        adds money up in the browser."""
+        ...
 
 
 class AttendanceSequenceRepository(Protocol):

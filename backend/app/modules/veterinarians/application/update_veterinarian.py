@@ -7,6 +7,7 @@ from app.modules.audit.domain.entities import ActorScope, AuditEntry
 from app.modules.audit.domain.repositories import AuditLogWriter
 from app.modules.veterinarians.application.dtos import VeterinarianDTO
 from app.modules.veterinarians.application.mappers import veterinarian_to_dto
+from app.modules.veterinarians.application.visibility import ensure_veterinarian_visible
 from app.modules.veterinarians.domain.entities import VeterinarianStatus
 from app.modules.veterinarians.domain.errors import DuplicateCrmvError
 from app.modules.veterinarians.domain.repositories import VeterinarianRepository
@@ -51,6 +52,7 @@ class UpdateVeterinarianUseCase:
         veterinarian = self._veterinarians.get_by_id(command.veterinarian_id)
         if veterinarian is None:
             raise NotFoundError("Veterinário não encontrado.")
+        ensure_veterinarian_visible(command.actor, veterinarian, self._veterinarians)
 
         if veterinarian.row_version != command.expected_row_version:
             raise ConflictError(
@@ -80,7 +82,7 @@ class UpdateVeterinarianUseCase:
         self._audit.record(
             AuditEntry(
                 actor_user_id=command.actor.id,
-                actor_scope=ActorScope.LAB,
+                actor_scope=ActorScope(command.actor.role_scope),
                 action="veterinarians.updated",
                 entity_type="veterinarian",
                 entity_id=str(veterinarian.id),

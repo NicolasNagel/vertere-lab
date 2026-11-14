@@ -74,7 +74,7 @@ class UpdateOnCallFeeSettingUseCase:
         self._audit.record(
             AuditEntry(
                 actor_user_id=command.actor.id,
-                actor_scope=ActorScope.LAB,
+                actor_scope=ActorScope(command.actor.role_scope),
                 action="on_call_fee_settings.updated",
                 entity_type="on_call_fee_setting",
                 entity_id=str(setting.id),

@@ -307,15 +307,7 @@ def assign_role(
         clock=SystemClock(),
     )
 
-    return UserListItemRead(
-        id=result.id,
-        email=result.email,
-        full_name=result.full_name,
-        is_active=result.is_active,
-        role_id=result.role_id,
-        role_name=result.role_name,
-        created_at=result.created_at,
-    )
+    return _user_list_item_read(result)
 
 
 @router.patch("/users/{user_id}/deactivate", response_model=UserListItemRead)
@@ -330,15 +322,7 @@ def deactivate_user(
         clock=SystemClock(),
     )
 
-    return UserListItemRead(
-        id=result.id,
-        email=result.email,
-        full_name=result.full_name,
-        is_active=result.is_active,
-        role_id=result.role_id,
-        role_name=result.role_name,
-        created_at=result.created_at,
-    )
+    return _user_list_item_read(result)
 
 
 @router.patch("/users/{user_id}/activate", response_model=UserListItemRead)
@@ -353,15 +337,7 @@ def activate_user(
         clock=SystemClock(),
     )
 
-    return UserListItemRead(
-        id=result.id,
-        email=result.email,
-        full_name=result.full_name,
-        is_active=result.is_active,
-        role_id=result.role_id,
-        role_name=result.role_name,
-        created_at=result.created_at,
-    )
+    return _user_list_item_read(result)
 
 
 # --------------------------------------------------------------------------

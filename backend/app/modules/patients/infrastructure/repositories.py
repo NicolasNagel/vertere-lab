@@ -13,6 +13,7 @@ from sqlalchemy.orm import Session as SqlAlchemySession
 
 from app.modules.patients.domain.entities import Patient, PatientSex, PatientStatus, Species
 from app.modules.patients.infrastructure.models import PatientModel, SpeciesModel
+from app.shared.infrastructure.sql import LIKE_ESCAPE, contains_pattern
 
 
 def _species_to_domain(model: SpeciesModel) -> Species:
@@ -114,6 +115,7 @@ class SqlAlchemyPatientRepository:
         model.updated_by = patient.updated_by
         model.updated_at = patient.updated_at
         model.row_version = patient.row_version + 1
+        patient.row_version = model.row_version
 
     def list_page(
         self,
@@ -133,11 +135,11 @@ class SqlAlchemyPatientRepository:
         if status is not None:
             conditions.append(PatientModel.status == status.value)
         if search:
-            like_pattern = f"%{search.lower()}%"
+            like_pattern = contains_pattern(search.lower())
             conditions.append(
                 or_(
-                    func.lower(PatientModel.name).like(like_pattern),
-                    func.lower(PatientModel.owner_name).like(like_pattern),
+                    func.lower(PatientModel.name).like(like_pattern, escape=LIKE_ESCAPE),
+                    func.lower(PatientModel.owner_name).like(like_pattern, escape=LIKE_ESCAPE),
                 )
             )
 

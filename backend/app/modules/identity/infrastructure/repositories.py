@@ -34,6 +34,7 @@ from app.modules.identity.infrastructure.models import (
     SessionModel,
     UserModel,
 )
+from app.shared.infrastructure.sql import LIKE_ESCAPE, contains_pattern
 
 
 def _user_to_domain(model: UserModel) -> User:
@@ -111,6 +112,7 @@ class SqlAlchemyUserRepository:
         model.role_id = user.role_id
         model.updated_at = user.updated_at
         model.row_version = user.row_version + 1
+        user.row_version = model.row_version
 
     def change_role_if_version(
         self, user_id: UUID, role_id: UUID, *, expected_row_version: int, now: datetime
@@ -134,11 +136,11 @@ class SqlAlchemyUserRepository:
         if is_active is not None:
             conditions.append(UserModel.is_active.is_(is_active))
         if search:
-            like_pattern = f"%{search.lower()}%"
+            like_pattern = contains_pattern(search.lower())
             conditions.append(
                 or_(
-                    func.lower(UserModel.full_name).like(like_pattern),
-                    func.lower(UserModel.email).like(like_pattern),
+                    func.lower(UserModel.full_name).like(like_pattern, escape=LIKE_ESCAPE),
+                    func.lower(UserModel.email).like(like_pattern, escape=LIKE_ESCAPE),
                 )
             )
 

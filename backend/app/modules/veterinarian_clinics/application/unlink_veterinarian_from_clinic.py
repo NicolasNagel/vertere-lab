@@ -68,7 +68,7 @@ class UnlinkVeterinarianFromClinicUseCase:
         self._audit.record(
             AuditEntry(
                 actor_user_id=command.actor.id,
-                actor_scope=ActorScope.LAB,
+                actor_scope=ActorScope(command.actor.role_scope),
                 action="veterinarian_clinics.unlinked",
                 entity_type="veterinarian_clinic_link",
                 entity_id=str(link.id),
