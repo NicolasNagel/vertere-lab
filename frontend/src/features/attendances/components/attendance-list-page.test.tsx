@@ -192,7 +192,8 @@ test('lists attendances with resolved names, shows drafts without protocol or to
   expect(screen.getByLabelText('Competência')).toBeInTheDocument()
   expect(screen.queryByLabelText('Mês')).not.toBeInTheDocument()
   expect(screen.queryByLabelText('Ano')).not.toBeInTheDocument()
-  const dataRow = within(screen.getByRole('row'))
+  // A tabela agora é um <table> real: a primeira linha é o cabeçalho.
+  const dataRow = within(screen.getAllByRole('row')[1] as HTMLElement)
   expect(dataRow.getByText('Clínica Central')).toBeInTheDocument()
   expect(dataRow.getByText('Dra. Ana')).toBeInTheDocument()
   expect(dataRow.getByText('Bidu')).toBeInTheDocument()
@@ -212,8 +213,9 @@ test('lists attendances with resolved names, shows drafts without protocol or to
     ]),
   )
   renderWithProviders(<AttendanceListPage />)
-  expect((await screen.findAllByText('—')).length).toBeGreaterThan(0)
-  expect(screen.getAllByText('Rascunho').length).toBeGreaterThan(1) // filtro + linha/status
+  const draftRow = within((await screen.findAllByRole('row'))[1] as HTMLElement)
+  expect(draftRow.getAllByText('Rascunho')).toHaveLength(2) // protocolo + status
+  expect(draftRow.getByText('—', { selector: 'td' })).toBeInTheDocument() // sem total
 })
 
 test('re-filtering by status resets to page 1 and shows the empty state when nothing matches', async () => {

@@ -1,12 +1,13 @@
 .attendance-status-badge {
   display: inline-flex;
   align-items: center;
-  gap: 0.375rem; /* 6px */
-  padding: 0.375rem 0.625rem; /* 6px 10px */
+  gap: 0.375rem;
+  padding: 0.1875rem 0.5625rem;
+  border-radius: 99px;
   font-weight: 600;
-  font-size: 0.75rem;
-  color: var(--color-text-secondary);
-  background: var(--color-surface-cream);
+  font-size: 0.6875rem;
+  color: #55626f;
+  background: var(--color-surface-muted);
 }
 
 .attendance-status-badge__dot {
@@ -17,28 +18,23 @@
   flex-shrink: 0;
 }
 
-.attendance-status-badge[data-status='DRAFT'] {
-  color: var(--color-text-secondary);
-  background: var(--color-surface-cream);
-}
-
 .attendance-status-badge[data-status='CONFIRMED'] {
-  color: #477455;
-  background: #e6f0e8;
+  color: var(--color-success);
+  background: var(--color-success-bg);
 }
 
 .attendance-status-badge[data-status='IN_PROGRESS'],
 .attendance-status-badge[data-status='ON_HOLD'] {
   color: var(--color-warning);
-  background: #f5ead9;
+  background: #fdf0dc;
 }
 
 .attendance-status-badge[data-status='COMPLETED'] {
-  color: var(--color-brand-ink-deep);
-  background: #e8edf1;
+  color: var(--color-brand-ink);
+  background: var(--color-info-bg);
 }
 
 .attendance-status-badge[data-status='CANCELLED'] {
-  color: var(--color-warning-ink);
-  background: #f1e5e1;
+  color: var(--color-danger);
+  background: var(--color-danger-bg);
 }

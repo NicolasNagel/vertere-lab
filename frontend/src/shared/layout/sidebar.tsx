@@ -1,7 +1,8 @@
 import { useAuth } from '../../features/auth/auth-context'
-import vertereMark from '../assets/vertere-mark.png'
+import vertereMark from '../assets/vertere-mark-blue.png'
 import {
   BillingIcon,
+  ChevronLeftIcon,
   ClinicsIcon,
   DashboardIcon,
   ExamsIcon,
@@ -30,7 +31,9 @@ const registrationNavEntries: SidebarNavItemProps[] = [
   { icon: <ExamsIcon />, label: 'Exames & Preços', to: '/cadastros/exames' },
 ]
 
-const baseAdminNavEntries: SidebarNavItemProps[] = [{ icon: <ReportsIcon />, label: 'Relatórios', to: null }]
+const baseAdminNavEntries: SidebarNavItemProps[] = [
+  { icon: <ReportsIcon />, label: 'Relatórios', to: null },
+]
 
 function getInitials(fullName: string): string {
   const parts = fullName.trim().split(/\s+/)
@@ -41,10 +44,17 @@ function getInitials(fullName: string): string {
 
 interface SidebarProps {
   mobileOpen?: boolean
+  collapsed?: boolean
+  onToggleCollapsed?: () => void
   onNavigate?: () => void
 }
 
-export function Sidebar({ mobileOpen = false, onNavigate }: SidebarProps) {
+export function Sidebar({
+  mobileOpen = false,
+  collapsed = false,
+  onToggleCollapsed,
+  onNavigate,
+}: SidebarProps) {
   const { user } = useAuth()
   const permissions = user?.permissions ?? []
 
@@ -76,7 +86,7 @@ export function Sidebar({ mobileOpen = false, onNavigate }: SidebarProps) {
 
   return (
     <aside
-      className={`sidebar${mobileOpen ? ' sidebar--mobile-open' : ''}`}
+      className={`sidebar${mobileOpen ? ' sidebar--mobile-open' : ''}${collapsed ? ' sidebar--collapsed' : ''}`}
       aria-label="Navegação principal"
       onClick={(event) => {
         if ((event.target as HTMLElement).closest('a')) onNavigate?.()
@@ -85,35 +95,63 @@ export function Sidebar({ mobileOpen = false, onNavigate }: SidebarProps) {
       <div className="sidebar__brand">
         <img className="sidebar__brand-mark" src={vertereMark} alt="" />
         <div>
-          <div className="sidebar__brand-name">VERTERE</div>
-          <div className="sidebar__brand-subtitle">LAB</div>
+          <div className="sidebar__brand-name">Vertere</div>
+          <div className="sidebar__brand-subtitle">Laboratório veterinário</div>
         </div>
       </div>
 
       <nav className="sidebar__nav">
         {mainNavEntries.map((entry) => (
-          <SidebarNavItem key={entry.label} {...entry} />
+          <SidebarNavItem
+            key={entry.label}
+            {...entry}
+            title={collapsed ? entry.label : undefined}
+          />
         ))}
 
         <div className="sidebar__section-label">Cadastros</div>
         {registrationNavEntries.map((entry) => (
-          <SidebarNavItem key={entry.label} {...entry} />
+          <SidebarNavItem
+            key={entry.label}
+            {...entry}
+            title={collapsed ? entry.label : undefined}
+          />
         ))}
 
         {financeNavEntries.length > 0 && (
           <>
             <div className="sidebar__section-label">Financeiro</div>
             {financeNavEntries.map((entry) => (
-              <SidebarNavItem key={entry.label} {...entry} />
+              <SidebarNavItem
+                key={entry.label}
+                {...entry}
+                title={collapsed ? entry.label : undefined}
+              />
             ))}
           </>
         )}
 
         <div className="sidebar__section-label">Administração</div>
         {adminNavEntries.map((entry) => (
-          <SidebarNavItem key={entry.label} {...entry} />
+          <SidebarNavItem
+            key={entry.label}
+            {...entry}
+            title={collapsed ? entry.label : undefined}
+          />
         ))}
       </nav>
+
+      <button
+        type="button"
+        className="sidebar__collapse"
+        aria-label={collapsed ? 'Expandir menu' : 'Recolher menu'}
+        aria-expanded={!collapsed}
+        title={collapsed ? 'Expandir menu' : undefined}
+        onClick={onToggleCollapsed}
+      >
+        <ChevronLeftIcon />
+        <span className="sidebar__collapse-label">Recolher menu</span>
+      </button>
 
       {user && (
         <div className="sidebar__footer">

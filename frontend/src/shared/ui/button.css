@@ -1,21 +1,55 @@
 .button {
-  border: none;
-  border-radius: 0.125rem; /* 2px */
-  font-size: 0.875rem; /* 14px */
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  font-size: 0.8125rem;
   font-weight: 600;
   font-family: inherit;
   cursor: pointer;
-  padding: 1rem 1.5rem; /* 16px */
+  padding: 0.5rem 1rem;
+  text-decoration: none;
+  transition:
+    background 140ms,
+    color 140ms,
+    border-color 140ms,
+    box-shadow 140ms,
+    transform 140ms;
+}
+
+.button:focus-visible {
+  outline: 2px solid var(--color-brand-ink-deep);
+  outline-offset: 2px;
+}
+
+/* Primário branco com borda azul; ao passar o mouse preenche de azul (ADR-012). */
+.button--primary {
+  width: 100%;
+  background: var(--color-surface);
+  border-color: #b9cde6;
+  color: var(--color-brand-ink-deep);
   text-decoration: none;
 }
 
-.button--primary {
-  width: 100%;
-  background: var(--color-brand-ink);
+.button--primary:hover:not(:disabled) {
+  background: var(--color-brand-ink-deep);
+  border-color: var(--color-brand-ink-deep);
   color: var(--color-surface);
-  text-decoration: none;
+  box-shadow: 0 3px 10px rgb(31 79 138 / 28%);
+  transform: translateY(-1px);
+}
+
+.button--primary:active:not(:disabled) {
+  transform: none;
+  box-shadow: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .button {
+    transition: none;
+  }
+
+  .button--primary:hover:not(:disabled) {
+    transform: none;
+  }
 }
 
 .button--secondary {
@@ -27,18 +61,19 @@
   border: 1px solid var(--color-border);
   color: var(--color-brand-ink);
   font-size: 0.75rem; /* 12px */
-  text-transform: none;
-  letter-spacing: normal;
   font-weight: 500;
-  padding: 0.6875rem 1rem; /* 11px 16px */
+  padding: 0.5rem 1rem;
+}
+
+.button--secondary:hover:not(:disabled) {
+  background: var(--color-surface-muted);
+  border-color: var(--color-border-strong);
 }
 
 .button--ghost {
   background: none;
   color: var(--color-brand-ink);
   font-size: 0.8125rem; /* 13px */
-  text-transform: none;
-  letter-spacing: normal;
   font-weight: 400;
   padding: 0;
   text-decoration: underline;

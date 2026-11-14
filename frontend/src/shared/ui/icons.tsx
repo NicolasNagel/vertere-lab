@@ -304,3 +304,22 @@ export function UsersIcon(props: IconProps) {
     </svg>
   )
 }
+
+export function ChevronLeftIcon(props: IconProps) {
+  return (
+    <svg
+      width="16"
+      height="16"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={1.8}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+      {...props}
+    >
+      <path d="M15 6l-6 6 6 6" />
+    </svg>
+  )
+}

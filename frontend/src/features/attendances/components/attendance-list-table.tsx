@@ -1,7 +1,7 @@
 import { Link } from 'react-router'
 
 import { formatCurrencyBRL, formatServiceDateTime } from '../../../shared/lib/formatters'
-import { EyeIcon } from '../../../shared/ui/icons'
+import { EyeIcon, PatientsIcon } from '../../../shared/ui/icons'
 import { SERVICE_LEVEL_LABELS, type Attendance } from '../api/attendances-api'
 import { AttendanceStatusBadge } from './attendance-status-badge'
 import './attendance-list-table.css'
@@ -9,6 +9,7 @@ import './attendance-list-table.css'
 export interface PatientDisplay {
   name: string
   detail: string
+  sex?: 'MALE' | 'FEMALE'
 }
 
 interface AttendanceListTableProps {
@@ -18,11 +19,22 @@ interface AttendanceListTableProps {
   patientDisplayById: Record<string, PatientDisplay>
 }
 
-function examsSummary(attendance: Attendance): string {
-  if (attendance.items.length === 0) return '—'
+function ExamChips({ attendance }: { attendance: Attendance }) {
   const [first, ...rest] = attendance.items
-  if (!first) return '—'
-  return rest.length === 0 ? first.examName : `${first.examName} +${rest.length}`
+  if (!first) return <span className="attendance-list-table__muted">—</span>
+  return (
+    <span className="attendance-list-table__chips">
+      <span className="attendance-list-table__chip">{first.examName}</span>
+      {rest.length > 0 && (
+        <span
+          className="attendance-list-table__chip attendance-list-table__chip--more"
+          title={attendance.items.map((item) => item.examName).join(', ')}
+        >
+          +{rest.length}
+        </span>
+      )}
+    </span>
+  )
 }
 
 export function AttendanceListTable({
@@ -43,86 +55,109 @@ export function AttendanceListTable({
 
   return (
     <div className="attendance-list-table">
-      <div className="attendance-list-table__header">
-        <div>Protocolo</div>
-        <div>Data · Hora</div>
-        <div>Clínica</div>
-        <div>Veterinário</div>
-        <div>Paciente</div>
-        <div>Exames</div>
-        <div>Tipo</div>
-        <div>Status</div>
-        <div className="attendance-list-table__value-header">Valor</div>
-        <div className="attendance-list-table__actions-header">Ações</div>
-      </div>
-      {attendances.map((attendance) => {
-        const patient = patientDisplayById[attendance.patientId]
-        return (
-          <div key={attendance.id} className="attendance-list-table__row" role="row">
-            <div className="attendance-list-table__protocol">
-              {attendance.protocolNumber ?? 'Rascunho'}
-            </div>
-            <div className="attendance-list-table__muted">
-              {formatServiceDateTime(attendance.serviceDate, attendance.createdAt)}
-            </div>
-            <div
-              className="attendance-list-table__clinic"
-              title={clinicNameById[attendance.clinicId] ?? '—'}
-            >
-              {clinicNameById[attendance.clinicId] ?? '—'}
-            </div>
-            <div
-              className="attendance-list-table__veterinarian"
-              title={veterinarianNameById[attendance.veterinarianId] ?? '—'}
-            >
-              {veterinarianNameById[attendance.veterinarianId] ?? '—'}
-            </div>
-            <div
-              className="attendance-list-table__patient"
-              title={
-                patient?.detail ? `${patient.name} · ${patient.detail}` : (patient?.name ?? '—')
-              }
-            >
-              <span className="attendance-list-table__patient-name">
-                {patient?.name ?? '—'}
-              </span>
-              {patient?.detail && (
-                <span className="attendance-list-table__muted"> · {patient.detail}</span>
-              )}
-            </div>
-            <div>{examsSummary(attendance)}</div>
-            <div>
-              <span
-                className="attendance-list-table__service-level"
-                data-level={attendance.serviceLevel}
+      <table className="attendance-list-table__table">
+        <thead>
+          <tr>
+            <th scope="col">Protocolo</th>
+            <th scope="col">Veterinário / Clínica</th>
+            <th scope="col">Paciente</th>
+            <th scope="col">Exames</th>
+            <th scope="col">Data · Hora</th>
+            <th scope="col">Tipo</th>
+            <th scope="col">Status</th>
+            <th scope="col" className="attendance-list-table__num">
+              Valor
+            </th>
+            <th scope="col" className="attendance-list-table__actions-header">
+              Ações
+            </th>
+          </tr>
+        </thead>
+        <tbody>
+          {attendances.map((attendance) => {
+            const patient = patientDisplayById[attendance.patientId]
+            const clinicName = clinicNameById[attendance.clinicId] ?? '—'
+            const veterinarianName = veterinarianNameById[attendance.veterinarianId] ?? '—'
+            return (
+              <tr
+                key={attendance.id}
+                data-cancelled={attendance.status === 'CANCELLED' || undefined}
               >
-                {SERVICE_LEVEL_LABELS[attendance.serviceLevel]}
-              </span>
-            </div>
-            <div>
-              <AttendanceStatusBadge status={attendance.status} />
-            </div>
-            <div className="attendance-list-table__value">
-              {/* Sem itens = nunca foi confirmado (rascunho, ou cancelado
-                  ainda em rascunho) — grand_total é "0.00" por padrão nesse
-                  caso e mostrar como valor real seria enganoso. Um
-                  cancelado que chegou a ser confirmado antes tem itens e
-                  mostra o total de verdade. */}
-              {attendance.items.length === 0 ? '—' : formatCurrencyBRL(attendance.grandTotal)}
-            </div>
-            <div className="attendance-list-table__actions">
-              <Link
-                to={`/operacao/${attendance.id}`}
-                className="attendance-list-table__view-button"
-                title="Ver detalhes do protocolo"
-                aria-label={`Ver detalhes do protocolo ${attendance.protocolNumber ?? 'rascunho'}`}
-              >
-                <EyeIcon />
-              </Link>
-            </div>
-          </div>
-        )
-      })}
+                <td className="attendance-list-table__protocol">
+                  {attendance.protocolNumber ?? 'Rascunho'}
+                </td>
+                <td>
+                  <div
+                    className="attendance-list-table__stack"
+                    title={`${veterinarianName} · ${clinicName}`}
+                  >
+                    <span className="attendance-list-table__primary">{veterinarianName}</span>
+                    <span className="attendance-list-table__muted">{clinicName}</span>
+                  </div>
+                </td>
+                <td>
+                  <div className="attendance-list-table__patient">
+                    <span
+                      className="attendance-list-table__avatar"
+                      data-sex={patient?.sex}
+                      title={
+                        patient?.sex === 'MALE'
+                          ? 'Macho'
+                          : patient?.sex === 'FEMALE'
+                            ? 'Fêmea'
+                            : undefined
+                      }
+                    >
+                      <PatientsIcon />
+                    </span>
+                    <div className="attendance-list-table__stack">
+                      <span className="attendance-list-table__primary">{patient?.name ?? '—'}</span>
+                      {patient?.detail && (
+                        <span className="attendance-list-table__muted">{patient.detail}</span>
+                      )}
+                    </div>
+                  </div>
+                </td>
+                <td>
+                  <ExamChips attendance={attendance} />
+                </td>
+                <td className="attendance-list-table__muted">
+                  {formatServiceDateTime(attendance.serviceDate, attendance.createdAt)}
+                </td>
+                <td>
+                  <span
+                    className="attendance-list-table__service-level"
+                    data-level={attendance.serviceLevel}
+                  >
+                    {SERVICE_LEVEL_LABELS[attendance.serviceLevel]}
+                  </span>
+                </td>
+                <td>
+                  <AttendanceStatusBadge status={attendance.status} />
+                </td>
+                <td className="attendance-list-table__num attendance-list-table__value">
+                  {/* Sem itens = nunca foi confirmado (rascunho, ou cancelado
+                      ainda em rascunho) — grand_total é "0.00" por padrão nesse
+                      caso e mostrar como valor real seria enganoso. Um
+                      cancelado que chegou a ser confirmado antes tem itens e
+                      mostra o total de verdade. */}
+                  {attendance.items.length === 0 ? '—' : formatCurrencyBRL(attendance.grandTotal)}
+                </td>
+                <td className="attendance-list-table__actions">
+                  <Link
+                    to={`/operacao/${attendance.id}`}
+                    className="attendance-list-table__view-button"
+                    title="Ver detalhes do protocolo"
+                    aria-label={`Ver detalhes do protocolo ${attendance.protocolNumber ?? 'rascunho'}`}
+                  >
+                    <EyeIcon />
+                  </Link>
+                </td>
+              </tr>
+            )
+          })}
+        </tbody>
+      </table>
     </div>
   )
 }

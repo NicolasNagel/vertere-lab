@@ -129,3 +129,32 @@ test('shows "Usuários" only with the matching read permission', async () => {
     '/administracao/usuarios',
   )
 })
+
+test('collapses the menu to icons, remembers the choice and shows the page trail', async () => {
+  const user = userEvent.setup()
+  localStorage.clear()
+  mockAuthenticatedUser()
+  const view = renderShell('/cadastros/clinicas')
+
+  const trail = await screen.findByRole('navigation', { name: 'Caminho da página' })
+  expect(trail).toHaveTextContent('Cadastros')
+  expect(trail).toHaveTextContent('Clínicas')
+
+  await user.click(screen.getByRole('button', { name: 'Recolher menu' }))
+  const expand = screen.getByRole('button', { name: 'Expandir menu' })
+  expect(expand).toHaveAttribute('aria-expanded', 'false')
+  expect(screen.getByLabelText('Navegação principal')).toHaveClass('sidebar--collapsed')
+  expect(screen.getByRole('link', { name: /clínicas/i })).toHaveAttribute('title', 'Clínicas')
+  restart(view)
+
+  // A preferência sobrevive a um novo carregamento.
+  mockAuthenticatedUser()
+  renderShell('/cadastros/clinicas')
+  expect(await screen.findByRole('button', { name: 'Expandir menu' })).toBeInTheDocument()
+  await user.click(screen.getByRole('button', { name: 'Expandir menu' }))
+  expect(screen.getByRole('button', { name: 'Recolher menu' })).toHaveAttribute(
+    'aria-expanded',
+    'true',
+  )
+  localStorage.clear()
+})

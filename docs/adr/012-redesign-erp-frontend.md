@@ -2,7 +2,7 @@
 
 ## Status
 
-Proposto — 2026-11-14. Passa a Aceito quando a paleta e a fonte do passo B0.3 forem aprovadas.
+Aceito — 2026-11-14. Paleta azul-acinzentada com menu lateral branco e Inter aprovadas pelo usuário a partir de maquete.
 
 ## Contexto
 

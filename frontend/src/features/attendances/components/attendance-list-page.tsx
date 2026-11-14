@@ -17,6 +17,7 @@ import { AttendanceListFilters } from './attendance-list-filters'
 import { AttendanceListPagination } from './attendance-list-pagination'
 import { AttendanceListTable, type PatientDisplay } from './attendance-list-table'
 import { AttendanceStatusTabs } from './attendance-status-tabs'
+import { AttendanceSummaryCards } from './attendance-summary-cards'
 import '../../../shared/ui/button.css'
 import './attendance-list-page.css'
 
@@ -86,10 +87,11 @@ export function AttendanceListPage() {
   )
   const patientDisplayById: Record<string, PatientDisplay> = Object.fromEntries(
     (patientsQuery.data?.items ?? []).map((patient) => {
-      const detailParts = [speciesNameById[patient.speciesId], patient.ageDescription].filter(
-        (part): part is string => Boolean(part),
-      )
-      return [patient.id, { name: patient.name, detail: detailParts.join(' · ') }]
+      const sexLabel = patient.sex === 'MALE' ? 'Macho' : 'Fêmea'
+      const detail = [speciesNameById[patient.speciesId], sexLabel, patient.ageDescription]
+        .filter((part): part is string => Boolean(part))
+        .join(' · ')
+      return [patient.id, { name: patient.name, detail, sex: patient.sex }]
     }),
   )
 
@@ -98,7 +100,8 @@ export function AttendanceListPage() {
     veterinariansQuery.isError ||
     patientsQuery.isError ||
     speciesQuery.isError
-  const isForbidden = attendancesQuery.error instanceof ApiError && attendancesQuery.error.status === 403
+  const isForbidden =
+    attendancesQuery.error instanceof ApiError && attendancesQuery.error.status === 403
   const isGenericError = attendancesQuery.isError && !isForbidden
   const isLoading = canRead && attendancesQuery.isLoading
 
@@ -142,66 +145,68 @@ export function AttendanceListPage() {
         </p>
       ) : (
         <>
-          <div className="attendance-list-page__filter-row">
-            <AttendanceStatusTabs
-              counts={statusCountsQuery.data}
-              value={status}
-              onChange={(value) => handleFilterChange(() => setStatus(value))}
-            />
-            <AttendanceListFilters
-              clinicOptions={clinicOptions}
-              clinicId={clinicId}
-              serviceLevel={serviceLevel}
-              disabled={isLoading}
-              onClinicChange={(value) => handleFilterChange(() => setClinicId(value))}
-              onServiceLevelChange={(value) => handleFilterChange(() => setServiceLevel(value))}
-              onServiceDateFromChange={(value) =>
-                handleFilterChange(() => setServiceDateFrom(value))
-              }
-              onServiceDateToChange={(value) =>
-                handleFilterChange(() => setServiceDateTo(value))
-              }
-            />
-          </div>
+          <AttendanceSummaryCards counts={statusCountsQuery.data} />
 
-          <div className="attendance-list-page__body">
-            {isLoading && <p className="attendance-list-page__hint">Carregando…</p>}
+          <div className="attendance-list-page__panel">
+            <div className="attendance-list-page__filter-row">
+              <AttendanceStatusTabs
+                counts={statusCountsQuery.data}
+                value={status}
+                onChange={(value) => handleFilterChange(() => setStatus(value))}
+              />
+              <AttendanceListFilters
+                clinicOptions={clinicOptions}
+                clinicId={clinicId}
+                serviceLevel={serviceLevel}
+                disabled={isLoading}
+                onClinicChange={(value) => handleFilterChange(() => setClinicId(value))}
+                onServiceLevelChange={(value) => handleFilterChange(() => setServiceLevel(value))}
+                onServiceDateFromChange={(value) =>
+                  handleFilterChange(() => setServiceDateFrom(value))
+                }
+                onServiceDateToChange={(value) => handleFilterChange(() => setServiceDateTo(value))}
+              />
+            </div>
 
-            {isForbidden && (
-              <p className="attendance-list-page__forbidden">
-                Você não tem permissão para visualizar atendimentos.
-              </p>
-            )}
+            <div className="attendance-list-page__body">
+              {isLoading && <p className="attendance-list-page__hint">Carregando…</p>}
 
-            {isGenericError && (
-              <p className="attendance-list-page__error">
-                Não foi possível carregar os atendimentos. Tente novamente.
-              </p>
-            )}
+              {isForbidden && (
+                <p className="attendance-list-page__forbidden">
+                  Você não tem permissão para visualizar atendimentos.
+                </p>
+              )}
 
-            {lookupsFailed && (
-              <p className="attendance-list-page__error" role="status">
-                Não foi possível carregar nomes de clínicas, veterinários ou pacientes. Os campos
-                afetados aparecem como "—".
-              </p>
-            )}
+              {isGenericError && (
+                <p className="attendance-list-page__error">
+                  Não foi possível carregar os atendimentos. Tente novamente.
+                </p>
+              )}
 
-            {!isLoading && attendancesQuery.data && (
-              <>
-                <AttendanceListTable
-                  attendances={attendancesQuery.data.items}
-                  clinicNameById={clinicNameById}
-                  veterinarianNameById={veterinarianNameById}
-                  patientDisplayById={patientDisplayById}
-                />
-                <AttendanceListPagination
-                  page={attendancesQuery.data.page}
-                  pageSize={attendancesQuery.data.pageSize}
-                  total={attendancesQuery.data.total}
-                  onPageChange={setPage}
-                />
-              </>
-            )}
+              {lookupsFailed && (
+                <p className="attendance-list-page__error" role="status">
+                  Não foi possível carregar nomes de clínicas, veterinários ou pacientes. Os campos
+                  afetados aparecem como "—".
+                </p>
+              )}
+
+              {!isLoading && attendancesQuery.data && (
+                <>
+                  <AttendanceListTable
+                    attendances={attendancesQuery.data.items}
+                    clinicNameById={clinicNameById}
+                    veterinarianNameById={veterinarianNameById}
+                    patientDisplayById={patientDisplayById}
+                  />
+                  <AttendanceListPagination
+                    page={attendancesQuery.data.page}
+                    pageSize={attendancesQuery.data.pageSize}
+                    total={attendancesQuery.data.total}
+                    onPageChange={setPage}
+                  />
+                </>
+              )}
+            </div>
           </div>
         </>
       )}
