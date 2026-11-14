@@ -39,9 +39,27 @@ class JsonFormatter(logging.Formatter):
         return json.dumps(payload, ensure_ascii=False, default=str)
 
 
+class StripQueryFromAccessLog(logging.Filter):
+    """Remove a query string do log de acesso do uvicorn.
+
+    Termos de busca (CNPJ, e-mail, telefone, nome de paciente) viajam na query e iriam
+    parar no log em claro — `.claude/rules/06-auth-security-lgpd.md`: PII nunca em log.
+    O log próprio do app já usa só `request.url.path`.
+    """
+
+    def filter(self, record: logging.LogRecord) -> bool:
+        args = record.args
+        if isinstance(args, tuple) and len(args) >= 3 and isinstance(args[2], str):
+            record.args = (*args[:2], args[2].split("?", 1)[0], *args[3:])
+        return True
+
+
 def configure_logging(level: str) -> None:
     handler = logging.StreamHandler()
     handler.setFormatter(JsonFormatter())
     root = logging.getLogger()
     root.handlers = [handler]
     root.setLevel(level.upper())
+    access_logger = logging.getLogger("uvicorn.access")
+    if not any(isinstance(f, StripQueryFromAccessLog) for f in access_logger.filters):
+        access_logger.addFilter(StripQueryFromAccessLog())
