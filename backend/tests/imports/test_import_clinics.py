@@ -9,6 +9,7 @@ from app.modules.clinics.domain.entities import ClinicStatus
 from app.modules.imports.application.import_clinics import (
     SHEET_NAME,
     ImportClinicsCommand,
+    ImportClinicsResult,
     ImportClinicsUseCase,
 )
 from app.shared.domain.errors import ForbiddenError
@@ -59,43 +60,52 @@ def _stage_clinic_row(
     )
 
 
-def test_import_without_permission_is_forbidden() -> None:
+def _run(
+    *rows: dict[str, str | None],
+    permissions: frozenset[str] = frozenset({"imports.execute"}),
+    times: int = 1,
+) -> tuple[list[ImportClinicsResult], FakeClinicRepository]:
     batch_id = uuid4()
     staging_rows = FakeImportStagingRowRepository()
-    _stage_clinic_row(staging_rows, batch_id, row_number=3, name="Bicho Urbano")
-    use_case = _use_case(staging_rows=staging_rows, clinics=FakeClinicRepository())
-
-    with pytest.raises(ForbiddenError):
-        use_case.execute(
-            ImportClinicsCommand(actor_id=uuid4(), actor_permissions=frozenset(), batch_id=batch_id)
-        )
-
-
-def test_import_creates_clinic_from_staging_row() -> None:
-    batch_id = uuid4()
-    staging_rows = FakeImportStagingRowRepository()
-    _stage_clinic_row(
-        staging_rows,
-        batch_id,
-        row_number=3,
-        name="Bicho Urbano",
-        tax_id="21.804.204/0001-55",
-    )
+    for index, overrides in enumerate(rows):
+        values: dict[str, str | None] = {"name": "Bicho Urbano", **overrides}
+        _stage_clinic_row(staging_rows, batch_id, row_number=3 + index, **values)  # type: ignore[arg-type]
     clinics = FakeClinicRepository()
     use_case = _use_case(staging_rows=staging_rows, clinics=clinics)
-
-    result = use_case.execute(
-        ImportClinicsCommand(
-            actor_id=uuid4(), actor_permissions=frozenset({"imports.execute"}), batch_id=batch_id
-        )
+    command = ImportClinicsCommand(
+        actor_id=uuid4(), actor_permissions=permissions, batch_id=batch_id
     )
+    return [use_case.execute(command) for _ in range(times)], clinics
 
-    assert result.imported_count == 1
-    assert result.exceptions == ()
+
+def test_import_requires_permission_creates_clinics_and_is_idempotent() -> None:
+    with pytest.raises(ForbiddenError):
+        _run({}, permissions=frozenset())
+
+    (first, second), clinics = _run({"tax_id": "21.804.204/0001-55"}, times=2)
+    assert (first.imported_count, first.exceptions) == (1, ())
+    assert second.imported_count == 0
+    assert len(clinics.list_all_names()) == 1
     clinic = clinics.get_by_name("Bicho Urbano")
     assert clinic is not None
     assert str(clinic.tax_id) == "21804204000155"
     assert clinic.status == ClinicStatus.ACTIVE
+
+
+def test_import_maps_status_and_keeps_rows_with_an_invalid_tax_id() -> None:
+    (result,), clinics = _run(
+        {"name": "Petsko", "tax_id": "6156243917"},  # 10 dígitos: inválido
+        {"name": "Luvet", "status": "Inativo"},
+    )
+    assert result.imported_count == 2
+
+    petsko = clinics.get_by_name("Petsko")
+    assert petsko is not None
+    assert petsko.tax_id is None
+    assert "6156243917" in (petsko.notes or "")  # o valor cru fica nas notas
+    luvet = clinics.get_by_name("Luvet")
+    assert luvet is not None
+    assert luvet.status == ClinicStatus.INACTIVE
 
 
 def test_import_skips_title_and_header_rows() -> None:
@@ -118,9 +128,8 @@ def test_import_skips_title_and_header_rows() -> None:
         ]
     )
     clinics = FakeClinicRepository()
-    use_case = _use_case(staging_rows=staging_rows, clinics=clinics)
 
-    result = use_case.execute(
+    result = _use_case(staging_rows=staging_rows, clinics=clinics).execute(
         ImportClinicsCommand(
             actor_id=uuid4(), actor_permissions=frozenset({"imports.execute"}), batch_id=batch_id
         )
@@ -128,66 +137,3 @@ def test_import_skips_title_and_header_rows() -> None:
 
     assert result.imported_count == 0
     assert clinics.get_by_name("Clínica") is None
-
-
-def test_import_with_invalid_tax_id_keeps_row_and_notes_raw_value() -> None:
-    batch_id = uuid4()
-    staging_rows = FakeImportStagingRowRepository()
-    _stage_clinic_row(
-        staging_rows,
-        batch_id,
-        row_number=3,
-        name="Petsko",
-        tax_id="6156243917",  # 10 digits
-    )
-    clinics = FakeClinicRepository()
-    use_case = _use_case(staging_rows=staging_rows, clinics=clinics)
-
-    result = use_case.execute(
-        ImportClinicsCommand(
-            actor_id=uuid4(), actor_permissions=frozenset({"imports.execute"}), batch_id=batch_id
-        )
-    )
-
-    assert result.imported_count == 1
-    clinic = clinics.get_by_name("Petsko")
-    assert clinic is not None
-    assert clinic.tax_id is None
-    assert clinic.notes is not None
-    assert "6156243917" in clinic.notes
-
-
-def test_import_inactive_status_maps_to_inactive_clinic() -> None:
-    batch_id = uuid4()
-    staging_rows = FakeImportStagingRowRepository()
-    _stage_clinic_row(staging_rows, batch_id, row_number=3, name="Luvet", status="Inativo")
-    clinics = FakeClinicRepository()
-    use_case = _use_case(staging_rows=staging_rows, clinics=clinics)
-
-    use_case.execute(
-        ImportClinicsCommand(
-            actor_id=uuid4(), actor_permissions=frozenset({"imports.execute"}), batch_id=batch_id
-        )
-    )
-
-    clinic = clinics.get_by_name("Luvet")
-    assert clinic is not None
-    assert clinic.status == ClinicStatus.INACTIVE
-
-
-def test_reimporting_same_name_is_idempotent() -> None:
-    batch_id = uuid4()
-    staging_rows = FakeImportStagingRowRepository()
-    _stage_clinic_row(staging_rows, batch_id, row_number=3, name="Bicho Urbano")
-    clinics = FakeClinicRepository()
-    use_case = _use_case(staging_rows=staging_rows, clinics=clinics)
-    command = ImportClinicsCommand(
-        actor_id=uuid4(), actor_permissions=frozenset({"imports.execute"}), batch_id=batch_id
-    )
-
-    first = use_case.execute(command)
-    second = use_case.execute(command)
-
-    assert first.imported_count == 1
-    assert second.imported_count == 0
-    assert len(clinics.list_all_names()) == 1

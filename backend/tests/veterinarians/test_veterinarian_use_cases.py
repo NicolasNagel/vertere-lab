@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from datetime import UTC, datetime
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 import pytest
 
@@ -15,6 +15,7 @@ from app.modules.veterinarians.application.deactivate_veterinarian import (
     DeactivateVeterinarianCommand,
     DeactivateVeterinarianUseCase,
 )
+from app.modules.veterinarians.application.dtos import VeterinarianDTO
 from app.modules.veterinarians.application.get_veterinarian import (
     GetVeterinarianQuery,
     GetVeterinarianUseCase,
@@ -93,105 +94,74 @@ def _use_case(
     )
 
 
-def test_create_veterinarian_succeeds_and_audits() -> None:
-    veterinarians = FakeVeterinarianRepository()
-    audit = FakeAuditLogWriter()
-    use_case = _use_case(veterinarians=veterinarians, audit=audit)
+def _update_command(created: VeterinarianDTO, **overrides: object) -> UpdateVeterinarianCommand:
+    defaults: dict[str, object] = {
+        "actor": _actor(permissions=frozenset({"veterinarians.manage"})),
+        "veterinarian_id": created.id,
+        "name": "Dra. Fabianna Garcia Renomeada",
+        "crmv": created.crmv,
+        "phone": None,
+        "email": None,
+        "is_autonomous": True,
+        "status": VeterinarianStatus.ACTIVE.value,
+        "notes": None,
+        "expected_row_version": created.row_version,
+    }
+    defaults.update(overrides)
+    return UpdateVeterinarianCommand(**defaults)  # type: ignore[arg-type]
 
-    result = use_case.execute(_create_command())
 
-    assert result.name == "Dra. Fabianna Garcia"
-    assert result.crmv == "CRMV-SC 04567"
-    assert result.status == VeterinarianStatus.ACTIVE.value
-    assert veterinarians.get_by_id(result.id) is not None
-    assert audit.entries[0].action == "veterinarians.created"
+def _clinic_actor(
+    *, clinic_ids: frozenset[UUID], permissions: frozenset[str]
+) -> AuthenticatedUserDTO:
+    return AuthenticatedUserDTO(
+        user_id=uuid4(),
+        email="clinic@vertere.local",
+        full_name="Clinic User",
+        role_id=uuid4(),
+        role_name="CLINIC_STAFF",
+        role_scope="CLINIC",
+        permissions=permissions,
+        clinic_ids=clinic_ids,
+    )
 
 
-def test_create_veterinarian_without_permission_is_forbidden() -> None:
+def _stored_veterinarian(
+    veterinarians: FakeVeterinarianRepository, *, is_autonomous: bool, linked_to: set[UUID]
+) -> UUID:
+    created = _use_case(veterinarians=veterinarians, audit=FakeAuditLogWriter()).execute(
+        _create_command(is_autonomous=True, crmv=f"CRMV-SC {uuid4().hex[:5]}")
+    )
+    stored = veterinarians.get_by_id(created.id)
+    assert stored is not None
+    stored.is_autonomous = is_autonomous
+    veterinarians.linked_clinics[created.id] = linked_to
+    return created.id
+
+
+def test_create_veterinarian_enforces_permission_uniqueness_and_clinic_requirement() -> None:
     veterinarians = FakeVeterinarianRepository()
     audit = FakeAuditLogWriter()
     use_case = _use_case(veterinarians=veterinarians, audit=audit)
 
     with pytest.raises(ForbiddenError):
         use_case.execute(_create_command(actor=_actor(permissions=frozenset())))
+    # Não autônomo exige ao menos uma clínica já na criação (ADR-003) e nada é gravado.
+    with pytest.raises(ValidationError):
+        use_case.execute(_create_command(is_autonomous=False, clinic_ids=()))
+    assert veterinarians.get_by_crmv("CRMV-SC 04567") is None
 
-
-def test_create_veterinarian_with_duplicate_crmv_conflicts() -> None:
-    veterinarians = FakeVeterinarianRepository()
-    audit = FakeAuditLogWriter()
-    use_case = _use_case(veterinarians=veterinarians, audit=audit)
-    use_case.execute(_create_command())
-
-    with pytest.raises(DuplicateCrmvError):
-        use_case.execute(_create_command(name="Outro Vet"))
-
-
-def test_create_veterinarian_normalizes_crmv_before_duplicate_check() -> None:
-    veterinarians = FakeVeterinarianRepository()
-    audit = FakeAuditLogWriter()
-    use_case = _use_case(veterinarians=veterinarians, audit=audit)
-    use_case.execute(_create_command(crmv="crmv-sc 04567"))
-
-    with pytest.raises(DuplicateCrmvError):
+    result = use_case.execute(_create_command(crmv="crmv-sc 04567"))
+    assert result.name == "Dra. Fabianna Garcia"
+    assert result.crmv == "CRMV-SC 04567"  # normalizado antes de gravar
+    assert result.status == VeterinarianStatus.ACTIVE.value
+    assert veterinarians.get_by_id(result.id) is not None
+    assert audit.entries[0].action == "veterinarians.created"
+    with pytest.raises(DuplicateCrmvError):  # a duplicidade vale após a normalização
         use_case.execute(_create_command(name="Outro Vet", crmv="  CRMV-SC   04567  "))
 
 
-def test_create_non_autonomous_veterinarian_without_clinic_is_invalid() -> None:
-    """Closes the gap documented in ADR-003: a non-autonomous veterinarian
-    must have at least one clinic at creation time, not only checked later
-    on unlink."""
-    veterinarians = FakeVeterinarianRepository()
-    audit = FakeAuditLogWriter()
-    use_case = _use_case(veterinarians=veterinarians, audit=audit)
-
-    with pytest.raises(ValidationError):
-        use_case.execute(_create_command(is_autonomous=False, clinic_ids=()))
-
-    assert veterinarians.get_by_crmv("CRMV-SC 04567") is None
-
-
-def test_create_non_autonomous_veterinarian_with_clinic_links_it_as_primary() -> None:
-    veterinarians = FakeVeterinarianRepository()
-    audit = FakeAuditLogWriter()
-    clinics = FakeClinicRepository()
-    links = FakeVeterinarianClinicLinkRepository()
-    clinic = _clinic()
-    clinics.add(clinic)
-    use_case = _use_case(veterinarians=veterinarians, audit=audit, clinics=clinics, links=links)
-
-    result = use_case.execute(_create_command(is_autonomous=False, clinic_ids=(clinic.id,)))
-
-    linked = links.list_by_veterinarian(result.id)
-    assert len(linked) == 1
-    assert linked[0].clinic_id == clinic.id
-    assert linked[0].primary_clinic is True
-    assert audit.entries[-1].action == "veterinarian_clinics.linked"
-
-
-def test_create_veterinarian_with_unknown_clinic_not_found() -> None:
-    veterinarians = FakeVeterinarianRepository()
-    audit = FakeAuditLogWriter()
-    use_case = _use_case(veterinarians=veterinarians, audit=audit)
-
-    with pytest.raises(NotFoundError):
-        use_case.execute(_create_command(is_autonomous=False, clinic_ids=(uuid4(),)))
-
-
-def test_create_veterinarian_with_primary_not_in_clinic_ids_is_invalid() -> None:
-    veterinarians = FakeVeterinarianRepository()
-    audit = FakeAuditLogWriter()
-    clinics = FakeClinicRepository()
-    clinic = _clinic()
-    clinics.add(clinic)
-    use_case = _use_case(veterinarians=veterinarians, audit=audit, clinics=clinics)
-
-    with pytest.raises(ValidationError):
-        use_case.execute(
-            _create_command(is_autonomous=False, clinic_ids=(clinic.id,), primary_clinic_id=uuid4())
-        )
-
-
-def test_create_veterinarian_links_multiple_clinics_with_explicit_primary() -> None:
+def test_create_veterinarian_links_clinics_and_validates_the_primary() -> None:
     veterinarians = FakeVeterinarianRepository()
     audit = FakeAuditLogWriter()
     clinics = FakeClinicRepository()
@@ -202,132 +172,69 @@ def test_create_veterinarian_links_multiple_clinics_with_explicit_primary() -> N
     clinics.add(clinic_b)
     use_case = _use_case(veterinarians=veterinarians, audit=audit, clinics=clinics, links=links)
 
-    result = use_case.execute(
+    with pytest.raises(NotFoundError):
+        use_case.execute(_create_command(is_autonomous=False, clinic_ids=(uuid4(),)))
+    with pytest.raises(ValidationError):
+        use_case.execute(
+            _create_command(
+                is_autonomous=False, clinic_ids=(clinic_a.id,), primary_clinic_id=uuid4()
+            )
+        )
+
+    single = use_case.execute(
+        _create_command(crmv="CRMV-SC 00001", is_autonomous=False, clinic_ids=(clinic_a.id,))
+    )
+    [only_link] = links.list_by_veterinarian(single.id)
+    assert (only_link.clinic_id, only_link.primary_clinic) == (clinic_a.id, True)
+    assert audit.entries[-1].action == "veterinarian_clinics.linked"
+
+    multiple = use_case.execute(
         _create_command(
+            crmv="CRMV-SC 00002",
             is_autonomous=False,
             clinic_ids=(clinic_a.id, clinic_b.id),
             primary_clinic_id=clinic_b.id,
         )
     )
-
-    linked = links.list_by_veterinarian(result.id)
-    assert len(linked) == 2
-    primaries = [link for link in linked if link.primary_clinic]
-    assert len(primaries) == 1
-    assert primaries[0].clinic_id == clinic_b.id
+    linked = links.list_by_veterinarian(multiple.id)
+    assert {link.clinic_id for link in linked} == {clinic_a.id, clinic_b.id}
+    assert [link.clinic_id for link in linked if link.primary_clinic] == [clinic_b.id]
 
 
-def test_update_veterinarian_with_stale_row_version_conflicts() -> None:
+def test_veterinarian_update_and_deactivation_are_versioned_audited_and_preserve_history() -> None:
     veterinarians = FakeVeterinarianRepository()
     audit = FakeAuditLogWriter()
     created = _use_case(veterinarians=veterinarians, audit=audit).execute(_create_command())
-
-    use_case = UpdateVeterinarianUseCase(
+    update = UpdateVeterinarianUseCase(
         veterinarians=veterinarians, audit=audit, clock=FakeClock(_NOW)
     )
+    deactivate = DeactivateVeterinarianUseCase(
+        veterinarians=veterinarians, audit=audit, clock=FakeClock(_NOW)
+    )
+
     with pytest.raises(ConflictError):
-        use_case.execute(
-            UpdateVeterinarianCommand(
-                actor=_actor(permissions=frozenset({"veterinarians.manage"})),
-                veterinarian_id=created.id,
-                name="Dra. Fabianna Garcia Renomeada",
-                crmv=created.crmv,
-                phone=None,
-                email=None,
-                is_autonomous=False,
-                status=VeterinarianStatus.ACTIVE.value,
-                notes=None,
-                expected_row_version=created.row_version + 1,
-            )
-        )
-
-
-def test_update_veterinarian_succeeds_and_bumps_row_version() -> None:
-    veterinarians = FakeVeterinarianRepository()
-    audit = FakeAuditLogWriter()
-    created = _use_case(veterinarians=veterinarians, audit=audit).execute(_create_command())
-
-    use_case = UpdateVeterinarianUseCase(
-        veterinarians=veterinarians, audit=audit, clock=FakeClock(_NOW)
-    )
-    result = use_case.execute(
-        UpdateVeterinarianCommand(
-            actor=_actor(permissions=frozenset({"veterinarians.manage"})),
-            veterinarian_id=created.id,
-            name="Dra. Fabianna Garcia Renomeada",
-            crmv=created.crmv,
-            phone=None,
-            email=None,
-            is_autonomous=True,
-            status=VeterinarianStatus.ACTIVE.value,
-            notes=None,
-            expected_row_version=created.row_version,
-        )
-    )
-
-    assert result.name == "Dra. Fabianna Garcia Renomeada"
-    assert result.is_autonomous is True
-    assert result.row_version == created.row_version + 1
+        update.execute(_update_command(created, expected_row_version=created.row_version + 1))
+    with pytest.raises(NotFoundError):
+        update.execute(_update_command(created, veterinarian_id=uuid4()))
+    updated = update.execute(_update_command(created))
+    assert updated.name == "Dra. Fabianna Garcia Renomeada"
+    assert updated.row_version == created.row_version + 1
     assert audit.entries[-1].action == "veterinarians.updated"
 
-
-def test_update_veterinarian_not_found() -> None:
-    veterinarians = FakeVeterinarianRepository()
-    audit = FakeAuditLogWriter()
-    use_case = UpdateVeterinarianUseCase(
-        veterinarians=veterinarians, audit=audit, clock=FakeClock(_NOW)
-    )
-
-    with pytest.raises(NotFoundError):
-        use_case.execute(
-            UpdateVeterinarianCommand(
-                actor=_actor(permissions=frozenset({"veterinarians.manage"})),
-                veterinarian_id=uuid4(),
-                name="Fantasma",
-                crmv="CRMV-SC 99999",
-                phone=None,
-                email=None,
-                is_autonomous=False,
-                status=VeterinarianStatus.ACTIVE.value,
-                notes=None,
-                expected_row_version=1,
-            )
-        )
-
-
-def test_deactivate_veterinarian_soft_deletes_and_preserves_record() -> None:
-    veterinarians = FakeVeterinarianRepository()
-    audit = FakeAuditLogWriter()
-    created = _use_case(veterinarians=veterinarians, audit=audit).execute(_create_command())
-
-    use_case = DeactivateVeterinarianUseCase(
-        veterinarians=veterinarians, audit=audit, clock=FakeClock(_NOW)
-    )
-    result = use_case.execute(
+    result = deactivate.execute(
         DeactivateVeterinarianCommand(
             actor=_actor(permissions=frozenset({"veterinarians.manage"})),
             veterinarian_id=created.id,
         )
     )
-
     assert result.status == VeterinarianStatus.INACTIVE.value
     stored = veterinarians.get_by_id(created.id)
     assert stored is not None
-    assert stored.name == created.name
+    assert stored.name == "Dra. Fabianna Garcia Renomeada"  # inativar não apaga nem reescreve
     assert audit.entries[-1].action == "veterinarians.deactivated"
 
 
-def test_list_veterinarians_requires_permission() -> None:
-    veterinarians = FakeVeterinarianRepository()
-    use_case = ListVeterinariansUseCase(veterinarians=veterinarians)
-
-    with pytest.raises(ForbiddenError):
-        use_case.execute(
-            ListVeterinariansQuery(actor=_actor(permissions=frozenset()), page=1, page_size=20)
-        )
-
-
-def test_list_veterinarians_filters_by_search_and_autonomy() -> None:
+def test_list_and_get_veterinarians_check_permission_filters_and_missing_records() -> None:
     veterinarians = FakeVeterinarianRepository()
     audit = FakeAuditLogWriter()
     clinics = FakeClinicRepository()
@@ -344,28 +251,69 @@ def test_list_veterinarians_filters_by_search_and_autonomy() -> None:
     _use_case(veterinarians=veterinarians, audit=audit).execute(
         _create_command(name="Bicho Urbano", crmv="CRMV-SC 00002", is_autonomous=True)
     )
+    reader = _actor(permissions=frozenset({"veterinarians.read"}))
+    list_use_case = ListVeterinariansUseCase(veterinarians=veterinarians)
 
-    use_case = ListVeterinariansUseCase(veterinarians=veterinarians)
-    result = use_case.execute(
-        ListVeterinariansQuery(
-            actor=_actor(permissions=frozenset({"veterinarians.read"})),
-            page=1,
-            page_size=20,
-            is_autonomous=True,
+    with pytest.raises(ForbiddenError):
+        list_use_case.execute(
+            ListVeterinariansQuery(actor=_actor(permissions=frozenset()), page=1, page_size=20)
         )
+    result = list_use_case.execute(
+        ListVeterinariansQuery(actor=reader, page=1, page_size=20, is_autonomous=True)
     )
-
     assert result.total == 1
     assert result.items[0].name == "Bicho Urbano"
-
-
-def test_get_veterinarian_not_found() -> None:
-    veterinarians = FakeVeterinarianRepository()
-    use_case = GetVeterinarianUseCase(veterinarians=veterinarians)
-
     with pytest.raises(NotFoundError):
-        use_case.execute(
-            GetVeterinarianQuery(
-                actor=_actor(permissions=frozenset({"veterinarians.read"})), veterinarian_id=uuid4()
+        GetVeterinarianUseCase(veterinarians=veterinarians).execute(
+            GetVeterinarianQuery(actor=reader, veterinarian_id=uuid4())
+        )
+
+
+def test_clinic_actor_only_reaches_own_clinic_and_autonomous_veterinarians() -> None:
+    veterinarians = FakeVeterinarianRepository()
+    own_clinic_id, other_clinic_id = uuid4(), uuid4()
+    foreign_id = _stored_veterinarian(
+        veterinarians, is_autonomous=False, linked_to={other_clinic_id}
+    )
+    linked_id = _stored_veterinarian(veterinarians, is_autonomous=False, linked_to={own_clinic_id})
+    autonomous_id = _stored_veterinarian(veterinarians, is_autonomous=True, linked_to=set())
+    actor = _clinic_actor(
+        clinic_ids=frozenset({own_clinic_id}),
+        permissions=frozenset({"veterinarians.read", "veterinarians.manage"}),
+    )
+    get = GetVeterinarianUseCase(veterinarians=veterinarians)
+
+    # Visíveis: o vinculado à clínica do ator e o autônomo.
+    for visible_id in (linked_id, autonomous_id):
+        assert get.execute(GetVeterinarianQuery(actor=actor, veterinarian_id=visible_id)).id == (
+            visible_id
+        )
+
+    # Veterinário de outra clínica: leitura, edição e inativação respondem "não encontrado".
+    foreign = veterinarians.get_by_id(foreign_id)
+    assert foreign is not None
+    with pytest.raises(NotFoundError):
+        get.execute(GetVeterinarianQuery(actor=actor, veterinarian_id=foreign_id))
+    with pytest.raises(NotFoundError):
+        UpdateVeterinarianUseCase(
+            veterinarians=veterinarians, audit=FakeAuditLogWriter(), clock=FakeClock(_NOW)
+        ).execute(
+            UpdateVeterinarianCommand(
+                actor=actor,
+                veterinarian_id=foreign_id,
+                name="Alterado",
+                crmv="CRMV-SC 99999",
+                phone=None,
+                email=None,
+                is_autonomous=False,
+                status="ACTIVE",
+                notes=None,
+                expected_row_version=foreign.row_version,
             )
         )
+    with pytest.raises(NotFoundError):
+        DeactivateVeterinarianUseCase(
+            veterinarians=veterinarians, audit=FakeAuditLogWriter(), clock=FakeClock(_NOW)
+        ).execute(DeactivateVeterinarianCommand(actor=actor, veterinarian_id=foreign_id))
+    assert foreign.status == VeterinarianStatus.ACTIVE
+    assert foreign.name != "Alterado"

@@ -12,7 +12,7 @@ from uuid import UUID, uuid4
 import pytest
 
 from app.shared.domain.errors import IdempotencyConflictError
-from app.shared.idempotency.application.guard import IdempotencyGuard
+from app.shared.idempotency.application.guard import IdempotencyGuard, IdempotencyOutcome
 from app.shared.idempotency.domain.entities import IdempotencyRecord, IdempotencyRecordStatus
 
 _NOW = datetime(2026, 1, 1, tzinfo=UTC)
@@ -47,136 +47,51 @@ class FakeIdempotencyRecordRepository:
         record.completed_at = now
 
 
-def test_begin_first_call_proceeds() -> None:
+def _begin(
+    guard: IdempotencyGuard,
+    *,
+    key: str,
+    payload: dict[str, object],
+    actor_id: UUID = _ACTOR_ID,
+    operation: str = "attendances.confirm:x",
+) -> IdempotencyOutcome:
+    return guard.begin(
+        actor_id=actor_id,
+        operation=operation,
+        idempotency_key=key,
+        payload=payload,
+        now=_NOW,
+    )
+
+
+def test_same_key_replays_the_stored_response_and_rejects_changed_or_unfinished_requests() -> None:
     guard = IdempotencyGuard(records=FakeIdempotencyRecordRepository())
+    payload: dict[str, object] = {"items": [{"exam_id": "abc", "quantity": 1}]}
 
-    outcome = guard.begin(
-        actor_id=_ACTOR_ID,
-        operation="attendances.confirm:x",
-        idempotency_key="key-1",
-        payload={"items": [1]},
-        now=_NOW,
-    )
+    first = _begin(guard, key="key-1", payload=payload)
+    assert first.replayed_response is None  # primeira chamada segue adiante
 
-    assert outcome.replayed_response is None
+    # Mesma chave ainda em andamento: conflito.
+    with pytest.raises(IdempotencyConflictError):
+        _begin(guard, key="key-1", payload=payload)
 
-
-def test_complete_then_same_key_and_payload_replays() -> None:
-    records = FakeIdempotencyRecordRepository()
-    guard = IdempotencyGuard(records=records)
-    payload = {"items": [{"exam_id": "abc", "quantity": 1}]}
-
-    first = guard.begin(
-        actor_id=_ACTOR_ID,
-        operation="attendances.confirm:x",
-        idempotency_key="key-2",
-        payload=payload,
-        now=_NOW,
-    )
     guard.complete(first.record_id, status_code=200, body={"status": "CONFIRMED"}, now=_NOW)
-
-    second = guard.begin(
-        actor_id=_ACTOR_ID,
-        operation="attendances.confirm:x",
-        idempotency_key="key-2",
-        payload=payload,
-        now=_NOW,
+    assert _begin(guard, key="key-1", payload=payload).replayed_response == (
+        200,
+        {"status": "CONFIRMED"},
     )
-
-    assert second.replayed_response == (200, {"status": "CONFIRMED"})
-
-
-def test_same_key_different_payload_is_conflict() -> None:
-    records = FakeIdempotencyRecordRepository()
-    guard = IdempotencyGuard(records=records)
-
-    first = guard.begin(
-        actor_id=_ACTOR_ID,
-        operation="attendances.confirm:x",
-        idempotency_key="key-3",
-        payload={"items": [{"quantity": 1}]},
-        now=_NOW,
-    )
-    guard.complete(first.record_id, status_code=200, body={}, now=_NOW)
-
+    # Mesma chave com payload diferente: conflito.
     with pytest.raises(IdempotencyConflictError):
-        guard.begin(
-            actor_id=_ACTOR_ID,
-            operation="attendances.confirm:x",
-            idempotency_key="key-3",
-            payload={"items": [{"quantity": 2}]},
-            now=_NOW,
-        )
+        _begin(guard, key="key-1", payload={"items": [{"exam_id": "abc", "quantity": 2}]})
 
 
-def test_same_key_still_in_progress_is_conflict() -> None:
-    records = FakeIdempotencyRecordRepository()
-    guard = IdempotencyGuard(records=records)
-    payload = {"items": [{"quantity": 1}]}
-
-    guard.begin(
-        actor_id=_ACTOR_ID,
-        operation="attendances.confirm:x",
-        idempotency_key="key-4",
-        payload=payload,
-        now=_NOW,
-    )
-
-    with pytest.raises(IdempotencyConflictError):
-        guard.begin(
-            actor_id=_ACTOR_ID,
-            operation="attendances.confirm:x",
-            idempotency_key="key-4",
-            payload=payload,
-            now=_NOW,
-        )
-
-
-def test_different_actor_same_key_does_not_collide() -> None:
-    records = FakeIdempotencyRecordRepository()
-    guard = IdempotencyGuard(records=records)
-    payload: dict[str, list[object]] = {"items": []}
-
-    first = guard.begin(
-        actor_id=_ACTOR_ID,
-        operation="attendances.confirm:x",
-        idempotency_key="key-5",
-        payload=payload,
-        now=_NOW,
-    )
+def test_same_key_does_not_collide_across_actors_or_operations() -> None:
+    guard = IdempotencyGuard(records=FakeIdempotencyRecordRepository())
+    payload: dict[str, object] = {"items": []}
+    first = _begin(guard, key="key-2", payload=payload)
     guard.complete(first.record_id, status_code=200, body={}, now=_NOW)
 
-    other_actor_outcome = guard.begin(
-        actor_id=uuid4(),
-        operation="attendances.confirm:x",
-        idempotency_key="key-5",
-        payload=payload,
-        now=_NOW,
-    )
-
-    assert other_actor_outcome.replayed_response is None
-
-
-def test_different_operation_same_key_does_not_collide() -> None:
-    records = FakeIdempotencyRecordRepository()
-    guard = IdempotencyGuard(records=records)
-    payload: dict[str, list[object]] = {"items": []}
-
-    first = guard.begin(
-        actor_id=_ACTOR_ID,
-        operation="attendances.confirm:x",
-        idempotency_key="key-6",
-        payload=payload,
-        now=_NOW,
-    )
-    guard.complete(first.record_id, status_code=200, body={}, now=_NOW)
-
-    other_operation_outcome = guard.begin(
-        actor_id=_ACTOR_ID,
-        operation="attendances.confirm:y",
-        idempotency_key="key-6",
-        payload=payload,
-        now=_NOW,
-    )
-
-    assert other_operation_outcome.replayed_response is None
+    assert _begin(guard, key="key-2", payload=payload, actor_id=uuid4()).replayed_response is None
+    assert (
+        _begin(guard, key="key-2", payload=payload, operation="attendances.confirm:y")
+    ).replayed_response is None

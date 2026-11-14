@@ -5,11 +5,13 @@ from uuid import UUID, uuid4
 
 import pytest
 
+from app.modules.audit.domain.entities import ActorScope
 from app.modules.clinics.application.create_clinic import CreateClinicCommand, CreateClinicUseCase
 from app.modules.clinics.application.deactivate_clinic import (
     DeactivateClinicCommand,
     DeactivateClinicUseCase,
 )
+from app.modules.clinics.application.dtos import ClinicDTO
 from app.modules.clinics.application.get_clinic import GetClinicQuery, GetClinicUseCase
 from app.modules.clinics.application.list_clinics import ListClinicsQuery, ListClinicsUseCase
 from app.modules.clinics.application.update_clinic import UpdateClinicCommand, UpdateClinicUseCase
@@ -66,217 +68,109 @@ def _create_command(**overrides: object) -> CreateClinicCommand:
     return CreateClinicCommand(**defaults)  # type: ignore[arg-type]
 
 
-def test_create_clinic_succeeds_and_audits() -> None:
+def _update_command(created: ClinicDTO, **overrides: object) -> UpdateClinicCommand:
+    defaults: dict[str, object] = {
+        "actor": _actor(permissions=frozenset({"clinics.manage"})),
+        "clinic_id": created.id,
+        "name": "Clínica Vet Renomeada",
+        "tax_id": created.tax_id,
+        "phone": None,
+        "email": None,
+        "status": ClinicStatus.ACTIVE.value,
+        "address_zip_code": None,
+        "address_street": None,
+        "address_number": None,
+        "address_neighborhood": None,
+        "address_city": None,
+        "address_state": None,
+        "address_complement": None,
+        "notes": None,
+        "expected_row_version": created.row_version,
+    }
+    defaults.update(overrides)
+    return UpdateClinicCommand(**defaults)  # type: ignore[arg-type]
+
+
+def test_clinic_lifecycle_audits_versions_and_rejects_invalid_changes() -> None:
     clinics = FakeClinicRepository()
     audit = FakeAuditLogWriter()
-    use_case = CreateClinicUseCase(clinics=clinics, audit=audit, clock=FakeClock(_NOW))
+    create = CreateClinicUseCase(clinics=clinics, audit=audit, clock=FakeClock(_NOW))
+    update = UpdateClinicUseCase(clinics=clinics, audit=audit, clock=FakeClock(_NOW))
+    deactivate = DeactivateClinicUseCase(clinics=clinics, audit=audit, clock=FakeClock(_NOW))
 
-    result = use_case.execute(_create_command())
-
-    assert result.name == "Clínica Vet"
-    assert result.status == ClinicStatus.ACTIVE.value
-    assert clinics.get_by_id(result.id) is not None
-    assert audit.entries[0].action == "clinics.created"
-
-
-def test_clinic_actor_only_lists_and_reads_own_memberships() -> None:
-    clinics = FakeClinicRepository()
-    audit = FakeAuditLogWriter()
-    use_case = CreateClinicUseCase(clinics=clinics, audit=audit, clock=FakeClock(_NOW))
-    first = use_case.execute(_create_command(tax_id="78977352000199"))
-    second = use_case.execute(_create_command(name="Outra", tax_id="11222333000181"))
-    actor = _clinic_actor(clinic_ids=frozenset({first.id}))
-
-    page = ListClinicsUseCase(clinics=clinics).execute(
-        ListClinicsQuery(actor=actor, page=1, page_size=20)
-    )
-
-    assert [item.id for item in page.items] == [first.id]
-    with pytest.raises(NotFoundError):
-        GetClinicUseCase(clinics=clinics).execute(GetClinicQuery(actor=actor, clinic_id=second.id))
-
-
-def test_clinic_actor_cannot_create_a_clinic_even_with_permission() -> None:
-    use_case = CreateClinicUseCase(
-        clinics=FakeClinicRepository(), audit=FakeAuditLogWriter(), clock=FakeClock(_NOW)
-    )
-    with pytest.raises(ForbiddenError):
-        use_case.execute(_create_command(actor=_clinic_actor(clinic_ids=frozenset())))
-
-
-def test_create_clinic_without_permission_is_forbidden() -> None:
-    clinics = FakeClinicRepository()
-    audit = FakeAuditLogWriter()
-    use_case = CreateClinicUseCase(clinics=clinics, audit=audit, clock=FakeClock(_NOW))
-
-    with pytest.raises(ForbiddenError):
-        use_case.execute(_create_command(actor=_actor(permissions=frozenset())))
-
-
-def test_create_clinic_with_duplicate_tax_id_conflicts() -> None:
-    clinics = FakeClinicRepository()
-    audit = FakeAuditLogWriter()
-    use_case = CreateClinicUseCase(clinics=clinics, audit=audit, clock=FakeClock(_NOW))
-    use_case.execute(_create_command())
-
+    created = create.execute(_create_command())
+    assert created.name == "Clínica Vet"
+    assert created.status == ClinicStatus.ACTIVE.value
     with pytest.raises(DuplicateTaxIdError):
-        use_case.execute(_create_command(name="Outra Clínica"))
+        create.execute(_create_command(name="Outra Clínica"))
 
-
-def test_update_clinic_with_stale_row_version_conflicts() -> None:
-    clinics = FakeClinicRepository()
-    audit = FakeAuditLogWriter()
-    created = CreateClinicUseCase(clinics=clinics, audit=audit, clock=FakeClock(_NOW)).execute(
-        _create_command()
-    )
-
-    use_case = UpdateClinicUseCase(clinics=clinics, audit=audit, clock=FakeClock(_NOW))
     with pytest.raises(ConflictError):
-        use_case.execute(
-            UpdateClinicCommand(
-                actor=_actor(permissions=frozenset({"clinics.manage"})),
-                clinic_id=created.id,
-                name="Clínica Vet Renomeada",
-                tax_id=created.tax_id,
-                phone=None,
-                email=None,
-                status=ClinicStatus.ACTIVE.value,
-                address_zip_code=None,
-                address_street=None,
-                address_number=None,
-                address_neighborhood=None,
-                address_city=None,
-                address_state=None,
-                address_complement=None,
-                notes=None,
-                expected_row_version=created.row_version + 1,
-            )
-        )
-
-
-def test_update_clinic_succeeds_and_bumps_row_version() -> None:
-    clinics = FakeClinicRepository()
-    audit = FakeAuditLogWriter()
-    created = CreateClinicUseCase(clinics=clinics, audit=audit, clock=FakeClock(_NOW)).execute(
-        _create_command()
-    )
-
-    use_case = UpdateClinicUseCase(clinics=clinics, audit=audit, clock=FakeClock(_NOW))
-    result = use_case.execute(
-        UpdateClinicCommand(
-            actor=_actor(permissions=frozenset({"clinics.manage"})),
-            clinic_id=created.id,
-            name="Clínica Vet Renomeada",
-            tax_id=created.tax_id,
-            phone=None,
-            email=None,
-            status=ClinicStatus.SPECIAL.value,
-            address_zip_code=None,
-            address_street=None,
-            address_number=None,
-            address_neighborhood=None,
-            address_city=None,
-            address_state=None,
-            address_complement=None,
-            notes=None,
-            expected_row_version=created.row_version,
-        )
-    )
-
-    assert result.name == "Clínica Vet Renomeada"
-    assert result.status == ClinicStatus.SPECIAL.value
-    assert result.row_version == created.row_version + 1
-    assert audit.entries[-1].action == "clinics.updated"
-
-
-def test_update_clinic_not_found() -> None:
-    clinics = FakeClinicRepository()
-    audit = FakeAuditLogWriter()
-    use_case = UpdateClinicUseCase(clinics=clinics, audit=audit, clock=FakeClock(_NOW))
-
+        update.execute(_update_command(created, expected_row_version=created.row_version + 1))
     with pytest.raises(NotFoundError):
-        use_case.execute(
-            UpdateClinicCommand(
-                actor=_actor(permissions=frozenset({"clinics.manage"})),
-                clinic_id=uuid4(),
-                name="Fantasma",
-                tax_id=None,
-                phone=None,
-                email=None,
-                status=ClinicStatus.ACTIVE.value,
-                address_zip_code=None,
-                address_street=None,
-                address_number=None,
-                address_neighborhood=None,
-                address_city=None,
-                address_state=None,
-                address_complement=None,
-                notes=None,
-                expected_row_version=1,
-            )
-        )
+        update.execute(_update_command(created, clinic_id=uuid4()))
+    updated = update.execute(_update_command(created, status=ClinicStatus.SPECIAL.value))
+    assert (updated.name, updated.status) == ("Clínica Vet Renomeada", ClinicStatus.SPECIAL.value)
+    assert updated.row_version == created.row_version + 1
 
-
-def test_deactivate_clinic_soft_deletes_and_preserves_record() -> None:
-    clinics = FakeClinicRepository()
-    audit = FakeAuditLogWriter()
-    created = CreateClinicUseCase(clinics=clinics, audit=audit, clock=FakeClock(_NOW)).execute(
-        _create_command()
-    )
-
-    use_case = DeactivateClinicUseCase(clinics=clinics, audit=audit, clock=FakeClock(_NOW))
-    result = use_case.execute(
+    deactivated = deactivate.execute(
         DeactivateClinicCommand(
-            actor=_actor(permissions=frozenset({"clinics.manage"})), clinic_id=created.id
+            actor=_clinic_actor(clinic_ids=frozenset({created.id})), clinic_id=created.id
         )
     )
-
-    assert result.status == ClinicStatus.INACTIVE.value
+    assert deactivated.status == ClinicStatus.INACTIVE.value
     stored = clinics.get_by_id(created.id)
     assert stored is not None
-    assert stored.name == created.name
-    assert audit.entries[-1].action == "clinics.deactivated"
+    assert stored.name == "Clínica Vet Renomeada"
+
+    # A auditoria registra o escopo real de quem agiu, não um valor fixo.
+    assert [(entry.action, entry.actor_scope) for entry in audit.entries] == [
+        ("clinics.created", ActorScope.LAB),
+        ("clinics.updated", ActorScope.LAB),
+        ("clinics.deactivated", ActorScope.CLINIC),
+    ]
 
 
-def test_list_clinics_requires_permission() -> None:
-    clinics = FakeClinicRepository()
-    use_case = ListClinicsUseCase(clinics=clinics)
-
-    with pytest.raises(ForbiddenError):
-        use_case.execute(
-            ListClinicsQuery(actor=_actor(permissions=frozenset()), page=1, page_size=20)
-        )
-
-
-def test_list_clinics_filters_by_search() -> None:
+def test_clinic_permissions_and_tenant_scope() -> None:
     clinics = FakeClinicRepository()
     audit = FakeAuditLogWriter()
-    CreateClinicUseCase(clinics=clinics, audit=audit, clock=FakeClock(_NOW)).execute(
-        _create_command(name="Schweitzer", tax_id="78977352000199")
-    )
-    CreateClinicUseCase(clinics=clinics, audit=audit, clock=FakeClock(_NOW)).execute(
-        _create_command(name="Bicho Urbano", tax_id="21804204000155")
-    )
+    create = CreateClinicUseCase(clinics=clinics, audit=audit, clock=FakeClock(_NOW))
+    first = create.execute(_create_command(tax_id="78977352000199"))
+    second = create.execute(_create_command(name="Outra", tax_id="11222333000181"))
+    nobody = _actor(permissions=frozenset())
+    clinic_actor = _clinic_actor(clinic_ids=frozenset({first.id}))
 
-    use_case = ListClinicsUseCase(clinics=clinics)
-    result = use_case.execute(
-        ListClinicsQuery(
-            actor=_actor(permissions=frozenset({"clinics.read"})),
-            page=1,
-            page_size=20,
-            search="bicho",
+    with pytest.raises(ForbiddenError):
+        create.execute(_create_command(actor=nobody))
+    with pytest.raises(ForbiddenError):  # ator de clínica nunca cria clínica
+        create.execute(_create_command(actor=_clinic_actor(clinic_ids=frozenset())))
+    with pytest.raises(ForbiddenError):
+        ListClinicsUseCase(clinics=clinics).execute(
+            ListClinicsQuery(actor=nobody, page=1, page_size=20)
         )
+
+    page = ListClinicsUseCase(clinics=clinics).execute(
+        ListClinicsQuery(actor=clinic_actor, page=1, page_size=20)
+    )
+    assert [item.id for item in page.items] == [first.id]
+    with pytest.raises(NotFoundError):
+        GetClinicUseCase(clinics=clinics).execute(
+            GetClinicQuery(actor=clinic_actor, clinic_id=second.id)
+        )
+
+
+def test_list_and_get_clinics() -> None:
+    clinics = FakeClinicRepository()
+    audit = FakeAuditLogWriter()
+    create = CreateClinicUseCase(clinics=clinics, audit=audit, clock=FakeClock(_NOW))
+    create.execute(_create_command(name="Schweitzer", tax_id="78977352000199"))
+    create.execute(_create_command(name="Bicho Urbano", tax_id="21804204000155"))
+    reader = _actor(permissions=frozenset({"clinics.read"}))
+
+    result = ListClinicsUseCase(clinics=clinics).execute(
+        ListClinicsQuery(actor=reader, page=1, page_size=20, search="bicho")
     )
 
     assert result.total == 1
     assert result.items[0].name == "Bicho Urbano"
-
-
-def test_get_clinic_not_found() -> None:
-    clinics = FakeClinicRepository()
-    use_case = GetClinicUseCase(clinics=clinics)
-
     with pytest.raises(NotFoundError):
-        use_case.execute(
-            GetClinicQuery(actor=_actor(permissions=frozenset({"clinics.read"})), clinic_id=uuid4())
-        )
+        GetClinicUseCase(clinics=clinics).execute(GetClinicQuery(actor=reader, clinic_id=uuid4()))

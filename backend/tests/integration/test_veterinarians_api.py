@@ -4,61 +4,19 @@ CRMV duplicado e soft delete, ponta a ponta via HTTPX/ASGI.
 
 from __future__ import annotations
 
-from collections.abc import AsyncIterator, Iterator
 from datetime import UTC, datetime
-from pathlib import Path
 from uuid import UUID, uuid4
 
 import httpx
 import pytest
-from alembic.config import Config
-from fastapi import FastAPI
-from pydantic import SecretStr
 from sqlalchemy import text
 from sqlalchemy.orm import Session, sessionmaker
-from testcontainers.postgres import PostgresContainer
 
-from alembic import command
-from app.core.config import Settings
 from app.core.security import hash_password
-from app.main import create_app
 from app.modules.identity.infrastructure.models import LabMembershipModel, UserModel
 from app.modules.identity.infrastructure.seed import ROLE_LAB_ADMIN, ROLE_RECEPTION, ROLE_TECHNICAL
-from app.shared.infrastructure.database import build_engine, build_session_factory
 
 pytestmark = pytest.mark.integration
-
-REPO_ROOT = Path(__file__).resolve().parents[3]
-
-
-@pytest.fixture(scope="module")
-def postgres_url() -> Iterator[str]:
-    with PostgresContainer("postgres:17-alpine", driver="psycopg") as postgres:
-        yield postgres.get_connection_url()
-
-
-@pytest.fixture(scope="module")
-def monkeypatch_module() -> Iterator[pytest.MonkeyPatch]:
-    mp = pytest.MonkeyPatch()
-    yield mp
-    mp.undo()
-
-
-@pytest.fixture(scope="module", autouse=True)
-def _migrated_schema(postgres_url: str, monkeypatch_module: pytest.MonkeyPatch) -> None:
-    monkeypatch_module.setenv("DATABASE_URL", postgres_url)
-    config = Config()
-    config.set_main_option("script_location", str(REPO_ROOT / "backend" / "alembic"))
-    command.upgrade(config, "head")
-
-
-@pytest.fixture
-def session_factory(postgres_url: str) -> Iterator[sessionmaker[Session]]:
-    engine = build_engine(postgres_url)
-    try:
-        yield build_session_factory(engine)
-    finally:
-        engine.dispose()
 
 
 @pytest.fixture(autouse=True)
@@ -70,31 +28,6 @@ def _reset_data(session_factory: sessionmaker[Session]) -> None:
         session.execute(text("DELETE FROM clinics"))
         session.execute(text("DELETE FROM users"))
         session.commit()
-
-
-@pytest.fixture
-def settings(postgres_url: str) -> Settings:
-    return Settings(
-        env="test",
-        log_level="WARNING",
-        database_url=SecretStr(postgres_url),
-        session_cookie_secure=False,
-    )
-
-
-@pytest.fixture
-def app(settings: Settings) -> FastAPI:
-    return create_app(settings)
-
-
-@pytest.fixture
-async def client(app: FastAPI) -> AsyncIterator[httpx.AsyncClient]:
-    transport = httpx.ASGITransport(app=app)
-    async with (
-        httpx.AsyncClient(transport=transport, base_url="http://test") as async_client,
-        app.router.lifespan_context(app),
-    ):
-        yield async_client
 
 
 def _create_user(
@@ -120,60 +53,41 @@ def _create_user(
         return user
 
 
-async def _login(client: httpx.AsyncClient, *, email: str, password: str) -> None:
+async def _login_as(
+    client: httpx.AsyncClient, session_factory: sessionmaker[Session], *, email: str, role_id: UUID
+) -> None:
+    _create_user(session_factory, email=email, password="s3nhaForte!", role_id=role_id)
     response = await client.post(
         "/api/v1/auth/login",
-        json={"login": email, "password": password, "remember_me": False},
+        json={"login": email, "password": "s3nhaForte!", "remember_me": False},
     )
     assert response.status_code == 200
 
 
-async def test_create_veterinarian_without_permission_is_forbidden(
+async def test_veterinarian_creation_is_permission_gated_unique_and_requires_clinic_unless_autonomous(
     client: httpx.AsyncClient, session_factory: sessionmaker[Session]
 ) -> None:
-    _create_user(
-        session_factory,
-        email="technical@vertere.local",
-        password="s3nhaForte!",
-        role_id=ROLE_TECHNICAL,
-    )
+    assert (await client.get("/api/v1/veterinarians")).status_code == 401
 
-    await _login(client, email="technical@vertere.local", password="s3nhaForte!")
-    response = await client.post(
+    await _login_as(
+        client, session_factory, email="technical@vertere.local", role_id=ROLE_TECHNICAL
+    )
+    denied = await client.post(
         "/api/v1/veterinarians", json={"name": "Vet Sem Permissão", "crmv": "CRMV-SC 00001"}
     )
+    assert denied.status_code == 403
 
-    assert response.status_code == 403
-
-
-async def test_reception_can_create_veterinarians(
-    client: httpx.AsyncClient, session_factory: sessionmaker[Session]
-) -> None:
-    _create_user(
-        session_factory,
-        email="reception@vertere.local",
-        password="s3nhaForte!",
-        role_id=ROLE_RECEPTION,
+    await _login_as(
+        client, session_factory, email="reception@vertere.local", role_id=ROLE_RECEPTION
     )
-
-    await _login(client, email="reception@vertere.local", password="s3nhaForte!")
-    response = await client.post(
+    by_reception = await client.post(
         "/api/v1/veterinarians",
-        json={"name": "Dra. Fabianna Garcia", "crmv": "CRMV-SC 04567", "is_autonomous": True},
+        json={"name": "Dra. Recepção", "crmv": "CRMV-SC 00002", "is_autonomous": True},
     )
+    assert by_reception.status_code == 201
 
-    assert response.status_code == 201
-
-
-async def test_create_and_get_veterinarian(
-    client: httpx.AsyncClient, session_factory: sessionmaker[Session]
-) -> None:
-    _create_user(
-        session_factory, email="admin@vertere.local", password="s3nhaForte!", role_id=ROLE_LAB_ADMIN
-    )
-    await _login(client, email="admin@vertere.local", password="s3nhaForte!")
-
-    create_response = await client.post(
+    await _login_as(client, session_factory, email="admin@vertere.local", role_id=ROLE_LAB_ADMIN)
+    created = await client.post(
         "/api/v1/veterinarians",
         json={
             "name": "Dra. Fabianna Garcia",
@@ -183,153 +97,35 @@ async def test_create_and_get_veterinarian(
             "is_autonomous": True,
         },
     )
-    assert create_response.status_code == 201
-    body = create_response.json()
-    assert body["name"] == "Dra. Fabianna Garcia"
-    assert body["crmv"] == "CRMV-SC 04567"
-    assert body["is_autonomous"] is True
-    assert body["status"] == "ACTIVE"
-
-    get_response = await client.get(f"/api/v1/veterinarians/{body['id']}")
-    assert get_response.status_code == 200
-    assert get_response.json()["name"] == "Dra. Fabianna Garcia"
-
-
-async def test_create_veterinarian_with_duplicate_crmv_conflicts(
-    client: httpx.AsyncClient, session_factory: sessionmaker[Session]
-) -> None:
-    _create_user(
-        session_factory, email="admin@vertere.local", password="s3nhaForte!", role_id=ROLE_LAB_ADMIN
+    assert created.status_code == 201
+    body = created.json()
+    assert (body["name"], body["crmv"], body["is_autonomous"], body["status"]) == (
+        "Dra. Fabianna Garcia",
+        "CRMV-SC 04567",
+        True,
+        "ACTIVE",
     )
-    await _login(client, email="admin@vertere.local", password="s3nhaForte!")
+    fetched = await client.get(f"/api/v1/veterinarians/{body['id']}")
+    assert (fetched.status_code, fetched.json()["name"]) == (200, "Dra. Fabianna Garcia")
 
-    payload = {"name": "Vet A", "crmv": "CRMV-SC 04567", "is_autonomous": True}
-    first = await client.post("/api/v1/veterinarians", json=payload)
-    assert first.status_code == 201
-
-    second = await client.post(
+    duplicate = await client.post(
         "/api/v1/veterinarians",
         json={"name": "Vet B", "crmv": "CRMV-SC 04567", "is_autonomous": True},
     )
-    assert second.status_code == 409
+    assert duplicate.status_code == 409
 
-
-async def test_create_non_autonomous_veterinarian_without_clinic_is_rejected(
-    client: httpx.AsyncClient, session_factory: sessionmaker[Session]
-) -> None:
-    """Closes the ADR-003 gap end to end — the API used to accept this."""
-    _create_user(
-        session_factory, email="admin@vertere.local", password="s3nhaForte!", role_id=ROLE_LAB_ADMIN
-    )
-    await _login(client, email="admin@vertere.local", password="s3nhaForte!")
-
-    response = await client.post(
+    # ADR-003: não autônomo sem clínica é rejeitado de ponta a ponta.
+    no_clinic = await client.post(
         "/api/v1/veterinarians",
         json={"name": "Vet Sem Clínica", "crmv": "CRMV-SC 04570", "is_autonomous": False},
     )
+    assert no_clinic.status_code == 422
 
-    assert response.status_code == 422
 
-
-async def test_create_non_autonomous_veterinarian_with_clinic_links_it(
+async def test_veterinarian_clinic_links_availability_versions_and_deactivation(
     client: httpx.AsyncClient, session_factory: sessionmaker[Session]
 ) -> None:
-    _create_user(
-        session_factory, email="admin@vertere.local", password="s3nhaForte!", role_id=ROLE_LAB_ADMIN
-    )
-    await _login(client, email="admin@vertere.local", password="s3nhaForte!")
-
-    clinic_response = await client.post("/api/v1/clinics", json={"name": "Schweitzer"})
-    clinic_id = clinic_response.json()["id"]
-
-    response = await client.post(
-        "/api/v1/veterinarians",
-        json={
-            "name": "Vet Com Clínica",
-            "crmv": "CRMV-SC 04571",
-            "is_autonomous": False,
-            "clinic_ids": [clinic_id],
-        },
-    )
-    assert response.status_code == 201
-    body = response.json()
-
-    get_response = await client.get(f"/api/v1/veterinarians/{body['id']}")
-    assert get_response.status_code == 200
-    clinics = get_response.json()["clinics"]
-    assert len(clinics) == 1
-    assert clinics[0]["clinic_id"] == clinic_id
-    assert clinics[0]["primary_clinic"] is True
-
-
-async def test_update_veterinarian_with_stale_row_version_conflicts(
-    client: httpx.AsyncClient, session_factory: sessionmaker[Session]
-) -> None:
-    _create_user(
-        session_factory, email="admin@vertere.local", password="s3nhaForte!", role_id=ROLE_LAB_ADMIN
-    )
-    await _login(client, email="admin@vertere.local", password="s3nhaForte!")
-
-    create_response = await client.post(
-        "/api/v1/veterinarians",
-        json={"name": "Vet Bicho Urbano", "crmv": "CRMV-SC 04568", "is_autonomous": True},
-    )
-    veterinarian_id = create_response.json()["id"]
-
-    update_response = await client.patch(
-        f"/api/v1/veterinarians/{veterinarian_id}",
-        json={
-            "name": "Vet Bicho Urbano Renomeado",
-            "crmv": "CRMV-SC 04568",
-            "status": "ACTIVE",
-            "expected_row_version": 99,
-        },
-    )
-    assert update_response.status_code == 409
-
-
-async def test_deactivate_veterinarian_preserves_record(
-    client: httpx.AsyncClient, session_factory: sessionmaker[Session]
-) -> None:
-    _create_user(
-        session_factory, email="admin@vertere.local", password="s3nhaForte!", role_id=ROLE_LAB_ADMIN
-    )
-    await _login(client, email="admin@vertere.local", password="s3nhaForte!")
-
-    create_response = await client.post(
-        "/api/v1/veterinarians",
-        json={"name": "Vet Reale", "crmv": "CRMV-SC 04569", "is_autonomous": True},
-    )
-    veterinarian_id = create_response.json()["id"]
-
-    deactivate_response = await client.post(f"/api/v1/veterinarians/{veterinarian_id}/deactivate")
-    assert deactivate_response.status_code == 200
-    assert deactivate_response.json()["status"] == "INACTIVE"
-
-    get_response = await client.get(f"/api/v1/veterinarians/{veterinarian_id}")
-    assert get_response.status_code == 200
-    assert get_response.json()["name"] == "Vet Reale"
-
-
-async def test_list_veterinarians_without_session_is_unauthenticated(
-    client: httpx.AsyncClient,
-) -> None:
-    response = await client.get("/api/v1/veterinarians")
-    assert response.status_code == 401
-
-
-async def test_list_veterinarians_available_for_clinic_includes_autonomous_and_linked(
-    client: httpx.AsyncClient, session_factory: sessionmaker[Session]
-) -> None:
-    """Regression: `GET /veterinarians` list responses never carried
-    `clinics`, so a client-side "linked to this clinic" filter always saw
-    an empty link list — this must be server-side, same rule `/confirm`
-    revalidates (`.claude/rules/12-attendance.md`)."""
-    _create_user(
-        session_factory, email="admin@vertere.local", password="s3nhaForte!", role_id=ROLE_LAB_ADMIN
-    )
-    await _login(client, email="admin@vertere.local", password="s3nhaForte!")
-
+    await _login_as(client, session_factory, email="admin@vertere.local", role_id=ROLE_LAB_ADMIN)
     clinic_a = (await client.post("/api/v1/clinics", json={"name": "Clinica A"})).json()
     clinic_b = (await client.post("/api/v1/clinics", json={"name": "Clinica B"})).json()
 
@@ -337,27 +133,55 @@ async def test_list_veterinarians_available_for_clinic_includes_autonomous_and_l
         "/api/v1/veterinarians",
         json={"name": "Dra. Autonoma", "crmv": "CRMV-SC 09001", "is_autonomous": True},
     )
-    linked_to_a = (
-        await client.post(
-            "/api/v1/veterinarians",
-            json={
-                "name": "Dr. Vinculado A",
-                "crmv": "CRMV-SC 09002",
-                "is_autonomous": False,
-                "clinic_ids": [clinic_a["id"]],
-            },
+    linked = await client.post(
+        "/api/v1/veterinarians",
+        json={
+            "name": "Dr. Vinculado A",
+            "crmv": "CRMV-SC 09002",
+            "is_autonomous": False,
+            "clinic_ids": [clinic_a["id"]],
+        },
+    )
+    assert linked.status_code == 201
+    linked_body = linked.json()
+
+    # O vínculo vem no detalhe e a clínica única é a principal.
+    detail = (await client.get(f"/api/v1/veterinarians/{linked_body['id']}")).json()
+    assert [(c["clinic_id"], c["primary_clinic"]) for c in detail["clinics"]] == [
+        (clinic_a["id"], True)
+    ]
+
+    # Regressão: a lista "disponíveis para a clínica" é filtrada no servidor
+    # (autônomos + vinculados), a mesma regra revalidada em `/confirm`.
+    for clinic, expected in (
+        (clinic_a, {"Dra. Autonoma", "Dr. Vinculado A"}),
+        (clinic_b, {"Dra. Autonoma"}),
+    ):
+        available = await client.get(
+            "/api/v1/veterinarians", params={"available_for_clinic_id": clinic["id"]}
         )
-    ).json()
+        assert {item["name"] for item in available.json()["items"]} == expected, clinic["name"]
 
-    response_a = await client.get(
-        "/api/v1/veterinarians", params={"available_for_clinic_id": clinic_a["id"]}
-    )
-    names_a = {item["name"] for item in response_a.json()["items"]}
-    assert names_a == {"Dra. Autonoma", "Dr. Vinculado A"}
+    # Versão errada conflita; versões encadeadas usam a devolvida pela edição anterior.
+    url = f"/api/v1/veterinarians/{linked_body['id']}"
+    base = {"crmv": "CRMV-SC 09002", "is_autonomous": False, "status": "ACTIVE"}
+    stale = await client.patch(url, json={**base, "name": "Renomeado", "expected_row_version": 99})
+    assert stale.status_code == 409
+    versions = [linked_body["row_version"]]
+    for name in ("Vet Um", "Vet Dois"):
+        update = await client.patch(
+            url, json={**base, "name": name, "expected_row_version": versions[-1]}
+        )
+        assert update.status_code == 200
+        versions.append(update.json()["row_version"])
+    assert versions == [
+        linked_body["row_version"],
+        linked_body["row_version"] + 1,
+        linked_body["row_version"] + 2,
+    ]
 
-    response_b = await client.get(
-        "/api/v1/veterinarians", params={"available_for_clinic_id": clinic_b["id"]}
-    )
-    names_b = {item["name"] for item in response_b.json()["items"]}
-    assert names_b == {"Dra. Autonoma"}
-    assert linked_to_a["id"] not in {item["id"] for item in response_b.json()["items"]}
+    # Desativar preserva o registro.
+    deactivated = await client.post(f"{url}/deactivate")
+    assert (deactivated.status_code, deactivated.json()["status"]) == (200, "INACTIVE")
+    kept = await client.get(url)
+    assert (kept.status_code, kept.json()["name"]) == (200, "Vet Dois")

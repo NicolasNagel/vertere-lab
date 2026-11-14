@@ -68,8 +68,9 @@ def _command(closure_id: UUID, **overrides: object) -> AddFinancialAdjustmentCom
     return AddFinancialAdjustmentCommand(**values)  # type: ignore[arg-type]
 
 
-def test_adds_append_only_adjustment_with_audit_and_rounding() -> None:
-    closure = _closure()
+def _use_case(
+    closure: MonthlyClosure,
+) -> tuple[AddFinancialAdjustmentUseCase, FakeMonthlyClosureRepository, FakeAuditLogWriter]:
     repository = FakeMonthlyClosureRepository(closure)
     audit = FakeAuditLogWriter()
     use_case = AddFinancialAdjustmentUseCase(
@@ -78,46 +79,24 @@ def test_adds_append_only_adjustment_with_audit_and_rounding() -> None:
         outbox=FakeOutboxEventRepository(),
         clock=FakeClock(_NOW),
     )
+    return use_case, repository, audit
+
+
+def test_adjustment_is_append_only_audited_rounded_and_guarded() -> None:
+    closure = _closure()
+    use_case, repository, audit = _use_case(closure)
 
     result = use_case.execute(_command(closure.id))
 
     assert result.amount == Decimal("12.35")
     assert repository.adjustments[0].monthly_closure_id == closure.id
-    assert closure.grand_total == Decimal("0")
+    assert closure.grand_total == Decimal("0")  # o fechamento não é editado
     assert audit.entries[0].reason == "Diferença financeira identificada."
 
-
-def test_rejects_adjustment_on_reopened_closure() -> None:
-    closure = _closure(ClosureStatus.REOPENED)
-    use_case = AddFinancialAdjustmentUseCase(
-        closures=FakeMonthlyClosureRepository(closure),
-        audit=FakeAuditLogWriter(),
-        outbox=FakeOutboxEventRepository(),
-        clock=FakeClock(_NOW),
-    )
-    with pytest.raises(InvalidStateTransitionError):
-        use_case.execute(_command(closure.id))
-
-
-def test_rejects_missing_permission() -> None:
-    closure = _closure()
-    use_case = AddFinancialAdjustmentUseCase(
-        closures=FakeMonthlyClosureRepository(closure),
-        audit=FakeAuditLogWriter(),
-        outbox=FakeOutboxEventRepository(),
-        clock=FakeClock(_NOW),
-    )
     with pytest.raises(ForbiddenError):
         use_case.execute(_command(closure.id, actor=_actor()))
-
-
-def test_rejects_item_from_another_closure() -> None:
-    closure = _closure()
-    use_case = AddFinancialAdjustmentUseCase(
-        closures=FakeMonthlyClosureRepository(closure),
-        audit=FakeAuditLogWriter(),
-        outbox=FakeOutboxEventRepository(),
-        clock=FakeClock(_NOW),
-    )
-    with pytest.raises(ValidationError):
+    with pytest.raises(ValidationError):  # item de outro fechamento
         use_case.execute(_command(closure.id, closure_item_id=uuid4()))
+    reopened = _closure(ClosureStatus.REOPENED)
+    with pytest.raises(InvalidStateTransitionError):
+        _use_case(reopened)[0].execute(_command(reopened.id))

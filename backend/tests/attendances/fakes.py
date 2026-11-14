@@ -7,6 +7,7 @@ from __future__ import annotations
 
 from datetime import UTC, date, datetime
 from decimal import Decimal
+from typing import Any
 from uuid import UUID
 
 from app.modules.attendances.domain.entities import (
@@ -134,7 +135,7 @@ class FakeAttendanceRepository:
         start = (page - 1) * page_size
         return items[start : start + page_size], total
 
-    def count_by_status(
+    def _filtered(
         self,
         *,
         clinic_id: UUID | None,
@@ -145,7 +146,7 @@ class FakeAttendanceRepository:
         service_date_from: date | None,
         service_date_to: date | None,
         clinic_ids: frozenset[UUID] | None = None,
-    ) -> dict[AttendanceStatus, int]:
+    ) -> list[AttendanceRecord]:
         items = list(self._attendances.values())
         if clinic_ids is not None:
             items = [item for item in items if item.clinic_id in clinic_ids]
@@ -169,10 +170,20 @@ class FakeAttendanceRepository:
             items = [
                 a for a in items if a.service_date is not None and a.service_date <= service_date_to
             ]
+        return items
+
+    def count_by_status(self, **filters: Any) -> dict[AttendanceStatus, int]:
         counts: dict[AttendanceStatus, int] = {}
-        for attendance in items:
+        for attendance in self._filtered(**filters):
             counts[attendance.status] = counts.get(attendance.status, 0) + 1
         return counts
+
+    def sum_billed_total(self, **filters: Any) -> Decimal:
+        unbilled = {AttendanceStatus.DRAFT, AttendanceStatus.CANCELLED}
+        return sum(
+            (a.grand_total for a in self._filtered(**filters) if a.status not in unbilled),
+            Decimal("0"),
+        )
 
 
 class FakeClinicRepository:
@@ -222,6 +233,9 @@ class FakeVeterinarianRepository:
         raise NotImplementedError
 
     def get_by_name(self, name: str) -> Veterinarian | None:
+        raise NotImplementedError
+
+    def is_linked_to_any_clinic(self, veterinarian_id: UUID, clinic_ids: frozenset[UUID]) -> bool:
         raise NotImplementedError
 
     def add(self, veterinarian: Veterinarian) -> None:

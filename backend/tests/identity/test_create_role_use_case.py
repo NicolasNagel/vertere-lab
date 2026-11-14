@@ -24,80 +24,35 @@ def _actor(permission_codes: frozenset[str]) -> AuthenticatedUserDTO:
     )
 
 
-def test_create_role_succeeds_for_a_lab_scope_role() -> None:
-    roles = FakeRoleRepository()
-    use_case = CreateRoleUseCase(
-        roles=roles,
-        permissions=FakePermissionRepository(codes=_PERMISSION_CODES),
-        audit=FakeAuditLogWriter(),
-    )
-
-    result = use_case.execute(
-        CreateRoleCommand(
-            actor=_actor(frozenset({"roles.manage"})),
-            name="AUDITOR",
-            scope=RoleScope.LAB,
-            description="",
-            permission_codes=frozenset({"clinics.read"}),
-        )
-    )
-
-    assert result.permissions == frozenset({"clinics.read"})
-
-
-def test_create_role_without_permission_is_forbidden() -> None:
+def test_create_role_enforces_permission_and_master_only_rules_by_scope() -> None:
     use_case = CreateRoleUseCase(
         roles=FakeRoleRepository(),
         permissions=FakePermissionRepository(codes=_PERMISSION_CODES),
         audit=FakeAuditLogWriter(),
     )
+    manager = _actor(frozenset({"roles.manage"}))
+    master_only = frozenset({"clinics.read", "attendances.view_prices"})
+
+    def command(**overrides: object) -> CreateRoleCommand:
+        fields: dict[str, object] = {
+            "actor": manager,
+            "name": "AUDITOR",
+            "scope": RoleScope.LAB,
+            "description": "",
+            "permission_codes": frozenset({"clinics.read"}),
+        }
+        fields.update(overrides)
+        return CreateRoleCommand(**fields)  # type: ignore[arg-type]
 
     with pytest.raises(ForbiddenError):
+        use_case.execute(command(actor=_actor(frozenset())))
+    with pytest.raises(ValidationError):  # permissão exclusiva do Master num papel LAB
+        use_case.execute(command(permission_codes=master_only))
+
+    assert use_case.execute(command()).permissions == frozenset({"clinics.read"})
+    assert (
         use_case.execute(
-            CreateRoleCommand(
-                actor=_actor(frozenset()),
-                name="AUDITOR",
-                scope=RoleScope.LAB,
-                description="",
-                permission_codes=frozenset(),
-            )
-        )
-
-
-def test_create_role_rejects_master_only_permission_for_a_lab_scope_role() -> None:
-    use_case = CreateRoleUseCase(
-        roles=FakeRoleRepository(),
-        permissions=FakePermissionRepository(codes=_PERMISSION_CODES),
-        audit=FakeAuditLogWriter(),
+            command(name="SECOND_MASTER", scope=RoleScope.GLOBAL, permission_codes=master_only)
+        ).permissions
+        == master_only
     )
-
-    with pytest.raises(ValidationError):
-        use_case.execute(
-            CreateRoleCommand(
-                actor=_actor(frozenset({"roles.manage"})),
-                name="AUDITOR",
-                scope=RoleScope.LAB,
-                description="",
-                permission_codes=frozenset({"clinics.read", "attendances.view_prices"}),
-            )
-        )
-
-
-def test_create_role_allows_master_only_permission_for_a_global_scope_role() -> None:
-    use_case = CreateRoleUseCase(
-        roles=FakeRoleRepository(),
-        permissions=FakePermissionRepository(codes=_PERMISSION_CODES),
-        audit=FakeAuditLogWriter(),
-    )
-
-    result = use_case.execute(
-        CreateRoleCommand(
-            actor=_actor(frozenset({"roles.manage"})),
-            name="SECOND_MASTER",
-            scope=RoleScope.GLOBAL,
-            description="",
-            permission_codes=frozenset({"clinics.read", "attendances.view_prices"}),
-        )
-    )
-
-    assert result.permissions == frozenset({"clinics.read", "attendances.view_prices"})

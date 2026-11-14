@@ -54,138 +54,66 @@ def _create_command(**overrides: object) -> CreateExamCategoryCommand:
     return CreateExamCategoryCommand(**defaults)  # type: ignore[arg-type]
 
 
-def test_create_exam_category_succeeds_and_audits() -> None:
+def test_exam_category_lifecycle_is_unique_versioned_audited_and_preserves_history() -> None:
     categories = FakeExamCategoryRepository()
     audit = FakeAuditLogWriter()
-    use_case = CreateExamCategoryUseCase(categories=categories, audit=audit, clock=FakeClock(_NOW))
-
-    result = use_case.execute(_create_command())
-
-    assert result.name == "Hematologia"
-    assert result.status == ExamCategoryStatus.ACTIVE.value
-    assert categories.get_by_id(result.id) is not None
-    assert audit.entries[0].action == "exam_categories.created"
-
-
-def test_create_exam_category_without_permission_is_forbidden() -> None:
-    categories = FakeExamCategoryRepository()
-    audit = FakeAuditLogWriter()
-    use_case = CreateExamCategoryUseCase(categories=categories, audit=audit, clock=FakeClock(_NOW))
+    create = CreateExamCategoryUseCase(categories=categories, audit=audit, clock=FakeClock(_NOW))
+    update = UpdateExamCategoryUseCase(categories=categories, audit=audit, clock=FakeClock(_NOW))
+    deactivate = DeactivateExamCategoryUseCase(
+        categories=categories, audit=audit, clock=FakeClock(_NOW)
+    )
+    manager = _actor(permissions=frozenset({"catalog.manage"}))
 
     with pytest.raises(ForbiddenError):
-        use_case.execute(_create_command(actor=_actor(permissions=frozenset())))
+        create.execute(_create_command(actor=_actor(permissions=frozenset())))
+    created = create.execute(_create_command())
+    assert created.name == "Hematologia"
+    assert created.status == ExamCategoryStatus.ACTIVE.value
+    assert categories.get_by_id(created.id) is not None
+    assert audit.entries[0].action == "exam_categories.created"
+    with pytest.raises(DuplicateExamCategoryNameError):  # nome único, sem diferenciar caixa
+        create.execute(_create_command(name="  hematologia  "))
 
+    def update_command(**overrides: object) -> UpdateExamCategoryCommand:
+        fields: dict[str, object] = {
+            "actor": manager,
+            "category_id": created.id,
+            "name": "Hematologia Renomeada",
+            "status": ExamCategoryStatus.ACTIVE.value,
+            "expected_row_version": created.row_version,
+        }
+        fields.update(overrides)
+        return UpdateExamCategoryCommand(**fields)  # type: ignore[arg-type]
 
-def test_create_exam_category_with_duplicate_name_conflicts() -> None:
-    categories = FakeExamCategoryRepository()
-    audit = FakeAuditLogWriter()
-    use_case = CreateExamCategoryUseCase(categories=categories, audit=audit, clock=FakeClock(_NOW))
-    use_case.execute(_create_command())
-
-    with pytest.raises(DuplicateExamCategoryNameError):
-        use_case.execute(_create_command(name="  hematologia  "))
-
-
-def test_update_exam_category_with_stale_row_version_conflicts() -> None:
-    categories = FakeExamCategoryRepository()
-    audit = FakeAuditLogWriter()
-    created = CreateExamCategoryUseCase(
-        categories=categories, audit=audit, clock=FakeClock(_NOW)
-    ).execute(_create_command())
-
-    use_case = UpdateExamCategoryUseCase(categories=categories, audit=audit, clock=FakeClock(_NOW))
     with pytest.raises(ConflictError):
-        use_case.execute(
-            UpdateExamCategoryCommand(
-                actor=_actor(permissions=frozenset({"catalog.manage"})),
-                category_id=created.id,
-                name="Hematologia Renomeada",
-                status=ExamCategoryStatus.ACTIVE.value,
-                expected_row_version=created.row_version + 1,
-            )
-        )
-
-
-def test_update_exam_category_succeeds_and_bumps_row_version() -> None:
-    categories = FakeExamCategoryRepository()
-    audit = FakeAuditLogWriter()
-    created = CreateExamCategoryUseCase(
-        categories=categories, audit=audit, clock=FakeClock(_NOW)
-    ).execute(_create_command())
-
-    use_case = UpdateExamCategoryUseCase(categories=categories, audit=audit, clock=FakeClock(_NOW))
-    result = use_case.execute(
-        UpdateExamCategoryCommand(
-            actor=_actor(permissions=frozenset({"catalog.manage"})),
-            category_id=created.id,
-            name="Hematologia Renomeada",
-            status=ExamCategoryStatus.ACTIVE.value,
-            expected_row_version=created.row_version,
-        )
-    )
-
-    assert result.name == "Hematologia Renomeada"
-    assert result.row_version == created.row_version + 1
+        update.execute(update_command(expected_row_version=created.row_version + 1))
+    with pytest.raises(NotFoundError):
+        update.execute(update_command(category_id=uuid4()))
+    updated = update.execute(update_command())
+    assert updated.name == "Hematologia Renomeada"
+    assert updated.row_version == created.row_version + 1
     assert audit.entries[-1].action == "exam_categories.updated"
 
-
-def test_update_exam_category_not_found() -> None:
-    categories = FakeExamCategoryRepository()
-    audit = FakeAuditLogWriter()
-    use_case = UpdateExamCategoryUseCase(categories=categories, audit=audit, clock=FakeClock(_NOW))
-
-    with pytest.raises(NotFoundError):
-        use_case.execute(
-            UpdateExamCategoryCommand(
-                actor=_actor(permissions=frozenset({"catalog.manage"})),
-                category_id=uuid4(),
-                name="Fantasma",
-                status=ExamCategoryStatus.ACTIVE.value,
-                expected_row_version=1,
-            )
-        )
-
-
-def test_deactivate_exam_category_soft_deletes_and_preserves_record() -> None:
-    categories = FakeExamCategoryRepository()
-    audit = FakeAuditLogWriter()
-    created = CreateExamCategoryUseCase(
-        categories=categories, audit=audit, clock=FakeClock(_NOW)
-    ).execute(_create_command())
-
-    use_case = DeactivateExamCategoryUseCase(
-        categories=categories, audit=audit, clock=FakeClock(_NOW)
+    result = deactivate.execute(
+        DeactivateExamCategoryCommand(actor=manager, category_id=created.id)
     )
-    result = use_case.execute(
-        DeactivateExamCategoryCommand(
-            actor=_actor(permissions=frozenset({"catalog.manage"})), category_id=created.id
-        )
-    )
-
     assert result.status == ExamCategoryStatus.INACTIVE.value
     stored = categories.get_by_id(created.id)
     assert stored is not None
-    assert stored.name == created.name
+    assert stored.name == "Hematologia Renomeada"
     assert audit.entries[-1].action == "exam_categories.deactivated"
 
 
-def test_list_exam_categories_requires_permission() -> None:
+def test_list_and_get_exam_categories_require_permission_and_report_missing() -> None:
     categories = FakeExamCategoryRepository()
-    use_case = ListExamCategoriesUseCase(categories=categories)
+    nobody = _actor(permissions=frozenset())
+    reader = _actor(permissions=frozenset({"catalog.read"}))
 
     with pytest.raises(ForbiddenError):
-        use_case.execute(
-            ListExamCategoriesQuery(actor=_actor(permissions=frozenset()), page=1, page_size=20)
+        ListExamCategoriesUseCase(categories=categories).execute(
+            ListExamCategoriesQuery(actor=nobody, page=1, page_size=20)
         )
-
-
-def test_get_exam_category_not_found() -> None:
-    categories = FakeExamCategoryRepository()
-    use_case = GetExamCategoryUseCase(categories=categories)
-
     with pytest.raises(NotFoundError):
-        use_case.execute(
-            GetExamCategoryQuery(
-                actor=_actor(permissions=frozenset({"catalog.read"})), category_id=uuid4()
-            )
+        GetExamCategoryUseCase(categories=categories).execute(
+            GetExamCategoryQuery(actor=reader, category_id=uuid4())
         )

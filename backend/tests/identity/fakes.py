@@ -69,6 +69,8 @@ class FakeUserRepository:
         self._users[user.id] = user
 
     def save(self, user: User) -> None:
+        # Espelha o repositório real: persiste e sincroniza a versão na entidade.
+        user.row_version += 1
         self._users[user.id] = user
 
     def change_role_if_version(

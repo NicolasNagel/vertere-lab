@@ -31,75 +31,42 @@ def _content() -> bytes:
     )
 
 
-def test_stage_without_permission_is_forbidden() -> None:
+def _command(
+    *, permissions: frozenset[str] = frozenset({"imports.execute"}), content: bytes | None = None
+) -> StageSpreadsheetCommand:
+    return StageSpreadsheetCommand(
+        actor_id=uuid4(),
+        actor_permissions=permissions,
+        source_filename="planilha.xlsx",
+        content=_content() if content is None else content,
+    )
+
+
+def test_stage_rejects_missing_permission_and_invalid_xlsx() -> None:
     use_case = _use_case(
         batches=FakeImportBatchRepository(), staging_rows=FakeImportStagingRowRepository()
     )
 
     with pytest.raises(ForbiddenError):
-        use_case.execute(
-            StageSpreadsheetCommand(
-                actor_id=uuid4(),
-                actor_permissions=frozenset(),
-                source_filename="planilha.xlsx",
-                content=_content(),
-            )
-        )
+        use_case.execute(_command(permissions=frozenset()))
+    with pytest.raises(ValidationError):
+        use_case.execute(_command(content=b"not a zip file"))
 
 
-def test_stage_valid_file_creates_batch_and_staging_rows() -> None:
+def test_stage_creates_batch_and_rows_and_staging_the_same_file_twice_is_idempotent() -> None:
     batches = FakeImportBatchRepository()
     staging_rows = FakeImportStagingRowRepository()
     use_case = _use_case(batches=batches, staging_rows=staging_rows)
 
-    result = use_case.execute(
-        StageSpreadsheetCommand(
-            actor_id=uuid4(),
-            actor_permissions=frozenset({"imports.execute"}),
-            source_filename="planilha.xlsx",
-            content=_content(),
-        )
-    )
+    first = use_case.execute(_command())
+    second = use_case.execute(_command())
 
-    assert result.already_staged is False
-    assert result.sheet_row_counts == {"Cadastro Clínicas": 3}
-    stored_rows = staging_rows.list_by_batch(result.batch.id)
+    assert first.already_staged is False
+    assert first.sheet_row_counts == {"Cadastro Clínicas": 3}
+    stored_rows = staging_rows.list_by_batch(first.batch.id)
     assert len(stored_rows) == 3
     assert stored_rows[0].raw_data == {"A": "Clínica", "B": "Status"}
     assert stored_rows[1].raw_data == {"A": "Bicho Urbano", "B": "Ativo"}
-
-
-def test_staging_same_file_twice_is_idempotent() -> None:
-    batches = FakeImportBatchRepository()
-    staging_rows = FakeImportStagingRowRepository()
-    use_case = _use_case(batches=batches, staging_rows=staging_rows)
-    command = StageSpreadsheetCommand(
-        actor_id=uuid4(),
-        actor_permissions=frozenset({"imports.execute"}),
-        source_filename="planilha.xlsx",
-        content=_content(),
-    )
-
-    first = use_case.execute(command)
-    second = use_case.execute(command)
-
-    assert first.already_staged is False
     assert second.already_staged is True
     assert second.batch.id == first.batch.id
     assert len(staging_rows.list_by_batch(first.batch.id)) == 3
-
-
-def test_stage_rejects_invalid_xlsx_content() -> None:
-    use_case = _use_case(
-        batches=FakeImportBatchRepository(), staging_rows=FakeImportStagingRowRepository()
-    )
-
-    with pytest.raises(ValidationError):
-        use_case.execute(
-            StageSpreadsheetCommand(
-                actor_id=uuid4(),
-                actor_permissions=frozenset({"imports.execute"}),
-                source_filename="planilha.xlsx",
-                content=b"not a zip file",
-            )
-        )

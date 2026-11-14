@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections.abc import Callable
 from datetime import UTC, datetime
 from decimal import Decimal
 from uuid import uuid4
@@ -80,165 +81,90 @@ def _create_command(category_id: object, **overrides: object) -> CreateExamComma
     return CreateExamCommand(**defaults)  # type: ignore[arg-type]
 
 
-def test_create_exam_succeeds_and_audits() -> None:
-    categories = FakeExamCategoryRepository()
-    category = _seed_category(categories)
-    exams = FakeExamRepository()
-    audit = FakeAuditLogWriter()
-    use_case = CreateExamUseCase(
-        exams=exams,
-        categories=categories,
-        species=_species_repo(),
-        audit=audit,
-        clock=FakeClock(_NOW),
-        code_generator=lambda: "HEM001",
-    )
-
-    result = use_case.execute(_create_command(category.id))
-
-    assert result.code == "HEM001"
-    assert result.price_base == Decimal("85.00")
-    assert result.status == ExamStatus.ACTIVE.value
-    assert audit.entries[0].action == "exams.created"
+def _exam_use_cases(
+    categories: FakeExamCategoryRepository,
+    exams: FakeExamRepository,
+    audit: FakeAuditLogWriter,
+    *,
+    code_generator: Callable[[], str] | None = None,
+) -> tuple[CreateExamUseCase, UpdateExamUseCase]:
+    shared: dict[str, object] = {
+        "exams": exams,
+        "categories": categories,
+        "species": _species_repo(),
+        "audit": audit,
+        "clock": FakeClock(_NOW),
+    }
+    extra: dict[str, object] = {} if code_generator is None else {"code_generator": code_generator}
+    create = CreateExamUseCase(**shared, **extra)  # type: ignore[arg-type]
+    update = UpdateExamUseCase(**shared)  # type: ignore[arg-type]
+    return create, update
 
 
-def test_create_exam_without_permission_is_forbidden() -> None:
-    categories = FakeExamCategoryRepository()
-    category = _seed_category(categories)
-    exams = FakeExamRepository()
-    audit = FakeAuditLogWriter()
-    use_case = CreateExamUseCase(
-        exams=exams,
-        categories=categories,
-        species=_species_repo(),
-        audit=audit,
-        clock=FakeClock(_NOW),
-    )
-
-    with pytest.raises(ForbiddenError):
-        use_case.execute(_create_command(category.id, actor=_actor(permissions=frozenset())))
-
-
-def test_create_exam_with_unknown_category_not_found() -> None:
-    categories = FakeExamCategoryRepository()
-    exams = FakeExamRepository()
-    audit = FakeAuditLogWriter()
-    use_case = CreateExamUseCase(
-        exams=exams,
-        categories=categories,
-        species=_species_repo(),
-        audit=audit,
-        clock=FakeClock(_NOW),
-    )
-
-    with pytest.raises(NotFoundError):
-        use_case.execute(_create_command(uuid4()))
-
-
-def test_create_exam_with_unknown_species_is_invalid() -> None:
-    categories = FakeExamCategoryRepository()
-    category = _seed_category(categories)
-    exams = FakeExamRepository()
-    audit = FakeAuditLogWriter()
-    use_case = CreateExamUseCase(
-        exams=exams,
-        categories=categories,
-        species=_species_repo(),
-        audit=audit,
-        clock=FakeClock(_NOW),
-    )
-
-    with pytest.raises(ValidationError):
-        use_case.execute(_create_command(category.id, species_ids=frozenset({uuid4()})))
-
-
-def test_create_exam_retries_generated_code_collision() -> None:
+def test_create_exam_validates_references_retries_code_collisions_and_audits() -> None:
     categories = FakeExamCategoryRepository()
     category = _seed_category(categories)
     exams = FakeExamRepository()
     audit = FakeAuditLogWriter()
     generated_codes = iter(("HEM001", "HEM001", "BIO00001"))
-    use_case = CreateExamUseCase(
-        exams=exams,
-        categories=categories,
-        species=_species_repo(),
-        audit=audit,
-        clock=FakeClock(_NOW),
-        code_generator=lambda: next(generated_codes),
+    create, _ = _exam_use_cases(
+        categories, exams, audit, code_generator=lambda: next(generated_codes)
     )
-    use_case.execute(_create_command(category.id))
-    second = use_case.execute(_create_command(category.id, name="Outro exame"))
 
+    with pytest.raises(ForbiddenError):
+        create.execute(_create_command(category.id, actor=_actor(permissions=frozenset())))
+    with pytest.raises(NotFoundError):
+        create.execute(_create_command(uuid4()))
+    with pytest.raises(ValidationError):
+        create.execute(_create_command(category.id, species_ids=frozenset({uuid4()})))
+    assert not audit.entries
+
+    first = create.execute(_create_command(category.id))
+    assert first.code == "HEM001"
+    assert first.price_base == Decimal("85.00")
+    assert first.status == ExamStatus.ACTIVE.value
+    assert audit.entries[0].action == "exams.created"
+
+    # Colisão do código gerado: tenta de novo até achar um livre.
+    second = create.execute(_create_command(category.id, name="Outro exame"))
     assert second.code == "BIO00001"
 
 
-def test_get_exam_omits_price_without_pricing_permission() -> None:
+def test_exam_price_is_hidden_without_pricing_permission_and_list_needs_permission() -> None:
     categories = FakeExamCategoryRepository()
     category = _seed_category(categories)
     exams = FakeExamRepository()
-    audit = FakeAuditLogWriter()
-    created = CreateExamUseCase(
-        exams=exams,
-        categories=categories,
-        species=_species_repo(),
-        audit=audit,
-        clock=FakeClock(_NOW),
-    ).execute(_create_command(category.id))
+    create, _ = _exam_use_cases(categories, exams, FakeAuditLogWriter())
+    created = create.execute(_create_command(category.id))
+    get = GetExamUseCase(exams=exams)
 
-    use_case = GetExamUseCase(exams=exams)
-    result = use_case.execute(
+    without_price = get.execute(
         GetExamQuery(actor=_actor(permissions=frozenset({"catalog.read"})), exam_id=created.id)
     )
-
-    assert result.price_base is None
-
-
-def test_get_exam_includes_price_with_pricing_permission() -> None:
-    categories = FakeExamCategoryRepository()
-    category = _seed_category(categories)
-    exams = FakeExamRepository()
-    audit = FakeAuditLogWriter()
-    created = CreateExamUseCase(
-        exams=exams,
-        categories=categories,
-        species=_species_repo(),
-        audit=audit,
-        clock=FakeClock(_NOW),
-    ).execute(_create_command(category.id))
-
-    use_case = GetExamUseCase(exams=exams)
-    result = use_case.execute(
+    with_price = get.execute(
         GetExamQuery(
             actor=_actor(permissions=frozenset({"catalog.read", "pricing.read"})),
             exam_id=created.id,
         )
     )
+    assert without_price.price_base is None
+    assert with_price.price_base == Decimal("85.00")
+    with pytest.raises(ForbiddenError):
+        ListExamsUseCase(exams=exams).execute(
+            ListExamsQuery(actor=_actor(permissions=frozenset()), page=1, page_size=20)
+        )
 
-    assert result.price_base == Decimal("85.00")
 
-
-def test_update_exam_with_stale_row_version_conflicts() -> None:
+def test_exam_update_is_versioned_and_deactivation_preserves_the_record() -> None:
     categories = FakeExamCategoryRepository()
     category = _seed_category(categories)
     exams = FakeExamRepository()
     audit = FakeAuditLogWriter()
-    created = CreateExamUseCase(
-        exams=exams,
-        categories=categories,
-        species=_species_repo(),
-        audit=audit,
-        clock=FakeClock(_NOW),
-    ).execute(_create_command(category.id))
+    create, update = _exam_use_cases(categories, exams, audit)
+    created = create.execute(_create_command(category.id))
 
-    use_case = UpdateExamUseCase(
-        exams=exams,
-        categories=categories,
-        species=_species_repo(),
-        audit=audit,
-        clock=FakeClock(_NOW),
-    )
     with pytest.raises(ConflictError):
-        use_case.execute(
+        update.execute(
             UpdateExamCommand(
                 actor=_actor(permissions=frozenset({"catalog.manage"})),
                 exam_id=created.id,
@@ -252,39 +178,13 @@ def test_update_exam_with_stale_row_version_conflicts() -> None:
             )
         )
 
-
-def test_deactivate_exam_preserves_record() -> None:
-    categories = FakeExamCategoryRepository()
-    category = _seed_category(categories)
-    exams = FakeExamRepository()
-    audit = FakeAuditLogWriter()
-    created = CreateExamUseCase(
-        exams=exams,
-        categories=categories,
-        species=_species_repo(),
-        audit=audit,
-        clock=FakeClock(_NOW),
-    ).execute(_create_command(category.id))
-
-    use_case = DeactivateExamUseCase(exams=exams, audit=audit, clock=FakeClock(_NOW))
-    result = use_case.execute(
+    result = DeactivateExamUseCase(exams=exams, audit=audit, clock=FakeClock(_NOW)).execute(
         DeactivateExamCommand(
             actor=_actor(permissions=frozenset({"catalog.manage", "pricing.read"})),
             exam_id=created.id,
         )
     )
-
     assert result.status == ExamStatus.INACTIVE.value
     stored = exams.get_by_id(created.id)
     assert stored is not None
     assert stored.name == created.name
-
-
-def test_list_exams_requires_permission() -> None:
-    exams = FakeExamRepository()
-    use_case = ListExamsUseCase(exams=exams)
-
-    with pytest.raises(ForbiddenError):
-        use_case.execute(
-            ListExamsQuery(actor=_actor(permissions=frozenset()), page=1, page_size=20)
-        )

@@ -44,21 +44,15 @@ def _stage_suporte(
     )
 
 
-def test_import_without_permission_is_forbidden() -> None:
-    batch_id = uuid4()
-    staging_rows = FakeImportStagingRowRepository()
-    _stage_suporte(staging_rows, batch_id, ["Hematológicos"])
-    use_case = _use_case(staging_rows=staging_rows, categories=FakeExamCategoryRepository())
-
-    with pytest.raises(ForbiddenError):
-        use_case.execute(
-            ImportExamCategoriesCommand(
-                actor_id=uuid4(), actor_permissions=frozenset(), batch_id=batch_id
-            )
-        )
+def _command(
+    batch_id: UUID, *, permissions: frozenset[str] = frozenset({"imports.execute"})
+) -> ImportExamCategoriesCommand:
+    return ImportExamCategoriesCommand(
+        actor_id=uuid4(), actor_permissions=permissions, batch_id=batch_id
+    )
 
 
-def test_import_creates_all_distinct_categories() -> None:
+def test_import_requires_permission_creates_distinct_categories_and_is_idempotent() -> None:
     batch_id = uuid4()
     staging_rows = FakeImportStagingRowRepository()
     names = [
@@ -74,22 +68,21 @@ def test_import_creates_all_distinct_categories() -> None:
     categories = FakeExamCategoryRepository()
     use_case = _use_case(staging_rows=staging_rows, categories=categories)
 
-    result = use_case.execute(
-        ImportExamCategoriesCommand(
-            actor_id=uuid4(), actor_permissions=frozenset({"imports.execute"}), batch_id=batch_id
-        )
-    )
+    with pytest.raises(ForbiddenError):
+        use_case.execute(_command(batch_id, permissions=frozenset()))
 
-    assert result.imported_count == 7
-    for name in names:
-        assert categories.get_by_name(name) is not None
+    first = use_case.execute(_command(batch_id))
+    second = use_case.execute(_command(batch_id))
+
+    assert first.imported_count == 7
+    assert all(categories.get_by_name(name) is not None for name in names)
+    assert (second.imported_count, second.skipped_existing_count) == (0, 7)
 
 
-def test_import_skips_header_row_at_row_2() -> None:
-    # Regression: the real `Suporte` sheet has no title row (unlike the
-    # other master sheets) — its header lands on row 2, not row 1. A wrong
-    # `_FIRST_DATA_ROW` here would import "Tipo Exame" (the header text
-    # itself) as if it were a real category.
+def test_import_skips_the_header_row_at_row_2() -> None:
+    # Regressão: a planilha `Suporte` real não tem linha de título (ao contrário das outras
+    # mestres), então o cabeçalho cai na linha 2. Um `_FIRST_DATA_ROW` errado importaria
+    # "Tipo Exame" (o próprio cabeçalho) como se fosse categoria.
     batch_id = uuid4()
     staging_rows = FakeImportStagingRowRepository()
     staging_rows.add_many(
@@ -109,32 +102,9 @@ def test_import_skips_header_row_at_row_2() -> None:
         ]
     )
     categories = FakeExamCategoryRepository()
-    use_case = _use_case(staging_rows=staging_rows, categories=categories)
 
-    result = use_case.execute(
-        ImportExamCategoriesCommand(
-            actor_id=uuid4(), actor_permissions=frozenset({"imports.execute"}), batch_id=batch_id
-        )
-    )
+    result = _use_case(staging_rows=staging_rows, categories=categories).execute(_command(batch_id))
 
     assert result.imported_count == 1
     assert categories.get_by_name("Tipo Exame") is None
     assert categories.get_by_name("Hematológicos") is not None
-
-
-def test_reimporting_is_idempotent() -> None:
-    batch_id = uuid4()
-    staging_rows = FakeImportStagingRowRepository()
-    _stage_suporte(staging_rows, batch_id, ["Perfis"])
-    categories = FakeExamCategoryRepository()
-    use_case = _use_case(staging_rows=staging_rows, categories=categories)
-    command = ImportExamCategoriesCommand(
-        actor_id=uuid4(), actor_permissions=frozenset({"imports.execute"}), batch_id=batch_id
-    )
-
-    first = use_case.execute(command)
-    second = use_case.execute(command)
-
-    assert first.imported_count == 1
-    assert second.imported_count == 0
-    assert second.skipped_existing_count == 1
