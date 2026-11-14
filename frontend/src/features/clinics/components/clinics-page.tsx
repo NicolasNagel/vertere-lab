@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { Link, useSearchParams } from 'react-router'
 
 import { useAuth } from '../../auth/auth-context'
+import { Modal } from '../../../shared/ui/modal'
 import { PlusIcon } from '../../../shared/ui/icons'
 import { PageHeader } from '../../../shared/ui/page-header'
 import type { ClinicStatus } from '../api/clinics-api'
@@ -13,7 +14,7 @@ import { ClinicTable } from './clinic-table'
 import '../../../shared/ui/button.css'
 import './clinics-page.css'
 
-/** Tela de consulta: tabela de clínicas + painel de detalhe (`?clinica=<id>`).
+/** Tela de consulta: tabela de clínicas + popover de detalhe ao clicar numa linha (`?clinica=<id>`).
  * Criar e editar ficam na tela de formulário (`ClinicFormPage`). */
 export function ClinicsPage() {
   const { user } = useAuth()
@@ -50,7 +51,7 @@ export function ClinicsPage() {
         }
       />
 
-      <div className="clinics-page__body" data-with-detail={selectedId !== null}>
+      <div className="clinics-page__body">
         <ClinicTable
           clinics={clinics}
           activeCount={activeCount}
@@ -76,13 +77,23 @@ export function ClinicsPage() {
         />
 
         {selectedId !== null && (
-          <ClinicDetail
-            clinic={detailQuery.data ?? null}
-            isLoading={detailQuery.isLoading}
-            canManage={canManage}
+          <Modal
+            titleId="clinic-detail-title"
+            size="md"
+            dismissOnBackdrop
+            className="clinic-popover"
             onClose={() => select(null)}
-            onDeactivate={() => deactivateMutation.mutate(selectedId)}
-          />
+          >
+            <ClinicDetail
+              clinic={detailQuery.data ?? null}
+              isLoading={detailQuery.isLoading}
+              canManage={canManage}
+              onClose={() => select(null)}
+              onDeactivate={() => {
+                deactivateMutation.mutate(selectedId)
+              }}
+            />
+          </Modal>
         )}
       </div>
     </div>

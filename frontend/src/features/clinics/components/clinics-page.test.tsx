@@ -147,7 +147,7 @@ test('selecting a row opens the detail panel with an edit link only for managers
   )
 })
 
-test('the form screen creates a clinic and returns to the list with it selected', async () => {
+test('the form screen creates a clinic and returns to the list without opening the detail', async () => {
   const user = userEvent.setup()
   server.use(
     meHandler(['clinics.read', 'clinics.manage']),
@@ -166,8 +166,9 @@ test('the form screen creates a clinic and returns to the list with it selected'
   await user.type(await screen.findByLabelText('Nome da clínica'), 'Bicho Urbano')
   await user.click(screen.getByRole('button', { name: 'Salvar' }))
 
-  expect(await screen.findByRole('heading', { name: 'Bicho Urbano' })).toBeInTheDocument()
-  expect(screen.getByRole('heading', { name: 'Clínicas parceiras' })).toBeInTheDocument()
+  expect(await screen.findByRole('heading', { name: 'Clínicas parceiras' })).toBeInTheDocument()
+  // Voltar da tela de formulário não abre o detalhe: ele só abre ao clicar numa linha.
+  expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
 })
 
 test('a double click on Salvar sends a single create request', async () => {
@@ -193,6 +194,6 @@ test('a double click on Salvar sends a single create request', async () => {
   await user.type(await screen.findByLabelText('Nome da clínica'), 'Bicho Urbano')
   await user.dblClick(screen.getByRole('button', { name: 'Salvar' }))
 
-  expect(await screen.findByRole('heading', { name: 'Bicho Urbano' })).toBeInTheDocument()
+  expect(await screen.findByRole('heading', { name: 'Clínicas parceiras' })).toBeInTheDocument()
   expect(posts).toBe(1)
 })

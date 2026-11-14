@@ -31,8 +31,9 @@ export function ClinicFormPage() {
   const isEditing = clinicId !== undefined
   const title = isEditing ? 'Editar clínica' : 'Nova clínica'
 
-  function goToList(selectedId?: string) {
-    void navigate(selectedId ? `${LIST_PATH}?clinica=${selectedId}` : LIST_PATH)
+  // Volta sempre para a lista limpa: o detalhe só abre quando o usuário clica numa linha.
+  function goToList() {
+    void navigate(LIST_PATH)
   }
 
   function renderBody() {
@@ -73,12 +74,12 @@ export function ClinicFormPage() {
           clinic={isEditing ? clinic : null}
           submitting={createMutation.isPending || updateMutation.isPending}
           error={isEditing ? updateMutation.error : createMutation.error}
-          onCancel={() => goToList(clinicId)}
+          onCancel={goToList}
           onSubmitCreate={(values) => {
             if (submittingRef.current) return
             submittingRef.current = true
             createMutation.mutate(values, {
-              onSuccess: (created) => goToList(created.id),
+              onSuccess: goToList,
               onError: () => {
                 submittingRef.current = false
               },
@@ -90,7 +91,7 @@ export function ClinicFormPage() {
             updateMutation.mutate(
               { id: clinicId, values: { ...values, expectedRowVersion: clinic.rowVersion } },
               {
-                onSuccess: () => goToList(clinicId),
+                onSuccess: goToList,
                 onError: () => {
                   submittingRef.current = false
                 },

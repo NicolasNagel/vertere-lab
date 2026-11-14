@@ -19,7 +19,7 @@ interface ClinicDetailProps {
   onDeactivate: () => void
 }
 
-/** Painel de consulta (somente leitura) ao lado da tabela; editar abre a tela de formulário. */
+/** Conteúdo do popover de consulta (somente leitura) aberto ao clicar numa linha; editar abre a tela de formulário. */
 export function ClinicDetail({
   clinic,
   isLoading,
@@ -30,7 +30,7 @@ export function ClinicDetail({
   if (isLoading || !clinic) {
     return (
       <aside className="clinic-detail" aria-label="Detalhes da clínica">
-        <p className="clinic-detail__empty">
+        <p id="clinic-detail-title" className="clinic-detail__empty">
           {isLoading ? 'Carregando…' : 'Clínica não encontrada.'}
         </p>
       </aside>
@@ -46,7 +46,7 @@ export function ClinicDetail({
     <aside className="clinic-detail" aria-label="Detalhes da clínica">
       <header className="clinic-detail__header">
         <div className="clinic-detail__heading">
-          <h2 className="clinic-detail__title">{clinic.name}</h2>
+          <h2 id="clinic-detail-title" className="clinic-detail__title">{clinic.name}</h2>
           <div className="clinic-detail__sub">
             <ClinicStatusBadge status={clinic.status} />
             <span className="clinic-detail__mono">{displayValue(formatTaxId(clinic.taxId))}</span>

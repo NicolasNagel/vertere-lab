@@ -113,6 +113,10 @@
   border-bottom: 1px solid #edf0f4;
 }
 
+.clinic-table tbody tr {
+  cursor: pointer;
+}
+
 .clinic-table tbody tr:hover td {
   background: #f4f8fd;
 }
@@ -151,15 +155,6 @@
 .clinic-table__mono {
   font-family: var(--font-mono);
   font-size: 0.75rem;
-}
-
-/* Com o painel de detalhe aberto a tabela fica estreita: CNPJ e telefone já aparecem no painel. */
-[data-with-detail='true'] .clinic-table__optional {
-  display: none;
-}
-
-[data-with-detail='true'] .clinic-table table {
-  min-width: 0;
 }
 
 @media (max-width: 48rem) {

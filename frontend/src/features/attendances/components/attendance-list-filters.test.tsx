@@ -27,7 +27,10 @@ test('"Limpar filtros" only shows with an active filter and resets period, clini
   const user = userEvent.setup()
   const handlers = renderFilters({ clinicId: 'c1', serviceLevel: 'NORMAL' })
 
-  await user.selectOptions(screen.getByLabelText('Competência'), '2026-11')
+  await user.click(screen.getByRole('button', { name: /Competência/ }))
+  await user.click(screen.getByRole('option', { name: 'Nov 2026' }))
+  expect(handlers.onServiceDateFromChange).toHaveBeenLastCalledWith('2026-11-01')
+  expect(handlers.onServiceDateToChange).toHaveBeenLastCalledWith('2026-11-30')
   await user.click(screen.getByRole('button', { name: 'Limpar filtros' }))
 
   expect(handlers.onClinicChange).toHaveBeenLastCalledWith('')
@@ -39,4 +42,31 @@ test('"Limpar filtros" only shows with an active filter and resets period, clini
 test('without active filters there is nothing to clear', () => {
   renderFilters()
   expect(screen.queryByRole('button', { name: 'Limpar filtros' })).not.toBeInTheDocument()
+})
+
+test('clinic dropdown filters by search and selects with the keyboard', async () => {
+  const user = userEvent.setup()
+  const handlers = renderFilters()
+
+  await user.click(screen.getByRole('button', { name: /Clínica/ }))
+  await user.type(screen.getByRole('combobox', { name: 'Buscar em Clínica' }), 'um')
+  expect(screen.getByRole('option', { name: 'Clínica Um' })).toBeInTheDocument()
+  expect(screen.queryByRole('option', { name: 'Todas' })).not.toBeInTheDocument()
+  await user.keyboard('{Enter}')
+
+  expect(handlers.onClinicChange).toHaveBeenCalledWith('c1')
+  expect(screen.queryByRole('listbox')).not.toBeInTheDocument()
+})
+
+test('Escape closes the dropdown and returns focus to its button', async () => {
+  const user = userEvent.setup()
+  renderFilters()
+
+  const trigger = screen.getByRole('button', { name: /Tipo/ })
+  await user.click(trigger)
+  expect(screen.getByRole('listbox', { name: 'Tipo' })).toBeInTheDocument()
+  await user.keyboard('{Escape}')
+
+  expect(screen.queryByRole('listbox')).not.toBeInTheDocument()
+  expect(trigger).toHaveFocus()
 })

@@ -2,11 +2,23 @@
   display: flex;
   flex-direction: column;
   min-width: 0;
-  background: var(--color-surface);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-md);
+  max-height: calc(100vh - 2rem);
   overflow: hidden;
 }
+
+/* O Modal vira um popover: sem padding próprio, cantos arredondados e sombra suave. */
+.modal.clinic-popover {
+  padding: 0;
+  max-width: 30rem;
+  overflow: hidden;
+  border-radius: 10px;
+  box-shadow: 0 18px 48px rgb(20 35 55 / 22%);
+}
+
+.modal__backdrop:has(.clinic-popover) {
+  background: rgb(20 35 55 / 28%);
+}
+
 
 .clinic-detail__empty {
   margin: 0;
@@ -25,6 +37,7 @@
   align-items: flex-start;
   gap: 0.5rem;
   padding: 0.875rem 1rem;
+  background: #f6f8fb;
   border-bottom: 1px solid var(--color-border);
 }
 

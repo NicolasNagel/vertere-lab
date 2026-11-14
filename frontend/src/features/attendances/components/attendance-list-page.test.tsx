@@ -189,7 +189,7 @@ test('lists attendances with resolved names, shows drafts without protocol or to
   expect(await screen.findByText('P000001/26')).toBeInTheDocument()
   expect(screen.getByText('Data · Hora')).toBeInTheDocument()
   expect(screen.getByText(/05\/07 · \d{2}:00/)).toBeInTheDocument()
-  expect(screen.getByLabelText('Competência')).toBeInTheDocument()
+  expect(screen.getByRole('button', { name: /Competência/ })).toBeInTheDocument()
   expect(screen.queryByLabelText('Mês')).not.toBeInTheDocument()
   expect(screen.queryByLabelText('Ano')).not.toBeInTheDocument()
   // A tabela agora é um <table> real: a primeira linha é o cabeçalho.

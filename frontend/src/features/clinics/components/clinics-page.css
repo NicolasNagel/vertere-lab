@@ -13,16 +13,6 @@
   margin: 1rem 1.25rem 1.25rem;
 }
 
-.clinics-page__body[data-with-detail='true'] {
-  grid-template-columns: minmax(0, 1fr) minmax(20rem, 24rem);
-}
-
-@media (max-width: 64rem) {
-  .clinics-page__body[data-with-detail='true'] {
-    grid-template-columns: minmax(0, 1fr);
-  }
-}
-
 @media (max-width: 48rem) {
   .clinics-page__body {
     margin: 0.75rem;

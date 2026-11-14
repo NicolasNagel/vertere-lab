@@ -6,50 +6,12 @@
   min-width: 0;
 }
 
-/* Rótulos ficam só para leitor de tela: o ícone e o texto da opção já dizem o que é o filtro. */
-.attendance-list-filters .select-field__label {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  overflow: hidden;
-  clip-path: inset(50%);
-  white-space: nowrap;
-  margin: -1px;
+.attendance-list-filters .dropdown__trigger {
+  flex: 0 1 12rem;
 }
 
-.attendance-list-filters__field {
-  flex: 1 1 11rem;
-  max-width: 13rem;
-  margin-bottom: 0 !important;
-}
-
-.attendance-list-filters__field--wide {
-  flex-basis: 15rem;
-  max-width: 19rem;
-}
-
-.attendance-list-filters .select-field__control {
-  gap: 0.5rem;
-  background: var(--color-surface-form);
-  transition: border-color 100ms;
-}
-
-.attendance-list-filters .select-field__control:hover {
-  border-color: var(--color-text-secondary);
-}
-
-.attendance-list-filters .select-field__leading-icon {
-  flex: 0 0 1rem;
-  width: 1rem;
-  height: 1rem;
-  margin-right: 0;
-  color: var(--color-brand-ink-deep);
-}
-
-.attendance-list-filters .select-field__input {
-  min-width: 0;
-  text-overflow: ellipsis;
-  font-size: 0.8125rem;
+.attendance-list-filters .attendance-list-filters__wide {
+  flex-basis: 16rem;
 }
 
 .attendance-list-filters__clear {
@@ -77,9 +39,7 @@
 }
 
 @media (max-width: 40rem) {
-  .attendance-list-filters__field,
-  .attendance-list-filters__field--wide {
+  .attendance-list-filters .dropdown__trigger {
     flex: 1 1 100%;
-    max-width: none;
   }
 }

@@ -103,7 +103,11 @@ export function ClinicTable({
           </thead>
           <tbody>
             {clinics.map((clinic) => (
-              <tr key={clinic.id} data-selected={clinic.id === selectedId}>
+              <tr
+                key={clinic.id}
+                data-selected={clinic.id === selectedId}
+                onClick={() => onSelect(clinic.id)}
+              >
                 <td className="clinic-table__name">
                   <button type="button" onClick={() => onSelect(clinic.id)}>
                     {clinic.name}
@@ -122,7 +126,7 @@ export function ClinicTable({
                   <ClinicStatusBadge status={clinic.status} />
                 </td>
                 {canManage && (
-                  <td className="clinic-table__actions">
+                  <td className="clinic-table__actions" onClick={(event) => event.stopPropagation()}>
                     <Link
                       className="clinic-table__edit"
                       to={`/cadastros/clinicas/${clinic.id}/editar`}
