@@ -1,12 +1,14 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { render, screen, waitFor } from '@testing-library/react'
+import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { http, HttpResponse } from 'msw'
 import { setupServer } from 'msw/node'
 import type { ReactNode } from 'react'
+import { MemoryRouter, Route, Routes } from 'react-router'
 import { afterAll, afterEach, beforeAll, expect, test } from 'vitest'
 
 import { AuthProvider } from '../../auth/auth-provider'
+import { ClinicFormPage } from './clinic-form-page'
 import { ClinicsPage } from './clinics-page'
 
 const server = setupServer()
@@ -61,13 +63,15 @@ function clinicsListHandler() {
   )
 }
 
-function renderWithProviders(children: ReactNode) {
+function renderWithProviders(children: ReactNode, initialPath = '/cadastros/clinicas') {
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false } },
   })
   return render(
     <QueryClientProvider client={queryClient}>
-      <AuthProvider>{children}</AuthProvider>
+      <AuthProvider>
+        <MemoryRouter initialEntries={[initialPath]}>{children}</MemoryRouter>
+      </AuthProvider>
     </QueryClientProvider>,
   )
 }
@@ -95,18 +99,50 @@ function apiClinic(overrides: Record<string, unknown> = {}) {
   }
 }
 
-test('lists clinics with the masked CNPJ and singular count, without "Nova clínica" for read-only users', async () => {
+test('lists clinics in a table with the masked CNPJ and singular count, without "Nova clínica" for read-only users', async () => {
   server.use(meHandler(['clinics.read']), clinicsListHandler())
-  renderWithProviders(<ClinicsPage />)
+  renderWithProviders(
+    <Routes>
+      <Route path="/cadastros/clinicas" element={<ClinicsPage />} />
+    </Routes>,
+  )
 
-  expect(await screen.findByText('Schweitzer')).toBeInTheDocument()
+  expect(await screen.findByRole('button', { name: 'Schweitzer' })).toBeInTheDocument()
+  expect(screen.getByRole('columnheader', { name: 'CNPJ' })).toBeInTheDocument()
   expect(screen.getByText('78.977.352/0001-99')).toBeInTheDocument()
   expect(screen.queryByText('78977352000199')).not.toBeInTheDocument()
   expect(screen.getByText('1 ativa')).toBeInTheDocument()
-  expect(screen.queryByRole('button', { name: /Nova clínica/i })).not.toBeInTheDocument()
+  expect(screen.queryByRole('link', { name: /Nova clínica/i })).not.toBeInTheDocument()
 })
 
-test('with clinics.manage, creates a clinic and returns to the detail view', async () => {
+test('selecting a row opens the detail panel with an edit link only for managers', async () => {
+  const user = userEvent.setup()
+  server.use(
+    meHandler(['clinics.read', 'clinics.manage']),
+    clinicsListHandler(),
+    http.get('/api/v1/clinics/c1', () =>
+      HttpResponse.json(apiClinic({ id: 'c1', name: 'Schweitzer', tax_id: '78977352000199' })),
+    ),
+  )
+  renderWithProviders(
+    <Routes>
+      <Route path="/cadastros/clinicas" element={<ClinicsPage />} />
+    </Routes>,
+  )
+
+  await user.click(await screen.findByRole('button', { name: 'Schweitzer' }))
+  expect(await screen.findByRole('heading', { name: 'Schweitzer' })).toBeInTheDocument()
+  expect(screen.getByRole('link', { name: 'Editar' })).toHaveAttribute(
+    'href',
+    '/cadastros/clinicas/c1/editar',
+  )
+  expect(screen.getByRole('link', { name: /Nova clínica/i })).toHaveAttribute(
+    'href',
+    '/cadastros/clinicas/nova',
+  )
+})
+
+test('the form screen creates a clinic and returns to the list with it selected', async () => {
   const user = userEvent.setup()
   server.use(
     meHandler(['clinics.read', 'clinics.manage']),
@@ -114,14 +150,17 @@ test('with clinics.manage, creates a clinic and returns to the detail view', asy
     http.post('/api/v1/clinics', () => HttpResponse.json(apiClinic(), { status: 201 })),
     http.get('/api/v1/clinics/c2', () => HttpResponse.json(apiClinic())),
   )
-  renderWithProviders(<ClinicsPage />)
+  renderWithProviders(
+    <Routes>
+      <Route path="/cadastros/clinicas/nova" element={<ClinicFormPage />} />
+      <Route path="/cadastros/clinicas" element={<ClinicsPage />} />
+    </Routes>,
+    '/cadastros/clinicas/nova',
+  )
 
-  await user.click(await screen.findByRole('button', { name: /Nova clínica/i }))
-  await user.type(screen.getByLabelText('Nome da clínica'), 'Bicho Urbano')
+  await user.type(await screen.findByLabelText('Nome da clínica'), 'Bicho Urbano')
   await user.click(screen.getByRole('button', { name: 'Salvar' }))
 
-  await waitFor(() =>
-    expect(screen.queryByRole('heading', { name: 'Nova clínica' })).not.toBeInTheDocument(),
-  )
   expect(await screen.findByRole('heading', { name: 'Bicho Urbano' })).toBeInTheDocument()
+  expect(screen.getByRole('heading', { name: 'Clínicas parceiras' })).toBeInTheDocument()
 })

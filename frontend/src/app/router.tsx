@@ -45,6 +45,20 @@ export const router = createBrowserRouter([
         }),
       },
       {
+        path: '/cadastros/clinicas/nova',
+        lazy: async () => ({
+          Component: (await import('../features/clinics/components/clinic-form-page'))
+            .ClinicFormPage,
+        }),
+      },
+      {
+        path: '/cadastros/clinicas/:clinicId/editar',
+        lazy: async () => ({
+          Component: (await import('../features/clinics/components/clinic-form-page'))
+            .ClinicFormPage,
+        }),
+      },
+      {
         path: '/cadastros/clinicas',
         lazy: async () => ({
           Component: (await import('../features/clinics/components/clinics-page')).ClinicsPage,

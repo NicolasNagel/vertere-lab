@@ -1,58 +1,40 @@
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
+import { Link, useSearchParams } from 'react-router'
 
 import { useAuth } from '../../auth/auth-context'
-import { Button } from '../../../shared/ui/button'
 import { PlusIcon } from '../../../shared/ui/icons'
 import { PageHeader } from '../../../shared/ui/page-header'
+import type { ClinicStatus } from '../api/clinics-api'
 import { useClinicQuery } from '../api/use-clinic-query'
 import { useClinicsQuery } from '../api/use-clinics-query'
-import { useCreateClinicMutation } from '../api/use-create-clinic-mutation'
 import { useDeactivateClinicMutation } from '../api/use-deactivate-clinic-mutation'
-import { useUpdateClinicMutation } from '../api/use-update-clinic-mutation'
 import { ClinicDetail } from './clinic-detail'
-import { ClinicForm } from './clinic-form'
-import { ClinicList } from './clinic-list'
+import { ClinicTable } from './clinic-table'
+import '../../../shared/ui/button.css'
 import './clinics-page.css'
 
-type PanelMode = 'view' | 'create' | 'edit'
-
+/** Tela de consulta: tabela de clínicas + painel de detalhe (`?clinica=<id>`).
+ * Criar e editar ficam na tela de formulário (`ClinicFormPage`). */
 export function ClinicsPage() {
   const { user } = useAuth()
   const canManage = user?.permissions.includes('clinics.manage') ?? false
 
+  const [searchParams, setSearchParams] = useSearchParams()
+  const selectedId = searchParams.get('clinica')
+
   const [search, setSearch] = useState('')
+  const [status, setStatus] = useState<ClinicStatus | undefined>(undefined)
   const [page, setPage] = useState(1)
-  const [selectedId, setSelectedId] = useState<string | null>(null)
-  const [mode, setMode] = useState<PanelMode>('view')
 
-  const listQuery = useClinicsQuery({ search: search || undefined, page, pageSize: 25 })
-  const detailQuery = useClinicQuery(mode === 'create' ? null : selectedId)
-
-  const createMutation = useCreateClinicMutation()
-  const updateMutation = useUpdateClinicMutation()
+  const listQuery = useClinicsQuery({ search: search || undefined, status, page, pageSize: 25 })
+  const detailQuery = useClinicQuery(selectedId)
   const deactivateMutation = useDeactivateClinicMutation()
 
   const clinics = listQuery.data?.items ?? []
-  const firstClinicId = listQuery.data?.items[0]?.id
   const activeCount = clinics.filter((clinic) => clinic.status === 'ACTIVE').length
 
-  useEffect(() => {
-    if (mode === 'view' && selectedId === null && firstClinicId) setSelectedId(firstClinicId)
-  }, [firstClinicId, mode, selectedId])
-
-  function handleSelect(id: string) {
-    setSelectedId(id)
-    setMode('view')
-  }
-
-  function handleStartCreate() {
-    setSelectedId(null)
-    setMode('create')
-  }
-
-  function handleDeactivate() {
-    if (!selectedId) return
-    deactivateMutation.mutate(selectedId)
+  function select(id: string | null) {
+    setSearchParams(id ? { clinica: id } : {}, { replace: true })
   }
 
   return (
@@ -61,70 +43,44 @@ export function ClinicsPage() {
         title="Clínicas parceiras"
         actions={
           canManage && (
-            <Button type="button" onClick={handleStartCreate}>
+            <Link to="/cadastros/clinicas/nova" className="button button--primary">
               <PlusIcon /> Nova clínica
-            </Button>
+            </Link>
           )
         }
       />
 
-      <div className="clinics-page__body" data-mode={mode}>
-        <ClinicList
+      <div className="clinics-page__body" data-with-detail={selectedId !== null}>
+        <ClinicTable
           clinics={clinics}
           activeCount={activeCount}
-          selectedId={mode === 'create' ? null : selectedId}
+          selectedId={selectedId}
           search={search}
+          status={status}
           isLoading={listQuery.isLoading}
+          isError={listQuery.isError}
+          page={listQuery.data?.page ?? page}
+          pageSize={listQuery.data?.pageSize ?? 25}
+          total={listQuery.data?.total ?? 0}
           onSearchChange={(value) => {
             setSearch(value)
             setPage(1)
           }}
-          onSelect={handleSelect}
-          page={listQuery.data?.page ?? page}
-          pageSize={listQuery.data?.pageSize ?? 25}
-          total={listQuery.data?.total ?? 0}
+          onStatusChange={(value) => {
+            setStatus(value)
+            setPage(1)
+          }}
+          onSelect={select}
           onPageChange={setPage}
         />
 
-        {mode === 'create' ? (
-          <div className="clinics-page__create-panel">
-            <h2 className="clinics-page__create-title">Nova clínica</h2>
-            <ClinicForm
-              clinic={null}
-              submitting={createMutation.isPending}
-              error={createMutation.error}
-              onCancel={() => setMode('view')}
-              onSubmitCreate={(values) =>
-                createMutation.mutate(values, {
-                  onSuccess: (clinic) => {
-                    setSelectedId(clinic.id)
-                    setMode('view')
-                  },
-                })
-              }
-            />
-          </div>
-        ) : (
+        {selectedId !== null && (
           <ClinicDetail
             clinic={detailQuery.data ?? null}
-            isLoading={selectedId !== null && detailQuery.isLoading}
-            isEditing={mode === 'edit'}
+            isLoading={detailQuery.isLoading}
             canManage={canManage}
-            submitting={updateMutation.isPending}
-            submitError={updateMutation.error}
-            onStartEdit={() => setMode('edit')}
-            onCancelEdit={() => setMode('view')}
-            onSubmitUpdate={(values) => {
-              if (!selectedId || !detailQuery.data) return
-              updateMutation.mutate(
-                {
-                  id: selectedId,
-                  values: { ...values, expectedRowVersion: detailQuery.data.rowVersion },
-                },
-                { onSuccess: () => setMode('view') },
-              )
-            }}
-            onDeactivate={handleDeactivate}
+            onClose={() => select(null)}
+            onDeactivate={() => deactivateMutation.mutate(selectedId)}
           />
         )}
       </div>

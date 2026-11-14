@@ -13,10 +13,7 @@ import { useDebouncedValue } from '../../../shared/lib/use-debounced-value'
 import type { Clinic, ClinicFormValues, ClinicStatus } from '../api/clinics-api'
 import './clinic-form.css'
 
-const optionalEmail = z.union([
-  z.literal(''),
-  z.email('Informe um e-mail válido.'),
-])
+const optionalEmail = z.union([z.literal(''), z.email('Informe um e-mail válido.')])
 
 const clinicSchema = z.object({
   name: z.string().trim().min(1, 'Informe o nome da clínica.'),
@@ -162,119 +159,151 @@ export function ClinicForm({
 
   return (
     <form className="clinic-form" onSubmit={onSubmit} noValidate>
-      <TextField
-        id="clinic-name"
-        label="Nome da clínica"
-        disabled={submitting}
-        errorMessage={errors.name?.message}
-        {...register('name')}
-      />
+      <div className="clinic-form__sections">
+        <section className="clinic-form__section" aria-labelledby="clinic-section-id">
+          <h2 id="clinic-section-id" className="clinic-form__section-title">
+            Identificação
+          </h2>
+          <div className="clinic-form__grid">
+            <TextField
+              id="clinic-name"
+              label="Nome da clínica"
+              className="clinic-form__span-4"
+              disabled={submitting}
+              errorMessage={errors.name?.message}
+              {...register('name')}
+            />
+            <TextField
+              id="clinic-tax-id"
+              label="CNPJ"
+              className="clinic-form__span-2"
+              disabled={submitting}
+              errorMessage={errors.taxId?.message}
+              {...register('taxId')}
+            />
+            {clinic && (
+              <SelectField
+                id="clinic-status"
+                label="Status"
+                className="clinic-form__span-2"
+                options={STATUS_OPTIONS}
+                disabled={submitting}
+                {...register('status')}
+              />
+            )}
+          </div>
+        </section>
 
-      <div className="clinic-form__row">
-        <TextField
-          id="clinic-tax-id"
-          label="CNPJ"
-          disabled={submitting}
-          errorMessage={errors.taxId?.message}
-          {...register('taxId')}
-        />
-        {clinic && (
-          <SelectField
-            id="clinic-status"
-            label="Status"
-            options={STATUS_OPTIONS}
+        <section className="clinic-form__section" aria-labelledby="clinic-section-contact">
+          <h2 id="clinic-section-contact" className="clinic-form__section-title">
+            Contato
+          </h2>
+          <div className="clinic-form__grid">
+            <TextField
+              id="clinic-phone"
+              label="Telefone"
+              className="clinic-form__span-3"
+              disabled={submitting}
+              {...register('phone')}
+            />
+            <TextField
+              id="clinic-email"
+              label="E-mail"
+              className="clinic-form__span-3"
+              disabled={submitting}
+              errorMessage={errors.email?.message}
+              {...register('email')}
+            />
+          </div>
+        </section>
+
+        <section className="clinic-form__section" aria-labelledby="clinic-section-address">
+          <h2 id="clinic-section-address" className="clinic-form__section-title">
+            Endereço
+          </h2>
+          <div className="clinic-form__grid">
+            <TextField
+              id="clinic-zip"
+              label="CEP"
+              className="clinic-form__span-2"
+              disabled={submitting}
+              errorMessage={errors.addressZipCode?.message}
+              {...register('addressZipCode')}
+            />
+            <TextField
+              id="clinic-street"
+              label="Rua"
+              className="clinic-form__span-3"
+              disabled={submitting}
+              {...register('addressStreet')}
+            />
+            <TextField
+              id="clinic-number"
+              label="Número"
+              className="clinic-form__span-1"
+              disabled={submitting}
+              {...register('addressNumber')}
+            />
+          </div>
+
+          {cepStatusMessage && (
+            <p role="status" aria-live="polite" className="clinic-form__cep-status">
+              {cepStatusMessage}
+            </p>
+          )}
+
+          <div className="clinic-form__grid">
+            <TextField
+              id="clinic-neighborhood"
+              label="Bairro"
+              className="clinic-form__span-2"
+              disabled={submitting}
+              {...register('addressNeighborhood')}
+            />
+            <TextField
+              id="clinic-city"
+              label="Cidade"
+              className="clinic-form__span-3"
+              disabled={submitting}
+              {...register('addressCity')}
+            />
+            <TextField
+              id="clinic-state"
+              label="UF"
+              className="clinic-form__span-1"
+              maxLength={2}
+              disabled={submitting}
+              errorMessage={errors.addressState?.message}
+              {...register('addressState')}
+            />
+            <TextField
+              id="clinic-complement"
+              label="Complemento"
+              className="clinic-form__span-6"
+              disabled={submitting}
+              {...register('addressComplement')}
+            />
+          </div>
+        </section>
+
+        <section className="clinic-form__section" aria-labelledby="clinic-section-notes">
+          <h2 id="clinic-section-notes" className="clinic-form__section-title">
+            Informações adicionais
+          </h2>
+          <TextField
+            id="clinic-notes"
+            label="Observação"
             disabled={submitting}
-            {...register('status')}
+            {...register('notes')}
           />
+        </section>
+
+        {errorMessage && (
+          <p role="alert" className="clinic-form__domain-error">
+            {errorMessage}
+          </p>
         )}
       </div>
-
-      <div className="clinic-form__row">
-        <TextField
-          id="clinic-phone"
-          label="Telefone"
-          disabled={submitting}
-          {...register('phone')}
-        />
-        <TextField
-          id="clinic-email"
-          label="E-mail"
-          disabled={submitting}
-          errorMessage={errors.email?.message}
-          {...register('email')}
-        />
-      </div>
-
-      <p className="clinic-form__section-title">Endereço</p>
-
-      <div className="clinic-form__row">
-        <TextField
-          id="clinic-zip"
-          label="CEP"
-          disabled={submitting}
-          errorMessage={errors.addressZipCode?.message}
-          {...register('addressZipCode')}
-        />
-        <TextField
-          id="clinic-street"
-          label="Rua"
-          disabled={submitting}
-          {...register('addressStreet')}
-        />
-      </div>
-
-      {cepStatusMessage && (
-        <p role="status" aria-live="polite" className="clinic-form__cep-status">
-          {cepStatusMessage}
-        </p>
-      )}
-
-      <div className="clinic-form__row">
-        <TextField
-          id="clinic-number"
-          label="Número"
-          disabled={submitting}
-          {...register('addressNumber')}
-        />
-        <TextField
-          id="clinic-neighborhood"
-          label="Bairro"
-          disabled={submitting}
-          {...register('addressNeighborhood')}
-        />
-      </div>
-
-      <div className="clinic-form__row">
-        <TextField
-          id="clinic-city"
-          label="Cidade"
-          disabled={submitting}
-          {...register('addressCity')}
-        />
-        <TextField
-          id="clinic-state"
-          label="UF"
-          maxLength={2}
-          disabled={submitting}
-          errorMessage={errors.addressState?.message}
-          {...register('addressState')}
-        />
-      </div>
-
-      <TextField
-        id="clinic-complement"
-        label="Complemento"
-        disabled={submitting}
-        {...register('addressComplement')}
-      />
-
-      <TextField id="clinic-notes" label="Observação" disabled={submitting} {...register('notes')} />
-
-      {errorMessage && (
-        <p role="alert" className="clinic-form__domain-error">
-          {errorMessage}
-        </p>
-      )}
 
       <div className="clinic-form__actions">
         <Button type="button" variant="ghost" onClick={onCancel} disabled={submitting}>
