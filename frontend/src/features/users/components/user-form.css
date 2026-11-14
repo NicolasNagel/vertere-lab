@@ -3,7 +3,7 @@
 }
 
 .user-form__domain-error {
-  color: #b3261e;
+  color: var(--color-danger);
   font-size: 0.8125rem;
   margin: 0 0 1rem;
 }

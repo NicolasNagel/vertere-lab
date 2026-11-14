@@ -6,7 +6,7 @@
 }
 
 .attendance-draft-page__header {
-  background: #ffffff;
+  background: var(--color-surface);
   padding: 1.375rem 2rem; /* 22px 32px */
   border-bottom: 1px solid var(--color-border);
 }
@@ -25,7 +25,7 @@
   letter-spacing: 0.02em;
   font-size: 1.75rem; /* 28px */
   font-weight: 600;
-  color: #1f3450;
+  color: var(--color-brand-ink-deep);
   margin: 0.125rem 0 0;
 }
 
@@ -65,7 +65,7 @@
 }
 
 .attendance-draft-page__section {
-  background: #ffffff;
+  background: var(--color-surface);
   border: 1px solid var(--color-border);
   padding: 1.125rem 1.25rem; /* 18px 20px */
   display: flex;
@@ -88,12 +88,12 @@
   letter-spacing: 0.02em;
   font-size: 1.0625rem; /* 17px */
   font-weight: 600;
-  color: #1f3450;
+  color: var(--color-brand-ink-deep);
   margin: 0;
 }
 
 .attendance-draft-page__count {
-  background: #e8f1f1;
+  background: var(--color-info-bg);
   color: var(--color-brand-ink);
   padding: 0.125rem 0.5rem;
   font-size: 0.6875rem;
@@ -108,7 +108,7 @@
   height: 1.375rem;
   flex-shrink: 0;
   background: var(--color-brand-ink-deep);
-  color: #ffffff;
+  color: var(--color-surface);
   font-family: var(--font-mono);
   font-size: 0.6875rem;
   font-weight: 700;
@@ -168,7 +168,7 @@
   gap: 0.1875rem;
   padding: 0.75rem 0.875rem;
   border: 1px solid var(--color-border);
-  background: #ffffff;
+  background: var(--color-surface);
   font-family: inherit;
   cursor: pointer;
   text-align: left;
@@ -211,7 +211,7 @@
   border: 1px solid #f5e2da;
   padding: 0.75rem;
   font-size: 0.8125rem;
-  color: #a0492c;
+  color: var(--color-warning-ink);
 }
 
 .attendance-draft-page__domain-error p {
@@ -222,7 +222,7 @@
 .attendance-draft-page__retry-button {
   border: none;
   background: none;
-  color: #a0492c;
+  color: var(--color-warning-ink);
   text-decoration: underline;
   text-underline-offset: 3px;
   font-size: inherit;

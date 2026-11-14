@@ -12,13 +12,13 @@
 }
 
 .closure-summary-cards__card {
-  background: #ffffff;
+  background: var(--color-surface);
   border: 1px solid var(--color-border);
   padding: 0.875rem 1rem; /* 14px 16px */
 }
 
 .closure-summary-cards__card[data-tone='warning'] .closure-summary-cards__value {
-  color: #a06d2c;
+  color: var(--color-warning);
 }
 
 .closure-summary-cards__card[data-tone='total'] {
@@ -28,7 +28,7 @@
 
 .closure-summary-cards__card[data-tone='total'] .closure-summary-cards__label,
 .closure-summary-cards__card[data-tone='total'] .closure-summary-cards__value {
-  color: #ffffff;
+  color: var(--color-surface);
 }
 
 .closure-summary-cards__label {
@@ -42,7 +42,7 @@
 .closure-summary-cards__value {
   font-family: var(--font-display);
   font-size: 1.875rem; /* 30px */
-  color: #1f3450;
+  color: var(--color-brand-ink-deep);
   line-height: 1;
   margin-top: 0.25rem;
 }

@@ -44,5 +44,5 @@
 
 .closure-reopen-modal__error {
   font-size: 0.8125rem;
-  color: #a0492c;
+  color: var(--color-warning-ink);
 }

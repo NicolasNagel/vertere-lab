@@ -1,7 +1,7 @@
 .veterinarian-list {
   width: 100%;
   flex-shrink: 0;
-  background: #ffffff;
+  background: var(--color-surface);
   border-right: 1px solid var(--color-border);
   display: flex;
   flex-direction: column;
@@ -37,7 +37,7 @@
   display: flex;
   align-items: center;
   gap: 0.5rem; /* 8px */
-  background: #f4f1ea;
+  background: var(--color-surface-subtle);
 }
 
 .veterinarian-list__search-icon {
@@ -71,7 +71,7 @@
 
 .veterinarian-list__filter {
   border: 1px solid var(--color-border);
-  background: #ffffff;
+  background: var(--color-surface);
   color: var(--color-text-secondary);
   font-size: 0.6875rem;
   padding: 0.3125rem 0.625rem; /* 5px 10px */
@@ -82,7 +82,7 @@
 .veterinarian-list__filter[data-active='true'] {
   background: var(--color-brand-ink);
   border-color: var(--color-brand-ink);
-  color: #ffffff;
+  color: var(--color-surface);
 }
 
 .veterinarian-list__rows {
@@ -103,7 +103,7 @@
   border: none;
   background: var(--color-surface-form);
   border-left: 3px solid transparent;
-  border-bottom: 1px solid #f0ede5;
+  border-bottom: 1px solid var(--color-surface-muted);
   padding: 0.875rem 1.125rem; /* 14px 18px */
   cursor: pointer;
   font-family: inherit;
@@ -115,7 +115,7 @@
 }
 
 .veterinarian-list__row:not([data-selected='true']) {
-  background: #ffffff;
+  background: var(--color-surface);
 }
 
 .veterinarian-list__row-header {
@@ -144,7 +144,7 @@
   border-radius: 50%;
   display: grid;
   place-items: center;
-  color: #fff;
+  color: var(--color-surface);
   background: var(--color-brand-ink);
   font-size: 0.75rem;
   font-weight: 600;
@@ -153,7 +153,7 @@
 .veterinarian-list__row-name {
   font-size: 0.875rem;
   font-weight: 600;
-  color: #1f3450;
+  color: var(--color-brand-ink-deep);
 }
 
 .veterinarian-list__row-badges {
@@ -169,8 +169,8 @@
   font-weight: 600;
   letter-spacing: 0.06em;
   text-transform: uppercase;
-  background: #e5ebe2;
-  color: #4f6b3f;
+  background: var(--color-success-bg);
+  color: var(--color-success);
   white-space: nowrap;
 }
 
@@ -185,7 +185,7 @@
   font-weight: 600;
   letter-spacing: 0.06em;
   text-transform: uppercase;
-  background: #e8f1f1;
+  background: var(--color-info-bg);
   color: var(--color-brand-ink);
   white-space: nowrap;
 }

@@ -23,20 +23,20 @@
   flex: 1;
   font-size: 0.84375rem;
   font-weight: 600;
-  color: #1f3450;
+  color: var(--color-brand-ink-deep);
 }
 
 .attendance-exam-selection-list__item-price {
   font-family: var(--font-mono);
   font-size: 0.8125rem;
   font-weight: 600;
-  color: #1f3450;
+  color: var(--color-brand-ink-deep);
 }
 
 .attendance-exam-selection-list__remove-button {
   border: none;
   background: none;
-  color: #a0492c;
+  color: var(--color-warning-ink);
   font-size: 1.125rem;
   line-height: 1;
   cursor: pointer;

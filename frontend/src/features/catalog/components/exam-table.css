@@ -6,7 +6,7 @@
   display: flex;
   align-items: center;
   gap: 0.5rem; /* 8px */
-  background: #f4f1ea;
+  background: var(--color-surface-subtle);
   border: 1px solid var(--color-border);
   padding: 0.625rem 0.875rem; /* 10px 14px */
   margin-bottom: 1rem;
@@ -29,7 +29,7 @@
 }
 
 .exam-table {
-  background: #ffffff;
+  background: var(--color-surface);
   border: 1px solid var(--color-border);
 }
 
@@ -52,7 +52,7 @@
 }
 
 .exam-table__header {
-  background: #f4f1ea;
+  background: var(--color-surface-subtle);
   font-family: var(--font-mono);
   font-size: 0.625rem; /* 10px */
   letter-spacing: 0.1em;
@@ -62,7 +62,7 @@
 }
 
 .exam-table__row {
-  border-top: 1px solid #f0ede5;
+  border-top: 1px solid var(--color-surface-muted);
   font-size: 0.8125rem;
 }
 
@@ -92,7 +92,7 @@
 
 .exam-table__name {
   font-weight: 600;
-  color: #1f3450;
+  color: var(--color-brand-ink-deep);
   display: flex;
   align-items: center;
   gap: 0.5rem;
@@ -118,8 +118,8 @@
   font-weight: 600;
   letter-spacing: 0.06em;
   text-transform: uppercase;
-  background: #e5ebe2;
-  color: #4f6b3f;
+  background: var(--color-success-bg);
+  color: var(--color-success);
   white-space: nowrap;
 }
 
@@ -129,7 +129,7 @@
 }
 
 .exam-table__category-badge {
-  background: #e8f1f1;
+  background: var(--color-info-bg);
   color: var(--color-brand-ink);
   padding: 0.1875rem 0.5rem; /* 3px 8px */
   font-size: 0.625rem;
@@ -142,7 +142,7 @@
 .exam-table__price {
   font-family: var(--font-mono);
   font-weight: 600;
-  color: #1f3450;
+  color: var(--color-brand-ink-deep);
 }
 
 .exam-table__species {

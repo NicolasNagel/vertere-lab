@@ -1,5 +1,5 @@
 .on-call-fee-settings-panel {
-  background: #ffffff;
+  background: var(--color-surface);
   border: 1px solid var(--color-border);
   padding: 1.125rem 1.25rem; /* 18px 20px */
   /* .exams-page__main has no padding of its own — ExamStatCards and
@@ -29,7 +29,7 @@
 
 .on-call-fee-settings-panel__title {
   font-size: 0.875rem; /* 14px */
-  color: #1f3450;
+  color: var(--color-brand-ink-deep);
   font-weight: 600;
   margin-top: 0.125rem; /* 2px */
 }
@@ -53,7 +53,7 @@
 
 .on-call-fee-settings-panel__saved {
   font-size: 0.75rem;
-  color: #4f6b3f;
+  color: var(--color-success);
 }
 
 .on-call-fee-settings-panel__grid {
@@ -78,7 +78,7 @@
   align-items: center;
   gap: 0.5rem; /* 8px */
   font-size: 0.78125rem; /* 12.5px */
-  color: #1f3450;
+  color: var(--color-brand-ink-deep);
   font-weight: 600;
   margin-bottom: 0.625rem; /* 10px */
 }
@@ -87,7 +87,7 @@
   width: 0.5rem;
   height: 0.5rem;
   border-radius: 50%;
-  background: #a06d2c;
+  background: var(--color-warning);
   flex-shrink: 0;
 }
 
@@ -124,7 +124,7 @@
   padding: 0.5625rem 0.625rem; /* 9px 10px */
   font-size: 0.8125rem; /* 13px */
   font-family: var(--font-body);
-  color: #1f3450;
+  color: var(--color-brand-ink-deep);
   background: var(--color-surface-cream);
 }
 
@@ -145,7 +145,7 @@
   border: 1px solid var(--color-border);
   padding: 0.5625rem 0.625rem; /* 9px 10px */
   font-size: 0.75rem; /* 12px */
-  color: #1f3450;
+  color: var(--color-brand-ink-deep);
   background: var(--color-surface-cream);
 }
 
@@ -176,7 +176,7 @@
 }
 
 .on-call-fee-settings-panel__error {
-  color: #b3261e;
+  color: var(--color-danger);
   font-size: 0.75rem;
   margin: 0.5rem 0 0;
 }

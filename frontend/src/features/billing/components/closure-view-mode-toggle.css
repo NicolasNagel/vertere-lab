@@ -11,7 +11,7 @@
   letter-spacing: 0.06em;
   text-transform: uppercase;
   color: var(--color-text-secondary);
-  background: #ffffff;
+  background: var(--color-surface);
   border: none;
   padding: 0.5rem 0.75rem;
   cursor: pointer;
@@ -23,5 +23,5 @@
 
 .closure-view-mode-toggle__option[data-active='true'] {
   background: var(--color-brand-ink-deep);
-  color: #ffffff;
+  color: var(--color-surface);
 }

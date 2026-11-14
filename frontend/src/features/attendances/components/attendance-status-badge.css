@@ -29,16 +29,16 @@
 
 .attendance-status-badge[data-status='IN_PROGRESS'],
 .attendance-status-badge[data-status='ON_HOLD'] {
-  color: #a06d2c;
+  color: var(--color-warning);
   background: #f5ead9;
 }
 
 .attendance-status-badge[data-status='COMPLETED'] {
-  color: #1f3450;
+  color: var(--color-brand-ink-deep);
   background: #e8edf1;
 }
 
 .attendance-status-badge[data-status='CANCELLED'] {
-  color: #a0492c;
+  color: var(--color-warning-ink);
   background: #f1e5e1;
 }

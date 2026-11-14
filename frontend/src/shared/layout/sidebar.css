@@ -6,7 +6,7 @@
   height: 100%;
   flex-shrink: 0;
   background: var(--color-brand-ink-deep);
-  color: #ffffff;
+  color: var(--color-surface);
   padding: 1rem 0; /* 16px */
   display: flex;
   flex-direction: column;
@@ -40,7 +40,7 @@
 .sidebar__brand-subtitle {
   font-size: 0.5rem; /* 8px */
   letter-spacing: 0.2em;
-  color: #c5ced8;
+  color: var(--color-border-strong);
 }
 
 .sidebar__nav {
@@ -77,7 +77,7 @@
 .sidebar-nav-item--active {
   background: var(--color-brand-ink);
   border-left-color: var(--color-accent-mist);
-  color: #ffffff;
+  color: var(--color-surface);
 }
 
 .sidebar-nav-item--disabled {
@@ -134,7 +134,7 @@
 
 .sidebar__footer-role {
   font-size: 0.625rem; /* 10px */
-  color: #c5ced8;
+  color: var(--color-border-strong);
 }
 
 @media (max-width: 767px) {

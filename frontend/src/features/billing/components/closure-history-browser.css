@@ -7,5 +7,5 @@
 }
 
 .closure-history-browser__error {
-  color: #a0492c;
+  color: var(--color-warning-ink);
 }

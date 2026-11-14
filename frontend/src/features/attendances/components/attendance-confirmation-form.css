@@ -11,7 +11,7 @@
 }
 
 .attendance-confirmation-form__section {
-  background: #ffffff;
+  background: var(--color-surface);
   border: 1px solid var(--color-border);
   padding: 1.125rem 1.25rem;
   display: flex;
@@ -34,7 +34,7 @@
   letter-spacing: 0.02em;
   font-size: 1.0625rem;
   font-weight: 600;
-  color: #1f3450;
+  color: var(--color-brand-ink-deep);
   margin: 0;
 }
 
@@ -46,14 +46,14 @@
   height: 1.375rem;
   flex-shrink: 0;
   background: var(--color-brand-ink-deep);
-  color: #ffffff;
+  color: var(--color-surface);
   font-family: var(--font-mono);
   font-size: 0.6875rem;
   font-weight: 700;
 }
 
 .attendance-confirmation-form__count {
-  background: #e8f1f1;
+  background: var(--color-info-bg);
   color: var(--color-brand-ink);
   padding: 0.125rem 0.5rem;
   font-size: 0.6875rem;
@@ -85,20 +85,20 @@
   flex: 1;
   font-size: 0.84375rem;
   font-weight: 600;
-  color: #1f3450;
+  color: var(--color-brand-ink-deep);
 }
 
 .attendance-confirmation-form__item-price {
   font-family: var(--font-mono);
   font-size: 0.8125rem;
   font-weight: 600;
-  color: #1f3450;
+  color: var(--color-brand-ink-deep);
 }
 
 .attendance-confirmation-form__remove-button {
   border: none;
   background: none;
-  color: #a0492c;
+  color: var(--color-warning-ink);
   font-size: 1.125rem;
   line-height: 1;
   cursor: pointer;
@@ -131,7 +131,7 @@
   border: 1px solid #f5e2da;
   padding: 0.75rem;
   font-size: 0.8125rem;
-  color: #a0492c;
+  color: var(--color-warning-ink);
 }
 
 .attendance-confirmation-form__domain-error p {
@@ -141,7 +141,7 @@
 .attendance-confirmation-form__domain-error button {
   border: none;
   background: none;
-  color: #a0492c;
+  color: var(--color-warning-ink);
   text-decoration: underline;
   text-underline-offset: 3px;
   font-size: 0.8125rem;

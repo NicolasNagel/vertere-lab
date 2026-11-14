@@ -1,7 +1,7 @@
 .exam-catalog-sidebar {
   width: 15rem; /* 240px */
   flex-shrink: 0;
-  background: #f4f1ea;
+  background: var(--color-surface-subtle);
   border-right: 1px solid var(--color-border);
   padding: 1.25rem 0; /* 20px */
   overflow-y: auto;
@@ -37,7 +37,7 @@
 }
 
 .exam-catalog-sidebar__category[data-selected='true'] {
-  background: #ffffff;
+  background: var(--color-surface);
   border-left-color: var(--color-brand-ink);
   font-weight: 600;
 }

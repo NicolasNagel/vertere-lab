@@ -11,7 +11,7 @@
 }
 
 .create-patient-modal {
-  background: #ffffff;
+  background: var(--color-surface);
   max-width: 34rem;
   width: 100%;
   padding: 1.75rem; /* 28px */
@@ -24,7 +24,7 @@
   letter-spacing: 0.02em;
   font-size: 1.375rem;
   font-weight: 600;
-  color: #1f3450;
+  color: var(--color-brand-ink-deep);
   margin: 0 0 0.25rem;
 }
 
