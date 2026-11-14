@@ -183,6 +183,34 @@ function draftCreatedResponse(body: Record<string, unknown>) {
   }
 }
 
+function examsCatalogHandlers(exams: Record<string, unknown>[] = []) {
+  return [
+    http.get('/api/v1/exams', () =>
+      HttpResponse.json({ items: exams, total: exams.length, page: 1, page_size: 100 }),
+    ),
+    http.get('/api/v1/exam-categories/active', () =>
+      HttpResponse.json({
+        items: [{ id: 'cat1', name: 'Hematologia', status: 'ACTIVE', row_version: 1 }],
+      }),
+    ),
+  ]
+}
+
+const hemogramaApi = {
+  id: 'e1',
+  code: 'HEMO',
+  name: 'Hemograma',
+  category_id: 'cat1',
+  description: null,
+  species_ids: ['s1'],
+  component_exam_ids: [],
+  is_panel: false,
+  status: 'ACTIVE',
+  row_version: 1,
+  price_base: '100.00',
+  updated_at: '2026-01-01T00:00:00Z',
+}
+
 function renderPage(permissions: string[], handlers: ReturnType<typeof http.get>[] = []) {
   // Handlers passados aqui vêm ANTES dos defaults — MSW resolve pelo
   // primeiro handler compatível na lista, então isso é o que permite um
@@ -190,6 +218,7 @@ function renderPage(permissions: string[], handlers: ReturnType<typeof http.get>
   server.use(
     ...handlers,
     meHandler(permissions),
+    ...examsCatalogHandlers(),
     clinicsHandler(),
     veterinariansHandler(),
     patientSearchHandler([]),
@@ -304,26 +333,6 @@ test('auto-creates the draft once clinic, veterinarian and patient are set, then
       onDraftCreated(body)
       return HttpResponse.json(draftCreatedResponse(body), { status: 201 })
     }),
-    http.get('/api/v1/exams', ({ request }) => {
-      const search = new URL(request.url).searchParams.get('search')
-      const items = search
-        ? [
-            {
-              id: 'e1',
-              code: 'HEMO',
-              name: 'Hemograma',
-              category_id: 'cat1',
-              description: null,
-              species_ids: [],
-              status: 'ACTIVE',
-              row_version: 1,
-              price_base: '100.00',
-              updated_at: '2026-01-01T00:00:00Z',
-            },
-          ]
-        : []
-      return HttpResponse.json({ items, total: items.length, page: 1, page_size: 10 })
-    }),
     http.post('/api/v1/attendances/a1/preview', async () =>
       HttpResponse.json({
         attendance_id: 'a1',
@@ -367,7 +376,7 @@ test('auto-creates the draft once clinic, veterinarian and patient are set, then
       ),
     ),
   )
-  renderPage(['attendances.create', 'attendances.update'])
+  renderPage(['attendances.create', 'attendances.update'], examsCatalogHandlers([hemogramaApi]))
 
   await chooseOption(user, 'Clínica solicitante', 'Clínica Central')
   await chooseOption(user, 'Veterinário responsável', 'Dr. Bruno (vinculado c1)')
@@ -387,10 +396,9 @@ test('auto-creates the draft once clinic, veterinarian and patient are set, then
   )
   // Os cards de Exames/Valor já estavam visíveis (layout estático) e ficam
   // ativos assim que o rascunho existe.
-  expect(await screen.findByLabelText('Adicionar exame')).toBeEnabled()
-
-  await user.type(screen.getByLabelText('Adicionar exame'), 'Hemo')
-  await user.click(await screen.findByRole('option', { name: /Hemograma/ }))
+  const hemograma = await screen.findByRole('checkbox', { name: /Hemograma/ })
+  await waitFor(() => expect(hemograma).toBeEnabled())
+  await user.click(hemograma)
   await user.click(await screen.findByRole('button', { name: 'Abrir protocolo' }))
 
   expect(await screen.findByText('Lista de atendimentos')).toBeInTheDocument()

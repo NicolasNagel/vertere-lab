@@ -13,6 +13,8 @@ interface AttendanceExamSelectionListProps {
   onAdd: (exam: Exam) => void
   onRemove: (examId: string) => void
   onUpdate: (examId: string, patch: Partial<DraftExamSelection>) => void
+  /** Quando a seleção é feita por outra UI (grade de exames), esconde a busca. */
+  hidePicker?: boolean
 }
 
 /** Lista de exames selecionados (com tag de categoria, preço, remoção,
@@ -26,6 +28,7 @@ export function AttendanceExamSelectionList({
   onAdd,
   onRemove,
   onUpdate,
+  hidePicker = false,
 }: AttendanceExamSelectionListProps) {
   return (
     <>
@@ -101,11 +104,13 @@ export function AttendanceExamSelectionList({
         </ul>
       )}
 
-      <ExamPicker
-        disabled={disabled}
-        excludeExamIds={selections.map((selection) => selection.exam.id)}
-        onSelect={onAdd}
-      />
+      {!hidePicker && (
+        <ExamPicker
+          disabled={disabled}
+          excludeExamIds={selections.map((selection) => selection.exam.id)}
+          onSelect={onAdd}
+        />
+      )}
     </>
   )
 }

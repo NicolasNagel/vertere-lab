@@ -21,7 +21,10 @@ import {
   type CollectionMethod,
   type ServiceLevel,
 } from '../api/attendances-api'
+import { useActiveExamCategoriesQuery } from '../../catalog/api/use-active-exam-categories-query'
+import { useAllActiveExamsQuery } from '../../catalog/api/use-all-active-exams-query'
 import { AttendanceExamSelectionList } from './attendance-exam-selection-list'
+import { ExamCartGrid } from './exam-cart-grid'
 import { AttendancePatientSection } from './attendance-patient-section'
 import { AttendanceSummaryPanel } from './attendance-summary-panel'
 import './attendance-draft-page.css'
@@ -82,6 +85,8 @@ export function AttendanceDraftPage() {
     status: 'ACTIVE',
     availableForClinicId: clinicId || undefined,
   })
+  const examsQuery = useAllActiveExamsQuery()
+  const examCategoriesQuery = useActiveExamCategoriesQuery()
   const createDraftMutation = useCreateAttendanceDraftMutation()
   const updateMutation = useUpdateAttendanceMutation()
   const draftRequestedRef = useRef(false)
@@ -276,10 +281,22 @@ export function AttendanceDraftPage() {
                 </div>
                 {!attendance && (
                   <p className="attendance-draft-page__hint">
-                    Preencha clínica, veterinário e paciente para adicionar exames.
+                    Preencha clínica, veterinário e paciente para marcar exames.
                   </p>
                 )}
+                <ExamCartGrid
+                  exams={examsQuery.data?.items ?? []}
+                  categories={examCategoriesQuery.data ?? []}
+                  selectedIds={examSelections.selections.map((selection) => selection.exam.id)}
+                  patientSpeciesId={patient?.speciesId ?? null}
+                  isLoading={examsQuery.isLoading || examCategoriesQuery.isLoading}
+                  isError={examsQuery.isError || examCategoriesQuery.isError}
+                  disabled={!attendance || examSelections.isPending}
+                  onAdd={examSelections.addExam}
+                  onRemove={examSelections.removeExam}
+                />
                 <AttendanceExamSelectionList
+                  hidePicker
                   selections={examSelections.selections}
                   canOverridePrice={canOverridePrice}
                   disabled={!attendance || examSelections.isPending}

@@ -21,10 +21,7 @@ export function AttendanceSummaryPanel({
 }: AttendanceSummaryPanelProps) {
   return (
     <section className="attendance-summary-panel">
-      <h2 className="attendance-summary-panel__title">
-        <span className="attendance-summary-panel__badge">5</span>
-        Valor
-      </h2>
+      <h2 className="attendance-summary-panel__title">Valor</h2>
 
       {isLoading ? (
         <p className="attendance-summary-panel__hint">Calculando…</p>

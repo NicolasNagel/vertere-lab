@@ -43,9 +43,10 @@ export function useAttendanceExamSelections(attendance: Attendance | null, onCon
     [selections],
   )
   const debouncedItems = useDebouncedValue(itemsForApi, 400)
+  // Depois de confirmado o atendimento deixa de ser rascunho e a prévia seria recusada (422).
   const previewQuery = useAttendancePreviewQuery(
     attendance?.id ?? null,
-    debouncedItems.length > 0 ? debouncedItems : null,
+    debouncedItems.length > 0 && !confirmMutation.isSuccess ? debouncedItems : null,
   )
 
   const hasMissingOverrideReason = selections.some(

@@ -15,7 +15,11 @@ export function useConfirmAttendanceMutation() {
     mutationFn: ({ attendanceId, items, idempotencyKey }: ConfirmAttendanceVariables) =>
       confirmAttendance(attendanceId, items, idempotencyKey),
     onSuccess: (attendance) => {
-      void queryClient.invalidateQueries({ queryKey: ['attendances'] })
+      // A prévia só existe para rascunho: refazê-la agora seria recusada (422), então fica de fora.
+      void queryClient.invalidateQueries({
+        queryKey: ['attendances'],
+        predicate: (query) => query.queryKey[1] !== 'preview',
+      })
       queryClient.setQueryData(['attendances', 'detail', attendance.id], attendance)
     },
   })
