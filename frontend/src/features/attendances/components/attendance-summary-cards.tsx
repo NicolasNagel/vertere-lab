@@ -5,10 +5,15 @@ import './attendance-summary-cards.css'
 
 interface AttendanceSummaryCardsProps {
   counts: AttendanceStatusCounts | undefined
+  /** Complements the card hints, e.g. "de hoje"; defaults to the active list filters. */
+  scopeLabel?: string
 }
 
 /** Totals come from the server (`status-counts`): the cards only present them. */
-export function AttendanceSummaryCards({ counts }: AttendanceSummaryCardsProps) {
+export function AttendanceSummaryCards({
+  counts,
+  scopeLabel = 'nos filtros atuais',
+}: AttendanceSummaryCardsProps) {
   const drafts = counts?.byStatus.DRAFT ?? 0
   const cancelled = counts?.byStatus.CANCELLED ?? 0
   const total = counts?.total ?? 0
@@ -27,7 +32,7 @@ export function AttendanceSummaryCards({ counts }: AttendanceSummaryCardsProps) 
           {counts ? formatCurrencyBRL(counts.billedTotal) : '—'}
         </strong>
         <small className="attendance-summary-card__hint">
-          sem rascunhos e cancelados, nos filtros atuais
+          sem rascunhos e cancelados, {scopeLabel}
         </small>
       </article>
 

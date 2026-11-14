@@ -45,6 +45,8 @@ test('renders the operational dashboard with truthful empty data and the server 
   expect(screen.getByText('Nenhum protocolo registrado hoje.')).toBeInTheDocument()
   // O valor vem do servidor para o dia inteiro, não da soma dos 5 itens exibidos.
   expect(screen.getByText(/1\.234,56/)).toBeInTheDocument()
+  // Módulos ainda indisponíveis aparecem como "Em breve", sem número inventado.
+  expect(screen.getByRole('heading', { name: 'Em breve' })).toBeInTheDocument()
   expect(screen.getByRole('link', { name: /Novo protocolo/ })).toHaveAttribute(
     'href',
     '/operacao/novo',

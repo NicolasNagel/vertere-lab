@@ -3,15 +3,17 @@ import { Link } from 'react-router'
 import { useAttendancesQuery } from '../features/attendances/api/use-attendances-query'
 import { useAttendanceStatusCountsQuery } from '../features/attendances/api/use-attendance-status-counts-query'
 import { AttendanceStatusBadge } from '../features/attendances/components/attendance-status-badge'
+import { AttendanceSummaryCards } from '../features/attendances/components/attendance-summary-cards'
 import { useAuth } from '../features/auth/auth-context'
-import { formatCurrencyBRL } from '../shared/lib/formatters'
+import { PlusIcon } from '../shared/ui/icons'
 import { greetingFor } from './greeting'
+import '../shared/ui/button.css'
 import './home-page.css'
 
 const dateFormatter = new Intl.DateTimeFormat('pt-BR', {
   weekday: 'long',
   day: '2-digit',
-  month: 'short',
+  month: 'long',
   year: 'numeric',
 })
 
@@ -26,6 +28,15 @@ function localDateValue(date: Date): string {
   const day = String(date.getDate()).padStart(2, '0')
   return `${year}-${month}-${day}`
 }
+
+const UPCOMING_MODULES = [
+  { title: 'Laudos pendentes', text: 'Disponível quando o módulo de laudos for liberado.' },
+  { title: 'Em coleta', text: 'Disponível quando o módulo de coletas for liberado.' },
+  {
+    title: 'Exames mais pedidos',
+    text: 'O ranking será exibido quando o endpoint agregado do dashboard estiver disponível.',
+  },
+]
 
 export function HomePage() {
   const { user } = useAuth()
@@ -49,46 +60,23 @@ export function HomePage() {
         <div>
           <div className="dashboard-page__date">{dateFormatter.format(today)}</div>
           <h1 className="dashboard-page__title">
-            {greetingFor(today)}, <em>{firstName}.</em>
+            {greetingFor(today)}, {firstName}.
           </h1>
         </div>
         {user?.permissions.includes('attendances.create') && (
-          <Link className="dashboard-page__new" to="/operacao/novo">
-            <span aria-hidden="true">＋</span> Novo protocolo
+          <Link className="button button--primary dashboard-page__new" to="/operacao/novo">
+            <PlusIcon /> Novo protocolo
           </Link>
         )}
       </header>
 
-      <section className="dashboard-page__kpis" aria-label="Resumo operacional">
-        <article className="dashboard-kpi">
-          <span>Protocolos hoje</span>
-          <strong>{attendancesQuery.isLoading ? '—' : (attendancesQuery.data?.total ?? 0)}</strong>
-          <small>atendimentos na data de hoje</small>
-        </article>
-        <article className="dashboard-kpi">
-          <span>Laudos pendentes</span>
-          <strong>—</strong>
-          <small>módulo ainda não disponível</small>
-        </article>
-        <article className="dashboard-kpi">
-          <span>Em coleta</span>
-          <strong>—</strong>
-          <small>módulo ainda não disponível</small>
-        </article>
-        <article className="dashboard-kpi dashboard-kpi--accent">
-          <span>Atendido hoje</span>
-          <strong>
-            {countsQuery.data ? formatCurrencyBRL(countsQuery.data.billedTotal) : '—'}
-          </strong>
-          <small>protocolos de hoje, sem rascunhos e cancelados</small>
-        </article>
-      </section>
+      <AttendanceSummaryCards counts={countsQuery.data} scopeLabel="de hoje" />
 
       <div className="dashboard-page__grid">
         <section className="dashboard-card dashboard-activity">
           <header className="dashboard-card__header">
             <h2>Atividade do dia</h2>
-            <Link to="/operacao">ver todos →</Link>
+            <Link to="/operacao">Ver todos</Link>
           </header>
           {attendancesQuery.isError && (
             <p className="dashboard-card__empty">Não foi possível carregar a atividade.</p>
@@ -102,24 +90,36 @@ export function HomePage() {
               to={`/operacao/${attendance.id}`}
               key={attendance.id}
             >
-              <span className="dashboard-activity__icon" aria-hidden="true">＋</span>
-              <span className="dashboard-activity__body">
-                <strong>{attendance.protocolNumber ?? 'Rascunho'}</strong>
-                <small>{attendance.items.map((item) => item.examName).join(' · ') || 'Sem exames'}</small>
+              <span className="dashboard-activity__protocol">
+                {attendance.protocolNumber ?? 'Rascunho'}
+              </span>
+              <span className="dashboard-activity__exams">
+                {attendance.items.map((item) => item.examName).join(' · ') || 'Sem exames'}
               </span>
               <AttendanceStatusBadge status={attendance.status} />
-              <time>{timeFormatter.format(new Date(attendance.createdAt))}</time>
+              <time className="dashboard-activity__time">
+                {timeFormatter.format(new Date(attendance.createdAt))}
+              </time>
             </Link>
           ))}
         </section>
 
         <aside className="dashboard-page__side">
-          <section className="dashboard-card dashboard-placeholder">
-            <header className="dashboard-card__header"><h2>Exames mais pedidos</h2></header>
-            <p>O ranking será exibido quando o endpoint agregado do dashboard estiver disponível.</p>
+          <section className="dashboard-card">
+            <header className="dashboard-card__header">
+              <h2>Em breve</h2>
+            </header>
+            <ul className="dashboard-upcoming">
+              {UPCOMING_MODULES.map((module) => (
+                <li key={module.title}>
+                  <strong>{module.title}</strong>
+                  <span>{module.text}</span>
+                </li>
+              ))}
+            </ul>
           </section>
           <section className="dashboard-attention">
-            <strong>ⓘ Atenção</strong>
+            <strong>Atenção</strong>
             <p>Laudos e alertas clínicos ainda não fazem parte do núcleo liberado.</p>
           </section>
         </aside>
