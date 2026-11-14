@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 
 import { ApiError } from '../../../shared/api/errors'
 import { Button } from '../../../shared/ui/button'
+import { Modal } from '../../../shared/ui/modal'
 import './closure-reopen-modal.css'
 
 interface ClosureReopenModalProps {
@@ -31,14 +32,13 @@ export function ClosureReopenModal({
   }, [error])
 
   return (
-    <div className="closure-reopen-modal__backdrop" role="presentation" onMouseDown={onCancel}>
-      <section
-        aria-labelledby="closure-reopen-title"
-        aria-modal="true"
-        className="closure-reopen-modal"
-        role="dialog"
-        onMouseDown={(event) => event.stopPropagation()}
-      >
+    <Modal
+      titleId="closure-reopen-title"
+      className="closure-reopen-modal"
+      canDismiss={!isPending}
+      dismissOnBackdrop
+      onClose={onCancel}
+    >
         <h2 id="closure-reopen-title">Reabrir fechamento</h2>
         <p>
           Os atendimentos voltarão a ficar disponíveis para correção. O snapshot desta versão
@@ -75,7 +75,6 @@ export function ClosureReopenModal({
             {isPending ? 'Reabrindo…' : 'Confirmar reabertura'}
           </Button>
         </div>
-      </section>
-    </div>
+    </Modal>
   )
 }

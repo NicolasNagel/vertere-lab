@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from 'react'
 import { ApiError } from '../../../shared/api/errors'
 import { parseMoneyInput } from '../../../shared/lib/money'
 import { Button } from '../../../shared/ui/button'
+import { Modal } from '../../../shared/ui/modal'
 import type { AddFinancialAdjustmentParams, FinancialAdjustmentKind } from '../api/closures-api'
 import './closure-reopen-modal.css'
 
@@ -36,14 +37,13 @@ export function FinancialAdjustmentModal({
   }, [error])
 
   return (
-    <div className="closure-reopen-modal__backdrop" role="presentation" onMouseDown={onCancel}>
-      <section
-        aria-labelledby="adjustment-title"
-        aria-modal="true"
-        className="closure-reopen-modal"
-        role="dialog"
-        onMouseDown={(event) => event.stopPropagation()}
-      >
+    <Modal
+      titleId="adjustment-title"
+      className="closure-reopen-modal"
+      canDismiss={!isPending}
+      dismissOnBackdrop
+      onClose={onCancel}
+    >
         <h2 id="adjustment-title">Adicionar ajuste</h2>
         <p>O ajuste será append-only e não modificará o snapshot original.</p>
         <label htmlFor="adjustment-kind">Tipo</label>
@@ -100,7 +100,6 @@ export function FinancialAdjustmentModal({
             {isPending ? 'Salvando…' : 'Adicionar ajuste'}
           </Button>
         </div>
-      </section>
-    </div>
+    </Modal>
   )
 }

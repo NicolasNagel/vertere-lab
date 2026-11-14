@@ -2,6 +2,7 @@ import { useState } from 'react'
 
 import { describeError } from '../../../shared/api/describe-error'
 import { Button } from '../../../shared/ui/button'
+import { Modal } from '../../../shared/ui/modal'
 import { TextField } from '../../../shared/ui/text-field'
 import { useCancelAttendanceMutation } from '../api/use-cancel-attendance-mutation'
 import type { Attendance } from '../api/attendances-api'
@@ -33,13 +34,13 @@ export function AttendanceCancelModal({
   }
 
   return (
-    <div className="attendance-cancel-modal__backdrop" role="presentation">
-      <div
-        className="attendance-cancel-modal"
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="attendance-cancel-modal-title"
-      >
+    <Modal
+      titleId="attendance-cancel-modal-title"
+      size="sm"
+      className="attendance-cancel-modal"
+      canDismiss={!cancelMutation.isPending}
+      onClose={onClose}
+    >
         <h2 id="attendance-cancel-modal-title" className="attendance-cancel-modal__title">
           Cancelar atendimento
         </h2>
@@ -77,7 +78,6 @@ export function AttendanceCancelModal({
             {cancelMutation.isPending ? 'Cancelando…' : 'Confirmar cancelamento'}
           </Button>
         </div>
-      </div>
-    </div>
+    </Modal>
   )
 }
