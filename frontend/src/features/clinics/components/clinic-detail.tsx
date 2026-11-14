@@ -3,14 +3,8 @@ import { KebabMenu, type KebabMenuItem } from '../../../shared/ui/kebab-menu'
 import { formatTaxId, getInitials } from '../../../shared/lib/formatters'
 import type { Clinic, ClinicFormValues, ClinicStatus } from '../api/clinics-api'
 import { ClinicForm } from './clinic-form'
+import { ClinicStatusBadge } from './clinic-status-badge'
 import './clinic-detail.css'
-
-const STATUS_LABELS: Record<Clinic['status'], string> = {
-  ACTIVE: 'Ativo',
-  INACTIVE: 'Inativo',
-  DELINQUENT: 'Negativado',
-  SPECIAL: 'Especial',
-}
 
 function displayValue(value: string | null): string {
   return value && value.trim().length > 0 ? value : '—'
@@ -83,9 +77,7 @@ export function ClinicDetail({
           <div>
             <div className="clinic-detail__title-row">
               <h2 className="clinic-detail__title">{clinic.name}</h2>
-              <span className="clinic-detail__status" data-status={clinic.status}>
-                {STATUS_LABELS[clinic.status]}
-              </span>
+              <ClinicStatusBadge status={clinic.status} />
             </div>
           </div>
           {canManage && (
@@ -131,9 +123,7 @@ export function ClinicDetail({
               <dd>{displayValue(clinic.addressNeighborhood)}</dd>
               <dt>Cidade / UF</dt>
               <dd>
-                {clinic.addressCity
-                  ? `${clinic.addressCity} / ${clinic.addressState ?? '—'}`
-                  : '—'}
+                {clinic.addressCity ? `${clinic.addressCity} / ${clinic.addressState ?? '—'}` : '—'}
               </dd>
               <dt>Complemento</dt>
               <dd>{displayValue(clinic.addressComplement)}</dd>

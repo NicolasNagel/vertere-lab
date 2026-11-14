@@ -2,14 +2,8 @@ import { SearchIcon } from '../../../shared/ui/icons'
 import { Pagination } from '../../../shared/ui/pagination'
 import { formatTaxId, pluralize } from '../../../shared/lib/formatters'
 import type { Clinic } from '../api/clinics-api'
+import { ClinicStatusBadge } from './clinic-status-badge'
 import './clinic-list.css'
-
-const STATUS_LABELS: Record<Clinic['status'], string> = {
-  ACTIVE: 'Ativo',
-  INACTIVE: 'Inativo',
-  DELINQUENT: 'Negativado',
-  SPECIAL: 'Especial',
-}
 
 interface ClinicListProps {
   clinics: Clinic[]
@@ -70,9 +64,7 @@ export function ClinicList({
           >
             <div className="clinic-list__row-header">
               <span className="clinic-list__row-name">{clinic.name}</span>
-              <span className="clinic-list__row-status" data-status={clinic.status}>
-                {STATUS_LABELS[clinic.status]}
-              </span>
+              <ClinicStatusBadge status={clinic.status} />
             </div>
             {(clinic.addressStreet || clinic.addressCity) && (
               <div className="clinic-list__row-address">

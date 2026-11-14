@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react'
 import { useAuth } from '../../auth/auth-context'
 import { Button } from '../../../shared/ui/button'
 import { PlusIcon } from '../../../shared/ui/icons'
+import { PageHeader } from '../../../shared/ui/page-header'
 import { useClinicQuery } from '../api/use-clinic-query'
 import { useClinicsQuery } from '../api/use-clinics-query'
 import { useCreateClinicMutation } from '../api/use-create-clinic-mutation'
@@ -56,17 +57,16 @@ export function ClinicsPage() {
 
   return (
     <div className="clinics-page">
-      <div className="clinics-page__header">
-        <div>
-          <div className="clinics-page__eyebrow">Cadastros</div>
-          <h1 className="clinics-page__title">Clínicas parceiras</h1>
-        </div>
-        {canManage && (
-          <Button type="button" className="clinics-page__new-button" onClick={handleStartCreate}>
-            <PlusIcon /> Nova clínica
-          </Button>
-        )}
-      </div>
+      <PageHeader
+        title="Clínicas parceiras"
+        actions={
+          canManage && (
+            <Button type="button" onClick={handleStartCreate}>
+              <PlusIcon /> Nova clínica
+            </Button>
+          )
+        }
+      />
 
       <div className="clinics-page__body" data-mode={mode}>
         <ClinicList

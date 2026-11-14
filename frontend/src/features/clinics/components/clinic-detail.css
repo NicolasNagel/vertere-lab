@@ -1,112 +1,80 @@
 .clinic-detail {
   flex: 1;
-  padding: 1.75rem 2.25rem; /* 28px 36px */
-  overflow-y: auto;
+  min-width: 0;
   min-height: 0;
-}
-
-.clinic-detail__content {
-  max-width: 51.6875rem; /* 827px — largura de conteúdo da tela de referência */
+  padding: 1.25rem 1.5rem;
+  overflow-y: auto;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
 }
 
 .clinic-detail__empty {
-  color: var(--color-text-secondary);
+  margin: 0;
   font-size: 0.875rem;
+  color: var(--color-text-secondary);
 }
 
 .clinic-detail__header {
   display: flex;
   justify-content: space-between;
   align-items: flex-start;
-  margin-bottom: 1.5rem; /* 24px */
+  gap: 0.75rem;
+  margin-bottom: 1rem;
 }
 
 .clinic-detail__title-row {
   display: flex;
   align-items: center;
-  gap: 0.75rem; /* 12px */
+  flex-wrap: wrap;
+  gap: 0.625rem;
 }
 
 .clinic-detail__title {
-  font-family: var(--font-display);
-  text-transform: uppercase;
-  letter-spacing: 0.02em;
-  font-size: 2rem; /* 32px */
-  font-weight: 600;
-  color: var(--color-brand-ink-deep);
   margin: 0;
-}
-
-.clinic-detail__status {
-  font-size: 0.6875rem;
-  padding: 0.1875rem 0.625rem;
-  font-weight: 600;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  background: var(--color-success-bg);
-  color: var(--color-success);
-}
-
-.clinic-detail__status[data-status='INACTIVE'] {
-  background: #ece9e2;
-  color: var(--color-text-secondary);
-}
-
-.clinic-detail__status[data-status='DELINQUENT'] {
-  background: #f1ece0;
-  color: var(--color-warning);
-}
-
-.clinic-detail__status[data-status='SPECIAL'] {
-  background: var(--color-info-bg);
-  color: var(--color-brand-ink);
+  font-size: 1.125rem;
+  font-weight: 650;
+  color: var(--color-text-primary);
 }
 
 .clinic-detail__actions {
   display: flex;
-  gap: 0.5rem; /* 8px */
-}
-
-.clinic-detail__edit {
-  padding: 0.5625rem 0.875rem; /* 9px 14px */
-  border: 1px solid var(--color-border);
-  background: var(--color-surface);
-  color: var(--color-brand-ink-deep);
-  font-size: 0.75rem;
-  text-transform: none;
-  letter-spacing: normal;
-  font-weight: 400;
-  text-decoration: none;
+  gap: 0.5rem;
 }
 
 .clinic-detail__cards {
   display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 0.875rem; /* 14px */
-  margin-bottom: 1.125rem; /* 18px */
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.75rem;
+  margin-bottom: 0.75rem;
+}
+
+.clinic-detail__card,
+.clinic-detail__vets {
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
 }
 
 .clinic-detail__card {
-  background: var(--color-surface);
-  border: 1px solid var(--color-border);
-  padding: 1rem 1.125rem; /* 16px 18px */
+  padding: 0.875rem 1rem;
 }
 
 .clinic-detail__card-title {
-  font-family: var(--font-mono);
-  font-size: 0.625rem; /* 10px */
-  letter-spacing: 0.12em;
+  margin-bottom: 0.625rem;
+  font-size: 0.6875rem;
+  font-weight: 650;
+  letter-spacing: 0.06em;
   text-transform: uppercase;
   color: var(--color-text-secondary);
-  margin-bottom: 0.75rem; /* 12px */
 }
 
 .clinic-detail__fields {
   display: grid;
-  grid-template-columns: auto 1fr;
-  gap: 0.5rem 1rem; /* 8px 16px */
-  font-size: 0.8125rem;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 0.5rem 1rem;
   margin: 0;
+  font-size: 0.8125rem;
 }
 
 .clinic-detail__fields dt {
@@ -115,6 +83,7 @@
 
 .clinic-detail__fields dd {
   margin: 0;
+  overflow-wrap: anywhere;
   color: var(--color-text-primary);
 }
 
@@ -122,35 +91,27 @@
   font-family: var(--font-mono);
 }
 
-.clinic-detail__vets {
-  background: var(--color-surface);
-  border: 1px solid var(--color-border);
-}
-
 .clinic-detail__vets-header {
-  padding: 0.875rem 1.125rem; /* 14px 18px */
-  border-bottom: 1px solid var(--color-surface-muted);
   display: flex;
   justify-content: space-between;
   align-items: center;
+  padding: 0.625rem 1rem;
+  border-bottom: 1px solid var(--color-border);
 }
 
 .clinic-detail__vets-header span {
-  font-family: var(--font-display);
-  text-transform: uppercase;
-  letter-spacing: 0.02em;
-  font-size: 1.0625rem;
-  font-weight: 600;
-  color: var(--color-brand-ink-deep);
+  font-size: 0.875rem;
+  font-weight: 650;
+  color: var(--color-text-primary);
 }
 
 .clinic-detail__link-vet {
+  padding: 0;
   border: none;
   background: none;
-  padding: 0;
-  font-family: inherit;
-  font-size: 0.6875rem;
-  color: var(--color-brand-ink);
+  font: inherit;
+  font-size: 0.75rem;
+  color: var(--color-brand-ink-deep);
   text-decoration: underline;
   cursor: pointer;
 }
@@ -162,55 +123,51 @@
 }
 
 .clinic-detail__vets-empty {
-  padding: 1.125rem;
   margin: 0;
+  padding: 1rem;
   font-size: 0.8125rem;
   color: var(--color-text-secondary);
 }
 
 .clinic-detail__vets-list {
-  list-style: none;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   margin: 0;
   padding: 0;
-  display: grid;
-  grid-template-columns: repeat(2, 1fr);
+  list-style: none;
 }
 
-/* Borders (not `gap` + parent background) draw the dividers between rows/columns —
-   with an odd number of veterinarians the last grid cell has no <li> in it, and a
-   gap-revealed background would show as a stray patch there instead of blending in. */
+/* Bordas (e não `gap` + fundo do pai) desenham os divisores: com número ímpar de veterinários
+   a última célula fica vazia e um fundo revelado pelo gap apareceria como mancha. */
 .clinic-detail__vets-row {
   display: flex;
   align-items: center;
-  gap: 0.75rem; /* 12px */
-  padding: 0.75rem 1.125rem; /* 12px 18px */
-  background: var(--color-surface);
+  gap: 0.75rem;
+  padding: 0.5rem 1rem;
   font-size: 0.8125rem;
-  border-bottom: 1px solid var(--color-surface-muted);
+  border-bottom: 1px solid #edf0f4;
 }
 
 .clinic-detail__vets-row:nth-child(odd) {
-  border-right: 1px solid var(--color-surface-muted);
+  border-right: 1px solid #edf0f4;
 }
 
-/* A lone odd item in the final row (odd total veterinarians) has nothing beside
-   it, so no divider to its right. */
 .clinic-detail__vets-row:nth-child(odd):last-child {
   border-right: none;
 }
 
 .clinic-detail__vets-avatar {
-  width: 2rem; /* 32px */
-  height: 2rem;
   flex: 0 0 auto;
-  border-radius: 50%;
   display: flex;
   align-items: center;
   justify-content: center;
+  width: 1.75rem;
+  height: 1.75rem;
+  border-radius: 50%;
   background: var(--color-info-bg);
   color: var(--color-brand-ink);
-  font-weight: 600;
   font-size: 0.6875rem;
+  font-weight: 600;
 }
 
 .clinic-detail__vets-info {
@@ -224,21 +181,35 @@
   align-items: center;
   gap: 0.5rem;
   font-weight: 600;
-  color: var(--color-brand-ink-deep);
+  color: var(--color-text-primary);
 }
 
 .clinic-detail__vets-crmv {
+  margin-top: 0.125rem;
   font-size: 0.6875rem;
   color: var(--color-text-secondary);
-  margin-top: 0.125rem;
 }
 
 .clinic-detail__vets-primary {
-  font-size: 0.625rem;
   padding: 0.125rem 0.4375rem;
+  border-radius: 99px;
+  font-size: 0.625rem;
   font-weight: 600;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
   background: var(--color-info-bg);
   color: var(--color-brand-ink);
+}
+
+@media (max-width: 48rem) {
+  .clinic-detail {
+    padding: 1rem;
+  }
+
+  .clinic-detail__cards,
+  .clinic-detail__vets-list {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .clinic-detail__vets-row:nth-child(odd) {
+    border-right: none;
+  }
 }
