@@ -3,6 +3,7 @@ import { Link } from 'react-router'
 
 import { ApiError } from '../../../shared/api/errors'
 import { useDebouncedValue } from '../../../shared/lib/use-debounced-value'
+import { PageHeader } from '../../../shared/ui/page-header'
 import { PlusIcon, SearchIcon } from '../../../shared/ui/icons'
 import type { SelectOption } from '../../../shared/ui/select'
 import { useAuth } from '../../auth/auth-context'
@@ -112,32 +113,31 @@ export function AttendanceListPage() {
 
   return (
     <div className="attendance-list-page">
-      <div className="attendance-list-page__header">
-        <div>
-          <div className="attendance-list-page__eyebrow">Operação</div>
-          <h1 className="attendance-list-page__title">Registro de Atendimentos</h1>
-        </div>
-        {canRead && (
-          <div className="attendance-list-page__header-actions">
-            <label className="attendance-list-page__search">
-              <SearchIcon />
-              <input
-                value={protocolNumber}
-                maxLength={32}
-                placeholder="Buscar protocolo..."
-                onChange={(event) =>
-                  handleFilterChange(() => setProtocolNumber(event.target.value))
-                }
-              />
-            </label>
-            {canCreate && (
-              <Link to="/operacao/novo" className="button button--primary">
-                <PlusIcon /> Novo protocolo
-              </Link>
-            )}
-          </div>
-        )}
-      </div>
+      <PageHeader
+        title="Registro de Atendimentos"
+        actions={
+          canRead && (
+            <>
+              <label className="attendance-list-page__search">
+                <SearchIcon />
+                <input
+                  value={protocolNumber}
+                  maxLength={32}
+                  placeholder="Buscar protocolo..."
+                  onChange={(event) =>
+                    handleFilterChange(() => setProtocolNumber(event.target.value))
+                  }
+                />
+              </label>
+              {canCreate && (
+                <Link to="/operacao/novo" className="button button--primary">
+                  <PlusIcon /> Novo protocolo
+                </Link>
+              )}
+            </>
+          )
+        }
+      />
 
       {!canRead ? (
         <p className="attendance-list-page__forbidden">

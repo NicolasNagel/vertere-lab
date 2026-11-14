@@ -5,6 +5,7 @@ import { useAttendanceStatusCountsQuery } from '../features/attendances/api/use-
 import { AttendanceStatusBadge } from '../features/attendances/components/attendance-status-badge'
 import { AttendanceSummaryCards } from '../features/attendances/components/attendance-summary-cards'
 import { useAuth } from '../features/auth/auth-context'
+import { PageHeader } from '../shared/ui/page-header'
 import { PlusIcon } from '../shared/ui/icons'
 import { greetingFor } from './greeting'
 import '../shared/ui/button.css'
@@ -56,19 +57,17 @@ export function HomePage() {
 
   return (
     <div className="dashboard-page">
-      <header className="dashboard-page__header">
-        <div>
-          <div className="dashboard-page__date">{dateFormatter.format(today)}</div>
-          <h1 className="dashboard-page__title">
-            {greetingFor(today)}, {firstName}.
-          </h1>
-        </div>
-        {user?.permissions.includes('attendances.create') && (
-          <Link className="button button--primary dashboard-page__new" to="/operacao/novo">
-            <PlusIcon /> Novo protocolo
-          </Link>
-        )}
-      </header>
+      <PageHeader
+        subtitle={<span className="dashboard-page__date">{dateFormatter.format(today)}</span>}
+        title={`${greetingFor(today)}, ${firstName}.`}
+        actions={
+          user?.permissions.includes('attendances.create') && (
+            <Link className="button button--primary" to="/operacao/novo">
+              <PlusIcon /> Novo protocolo
+            </Link>
+          )
+        }
+      />
 
       <AttendanceSummaryCards counts={countsQuery.data} scopeLabel="de hoje" />
 

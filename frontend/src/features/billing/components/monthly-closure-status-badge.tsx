@@ -1,9 +1,9 @@
+import { Badge, type BadgeTone } from '../../../shared/ui/badge'
 import type { MonthlyClosureStatus } from '../api/closures-api'
-import './monthly-closure-status-badge.css'
 
-const STATUS_LABELS: Record<MonthlyClosureStatus, string> = {
-  CLOSED: 'Fechado',
-  REOPENED: 'Reaberto',
+const STATUS_BADGE: Record<MonthlyClosureStatus, { label: string; tone: BadgeTone }> = {
+  CLOSED: { label: 'Fechado', tone: 'success' },
+  REOPENED: { label: 'Reaberto', tone: 'warning' },
 }
 
 interface MonthlyClosureStatusBadgeProps {
@@ -11,10 +11,10 @@ interface MonthlyClosureStatusBadgeProps {
 }
 
 export function MonthlyClosureStatusBadge({ status }: MonthlyClosureStatusBadgeProps) {
+  const { label, tone } = STATUS_BADGE[status]
   return (
-    <span className="monthly-closure-status-badge" data-status={status}>
-      <span className="monthly-closure-status-badge__dot" />
-      {STATUS_LABELS[status]}
-    </span>
+    <Badge tone={tone} data-status={status}>
+      {label}
+    </Badge>
   )
 }

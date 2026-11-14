@@ -4,38 +4,14 @@
   padding-bottom: 1.25rem;
 }
 
-.dashboard-page__header {
-  padding: 1.25rem 1.25rem 0;
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-end;
-  gap: 0.75rem;
-  flex-wrap: wrap;
-}
-
 .dashboard-page__date {
+  display: block;
   font-size: 0.75rem;
   color: var(--color-text-secondary);
 }
 
 .dashboard-page__date::first-letter {
   text-transform: uppercase;
-}
-
-.dashboard-page__title {
-  margin: 0.125rem 0 0;
-  font-size: 1.25rem;
-  font-weight: 650;
-  letter-spacing: -0.01em;
-  color: var(--color-text-primary);
-}
-
-.dashboard-page__new {
-  width: auto;
-  display: inline-flex;
-  align-items: center;
-  gap: 0.5rem;
-  white-space: nowrap;
 }
 
 .dashboard-page__grid {

@@ -1,4 +1,4 @@
-.attendance-status-badge {
+.badge {
   display: inline-flex;
   align-items: center;
   gap: 0.375rem;
@@ -6,11 +6,12 @@
   border-radius: 99px;
   font-weight: 600;
   font-size: 0.6875rem;
-  color: #55626f;
+  white-space: nowrap;
+  color: var(--color-text-secondary);
   background: var(--color-surface-muted);
 }
 
-.attendance-status-badge__dot {
+.badge__dot {
   width: 0.375rem;
   height: 0.375rem;
   border-radius: 50%;
@@ -18,23 +19,22 @@
   flex-shrink: 0;
 }
 
-.attendance-status-badge[data-status='CONFIRMED'] {
-  color: var(--color-success);
-  background: var(--color-success-bg);
-}
-
-.attendance-status-badge[data-status='IN_PROGRESS'],
-.attendance-status-badge[data-status='ON_HOLD'] {
-  color: var(--color-warning);
-  background: #fdf0dc;
-}
-
-.attendance-status-badge[data-status='COMPLETED'] {
+.badge[data-tone='info'] {
   color: var(--color-brand-ink);
   background: var(--color-info-bg);
 }
 
-.attendance-status-badge[data-status='CANCELLED'] {
+.badge[data-tone='success'] {
+  color: var(--color-success);
+  background: var(--color-success-bg);
+}
+
+.badge[data-tone='warning'] {
+  color: var(--color-warning);
+  background: #fdf0dc;
+}
+
+.badge[data-tone='danger'] {
   color: var(--color-danger);
   background: var(--color-danger-bg);
 }
