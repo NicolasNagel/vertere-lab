@@ -8,9 +8,14 @@ export interface ClinicFeeRule {
   validFrom: string
   validTo: string | null
   isActive: boolean
+  /** Condições: vazio = qualquer exame / qualquer tipo de atendimento. */
+  examIds: string[]
+  attendanceTypes: FeeAttendanceType[]
   updatedAt: string
   rowVersion: number
 }
+
+export type FeeAttendanceType = 'ROTINA' | 'PLANTAO_NORMAL' | 'PLANTAO_ESPECIAL' | 'URGENTE'
 
 interface ApiClinicFeeRule {
   id: string
@@ -20,6 +25,8 @@ interface ApiClinicFeeRule {
   valid_from: string
   valid_to: string | null
   is_active: boolean
+  exam_ids: string[]
+  attendance_types: FeeAttendanceType[]
   updated_at: string
   row_version: number
 }
@@ -33,6 +40,8 @@ function fromApi(rule: ApiClinicFeeRule): ClinicFeeRule {
     validFrom: rule.valid_from,
     validTo: rule.valid_to,
     isActive: rule.is_active,
+    examIds: rule.exam_ids,
+    attendanceTypes: rule.attendance_types,
     updatedAt: rule.updated_at,
     rowVersion: rule.row_version,
   }
@@ -49,6 +58,8 @@ export interface ClinicFeeRuleValues {
   feeAmount: string
   validFrom: string
   validTo: string | null
+  examIds: string[]
+  attendanceTypes: FeeAttendanceType[]
   reason: string
 }
 
@@ -65,6 +76,8 @@ export async function createClinicFeeRule(
         fee_amount: input.feeAmount,
         valid_from: input.validFrom,
         valid_to: input.validTo,
+        exam_ids: input.examIds,
+        attendance_types: input.attendanceTypes,
         reason: input.reason,
       },
     }),
@@ -73,7 +86,10 @@ export async function createClinicFeeRule(
 
 export async function updateClinicFeeRule(
   id: string,
-  input: ClinicFeeRuleValues & { isActive: boolean; expectedRowVersion: number },
+  input: ClinicFeeRuleValues & {
+    isActive: boolean
+    expectedRowVersion: number
+  },
 ): Promise<ClinicFeeRule> {
   return fromApi(
     await apiRequest<ApiClinicFeeRule>(`/clinic-fee-rules/${id}`, {
@@ -84,6 +100,8 @@ export async function updateClinicFeeRule(
         valid_from: input.validFrom,
         valid_to: input.validTo,
         is_active: input.isActive,
+        exam_ids: input.examIds,
+        attendance_types: input.attendanceTypes,
         reason: input.reason,
         expected_row_version: input.expectedRowVersion,
       },

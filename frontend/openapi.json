@@ -6551,6 +6551,29 @@
             ],
             "title": "Valid To"
           },
+          "exam_ids": {
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "type": "array",
+            "maxItems": 50,
+            "title": "Exam Ids"
+          },
+          "attendance_types": {
+            "items": {
+              "type": "string",
+              "enum": [
+                "ROTINA",
+                "PLANTAO_NORMAL",
+                "PLANTAO_ESPECIAL",
+                "URGENTE"
+              ]
+            },
+            "type": "array",
+            "maxItems": 4,
+            "title": "Attendance Types"
+          },
           "reason": {
             "type": "string",
             "maxLength": 500,
@@ -6627,6 +6650,27 @@
             "type": "boolean",
             "title": "Is Active"
           },
+          "exam_ids": {
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "type": "array",
+            "title": "Exam Ids"
+          },
+          "attendance_types": {
+            "items": {
+              "type": "string",
+              "enum": [
+                "ROTINA",
+                "PLANTAO_NORMAL",
+                "PLANTAO_ESPECIAL",
+                "URGENTE"
+              ]
+            },
+            "type": "array",
+            "title": "Attendance Types"
+          },
           "updated_at": {
             "type": "string",
             "format": "date-time",
@@ -6646,6 +6690,8 @@
           "valid_from",
           "valid_to",
           "is_active",
+          "exam_ids",
+          "attendance_types",
           "updated_at",
           "row_version"
         ],
@@ -6692,6 +6738,29 @@
           "is_active": {
             "type": "boolean",
             "title": "Is Active"
+          },
+          "exam_ids": {
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "type": "array",
+            "maxItems": 50,
+            "title": "Exam Ids"
+          },
+          "attendance_types": {
+            "items": {
+              "type": "string",
+              "enum": [
+                "ROTINA",
+                "PLANTAO_NORMAL",
+                "PLANTAO_ESPECIAL",
+                "URGENTE"
+              ]
+            },
+            "type": "array",
+            "maxItems": 4,
+            "title": "Attendance Types"
           },
           "reason": {
             "type": "string",
@@ -9864,41 +9933,6 @@
             "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
             "title": "Fee Amount"
           },
-          "schedule_label": {
-            "type": "string",
-            "title": "Schedule Label"
-          },
-          "weekdays": {
-            "items": {
-              "type": "integer"
-            },
-            "type": "array",
-            "title": "Weekdays"
-          },
-          "start_time": {
-            "anyOf": [
-              {
-                "type": "string",
-                "format": "time"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Start Time"
-          },
-          "end_time": {
-            "anyOf": [
-              {
-                "type": "string",
-                "format": "time"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "End Time"
-          },
           "updated_at": {
             "type": "string",
             "format": "date-time",
@@ -9913,10 +9947,6 @@
         "required": [
           "id",
           "fee_amount",
-          "schedule_label",
-          "weekdays",
-          "start_time",
-          "end_time",
           "updated_at",
           "row_version"
         ],
@@ -9936,40 +9966,6 @@
               }
             ],
             "title": "Fee Amount"
-          },
-          "weekdays": {
-            "items": {
-              "type": "integer",
-              "maximum": 6.0,
-              "minimum": 0.0
-            },
-            "type": "array",
-            "maxItems": 7,
-            "title": "Weekdays"
-          },
-          "start_time": {
-            "anyOf": [
-              {
-                "type": "string",
-                "format": "time"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Start Time"
-          },
-          "end_time": {
-            "anyOf": [
-              {
-                "type": "string",
-                "format": "time"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "End Time"
           },
           "reason": {
             "type": "string",

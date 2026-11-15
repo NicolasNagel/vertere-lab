@@ -231,6 +231,8 @@ export type ClinicFeeRuleCreateRequest = {
   "fee_amount": number | string
   "valid_from": string
   "valid_to"?: string | null
+  "exam_ids"?: Array<string>
+  "attendance_types"?: Array<"ROTINA" | "PLANTAO_NORMAL" | "PLANTAO_ESPECIAL" | "URGENTE">
   "reason": string
 }
 
@@ -246,6 +248,8 @@ export type ClinicFeeRuleRead = {
   "valid_from": string
   "valid_to": string | null
   "is_active": boolean
+  "exam_ids": Array<string>
+  "attendance_types": Array<"ROTINA" | "PLANTAO_NORMAL" | "PLANTAO_ESPECIAL" | "URGENTE">
   "updated_at": string
   "row_version": number
 }
@@ -256,6 +260,8 @@ export type ClinicFeeRuleUpdateRequest = {
   "valid_from": string
   "valid_to"?: string | null
   "is_active": boolean
+  "exam_ids"?: Array<string>
+  "attendance_types"?: Array<"ROTINA" | "PLANTAO_NORMAL" | "PLANTAO_ESPECIAL" | "URGENTE">
   "reason": string
   "expected_row_version": number
 }
@@ -799,19 +805,12 @@ export type UpdateUserAccessRequest = {
 export type UrgencyFeeSettingRead = {
   "id": string
   "fee_amount": string
-  "schedule_label": string
-  "weekdays": Array<number>
-  "start_time": string | null
-  "end_time": string | null
   "updated_at": string
   "row_version": number
 }
 
 export type UrgencyFeeSettingUpdateRequest = {
   "fee_amount": number | string
-  "weekdays"?: Array<number>
-  "start_time"?: string | null
-  "end_time"?: string | null
   "reason": string
   "expected_row_version": number
 }

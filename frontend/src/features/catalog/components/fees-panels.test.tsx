@@ -34,10 +34,6 @@ function meHandler(permissions: string[]) {
 const urgency = {
   id: 'u',
   fee_amount: '30.00',
-  schedule_label: '',
-  weekdays: [],
-  start_time: null,
-  end_time: null,
   updated_at: '2026-01-01T00:00:00Z',
   row_version: 3,
 }
@@ -50,8 +46,25 @@ const rule = {
   valid_from: '2026-01-01',
   valid_to: null,
   is_active: true,
+  exam_ids: [],
+  attendance_types: [],
   updated_at: '2026-01-01T00:00:00Z',
   row_version: 1,
+}
+
+const hemograma = {
+  id: 'e1',
+  code: 'HEM001',
+  name: 'Hemograma completo',
+  category_id: 'cat1',
+  description: null,
+  species_ids: [],
+  status: 'ACTIVE',
+  row_version: 1,
+  is_panel: false,
+  component_exam_ids: [],
+  price_base: '85.00',
+  updated_at: '2026-06-01T00:00:00Z',
 }
 
 function clinicsHandler() {
@@ -76,7 +89,7 @@ function clinicsHandler() {
 function pageHandlers() {
   return [
     http.get('/api/v1/exams', () =>
-      HttpResponse.json({ items: [], total: 0, page: 1, page_size: 25 }),
+      HttpResponse.json({ items: [hemograma], total: 1, page: 1, page_size: 100 }),
     ),
     http.get('/api/v1/species', () => HttpResponse.json({ items: [] })),
     http.get('/api/v1/exam-categories/active', () => HttpResponse.json({ items: [] })),
@@ -129,9 +142,6 @@ test('urgency register shows the fixed value and saves with reason and row versi
   await waitFor(() => expect(body).not.toBeNull())
   expect(body).toEqual({
     fee_amount: '40.00',
-    weekdays: [],
-    start_time: null,
-    end_time: null,
     reason: 'Reajuste',
     expected_row_version: 3,
   })
@@ -178,8 +188,94 @@ test('clinic register lists rules and creates one with validity and reason', asy
     fee_amount: '7.50',
     valid_from: '2026-02-01',
     valid_to: null,
+    exam_ids: [],
+    attendance_types: [],
     reason: 'Contrato novo',
   })
+})
+
+test('urgency register has no days or hours, only the fixed value', async () => {
+  const user = userEvent.setup()
+  server.use(
+    ...pageHandlers(),
+    meHandler(['pricing.read', 'pricing.manage']),
+    http.get('/api/v1/on-call-fee-settings', () => HttpResponse.json({ items: [] })),
+    http.get('/api/v1/urgency-fee-setting', () => HttpResponse.json(urgency)),
+  )
+  renderTab()
+
+  await user.click(await screen.findByRole('tab', { name: 'Urgência' }))
+  await screen.findByText('R$ 30,00')
+  expect(screen.queryByRole('columnheader', { name: /dias/i })).not.toBeInTheDocument()
+  expect(screen.queryByRole('columnheader', { name: /horário/i })).not.toBeInTheDocument()
+  await user.click(screen.getByRole('button', { name: 'Ações para Urgência' }))
+  await user.click(screen.getByRole('menuitem', { name: 'Editar taxa' }))
+  expect(screen.queryByText('Dias da semana')).not.toBeInTheDocument()
+  expect(screen.queryByLabelText('Horário de início')).not.toBeInTheDocument()
+})
+
+test('a clinic rule is created with exam and attendance-type conditions', async () => {
+  const user = userEvent.setup()
+  let created: unknown = null
+  server.use(
+    ...pageHandlers(),
+    meHandler(['pricing.read', 'pricing.manage']),
+    http.get('/api/v1/on-call-fee-settings', () => HttpResponse.json({ items: [] })),
+    clinicsHandler(),
+    http.get('/api/v1/clinic-fee-rules', () => HttpResponse.json({ items: [rule] })),
+    http.post('/api/v1/clinic-fee-rules', async ({ request }) => {
+      created = await request.json()
+      return HttpResponse.json({ ...rule, id: 'r3' })
+    }),
+  )
+  renderTab()
+
+  await user.click(await screen.findByRole('tab', { name: 'Por clínica' }))
+  await user.click(await screen.findByRole('button', { name: /nova taxa/i }))
+  const dialog = await screen.findByRole('dialog')
+  await pickOption(user, 'Clínica', 'Clínica Alfa', dialog)
+  await user.type(screen.getByLabelText('Nome da taxa'), 'Urgente com hemograma')
+  await user.type(screen.getByLabelText('Valor (R$)'), '9')
+  await user.type(screen.getByLabelText('Vale a partir de'), '2026-02-01')
+  await user.click(within(dialog).getByRole('button', { name: 'Urgente' }))
+  await user.click(within(dialog).getByRole('button', { name: 'Plantão normal' }))
+  await pickOption(user, 'Adicionar exame', 'Hemograma completo', dialog)
+  expect(within(dialog).getByRole('button', { name: 'Remover Hemograma completo' })).toBeVisible()
+  await user.type(screen.getByLabelText('Motivo da alteração'), 'Acordo')
+  await user.click(screen.getByRole('button', { name: 'Salvar' }))
+  await waitFor(() => expect(created).not.toBeNull())
+  expect(created).toMatchObject({
+    exam_ids: ['e1'],
+    attendance_types: ['URGENTE', 'PLANTAO_NORMAL'],
+    fee_amount: '9.00',
+  })
+})
+
+test('the clinic rule row and popover show the conditions in short form', async () => {
+  const user = userEvent.setup()
+  server.use(
+    ...pageHandlers(),
+    meHandler(['pricing.read', 'pricing.manage']),
+    http.get('/api/v1/on-call-fee-settings', () => HttpResponse.json({ items: [] })),
+    clinicsHandler(),
+    http.get('/api/v1/clinic-fee-rules', () =>
+      HttpResponse.json({
+        items: [
+          { ...rule, exam_ids: ['e1'], attendance_types: ['URGENTE', 'PLANTAO_NORMAL'] },
+          { ...rule, id: 'r9', name: 'Taxa geral' },
+        ],
+      }),
+    ),
+  )
+  renderTab()
+
+  await user.click(await screen.findByRole('tab', { name: 'Por clínica' }))
+  expect(await screen.findByText('Hemograma completo · Urgente ou Plantão normal')).toBeVisible()
+  expect(screen.getByText('Todos os atendimentos')).toBeVisible()
+  await user.click(screen.getByRole('button', { name: 'Taxa de coleta' }))
+  const summary = within(await screen.findByRole('dialog'))
+  expect(summary.getByText('Condições')).toBeVisible()
+  expect(summary.getByText('Hemograma completo · Urgente ou Plantão normal')).toBeVisible()
 })
 
 test('without pricing.manage the registers are read-only', async () => {

@@ -7,15 +7,18 @@ import { KebabMenu, type KebabMenuItem } from '../../../shared/ui/kebab-menu'
 import { Dropdown } from '../../../shared/ui/dropdown'
 import { TextField } from '../../../shared/ui/text-field'
 import { useAuth } from '../../auth/auth-context'
-import type { ClinicFeeRule } from '../../attendances/api/clinic-fee-rules-api'
+import type { ClinicFeeRule, FeeAttendanceType } from '../../attendances/api/clinic-fee-rules-api'
 import {
   useClinicFeeRulesQuery,
   useCreateClinicFeeRuleMutation,
   useUpdateClinicFeeRuleMutation,
 } from '../../attendances/api/use-clinic-fee-rules'
 import { useAllClinicsQuery } from '../../clinics/api/use-clinics-query'
+import { useExamsQuery } from '../api/use-exams-query'
+import { FeeConditionFields } from './fee-condition-fields'
 import { FeeDialog } from './fee-dialog'
 import { FeeRowPopover } from './fee-row-popover'
+import { conditionsSummary } from '../lib/fee-conditions'
 import { normalizeMoney } from '../lib/normalize-money'
 import '../../attendances/components/attendance-list-table.css'
 import '../../attendances/components/attendance-list-page.css'
@@ -28,12 +31,13 @@ interface RuleFormProps {
   /** `null` = nova taxa. */
   rule: ClinicFeeRule | null
   clinics: { value: string; label: string }[]
+  exams: { value: string; label: string }[]
   /** Abre a edição já com "Taxa ativa" desmarcada (atalho do menu "Inativar taxa"). */
   startInactive?: boolean
   onClose: () => void
 }
 
-function RuleForm({ rule, clinics, startInactive = false, onClose }: RuleFormProps) {
+function RuleForm({ rule, clinics, exams, startInactive = false, onClose }: RuleFormProps) {
   const createMutation = useCreateClinicFeeRuleMutation()
   const updateMutation = useUpdateClinicFeeRuleMutation()
   const mutation = rule ? updateMutation : createMutation
@@ -42,6 +46,10 @@ function RuleForm({ rule, clinics, startInactive = false, onClose }: RuleFormPro
   const [amount, setAmount] = useState(rule?.feeAmount ?? '')
   const [validFrom, setValidFrom] = useState(rule?.validFrom ?? '')
   const [validTo, setValidTo] = useState(rule?.validTo ?? '')
+  const [examIds, setExamIds] = useState<string[]>(rule?.examIds ?? [])
+  const [attendanceTypes, setAttendanceTypes] = useState<FeeAttendanceType[]>(
+    rule?.attendanceTypes ?? [],
+  )
   const [isActive, setIsActive] = useState(startInactive ? false : (rule?.isActive ?? true))
   const [reason, setReason] = useState('')
   // Uma chave por diálogo aberto: clique duplo ou reenvio após falha de rede não cria duas taxas.
@@ -57,7 +65,9 @@ function RuleForm({ rule, clinics, startInactive = false, onClose }: RuleFormPro
     normalized !== rule.feeAmount ||
     validFrom !== rule.validFrom ||
     (validTo || null) !== rule.validTo ||
-    isActive !== rule.isActive
+    isActive !== rule.isActive ||
+    !sameSet(examIds, rule.examIds) ||
+    !sameSet(attendanceTypes, rule.attendanceTypes)
 
   function save() {
     if (!normalized) return
@@ -66,6 +76,8 @@ function RuleForm({ rule, clinics, startInactive = false, onClose }: RuleFormPro
       feeAmount: normalized,
       validFrom,
       validTo: validTo || null,
+      examIds,
+      attendanceTypes,
       reason: reason.trim(),
     }
     if (rule) {
@@ -85,7 +97,7 @@ function RuleForm({ rule, clinics, startInactive = false, onClose }: RuleFormPro
     <FeeDialog
       titleId="clinic-fee-dialog"
       title={rule ? 'Editar taxa da clínica' : 'Nova taxa da clínica'}
-      subtitle="Valor fixo somado ao total de cada atendimento da clínica"
+      subtitle="Valor fixo somado ao atendimento quando as condições forem atendidas"
       canSave={valid && changed}
       isPending={mutation.isPending}
       error={mutation.error}
@@ -139,6 +151,14 @@ function RuleForm({ rule, clinics, startInactive = false, onClose }: RuleFormPro
           onChange={(event) => setValidTo(event.target.value)}
         />
       </div>
+      <FeeConditionFields
+        idPrefix="clinic-fee"
+        exams={exams}
+        examIds={examIds}
+        attendanceTypes={attendanceTypes}
+        onExamIdsChange={setExamIds}
+        onAttendanceTypesChange={setAttendanceTypes}
+      />
       {rule && (
         <Checkbox
           label="Taxa ativa"
@@ -148,6 +168,10 @@ function RuleForm({ rule, clinics, startInactive = false, onClose }: RuleFormPro
       )}
     </FeeDialog>
   )
+}
+
+function sameSet(left: string[], right: string[]): boolean {
+  return left.length === right.length && left.every((item) => right.includes(item))
 }
 
 function validity(rule: ClinicFeeRule): string {
@@ -189,6 +213,12 @@ export function ClinicFeeRulesPanel({
     label: clinic.name,
   }))
   const clinicName = new Map(clinicOptions.map((option) => [option.value, option.label]))
+  const examsQuery = useExamsQuery({ pageSize: 100 })
+  const examOptions = (examsQuery.data?.items ?? []).map((exam) => ({
+    value: exam.id,
+    label: exam.name,
+  }))
+  const examName = new Map(examOptions.map((option) => [option.value, option.label]))
 
   if (!canRead) {
     return <p className="attendance-list-page__hint">Você não tem permissão para ver as taxas.</p>
@@ -216,6 +246,7 @@ export function ClinicFeeRulesPanel({
               <tr>
                 <th scope="col">Clínica</th>
                 <th scope="col">Taxa</th>
+                <th scope="col">Condições</th>
                 <th scope="col">Vigência</th>
                 <th scope="col" className="attendance-list-table__num">
                   Valor
@@ -248,7 +279,8 @@ export function ClinicFeeRulesPanel({
                       {rule.name}
                     </button>
                   </td>
-                  <td className="exam-table__muted">{validity(rule)}</td>
+                  <td className="exam-table__muted fees__wrap">{conditionsSummary(rule, examName)}</td>
+                  <td className="exam-table__muted fees__wrap">{validity(rule)}</td>
                   <td className="attendance-list-table__num attendance-list-table__value">
                     {formatCurrencyBRL(rule.feeAmount)}
                   </td>
@@ -289,6 +321,10 @@ export function ClinicFeeRulesPanel({
           }).filter((item) => item.destructive)}
           fields={[
             { label: 'Valor', value: formatCurrencyBRL(selected.feeAmount) },
+            {
+              label: 'Condições',
+              value: conditionsSummary(selected, examName),
+            },
             { label: 'Vigência', value: validity(selected) },
           ]}
           onEdit={() => {
@@ -299,12 +335,18 @@ export function ClinicFeeRulesPanel({
         />
       )}
       {creating && (
-        <RuleForm rule={null} clinics={clinicOptions} onClose={() => onCreatingChange(false)} />
+        <RuleForm
+          rule={null}
+          clinics={clinicOptions}
+          exams={examOptions}
+          onClose={() => onCreatingChange(false)}
+        />
       )}
       {editing && (
         <RuleForm
           rule={editing.rule}
           clinics={clinicOptions}
+          exams={examOptions}
           startInactive={editing.inactivate}
           onClose={() => setEditing(null)}
         />

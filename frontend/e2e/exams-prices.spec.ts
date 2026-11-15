@@ -75,10 +75,6 @@ async function mockApi(page: Page, permissions: string[]) {
         json({
           id: 'u',
           fee_amount: '30.00',
-          schedule_label: '',
-          weekdays: [],
-          start_time: null,
-          end_time: null,
           updated_at: '2026-01-01T00:00:00Z',
           row_version: 1,
         }),
@@ -104,6 +100,8 @@ async function mockApi(page: Page, permissions: string[]) {
               valid_from: '2026-01-01',
               valid_to: null,
               is_active: true,
+              exam_ids: ['e1'],
+              attendance_types: ['URGENTE'],
               updated_at: '2026-01-01T00:00:00Z',
               row_version: 1,
             },
@@ -192,12 +190,14 @@ test('fees tab and its three registers and dialogs are accessible', async ({ pag
   await expectAccessible(page)
   await page.getByRole('button', { name: 'Ações para Urgência' }).click()
   await page.getByRole('menuitem', { name: 'Editar taxa' }).click()
-  await expect(page.getByLabel('Horário de início')).toBeVisible()
+  await expect(page.getByLabel('Valor da taxa (R$)')).toBeVisible()
+  await expect(page.getByLabel('Horário de início')).toHaveCount(0)
   await expectAccessible(page)
   await page.keyboard.press('Escape')
 
   await page.getByRole('tab', { name: 'Por clínica' }).click()
   await expect(page.getByText('Taxa de coleta')).toBeVisible()
+  await expect(page.getByText(/ · Urgente$/)).toBeVisible()
   await expectAccessible(page)
   await page.getByRole('button', { name: 'Taxa de coleta', exact: true }).click()
   await expect(page.getByRole('dialog')).toBeVisible()
@@ -205,7 +205,16 @@ test('fees tab and its three registers and dialogs are accessible', async ({ pag
   await page.keyboard.press('Escape')
   await page.getByRole('button', { name: /nova taxa/i }).click()
   await expect(page.getByRole('dialog')).toBeVisible()
+  await page.getByRole('button', { name: 'Urgente', exact: true }).click()
+  await expect(page.getByRole('button', { name: 'Urgente', exact: true })).toHaveAttribute(
+    'aria-pressed',
+    'true',
+  )
   await expectAccessible(page)
+  await page.setViewportSize({ width: 390, height: 800 })
+  expect(
+    await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth),
+  ).toBe(true)
 })
 
 test('exam detail with edit blocks is accessible, also with a block open', async ({ page }) => {

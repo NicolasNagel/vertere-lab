@@ -2,7 +2,6 @@ import { useState } from 'react'
 
 import { formatCurrencyBRL } from '../../../shared/lib/formatters'
 import { KebabMenu } from '../../../shared/ui/kebab-menu'
-import { CalendarIcon, ClockIcon } from '../../../shared/ui/icons'
 import { TextField } from '../../../shared/ui/text-field'
 import { useAuth } from '../../auth/auth-context'
 import type { UrgencyFeeSetting } from '../../attendances/api/urgency-fee-api'
@@ -13,9 +12,6 @@ import {
 } from '../../attendances/api/use-urgency-fee-query'
 import { FeeDialog } from './fee-dialog'
 import { FeeRowPopover } from './fee-row-popover'
-import { FeeScheduleFields } from './fee-schedule-fields'
-import { ScheduleDays } from './schedule-days'
-import { hoursLabel, sameSchedule, scheduleError } from '../lib/fee-schedule'
 import { normalizeMoney } from '../lib/normalize-money'
 import '../../attendances/components/attendance-list-table.css'
 import '../../attendances/components/attendance-list-page.css'
@@ -25,11 +21,10 @@ import './fees.css'
 function EditForm({ setting, onClose }: { setting: UrgencyFeeSetting; onClose: () => void }) {
   const mutation = useUpdateUrgencyFeeMutation()
   const [amount, setAmount] = useState(setting.feeAmount)
-  const [schedule, setSchedule] = useState(setting.schedule)
   const [reason, setReason] = useState('')
   const normalized = normalizeMoney(amount)
-  const changed = normalized !== setting.feeAmount || !sameSchedule(schedule, setting.schedule)
-  const invalid = normalized === null || scheduleError(schedule) !== undefined
+  const changed = normalized !== setting.feeAmount
+  const invalid = normalized === null
 
   return (
     <FeeDialog
@@ -48,7 +43,6 @@ function EditForm({ setting, onClose }: { setting: UrgencyFeeSetting; onClose: (
         mutation.mutate(
           {
             feeAmount: normalized,
-            schedule,
             reason: reason.trim(),
             expectedRowVersion: setting.rowVersion,
           },
@@ -66,15 +60,9 @@ function EditForm({ setting, onClose }: { setting: UrgencyFeeSetting; onClose: (
           onChange={(event) => setAmount(event.target.value)}
         />
       </div>
-      {setting.scheduleLabel &&
-        setting.schedule.weekdays.length === 0 &&
-        !setting.schedule.startTime && (
-          <p className="fees__note">
-            Texto anterior: {setting.scheduleLabel}. Ao salvar, ele é substituído pelos campos
-            abaixo.
-          </p>
-        )}
-      <FeeScheduleFields idPrefix="urgency-fee" value={schedule} onChange={setSchedule} />
+      <p className="fees__note">
+        Valor fixo definido por você, somado a todo atendimento marcado como urgente.
+      </p>
     </FeeDialog>
   )
 }
@@ -112,16 +100,6 @@ export function UrgencyFeePanel() {
           <thead>
             <tr>
               <th scope="col">Taxa</th>
-              <th scope="col">
-                <span className="fees__th-icon">
-                  <CalendarIcon /> Dias
-                </span>
-              </th>
-              <th scope="col">
-                <span className="fees__th-icon">
-                  <ClockIcon /> Horário
-                </span>
-              </th>
               <th scope="col" className="attendance-list-table__num">
                 Valor
               </th>
@@ -148,10 +126,6 @@ export function UrgencyFeePanel() {
                   Urgência
                 </button>
               </td>
-              <td className="exam-table__muted">
-                <ScheduleDays setting={setting} />
-              </td>
-              <td className="exam-table__muted">{hoursLabel(setting.schedule) || '—'}</td>
               <td className="attendance-list-table__num attendance-list-table__value">
                 {formatCurrencyBRL(setting.feeAmount)}
               </td>
@@ -159,7 +133,12 @@ export function UrgencyFeePanel() {
                 {canManage && (
                   <KebabMenu
                     label="Ações para Urgência"
-                    items={[{ label: 'Editar taxa', onSelect: () => setEditing(true) }]}
+                    items={[
+                      {
+                        label: 'Editar taxa',
+                        onSelect: () => setEditing(true),
+                      },
+                    ]}
                   />
                 )}
               </td>
@@ -174,11 +153,7 @@ export function UrgencyFeePanel() {
           sub="Valor fixo por atendimento urgente"
           canManage={canManage}
           editLabel="Editar taxa"
-          fields={[
-            { label: 'Valor', value: formatCurrencyBRL(setting.feeAmount) },
-            { label: 'Dias', value: <ScheduleDays setting={setting} /> },
-            { label: 'Horário', value: hoursLabel(setting.schedule) || '—' },
-          ]}
+          fields={[{ label: 'Valor', value: formatCurrencyBRL(setting.feeAmount) }]}
           onEdit={() => {
             setEditing(true)
             setSelected(false)
