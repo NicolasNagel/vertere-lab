@@ -48,6 +48,9 @@ arredondamento centralizados em um único ponto do domínio.
 - Tudo é corrigível (cabeçalho e exames, em `CONFIRMED` e `CANCELLED`), sempre com motivo e diff no audit log; exame removido fica `CANCELLED` no histórico, exame incluído depois usa o preço vigente na data do atendimento. Desconto exige `attendances.override_price`.
 - Atendimento já em fechamento é editável, mas o snapshot do fechamento nunca muda: a diferença do `grand_total` vira `FinancialAdjustment` automático no próprio fechamento (`DEBIT` aumenta, `CREDIT` reduz o que a clínica deve). Mudar clínica ou data para fora do período reverte o valor inteiro no fechamento antigo e lança no fechamento fechado que cobrir o novo destino (ou solta o vínculo se não houver). Mesmo caso de uso, mesma auditoria — não existe atalho paralelo.
 
+## Valor financeiro e `pricing.read`
+Sem `pricing.read` a API devolve `null` em todo valor do atendimento (itens, totais, `billed_total`) e remove as chaves de valor dos estados do histórico; a tela esconder não basta. Quem não vê valor também não altera valor: desconto enviado é ignorado e o já gravado é mantido na correção de exames. Nome do autor no histórico só para escopo LAB/GLOBAL.
+
 ## Consultas
 Sempre paginadas; filtro por protocolo, clínica, veterinário, proprietário, paciente, status e
 data, com índice alinhado a esses filtros reais. Usuário de clínica é restrito ao próprio

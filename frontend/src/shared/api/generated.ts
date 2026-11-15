@@ -35,12 +35,12 @@ export type AttendanceExamRead = {
   "exam_id": string
   "exam_code": string
   "exam_name": string
-  "price_base": string
+  "price_base": string | null
   "components": Array<ExamComponentRead>
   "quantity": number
-  "discount_amount": string
-  "surcharge_amount": string
-  "total_amount": string
+  "discount_amount": string | null
+  "surcharge_amount": string | null
+  "total_amount": string | null
   "override_reason": string | null
   "status": "ACTIVE" | "CANCELLED"
 }
@@ -85,11 +85,11 @@ export type AttendancePreviewResponse = {
   "service_level": "NORMAL" | "PLANTAO_NORMAL" | "PLANTAO_ESPECIAL"
   "service_date": string
   "items": Array<AttendanceExamRead>
-  "subtotal": string
-  "discount_total": string
-  "surcharge_total": string
-  "on_call_fee": string
-  "grand_total": string
+  "subtotal": string | null
+  "discount_total": string | null
+  "surcharge_total": string | null
+  "on_call_fee": string | null
+  "grand_total": string | null
 }
 
 export type AttendanceRead = {
@@ -104,11 +104,11 @@ export type AttendanceRead = {
   "status": "DRAFT" | "CONFIRMED" | "IN_PROGRESS" | "COMPLETED" | "CANCELLED" | "ON_HOLD"
   "items": Array<AttendanceExamRead>
   "billing_competence": string | null
-  "subtotal": string
-  "discount_total": string
-  "surcharge_total": string
-  "on_call_fee": string
-  "grand_total": string
+  "subtotal": string | null
+  "discount_total": string | null
+  "surcharge_total": string | null
+  "on_call_fee": string | null
+  "grand_total": string | null
   "protocol_number": string | null
   "cancel_reason": string | null
   "created_at": string
@@ -121,7 +121,7 @@ export type AttendanceStatus = "DRAFT" | "CONFIRMED" | "IN_PROGRESS" | "COMPLETE
 export type AttendanceStatusCountsResponse = {
   "total": number
   "by_status": Record<string, unknown>
-  "billed_total": string
+  "billed_total": string | null
 }
 
 export type AttendanceTimelineEntryRead = {

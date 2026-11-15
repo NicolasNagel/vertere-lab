@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 from datetime import date
+from decimal import Decimal
 from typing import cast
 from uuid import UUID
 
@@ -121,24 +122,33 @@ from app.shared.infrastructure.uow import SqlAlchemyUnitOfWork
 router = APIRouter(prefix="/attendances", tags=["attendances"])
 
 
-def _attendance_exam_read(dto: AttendanceExamDTO) -> AttendanceExamRead:
+def _can_see_money(actor: ActorContext) -> bool:
+    # Valor financeiro só sai da API para quem tem `pricing.read`; a tela esconder não basta.
+    return "pricing.read" in actor.permissions
+
+
+def _money(value: Decimal, show_money: bool) -> Decimal | None:
+    return value if show_money else None
+
+
+def _attendance_exam_read(dto: AttendanceExamDTO, show_money: bool) -> AttendanceExamRead:
     return AttendanceExamRead(
         id=dto.id,
         exam_id=dto.exam_id,
         exam_code=dto.exam_code,
         exam_name=dto.exam_name,
-        price_base=dto.price_base,
+        price_base=_money(dto.price_base, show_money),
         components=[ExamComponentRead(code=code, name=name) for code, name in dto.components],
         quantity=dto.quantity,
-        discount_amount=dto.discount_amount,
-        surcharge_amount=dto.surcharge_amount,
-        total_amount=dto.total_amount,
+        discount_amount=_money(dto.discount_amount, show_money),
+        surcharge_amount=_money(dto.surcharge_amount, show_money),
+        total_amount=_money(dto.total_amount, show_money),
         override_reason=dto.override_reason,
         status=cast(AttendanceExamStatusLiteral, dto.status),
     )
 
 
-def _attendance_read(dto: AttendanceDTO) -> AttendanceRead:
+def _attendance_read(dto: AttendanceDTO, show_money: bool) -> AttendanceRead:
     return AttendanceRead(
         id=dto.id,
         clinic_id=dto.clinic_id,
@@ -149,13 +159,13 @@ def _attendance_read(dto: AttendanceDTO) -> AttendanceRead:
         service_date=dto.service_date,
         notes=dto.notes,
         status=cast(AttendanceStatusLiteral, dto.status),
-        items=[_attendance_exam_read(item) for item in dto.items],
+        items=[_attendance_exam_read(item, show_money) for item in dto.items],
         billing_competence=dto.billing_competence,
-        subtotal=dto.subtotal,
-        discount_total=dto.discount_total,
-        surcharge_total=dto.surcharge_total,
-        on_call_fee=dto.on_call_fee,
-        grand_total=dto.grand_total,
+        subtotal=_money(dto.subtotal, show_money),
+        discount_total=_money(dto.discount_total, show_money),
+        surcharge_total=_money(dto.surcharge_total, show_money),
+        on_call_fee=_money(dto.on_call_fee, show_money),
+        grand_total=_money(dto.grand_total, show_money),
         protocol_number=dto.protocol_number,
         cancel_reason=dto.cancel_reason,
         created_at=dto.created_at,
@@ -164,7 +174,9 @@ def _attendance_read(dto: AttendanceDTO) -> AttendanceRead:
     )
 
 
-def _attendance_preview_read(dto: AttendancePreviewDTO) -> AttendancePreviewResponse:
+def _attendance_preview_read(
+    dto: AttendancePreviewDTO, show_money: bool
+) -> AttendancePreviewResponse:
     return AttendancePreviewResponse(
         attendance_id=dto.attendance_id,
         clinic_id=dto.clinic_id,
@@ -173,12 +185,12 @@ def _attendance_preview_read(dto: AttendancePreviewDTO) -> AttendancePreviewResp
         collection_method=cast(CollectionMethodLiteral, dto.collection_method),
         service_level=cast(ServiceLevelLiteral, dto.service_level),
         service_date=dto.service_date,
-        items=[_attendance_exam_read(item) for item in dto.items],
-        subtotal=dto.subtotal,
-        discount_total=dto.discount_total,
-        surcharge_total=dto.surcharge_total,
-        on_call_fee=dto.on_call_fee,
-        grand_total=dto.grand_total,
+        items=[_attendance_exam_read(item, show_money) for item in dto.items],
+        subtotal=_money(dto.subtotal, show_money),
+        discount_total=_money(dto.discount_total, show_money),
+        surcharge_total=_money(dto.surcharge_total, show_money),
+        on_call_fee=_money(dto.on_call_fee, show_money),
+        grand_total=_money(dto.grand_total, show_money),
     )
 
 
@@ -216,7 +228,7 @@ def list_attendances(
         )
     )
     return AttendanceListResponse(
-        items=[_attendance_read(item) for item in result.items],
+        items=[_attendance_read(item, _can_see_money(current_user)) for item in result.items],
         total=result.total,
         page=result.page,
         page_size=result.page_size,
@@ -247,7 +259,10 @@ def get_attendance_status_counts(
         service_date_to=service_date_to,
     )
     counts = CountAttendancesByStatusUseCase(attendances=repository).execute(query)
-    billed_total = SumBilledTotalUseCase(attendances=repository).execute(query)
+    show_money = _can_see_money(current_user)
+    billed_total = (
+        SumBilledTotalUseCase(attendances=repository).execute(query) if show_money else None
+    )
     return AttendanceStatusCountsResponse(
         total=sum(counts.values()),
         by_status={status.value: count for status, count in counts.items()},
@@ -263,7 +278,7 @@ def get_attendance(
 ) -> AttendanceRead:
     use_case = GetAttendanceUseCase(attendances=SqlAlchemyAttendanceRepository(session))
     result = use_case.execute(GetAttendanceQuery(actor=current_user, attendance_id=attendance_id))
-    return _attendance_read(result)
+    return _attendance_read(result, _can_see_money(current_user))
 
 
 @router.get("/{attendance_id}/timeline", response_model=AttendanceTimelineResponse)
@@ -336,7 +351,7 @@ def update_attendance(
         ),
         clock=SystemClock(),
     )
-    return _attendance_read(result)
+    return _attendance_read(result, _can_see_money(current_user))
 
 
 @router.put("/{attendance_id}/items", response_model=AttendanceRead)
@@ -366,7 +381,7 @@ def update_attendance_items(
         ),
         clock=SystemClock(),
     )
-    return _attendance_read(result)
+    return _attendance_read(result, _can_see_money(current_user))
 
 
 @router.post("/drafts", response_model=AttendanceRead, status_code=201)
@@ -389,7 +404,7 @@ def create_attendance_draft(
         ),
         clock=SystemClock(),
     )
-    return _attendance_read(result)
+    return _attendance_read(result, _can_see_money(current_user))
 
 
 @router.post("/{attendance_id}/preview", response_model=AttendancePreviewResponse)
@@ -423,7 +438,7 @@ def preview_attendance(
             ],
         )
     )
-    return _attendance_preview_read(result)
+    return _attendance_preview_read(result, _can_see_money(current_user))
 
 
 @router.post("/{attendance_id}/confirm", response_model=AttendanceRead)
@@ -452,7 +467,7 @@ def confirm_attendance(
         ),
         idempotency_key=idempotency_key,
     )
-    return _attendance_read(result)
+    return _attendance_read(result, _can_see_money(current_user))
 
 
 @router.post("/{attendance_id}/cancel", response_model=AttendanceRead)
@@ -471,7 +486,7 @@ def cancel_attendance(
         ),
         clock=SystemClock(),
     )
-    return _attendance_read(result)
+    return _attendance_read(result, _can_see_money(current_user))
 
 
 on_call_fee_settings_router = APIRouter(prefix="/on-call-fee-settings", tags=["attendances"])

@@ -28,12 +28,12 @@ class AttendanceExamRead(BaseModel):
     exam_id: UUID
     exam_code: str
     exam_name: str
-    price_base: Decimal
+    price_base: Decimal | None
     components: list[ExamComponentRead]
     quantity: int
-    discount_amount: Decimal
-    surcharge_amount: Decimal
-    total_amount: Decimal
+    discount_amount: Decimal | None
+    surcharge_amount: Decimal | None
+    total_amount: Decimal | None
     override_reason: str | None
     status: AttendanceExamStatusLiteral
 
@@ -50,11 +50,11 @@ class AttendanceRead(BaseModel):
     status: AttendanceStatusLiteral
     items: list[AttendanceExamRead]
     billing_competence: date | None
-    subtotal: Decimal
-    discount_total: Decimal
-    surcharge_total: Decimal
-    on_call_fee: Decimal
-    grand_total: Decimal
+    subtotal: Decimal | None
+    discount_total: Decimal | None
+    surcharge_total: Decimal | None
+    on_call_fee: Decimal | None
+    grand_total: Decimal | None
     protocol_number: str | None
     cancel_reason: str | None
     created_at: datetime
@@ -72,7 +72,7 @@ class AttendanceListResponse(BaseModel):
 class AttendanceStatusCountsResponse(BaseModel):
     total: int
     by_status: dict[str, int]
-    billed_total: Decimal
+    billed_total: Decimal | None
 
 
 class AttendanceDraftCreateRequest(BaseModel):
@@ -221,8 +221,8 @@ class AttendancePreviewResponse(BaseModel):
     service_level: ServiceLevelLiteral
     service_date: date
     items: list[AttendanceExamRead]
-    subtotal: Decimal
-    discount_total: Decimal
-    surcharge_total: Decimal
-    on_call_fee: Decimal
-    grand_total: Decimal
+    subtotal: Decimal | None
+    discount_total: Decimal | None
+    surcharge_total: Decimal | None
+    on_call_fee: Decimal | None
+    grand_total: Decimal | None

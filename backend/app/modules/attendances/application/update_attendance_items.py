@@ -138,7 +138,9 @@ class UpdateAttendanceItemsUseCase:
                         item_input=AttendanceItemInput(
                             exam_id=line.exam_id,
                             quantity=line.quantity,
-                            discount_amount=line.discount_amount,
+                            discount_amount=line.discount_amount
+                            if "pricing.read" in command.actor.permissions
+                            else None,
                             override_reason=line.override_reason,
                         ),
                         actor=command.actor,
@@ -177,8 +179,12 @@ class UpdateAttendanceItemsUseCase:
             raise ValidationError("Item informado não pertence ao atendimento.")
         kept.add(line.item_id)
 
-        discount = line.discount_amount if line.discount_amount is not None else Decimal("0")
         override_reason, override_by = item.override_reason, item.override_by
+        if "pricing.read" not in actor.permissions:
+            # Quem não vê valor não altera valor: o desconto já gravado é mantido.
+            discount = item.discount_amount
+        else:
+            discount = line.discount_amount if line.discount_amount is not None else Decimal("0")
         if discount != item.discount_amount:
             if discount > 0:
                 override_reason = require_discount_authority(

@@ -378,7 +378,19 @@ test('clicking a row opens the summary popover with exams, totals and history, a
 
 test('the summary popover hides every amount from users without pricing.read', async () => {
   const user = userEvent.setup()
-  useListHandlers(['attendances.read'], [attendanceItem({ discount_total: '10.00' })])
+  // A API real devolve null nos valores sem pricing.read.
+  useListHandlers(
+    ['attendances.read'],
+    [
+      attendanceItem({
+        subtotal: null,
+        discount_total: null,
+        surcharge_total: null,
+        on_call_fee: null,
+        grand_total: null,
+      }),
+    ],
+  )
   renderWithProviders(<AttendanceListPage />)
 
   await user.click((await screen.findAllByRole('row'))[1] as HTMLElement)

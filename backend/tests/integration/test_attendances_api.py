@@ -17,7 +17,13 @@ from sqlalchemy import Row, text
 from sqlalchemy.orm import Session, sessionmaker
 
 from app.core.security import hash_password
-from app.modules.identity.infrastructure.models import LabMembershipModel, UserModel
+from app.modules.identity.infrastructure.models import (
+    LabMembershipModel,
+    PermissionModel,
+    RoleModel,
+    RolePermissionModel,
+    UserModel,
+)
 from app.modules.identity.infrastructure.seed import ROLE_FINANCE, ROLE_LAB_ADMIN, ROLE_RECEPTION
 
 pytestmark = pytest.mark.integration
@@ -1039,3 +1045,78 @@ async def test_item_discount_needs_override_permission_but_other_edits_do_not(
     )
     assert quantity.status_code == 200
     assert Decimal(quantity.json()["grand_total"]) == Decimal("200.00")
+
+
+async def test_money_is_withheld_from_users_without_pricing_read(
+    client: httpx.AsyncClient, session_factory: sessionmaker[Session]
+) -> None:
+    await _login_admin(client, session_factory)
+    attendance_id, exam_id = await _create_confirmable_draft(client, session_factory)
+    confirm = await client.post(
+        f"/api/v1/attendances/{attendance_id}/confirm",
+        json=_items(exam_id, 1),
+        headers=_idempotency_header("money-confirm"),
+    )
+    item_id = confirm.json()["items"][0]["id"]
+    url = f"/api/v1/attendances/{attendance_id}/items"
+    discounted = await client.put(
+        url,
+        json={
+            "row_version": confirm.json()["row_version"],
+            "reason": "Desconto combinado",
+            "items": [{"item_id": item_id, "discount_amount": "10.00", "override_reason": "x"}],
+        },
+    )
+    assert discounted.status_code == 200
+    grand_total = discounted.json()["grand_total"]
+    assert grand_total is not None
+
+    no_price_role = uuid4()
+    with session_factory() as session:
+        now = datetime.now(UTC)
+        session.add(RoleModel(id=no_price_role, name="Operação sem valor", scope="LAB"))
+        session.flush()
+        for code in ("attendances.read", "attendances.update"):
+            permission = session.query(PermissionModel).filter_by(code=code).one()
+            session.add(
+                RolePermissionModel(
+                    role_id=no_price_role, permission_id=permission.id, granted_at=now
+                )
+            )
+        session.commit()
+    await _switch_user(
+        client, session_factory, email="semvalor@vertere.local", role_id=no_price_role
+    )
+
+    detail = (await client.get(f"/api/v1/attendances/{attendance_id}")).json()
+    money_fields = ("subtotal", "discount_total", "surcharge_total", "on_call_fee", "grand_total")
+    assert all(detail[field] is None for field in money_fields)
+    assert all(
+        item[field] is None
+        for item in detail["items"]
+        for field in ("price_base", "discount_amount", "surcharge_amount", "total_amount")
+    )
+    listed = (await client.get("/api/v1/attendances")).json()
+    assert all(row["grand_total"] is None for row in listed["items"])
+    assert (await client.get("/api/v1/attendances/status-counts")).json()["billed_total"] is None
+    timeline = (await client.get(f"/api/v1/attendances/{attendance_id}/timeline")).json()
+    assert "grand_total" not in str(timeline) and "discount_amount" not in str(timeline)
+
+    # Corrigir a quantidade sem ver valor não pode apagar o desconto já aplicado.
+    edited = await client.put(
+        url,
+        json={
+            "row_version": detail["row_version"],
+            "reason": "Eram dois",
+            "items": [{"item_id": item_id, "quantity": 2}],
+        },
+    )
+    assert edited.status_code == 200
+    assert edited.json()["grand_total"] is None
+
+    await client.post("/api/v1/auth/logout")
+    await _login(client, email="admin@vertere.local", password="s3nhaForte!")
+    after = (await client.get(f"/api/v1/attendances/{attendance_id}")).json()
+    assert after["items"][0]["quantity"] == 2
+    assert Decimal(after["items"][0]["discount_amount"]) == Decimal("10.00")
+    assert Decimal(after["grand_total"]) == Decimal(grand_total) + Decimal("100.00")

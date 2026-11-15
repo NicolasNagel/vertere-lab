@@ -156,17 +156,20 @@ export interface AttendanceTimelinePage {
   pageSize: number
 }
 
+// Sem `pricing.read` a API devolve null nos valores; a tela nem os mostra.
+const ZERO = '0.00'
+
 interface ApiAttendanceExamItem {
   id: string
   exam_id: string
   exam_code: string
   exam_name: string
-  price_base: string
+  price_base: string | null
   components: { code: string; name: string }[]
   quantity: number
-  discount_amount: string
-  surcharge_amount: string
-  total_amount: string
+  discount_amount: string | null
+  surcharge_amount: string | null
+  total_amount: string | null
   override_reason: string | null
   status: 'ACTIVE' | 'CANCELLED'
 }
@@ -183,11 +186,11 @@ interface ApiAttendance extends GeneratedAttendance {
   status: AttendanceStatus
   items: ApiAttendanceExamItem[]
   billing_competence: string | null
-  subtotal: string
-  discount_total: string
-  surcharge_total: string
-  on_call_fee: string
-  grand_total: string
+  subtotal: string | null
+  discount_total: string | null
+  surcharge_total: string | null
+  on_call_fee: string | null
+  grand_total: string | null
   protocol_number: string | null
   cancel_reason: string | null
   created_at: string
@@ -211,11 +214,11 @@ interface ApiAttendancePreview extends GeneratedAttendancePreview {
   service_level: ServiceLevel
   service_date: string
   items: ApiAttendanceExamItem[]
-  subtotal: string
-  discount_total: string
-  surcharge_total: string
-  on_call_fee: string
-  grand_total: string
+  subtotal: string | null
+  discount_total: string | null
+  surcharge_total: string | null
+  on_call_fee: string | null
+  grand_total: string | null
 }
 
 interface ApiAttendanceTimelineEntry {
@@ -255,11 +258,11 @@ function fromApiPreview(preview: ApiAttendancePreview): AttendancePreview {
     serviceLevel: preview.service_level ?? 'NORMAL',
     serviceDate: preview.service_date,
     items: preview.items.map(fromApiItem),
-    subtotal: preview.subtotal,
-    discountTotal: preview.discount_total,
-    surchargeTotal: preview.surcharge_total,
-    onCallFee: preview.on_call_fee,
-    grandTotal: preview.grand_total,
+    subtotal: preview.subtotal ?? ZERO,
+    discountTotal: preview.discount_total ?? ZERO,
+    surchargeTotal: preview.surcharge_total ?? ZERO,
+    onCallFee: preview.on_call_fee ?? ZERO,
+    grandTotal: preview.grand_total ?? ZERO,
   }
 }
 
@@ -269,12 +272,12 @@ function fromApiItem(item: ApiAttendanceExamItem): AttendanceExamItem {
     examId: item.exam_id,
     examCode: item.exam_code,
     examName: item.exam_name,
-    priceBase: item.price_base,
+    priceBase: item.price_base ?? ZERO,
     components: item.components,
     quantity: item.quantity,
-    discountAmount: item.discount_amount,
-    surchargeAmount: item.surcharge_amount,
-    totalAmount: item.total_amount,
+    discountAmount: item.discount_amount ?? ZERO,
+    surchargeAmount: item.surcharge_amount ?? ZERO,
+    totalAmount: item.total_amount ?? ZERO,
     overrideReason: item.override_reason,
     status: item.status,
   }
@@ -306,11 +309,11 @@ function fromApiAttendance(attendance: ApiAttendance): Attendance {
     status: attendance.status,
     items: attendance.items.map(fromApiItem),
     billingCompetence: attendance.billing_competence,
-    subtotal: attendance.subtotal,
-    discountTotal: attendance.discount_total,
-    surchargeTotal: attendance.surcharge_total,
-    onCallFee: attendance.on_call_fee,
-    grandTotal: attendance.grand_total,
+    subtotal: attendance.subtotal ?? ZERO,
+    discountTotal: attendance.discount_total ?? ZERO,
+    surchargeTotal: attendance.surcharge_total ?? ZERO,
+    onCallFee: attendance.on_call_fee ?? ZERO,
+    grandTotal: attendance.grand_total ?? ZERO,
     protocolNumber: attendance.protocol_number,
     cancelReason: attendance.cancel_reason,
     createdAt: attendance.created_at,
@@ -359,14 +362,14 @@ export async function fetchAttendanceStatusCounts(
   const body = await apiRequest<{
     total: number
     by_status: Record<string, number>
-    billed_total: string
+    billed_total: string | null
   }>(
     `/attendances/status-counts?${query.toString()}`,
   )
   return {
     total: body.total,
     byStatus: body.by_status as Partial<Record<AttendanceStatus, number>>,
-    billedTotal: body.billed_total,
+    billedTotal: body.billed_total ?? ZERO,
   }
 }
 
