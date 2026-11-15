@@ -164,6 +164,30 @@ for (const viewport of VIEWPORTS) {
       await expectAccessible(page)
     })
 
+    test('detail with 120 linked clinics keeps a bounded, searchable list', async ({ page }) => {
+      await mockApi(page, MANAGER)
+      const many = CLINICS.map((item, index) => ({
+        clinic_id: item.id,
+        clinic_name: item.name,
+        primary_clinic: index === 0,
+      }))
+      await page.route('**/api/v1/veterinarians/v1', (route) =>
+        route.fulfill(json({ ...detail, clinics: many })),
+      )
+      await page.goto('/cadastros/veterinarios/v1')
+      await expect(page.getByText('120 de 120 clínicas')).toBeVisible()
+      await page.getByLabel('Buscar nas clínicas vinculadas').fill('Integrada')
+      await expect(page.getByText('1 de 120 clínicas')).toBeVisible()
+      await page.getByLabel('Buscar nas clínicas vinculadas').fill('')
+      const height = await page.getByText('Clínica 050', { exact: true }).evaluate((node) => {
+        const list = node.closest('ul')
+        return list ? list.getBoundingClientRect().height : -1
+      })
+      expect(height).toBeGreaterThan(0)
+      expect(height).toBeLessThan(260)
+      await expectAccessible(page)
+    })
+
     test('new veterinarian form is accessible', async ({ page }) => {
       await mockApi(page, MANAGER)
       await page.goto('/cadastros/veterinarios/novo')

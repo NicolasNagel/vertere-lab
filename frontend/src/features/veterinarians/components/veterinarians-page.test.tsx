@@ -452,3 +452,18 @@ test('a non-autonomous veterinarian cannot save without a clinic; an autonomous 
     ),
   )
 })
+
+test('the read-only clinic list is searchable when it is long', async () => {
+  const user = userEvent.setup()
+  const linked = MANY_CLINICS.slice(0, 40).map((clinic, index) => ({
+    clinic_id: clinic.id,
+    clinic_name: clinic.name,
+    primary_clinic: index === 0,
+  }))
+  server.use(meHandler(READ), detailHandler({}, linked))
+  renderAt('/cadastros/veterinarios/v1')
+
+  expect(await screen.findByText('40 de 40 clínicas')).toBeInTheDocument()
+  await user.type(screen.getByLabelText('Buscar nas clínicas vinculadas'), 'Clínica 03')
+  expect(await screen.findByText('10 de 40 clínicas')).toBeInTheDocument()
+})

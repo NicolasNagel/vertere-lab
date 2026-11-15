@@ -6,6 +6,7 @@ import { ArrowLeftIcon, ClinicsIcon, TagIcon, UserIcon } from '../../../shared/u
 import { PageHeader } from '../../../shared/ui/page-header'
 import { useAuth } from '../../auth/auth-context'
 import { useVeterinarianQuery } from '../api/use-veterinarian-query'
+import { LinkedClinicsList } from './linked-clinics-list'
 import { VeterinarianDetailBlock } from './veterinarian-detail-block'
 import { ClinicsForm, ContactForm, IdentityForm, StatusForm } from './veterinarian-detail-forms'
 import '../../../shared/ui/button.css'
@@ -13,6 +14,12 @@ import '../../attendances/components/attendance-detail-page.css'
 import '../../attendances/components/attendance-readonly-detail.css'
 import '../../attendances/components/attendance-summary-cards.css'
 import './veterinarian-detail-page.css'
+
+/** Dois nomes e a contagem do resto: o cartão não pode virar uma lista de 100 clínicas. */
+function summarizeClinics(names: string[]): string {
+  const shown = names.slice(0, 2).join(' · ')
+  return names.length > 2 ? `${shown} e mais ${names.length - 2}` : shown
+}
 
 function displayValue(value: string | null): string {
   return value && value.trim().length > 0 ? value : '—'
@@ -116,7 +123,7 @@ export function VeterinarianDetailPage() {
             </strong>
             <small className="attendance-summary-card__hint">
               {veterinarian.clinics.length > 0
-                ? veterinarian.clinics.map((clinic) => clinic.clinicName).join(' · ')
+                ? summarizeClinics(veterinarian.clinics.map((clinic) => clinic.clinicName))
                 : 'nenhuma clínica vinculada'}
             </small>
           </article>
@@ -170,14 +177,10 @@ export function VeterinarianDetailPage() {
                       : 'Nenhuma clínica vinculada ainda.'}
                   </p>
                 ) : (
-                  <ul className="attendance-readonly-detail__items">
-                    {veterinarian.clinics.map((clinic) => (
-                      <li key={clinic.clinicId} className="attendance-readonly-detail__item">
-                        {clinic.clinicName}
-                        {clinic.primaryClinic ? ' · Principal' : ''}
-                      </li>
-                    ))}
-                  </ul>
+                  <LinkedClinicsList
+                    veterinarianId={veterinarian.id}
+                    clinics={veterinarian.clinics}
+                  />
                 )}
               </VeterinarianDetailBlock>
 

@@ -122,3 +122,16 @@
   font-size: 0.8125rem;
   color: var(--color-text-secondary);
 }
+
+.clinic-batch-picker__chips--read {
+  max-height: 12rem;
+}
+
+.clinic-batch-picker__chip--read {
+  padding-right: 0.5rem;
+}
+
+.clinic-batch-picker__scroll {
+  max-height: 12rem;
+  overflow-y: auto;
+}

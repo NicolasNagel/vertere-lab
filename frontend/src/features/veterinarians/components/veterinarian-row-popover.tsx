@@ -5,6 +5,7 @@ import { KebabMenu, type KebabMenuItem } from '../../../shared/ui/kebab-menu'
 import type { Veterinarian } from '../api/veterinarians-api'
 import '../../../shared/ui/button.css'
 import '../../attendances/components/attendance-row-popover.css'
+import './clinic-batch-picker.css'
 
 export const VETERINARIAN_POPOVER_TITLE_ID = 'veterinarian-row-popover-title'
 
@@ -106,7 +107,7 @@ export function VeterinarianRowPopover({
                 : 'Nenhuma clínica vinculada ainda.'}
             </p>
           ) : (
-            <ul className="attendance-row-popover__exams">
+            <ul className="attendance-row-popover__exams clinic-batch-picker__scroll">
               {veterinarian.clinics.map((clinic) => (
                 <li key={clinic.clinicId}>
                   <span>
