@@ -156,3 +156,9 @@ a regra do Bicho Urbano).
    perfil que depende do comportamento atual?
 7. **Usuário de clínica deve ver, no próprio atendimento, o rótulo da regra aplicada?** Hoje clínica
    não vê valores de catálogo; define a redação da regra no detalhe.
+
+## F. Decisões do usuário (2026-11-15)
+- Pergunta 1 (retroagir preço é frequente?): **não**. O histórico de preço (fatia 2, ADR-013) deixa de ser prioridade e fica para depois.
+- Pergunta 2 (tabela de preço própria por clínica?): **não**. O modelo é "preço padrão + regra/ajuste por clínica"; não há tabela própria.
+- Ordem resultante: fatia 1 (tela + `pricing.manage`) → 3 (regras por clínica, backend) → 4 (regras por clínica, tela) → 2 (histórico) → 5 (limpeza).
+- Perguntas 3, 4, 5 (parte respondida), 6 e 7 seguem abertas; as recomendações do plano valem até decisão contrária.
