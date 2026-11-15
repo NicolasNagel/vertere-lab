@@ -72,7 +72,9 @@ interface ExamFormProps {
   error?: unknown
   onCancel: () => void
   onSubmitCreate?: (values: ExamFormValues) => void
-  onSubmitUpdate?: (values: ExamFormValues & { status: ExamStatus }) => void
+  onSubmitUpdate?: (
+    values: ExamFormValues & { status: ExamStatus; reason: string | null },
+  ) => void
   // Quando a página que hospeda o form renderiza seus próprios botões de
   // ação (ex.: no header, como no mockup 19), passe `formId` + `hideActions`
   // para que o submit externo aponte para este form via atributo `form=`
@@ -81,6 +83,8 @@ interface ExamFormProps {
   hideActions?: boolean
   /** Cadastro de pacote/perfil (a edição de um pacote existente já é detectada pelo exame). */
   panel?: boolean
+  /** `pricing.manage`: sem ele o preço fica só para leitura (o backend recusa a mudança). */
+  canManagePrice?: boolean
 }
 
 export function ExamForm({
@@ -93,6 +97,7 @@ export function ExamForm({
   formId,
   hideActions = false,
   panel = false,
+  canManagePrice = true,
 }: ExamFormProps) {
   const isPanel = panel || (exam?.isPanel ?? false)
   const {
@@ -109,6 +114,8 @@ export function ExamForm({
   const [componentIds, setComponentIds] = useState<string[]>(exam?.componentExamIds ?? [])
   const [componentsError, setComponentsError] = useState<string | null>(null)
   const [speciesError, setSpeciesError] = useState<string | null>(null)
+  const [reason, setReason] = useState('')
+  const [reasonError, setReasonError] = useState<string | null>(null)
   const [newCategoryName, setNewCategoryName] = useState('')
   const [pendingCategoryId, setPendingCategoryId] = useState<string | null>(null)
 
@@ -196,7 +203,20 @@ export function ExamForm({
     setComponentsError(null)
     const ids = isPanel ? componentIds : []
     if (exam) {
-      onSubmitUpdate?.({ ...toApiValues(fields, speciesIds, ids), status: fields.status })
+      const priceChanged = canManagePrice && fields.priceBase !== (exam.priceBase ?? '')
+      const statusChanged = fields.status !== exam.status
+      if ((priceChanged || statusChanged) && !reason.trim()) {
+        setReasonError('Informe o motivo da alteração de preço ou de status.')
+        return
+      }
+      setReasonError(null)
+      onSubmitUpdate?.({
+        ...toApiValues(fields, speciesIds, ids),
+        // Sem pricing.manage o preço nem é enviado: o backend mantém o atual.
+        priceBase: canManagePrice ? fields.priceBase : null,
+        status: fields.status,
+        reason: reason.trim() || null,
+      })
       return
     }
     onSubmitCreate?.(toApiValues(fields, speciesIds, ids))
@@ -291,10 +311,13 @@ export function ExamForm({
             <TextField
               id="exam-price-base"
               label={isPanel ? 'Preço do pacote' : 'Preço base'}
-              disabled={submitting}
+              disabled={submitting || !canManagePrice}
               errorMessage={errors.priceBase?.message}
               {...register('priceBase')}
             />
+            {!canManagePrice && (
+              <p className="exam-form__hint">Alterar preço exige a permissão de gerir preços.</p>
+            )}
           </div>
 
           <div className="exam-form__card">
@@ -319,6 +342,20 @@ export function ExamForm({
               </p>
             )}
           </div>
+
+          {exam && (
+            <div className="exam-form__card">
+              <p className="exam-form__card-title">Motivo da alteração</p>
+              <TextField
+                id="exam-reason"
+                label="Motivo (obrigatório ao mudar preço ou status)"
+                disabled={submitting}
+                value={reason}
+                errorMessage={reasonError ?? undefined}
+                onChange={(event) => setReason(event.target.value)}
+              />
+            </div>
+          )}
 
           {exam && (
             <div className="exam-form__card">

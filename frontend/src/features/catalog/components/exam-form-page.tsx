@@ -1,6 +1,7 @@
 import { useNavigate, useParams } from 'react-router'
 
 import { Button } from '../../../shared/ui/button'
+import { useAuth } from '../../auth/auth-context'
 import { useCreateExamMutation } from '../api/use-create-exam-mutation'
 import { useExamQuery } from '../api/use-exam-query'
 import { useUpdateExamMutation } from '../api/use-update-exam-mutation'
@@ -15,6 +16,7 @@ interface ExamFormPageProps {
 
 /** Tela de formulário de exame; `newPanel` abre o cadastro de pacote/perfil. */
 export function ExamFormPage({ newPanel = false }: ExamFormPageProps = {}) {
+  const { user } = useAuth()
   const navigate = useNavigate()
   const { examId } = useParams<{ examId: string }>()
   const isEditing = examId !== undefined
@@ -82,6 +84,7 @@ export function ExamFormPage({ newPanel = false }: ExamFormPageProps = {}) {
           formId={FORM_ID}
           hideActions
           panel={newPanel}
+          canManagePrice={user?.permissions.includes('pricing.manage') ?? false}
           onCancel={goToList}
           onSubmitCreate={(values) =>
             createMutation.mutate(values, { onSuccess: goToList })

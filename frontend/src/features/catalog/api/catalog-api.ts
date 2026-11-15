@@ -48,7 +48,7 @@ export interface ExamListParams {
 export interface ExamFormValues {
   name: string
   categoryId: string
-  priceBase: string
+  priceBase: string | null
   description: string | null
   speciesIds: string[]
   componentExamIds?: string[]
@@ -117,7 +117,8 @@ function toApiExamPayload(values: ExamFormValues): Record<string, unknown> {
   return {
     name: values.name,
     category_id: values.categoryId,
-    price_base: values.priceBase,
+    // null = manter o preço atual (quem não gere preço não o envia).
+    price_base: values.priceBase ?? undefined,
     description: values.description || null,
     species_ids: values.speciesIds,
     component_exam_ids: values.componentExamIds ?? [],
@@ -176,7 +177,11 @@ export async function createExam(values: ExamFormValues): Promise<Exam> {
 
 export async function updateExam(
   id: string,
-  values: ExamFormValues & { status: ExamStatus; expectedRowVersion: number },
+  values: ExamFormValues & {
+    status: ExamStatus
+    expectedRowVersion: number
+    reason?: string | null
+  },
 ): Promise<Exam> {
   const exam = await apiRequest<ApiExam>(`/exams/${id}`, {
     method: 'PATCH',
@@ -184,6 +189,7 @@ export async function updateExam(
       ...toApiExamPayload(values),
       status: values.status,
       expected_row_version: values.expectedRowVersion,
+      reason: values.reason || undefined,
     },
   })
   return fromApiExam(exam)

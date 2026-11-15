@@ -400,12 +400,13 @@ export type ExamStatus = "ACTIVE" | "INACTIVE"
 export type ExamUpdateRequest = {
   "name": string
   "category_id": string
-  "price_base": number | string
+  "price_base"?: number | string | null
   "description"?: string | null
   "species_ids": Array<string>
   "component_exam_ids"?: Array<string>
   "status": "ACTIVE" | "INACTIVE"
   "expected_row_version": number
+  "reason"?: string | null
 }
 
 export type FinancialAdjustmentCreateRequest = {

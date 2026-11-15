@@ -7273,6 +7273,9 @@
               {
                 "type": "string",
                 "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$"
+              },
+              {
+                "type": "null"
               }
             ],
             "title": "Price Base"
@@ -7316,6 +7319,18 @@
           "expected_row_version": {
             "type": "integer",
             "title": "Expected Row Version"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 500
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason"
           }
         },
         "additionalProperties": false,
@@ -7323,7 +7338,6 @@
         "required": [
           "name",
           "category_id",
-          "price_base",
           "species_ids",
           "status",
           "expected_row_version"

@@ -186,3 +186,40 @@ test('a new panel needs at least 2 exams and submits them in the chosen order', 
     ),
   )
 })
+
+test('without pricing.manage the price is read-only and is not sent; a status change needs a reason', async () => {
+  const user = userEvent.setup()
+  server.use(
+    speciesHandler(),
+    http.get('/api/v1/exam-categories/active', () =>
+      HttpResponse.json({
+        items: [{ id: 'cat-inactive', name: 'Hematologia', status: 'ACTIVE', row_version: 1 }],
+      }),
+    ),
+  )
+  const onSubmitUpdate = vi.fn()
+  renderWithProviders(
+    <ExamForm
+      exam={existingExam}
+      submitting={false}
+      canManagePrice={false}
+      onCancel={() => {}}
+      onSubmitUpdate={onSubmitUpdate}
+    />,
+  )
+
+  expect(await screen.findByLabelText('Preço base')).toBeDisabled()
+  await user.selectOptions(screen.getByLabelText('Status'), 'INACTIVE')
+  await user.click(screen.getByRole('button', { name: 'Salvar' }))
+  expect(await screen.findByText(/Informe o motivo/)).toBeInTheDocument()
+  expect(onSubmitUpdate).not.toHaveBeenCalled()
+
+  await user.type(screen.getByLabelText(/Motivo/), 'Exame descontinuado')
+  await user.click(screen.getByRole('button', { name: 'Salvar' }))
+  await waitFor(() => expect(onSubmitUpdate).toHaveBeenCalled())
+  expect(onSubmitUpdate.mock.calls[0]?.[0]).toMatchObject({
+    priceBase: null,
+    status: 'INACTIVE',
+    reason: 'Exame descontinuado',
+  })
+})

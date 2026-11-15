@@ -61,7 +61,7 @@ function renderApp(initialEntries: string[]) {
 test('the exam form blocks a save without species, cancels back to the list and creates an exam', async () => {
   const user = userEvent.setup()
   const common = [
-    meHandler(['catalog.read', 'catalog.manage']),
+    meHandler(['catalog.read', 'catalog.manage', 'pricing.manage']),
     speciesHandler(),
     categoriesHandler(),
     http.get('/api/v1/exams', () =>
