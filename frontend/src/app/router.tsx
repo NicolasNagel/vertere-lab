@@ -65,6 +65,20 @@ export const router = createBrowserRouter([
         }),
       },
       {
+        path: '/cadastros/veterinarios/novo',
+        lazy: async () => ({
+          Component: (await import('../features/veterinarians/components/veterinarian-form-page'))
+            .VeterinarianFormPage,
+        }),
+      },
+      {
+        path: '/cadastros/veterinarios/:veterinarianId',
+        lazy: async () => ({
+          Component: (await import('../features/veterinarians/components/veterinarian-detail-page'))
+            .VeterinarianDetailPage,
+        }),
+      },
+      {
         path: '/cadastros/veterinarios',
         lazy: async () => ({
           Component: (await import('../features/veterinarians/components/veterinarians-page'))

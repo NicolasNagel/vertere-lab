@@ -2079,6 +2079,17 @@
               "format": "uuid",
               "title": "Clinic Id"
             }
+          },
+          {
+            "name": "reason",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 500,
+              "title": "Reason"
+            }
           }
         ],
         "responses": {
@@ -3533,6 +3544,19 @@
         "security": [
           {
             "SessionCookie": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 255,
+              "title": "Idempotency-Key"
+            }
           }
         ],
         "requestBody": {
@@ -10409,12 +10433,19 @@
             "type": "boolean",
             "title": "Primary",
             "default": false
+          },
+          "reason": {
+            "type": "string",
+            "maxLength": 500,
+            "minLength": 1,
+            "title": "Reason"
           }
         },
         "additionalProperties": false,
         "type": "object",
         "required": [
-          "clinic_id"
+          "clinic_id",
+          "reason"
         ],
         "title": "VeterinarianLinkClinicRequest"
       },
@@ -10633,6 +10664,12 @@
           "expected_row_version": {
             "type": "integer",
             "title": "Expected Row Version"
+          },
+          "reason": {
+            "type": "string",
+            "maxLength": 500,
+            "minLength": 1,
+            "title": "Reason"
           }
         },
         "additionalProperties": false,
@@ -10641,7 +10678,8 @@
           "name",
           "crmv",
           "status",
-          "expected_row_version"
+          "expected_row_version",
+          "reason"
         ],
         "title": "VeterinarianUpdateRequest"
       }

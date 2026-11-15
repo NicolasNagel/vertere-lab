@@ -1,166 +1,225 @@
 import { useState } from 'react'
+import { Link, useSearchParams } from 'react-router'
 
 import { useAuth } from '../../auth/auth-context'
-import { Button } from '../../../shared/ui/button'
-import { PlusIcon } from '../../../shared/ui/icons'
-import { useCreateVeterinarianMutation } from '../api/use-create-veterinarian-mutation'
+import { Dropdown } from '../../../shared/ui/dropdown'
+import { ClinicsIcon, CloseIcon, PlusIcon, SearchIcon } from '../../../shared/ui/icons'
+import { Modal } from '../../../shared/ui/modal'
+import { PageHeader } from '../../../shared/ui/page-header'
+import type { VeterinarianStatus } from '../api/veterinarians-api'
 import { useDeactivateVeterinarianMutation } from '../api/use-deactivate-veterinarian-mutation'
-import { useUpdateVeterinarianMutation } from '../api/use-update-veterinarian-mutation'
 import { useVeterinarianQuery } from '../api/use-veterinarian-query'
 import { useVeterinariansQuery } from '../api/use-veterinarians-query'
-import { VeterinarianDetail } from './veterinarian-detail'
-import { VeterinarianForm } from './veterinarian-form'
-import { VeterinarianList, type VeterinarianTypeFilter } from './veterinarian-list'
-import './veterinarians-page.css'
+import { VETERINARIAN_POPOVER_TITLE_ID, VeterinarianRowPopover } from './veterinarian-row-popover'
+import { VeterinarianSummaryCards } from './veterinarian-summary-cards'
+import { VeterinarianTable } from './veterinarian-table'
+import '../../../shared/ui/button.css'
+import '../../attendances/components/attendance-list-filters.css'
+import '../../attendances/components/attendance-list-page.css'
+import '../../attendances/components/attendance-status-tabs.css'
 
-type PanelMode = 'view' | 'create' | 'edit'
+type LinkFilter = '' | 'linked' | 'autonomous'
 
+const STATUS_TABS: { value: VeterinarianStatus | undefined; label: string }[] = [
+  { value: undefined, label: 'Todos' },
+  { value: 'ACTIVE', label: 'Ativos' },
+  { value: 'INACTIVE', label: 'Inativos' },
+]
+
+const LINK_OPTIONS = [
+  { value: '', label: 'Todos' },
+  { value: 'linked', label: 'Vinculados' },
+  { value: 'autonomous', label: 'Autônomos' },
+]
+
+/** Lista de veterinários no padrão da Operação: busca e ação no cabeçalho, cartões de resumo,
+ * abas de status com contagem, filtro com ícone, tabela e resumo (`?veterinario=<id>`) em
+ * popover. Criar fica em `VeterinarianFormPage`; editar, nos blocos do detalhe. */
 export function VeterinariansPage() {
   const { user } = useAuth()
   const canManage = user?.permissions.includes('veterinarians.manage') ?? false
 
-  const [search, setSearch] = useState('')
-  const [page, setPage] = useState(1)
-  const [typeFilter, setTypeFilter] = useState<VeterinarianTypeFilter>('all')
-  const [selectedId, setSelectedId] = useState<string | null>(null)
-  const [mode, setMode] = useState<PanelMode>('view')
+  const [searchParams, setSearchParams] = useSearchParams()
+  const selectedId = searchParams.get('veterinario')
 
-  const isAutonomous =
-    typeFilter === 'autonomous' ? true : typeFilter === 'linked' ? false : undefined
+  const [search, setSearch] = useState('')
+  const [status, setStatus] = useState<VeterinarianStatus | undefined>(undefined)
+  const [link, setLink] = useState<LinkFilter>('')
+  const [page, setPage] = useState(1)
+
+  const isAutonomous = link === 'autonomous' ? true : link === 'linked' ? false : undefined
+  const searchTerm = search || undefined
 
   const listQuery = useVeterinariansQuery({
-    search: search || undefined,
+    search: searchTerm,
+    status,
     isAutonomous,
     page,
     pageSize: 25,
   })
-  const detailQuery = useVeterinarianQuery(mode === 'create' ? null : selectedId)
-
-  const createMutation = useCreateVeterinarianMutation()
-  const updateMutation = useUpdateVeterinarianMutation()
+  // Contagens do servidor com o mesmo termo de busca (e o filtro de vínculo, nas abas).
+  const tabCounts = [
+    useVeterinariansQuery({
+      search: searchTerm,
+      isAutonomous,
+      page: 1,
+      pageSize: 1,
+    }),
+    useVeterinariansQuery({
+      search: searchTerm,
+      isAutonomous,
+      status: 'ACTIVE',
+      page: 1,
+      pageSize: 1,
+    }),
+    useVeterinariansQuery({
+      search: searchTerm,
+      isAutonomous,
+      status: 'INACTIVE',
+      page: 1,
+      pageSize: 1,
+    }),
+  ]
+  const summaryTotal = useVeterinariansQuery({
+    search: searchTerm,
+    page: 1,
+    pageSize: 1,
+  })
+  const summaryActive = useVeterinariansQuery({
+    search: searchTerm,
+    status: 'ACTIVE',
+    page: 1,
+    pageSize: 1,
+  })
+  const summaryAutonomous = useVeterinariansQuery({
+    search: searchTerm,
+    isAutonomous: true,
+    page: 1,
+    pageSize: 1,
+  })
+  const detailQuery = useVeterinarianQuery(selectedId)
   const deactivateMutation = useDeactivateVeterinarianMutation()
 
-  const veterinarians = listQuery.data?.items ?? []
-  const activeCount = veterinarians.filter((veterinarian) => veterinarian.status === 'ACTIVE').length
+  const hasActiveFilters = link !== ''
 
-  function handleSelect(id: string) {
-    setSelectedId(id)
-    setMode('view')
-  }
-
-  function handleStartCreate() {
-    setSelectedId(null)
-    setMode('create')
-  }
-
-  function handleDeactivate() {
-    if (!selectedId) return
-    deactivateMutation.mutate(selectedId)
+  function select(id: string | null) {
+    setSearchParams(id ? { veterinario: id } : {}, { replace: true })
   }
 
   return (
-    <div className="veterinarians-page">
-      <div className="veterinarians-page__header">
-        <div>
-          <div className="veterinarians-page__eyebrow">Cadastros</div>
-          <h1 className="veterinarians-page__title">Veterinários</h1>
-        </div>
-        <div className="veterinarians-page__header-actions">
-          {(['all', 'linked', 'autonomous'] as const).map((filter) => (
-            <button
-              key={filter}
-              type="button"
-              className="veterinarians-page__filter"
-              data-active={typeFilter === filter}
-              onClick={() => {
-                setTypeFilter(filter)
+    <div className="attendance-list-page">
+      <PageHeader
+        title="Veterinários"
+        actions={
+          <>
+            <label className="attendance-list-page__search">
+              <SearchIcon />
+              <input
+                value={search}
+                aria-label="Buscar veterinário"
+                placeholder="Buscar nome ou CRMV..."
+                onChange={(event) => {
+                  setSearch(event.target.value)
+                  setPage(1)
+                }}
+              />
+            </label>
+            {canManage && (
+              <Link to="/cadastros/veterinarios/novo" className="button button--primary">
+                <PlusIcon /> Novo veterinário
+              </Link>
+            )}
+          </>
+        }
+      />
+
+      <VeterinarianSummaryCards
+        total={summaryTotal.data?.total}
+        active={summaryActive.data?.total}
+        autonomous={summaryAutonomous.data?.total}
+      />
+
+      <div className="attendance-list-page__panel">
+        <div className="attendance-list-page__filter-row">
+          <div className="attendance-status-tabs" role="group" aria-label="Filtrar por status">
+            {STATUS_TABS.map((tab, index) => (
+              <button
+                key={tab.label}
+                type="button"
+                className="attendance-status-tabs__tab"
+                data-active={tab.value === status}
+                aria-pressed={tab.value === status}
+                onClick={() => {
+                  setStatus(tab.value)
+                  setPage(1)
+                }}
+              >
+                {tab.label}
+                {tabCounts[index]?.data ? <b>{tabCounts[index].data.total}</b> : null}
+              </button>
+            ))}
+          </div>
+          <div className="attendance-list-filters" role="group" aria-label="Filtros">
+            <Dropdown
+              label="Vínculo"
+              icon={<ClinicsIcon />}
+              options={LINK_OPTIONS}
+              value={link}
+              onChange={(value) => {
+                setLink(value as LinkFilter)
                 setPage(1)
               }}
-            >
-              {{ all: 'Todos', linked: 'Vinculados', autonomous: 'Autônomos' }[filter]}
-              {filter === 'all' ? ` · ${listQuery.data?.total ?? 0}` : ''}
-            </button>
-          ))}
-        {canManage && (
-          <Button
-            type="button"
-            className="veterinarians-page__new-button"
-            onClick={handleStartCreate}
-          >
-            <PlusIcon /> Novo vet
-          </Button>
-        )}
+            />
+            {hasActiveFilters && (
+              <button
+                type="button"
+                className="attendance-list-filters__clear"
+                onClick={() => {
+                  setLink('')
+                  setPage(1)
+                }}
+              >
+                <CloseIcon /> Limpar filtros
+              </button>
+            )}
+          </div>
         </div>
-      </div>
 
-      <div className="veterinarians-page__body" data-panel-open={mode !== 'view' || selectedId !== null}>
-        <VeterinarianList
-          veterinarians={veterinarians}
-          activeCount={activeCount}
-          selectedId={mode === 'create' ? null : selectedId}
-          search={search}
-          typeFilter={typeFilter}
+        <VeterinarianTable
+          veterinarians={listQuery.data?.items ?? []}
+          canManage={canManage}
+          selectedId={selectedId}
           isLoading={listQuery.isLoading}
-          onSearchChange={(value) => {
-            setSearch(value)
-            setPage(1)
-          }}
-          onTypeFilterChange={(value) => {
-            setTypeFilter(value)
-            setPage(1)
-          }}
-          onSelect={handleSelect}
+          isError={listQuery.isError}
           page={listQuery.data?.page ?? page}
           pageSize={listQuery.data?.pageSize ?? 25}
           total={listQuery.data?.total ?? 0}
+          onSelect={select}
+          onDeactivate={(id) => deactivateMutation.mutate(id)}
           onPageChange={setPage}
         />
-
-        {mode === 'create' ? (
-          <div className="veterinarians-page__create-panel">
-            <h2 className="veterinarians-page__create-title">Novo vet</h2>
-            <VeterinarianForm
-              veterinarian={null}
-              submitting={createMutation.isPending}
-              error={createMutation.error}
-              onCancel={() => setMode('view')}
-              onSubmitCreate={(values, clinicIds) =>
-                createMutation.mutate(
-                  { values, clinicIds },
-                  {
-                    onSuccess: (veterinarian) => {
-                      setSelectedId(veterinarian.id)
-                      setMode('view')
-                    },
-                  },
-                )
-              }
-            />
-          </div>
-        ) : (
-          <VeterinarianDetail
-            veterinarian={detailQuery.data ?? null}
-            isLoading={selectedId !== null && detailQuery.isLoading}
-            isEditing={mode === 'edit'}
-            canManage={canManage}
-            submitting={updateMutation.isPending}
-            submitError={updateMutation.error}
-            onStartEdit={() => setMode('edit')}
-            onCancelEdit={() => setMode('view')}
-            onSubmitUpdate={(values) => {
-              if (!selectedId || !detailQuery.data) return
-              updateMutation.mutate(
-                {
-                  id: selectedId,
-                  values: { ...values, expectedRowVersion: detailQuery.data.rowVersion },
-                },
-                { onSuccess: () => setMode('view') },
-              )
-            }}
-            onDeactivate={handleDeactivate}
-          />
-        )}
       </div>
+
+      {selectedId !== null && (
+        <Modal
+          titleId={VETERINARIAN_POPOVER_TITLE_ID}
+          size="md"
+          dismissOnBackdrop
+          className="attendance-popover"
+          onClose={() => select(null)}
+        >
+          <VeterinarianRowPopover
+            veterinarian={detailQuery.data ?? null}
+            isLoading={detailQuery.isLoading}
+            canManage={canManage}
+            onClose={() => select(null)}
+            onDeactivate={(id) => {
+              deactivateMutation.mutate(id)
+              select(null)
+            }}
+          />
+        </Modal>
+      )}
     </div>
   )
 }

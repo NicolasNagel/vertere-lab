@@ -1,55 +1,14 @@
-.veterinarian-form {
-  max-width: 640px;
-}
-
-.veterinarian-form__row {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 0 1rem; /* 16px */
-}
-
-.veterinarian-form__section-title {
-  font-family: var(--font-mono);
-  font-size: 0.625rem; /* 10px */
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-  color: var(--color-text-secondary);
-  margin: 1rem 0 0.75rem;
-}
-
-.veterinarian-form__autonomous {
-  margin: 0.5rem 0 1rem;
-}
-
-.veterinarian-form__clinics-hint {
-  font-size: 0.8125rem;
-  color: var(--color-text-secondary);
-  margin: -0.5rem 0 1rem;
-}
-
+/* Blocos e campos vêm de attendance-draft-page.css; aqui só a lista de clínicas e o aviso de erro. */
 .veterinarian-form__clinics-list {
-  display: flex;
-  flex-direction: column;
-  gap: 0.5rem; /* 8px */
-  margin: 0 0 1rem;
-  max-height: 9.5rem;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(14rem, 1fr));
+  gap: 0.5rem 1rem;
+  max-height: 12rem;
   overflow-y: auto;
 }
 
-.veterinarian-form__domain-error {
-  color: var(--color-danger);
+.veterinarian-form__hint {
+  margin: 0;
   font-size: 0.8125rem;
-  margin: 0 0 1rem;
-}
-
-.veterinarian-form__actions {
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
-  gap: 1rem; /* 16px */
-  margin-top: 0.5rem;
-}
-
-.veterinarian-form__submit {
-  width: auto;
+  color: var(--color-text-secondary);
 }

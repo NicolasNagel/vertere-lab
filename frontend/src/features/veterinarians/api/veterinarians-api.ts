@@ -159,7 +159,11 @@ export async function createVeterinarian(
 
 export async function updateVeterinarian(
   id: string,
-  values: VeterinarianFormValues & { status: VeterinarianStatus; expectedRowVersion: number },
+  values: VeterinarianFormValues & {
+    status: VeterinarianStatus
+    expectedRowVersion: number
+    reason: string
+  },
 ): Promise<Veterinarian> {
   const veterinarian = await apiRequest<ApiVeterinarian>(`/veterinarians/${id}`, {
     method: 'PATCH',
@@ -167,6 +171,7 @@ export async function updateVeterinarian(
       ...toApiPayload(values),
       status: values.status,
       expected_row_version: values.expectedRowVersion,
+      reason: values.reason,
     },
   })
   return fromApiVeterinarian(veterinarian)
@@ -182,19 +187,25 @@ export async function deactivateVeterinarian(id: string): Promise<Veterinarian> 
 export async function linkVeterinarianClinic(
   veterinarianId: string,
   clinicId: string,
+  reason: string,
   primary = false,
 ): Promise<void> {
   await apiRequest<void>(`/veterinarians/${veterinarianId}/clinics`, {
     method: 'POST',
-    body: { clinic_id: clinicId, primary },
+    body: { clinic_id: clinicId, primary, reason },
   })
 }
 
 export async function unlinkVeterinarianClinic(
   veterinarianId: string,
   clinicId: string,
+  reason: string,
 ): Promise<void> {
-  await apiRequest<void>(`/veterinarians/${veterinarianId}/clinics/${clinicId}`, {
-    method: 'DELETE',
-  })
+  const query = new URLSearchParams({ reason })
+  await apiRequest<void>(
+    `/veterinarians/${veterinarianId}/clinics/${clinicId}?${query.toString()}`,
+    {
+      method: 'DELETE',
+    },
+  )
 }

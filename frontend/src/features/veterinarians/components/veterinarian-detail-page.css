@@ -1,0 +1,21 @@
+/* Mesma largura das colunas de blocos (attendance-readonly-detail: 60rem). */
+.veterinarian-detail-page__cards {
+  max-width: 60rem;
+  padding: 0 0 1rem;
+  grid-template-columns: repeat(auto-fit, minmax(min(14rem, 100%), 1fr));
+}
+
+.veterinarian-detail-page__cards .attendance-summary-card {
+  min-width: 0;
+}
+
+.veterinarian-detail-page__cards .attendance-summary-card__hint {
+  overflow-wrap: anywhere;
+}
+
+.veterinarian-detail-page__edit-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+}

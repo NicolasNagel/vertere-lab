@@ -896,6 +896,7 @@ export type VeterinarianDetailRead = {
 export type VeterinarianLinkClinicRequest = {
   "clinic_id": string
   "primary"?: boolean
+  "reason": string
 }
 
 export type VeterinarianLinkedClinic = {
@@ -936,4 +937,5 @@ export type VeterinarianUpdateRequest = {
   "status": "ACTIVE" | "INACTIVE"
   "notes"?: string | null
   "expected_row_version": number
+  "reason": string
 }
