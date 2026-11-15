@@ -3,7 +3,8 @@ import { Controller, useForm } from 'react-hook-form'
 import { z } from 'zod'
 
 import { Button } from '../../../shared/ui/button'
-import { SelectField } from '../../../shared/ui/select'
+import { Dropdown } from '../../../shared/ui/dropdown'
+import { ClinicsIcon, PatientsIcon, TagIcon, UserIcon } from '../../../shared/ui/icons'
 import { TextField } from '../../../shared/ui/text-field'
 import { ApiError } from '../../../shared/api/errors'
 import { useSpeciesQuery } from '../api/use-species-query'
@@ -124,19 +125,26 @@ export function PatientForm({
 
   return (
     <form className="patient-form" onSubmit={onSubmit} noValidate>
-      <SelectField
-        id="patient-clinic"
-        label="Clínica"
-        options={[
-          { value: '', label: clinicsQuery.isLoading ? 'Carregando…' : 'Selecione…' },
-          ...(clinicsQuery.data?.items ?? []).map((clinic) => ({
-            value: clinic.id,
-            label: clinic.name,
-          })),
-        ]}
-        disabled={submitting || clinicsQuery.isLoading}
-        errorMessage={errors.clinicId?.message}
-        {...register('clinicId')}
+      <Controller
+        control={control}
+        name="clinicId"
+        render={({ field }) => (
+          <Dropdown
+            variant="field"
+            searchable
+            icon={<ClinicsIcon />}
+            label="Clínica"
+            placeholder={clinicsQuery.isLoading ? 'Carregando…' : 'Selecione a clínica'}
+            options={(clinicsQuery.data?.items ?? []).map((clinic) => ({
+              value: clinic.id,
+              label: clinic.name,
+            }))}
+            value={field.value}
+            onChange={field.onChange}
+            disabled={submitting || clinicsQuery.isLoading}
+            errorMessage={errors.clinicId?.message}
+          />
+        )}
       />
       <div className="patient-form__row">
         <TextField
@@ -147,34 +155,56 @@ export function PatientForm({
           {...register('name')}
         />
         {patient && (
-          <SelectField
-            id="patient-status"
-            label="Status"
-            options={STATUS_OPTIONS}
-            disabled={submitting}
-            {...register('status')}
+          <Controller
+            control={control}
+            name="status"
+            render={({ field }) => (
+              <Dropdown
+                variant="field"
+                icon={<TagIcon />}
+                label="Status"
+                options={STATUS_OPTIONS}
+                value={field.value}
+                onChange={field.onChange}
+                disabled={submitting}
+              />
+            )}
           />
         )}
       </div>
 
       <div className="patient-form__row">
-        <SelectField
-          id="patient-species"
-          label="Espécie"
-          options={[
-            { value: '', label: speciesQuery.isLoading ? 'Carregando…' : 'Selecione…' },
-            ...speciesOptions.map((species) => ({ value: species.id, label: species.name })),
-          ]}
-          disabled={submitting || speciesQuery.isLoading}
-          errorMessage={errors.speciesId?.message}
-          {...register('speciesId')}
+        <Controller
+          control={control}
+          name="speciesId"
+          render={({ field }) => (
+            <Dropdown
+              variant="field"
+              icon={<PatientsIcon />}
+              label="Espécie"
+              placeholder={speciesQuery.isLoading ? 'Carregando…' : 'Selecione a espécie'}
+              options={speciesOptions.map((species) => ({ value: species.id, label: species.name }))}
+              value={field.value}
+              onChange={field.onChange}
+              disabled={submitting || speciesQuery.isLoading}
+              errorMessage={errors.speciesId?.message}
+            />
+          )}
         />
-        <SelectField
-          id="patient-sex"
-          label="Sexo"
-          options={SEX_OPTIONS}
-          disabled={submitting}
-          {...register('sex')}
+        <Controller
+          control={control}
+          name="sex"
+          render={({ field }) => (
+            <Dropdown
+              variant="field"
+              icon={<UserIcon />}
+              label="Sexo"
+              options={SEX_OPTIONS}
+              value={field.value}
+              onChange={field.onChange}
+              disabled={submitting}
+            />
+          )}
         />
       </div>
 

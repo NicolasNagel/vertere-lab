@@ -8,6 +8,7 @@ import { afterAll, afterEach, beforeAll, expect, test } from 'vitest'
 
 import { AuthProvider } from '../../auth/auth-provider'
 import { PatientsPage } from './patients-page'
+import { pickOption } from '../../../test/dropdown'
 
 const server = setupServer(clinicsHandler())
 
@@ -180,8 +181,8 @@ test('with patients.manage, creates a patient with embedded owner data and retur
 
   await user.click(await screen.findByRole('button', { name: /Novo paciente/i }))
   await user.type(screen.getByLabelText('Nome do paciente'), 'Bidu')
-  await user.selectOptions(screen.getByLabelText('Clínica'), 'Clínica Central')
-  await user.selectOptions(await screen.findByLabelText('Espécie'), 'Gato')
+  await pickOption(user, 'Clínica', 'Clínica Central')
+  await pickOption(user, 'Espécie', 'Gato')
   await user.type(screen.getByLabelText('Nome do tutor'), 'Joana Lima')
   await user.click(screen.getByRole('button', { name: 'Salvar' }))
 
