@@ -1997,6 +1997,55 @@
       }
     },
     "/api/v1/veterinarians/{veterinarian_id}/clinics": {
+      "patch": {
+        "tags": [
+          "veterinarians"
+        ],
+        "summary": "Update Veterinarian Clinics",
+        "operationId": "update_veterinarian_clinics_api_v1_veterinarians__veterinarian_id__clinics_patch",
+        "security": [
+          {
+            "SessionCookie": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "veterinarian_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Veterinarian Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/VeterinarianClinicsUpdateRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
       "post": {
         "tags": [
           "veterinarians"
@@ -10239,6 +10288,58 @@
           "type"
         ],
         "title": "ValidationError"
+      },
+      "VeterinarianClinicsUpdateRequest": {
+        "properties": {
+          "add_clinic_ids": {
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "type": "array",
+            "maxItems": 500,
+            "title": "Add Clinic Ids"
+          },
+          "remove_clinic_ids": {
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "type": "array",
+            "maxItems": 500,
+            "title": "Remove Clinic Ids"
+          },
+          "primary_clinic_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Primary Clinic Id"
+          },
+          "expected_row_version": {
+            "type": "integer",
+            "title": "Expected Row Version"
+          },
+          "reason": {
+            "type": "string",
+            "maxLength": 500,
+            "minLength": 1,
+            "title": "Reason"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "expected_row_version",
+          "reason"
+        ],
+        "title": "VeterinarianClinicsUpdateRequest",
+        "description": "Alteração em lote dos vínculos: o que entra, o que sai e a clínica principal."
       },
       "VeterinarianCreateRequest": {
         "properties": {

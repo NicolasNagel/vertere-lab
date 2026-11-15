@@ -333,29 +333,122 @@ test('detail offers to reload on a version conflict and hides Editar without per
   expect(screen.queryByRole('button', { name: /^Editar/ })).not.toBeInTheDocument()
 })
 
-test('unlinking a clinic in the detail asks for a reason and sends it', async () => {
+function pagedClinicsHandler(all: ReturnType<typeof apiClinic>[]) {
+  return http.get('/api/v1/clinics', ({ request }) => {
+    const url = new URL(request.url)
+    const search = (url.searchParams.get('search') ?? '').toLowerCase()
+    const page = Number(url.searchParams.get('page') ?? 1)
+    const pageSize = Number(url.searchParams.get('page_size') ?? 20)
+    const filtered = all.filter((clinic) => clinic.name.toLowerCase().includes(search))
+    return HttpResponse.json({
+      items: filtered.slice((page - 1) * pageSize, page * pageSize),
+      total: filtered.length,
+      page,
+      page_size: pageSize,
+    })
+  })
+}
+
+const MANY_CLINICS = Array.from({ length: 150 }, (_, index) =>
+  apiClinic(`c${index + 1}`, `Clínica ${String(index + 1).padStart(3, '0')}`),
+)
+
+test('links 100+ clinics in one batch with a single reason', async () => {
   const user = userEvent.setup()
-  const unlinkSpy = vi.fn()
+  const patchSpy = vi.fn()
   server.use(
     meHandler(MANAGE),
-    clinicsHandler(),
-    detailHandler({ is_autonomous: true }, [
-      { clinic_id: 'c1', clinic_name: 'Schweitzer', primary_clinic: false },
-    ]),
-    http.delete('/api/v1/veterinarians/v1/clinics/c1', ({ request }) => {
-      unlinkSpy(new URL(request.url).searchParams.get('reason'))
+    pagedClinicsHandler(MANY_CLINICS),
+    detailHandler({}, [{ clinic_id: 'c1', clinic_name: 'Clínica 001', primary_clinic: true }]),
+    http.patch('/api/v1/veterinarians/v1/clinics', async ({ request }) => {
+      patchSpy(await request.json())
       return new HttpResponse(null, { status: 204 })
     }),
   )
   renderAt('/cadastros/veterinarios/v1')
 
   await user.click(await screen.findByRole('button', { name: 'Editar clínicas vinculadas' }))
-  const remove = screen.getByRole('button', {
-    name: 'Remover vínculo com Schweitzer',
-  })
-  expect(remove).toBeDisabled()
-  await user.type(screen.getByLabelText('Motivo da alteração'), 'Saiu da clínica')
-  await user.click(remove)
+  expect(screen.getByText('1 clínica selecionada')).toBeInTheDocument()
+  // a lista é paginada: só 10 por vez, mesmo com 150 clínicas
+  expect(await screen.findByLabelText('Clínica 010')).toBeInTheDocument()
+  expect(screen.queryByLabelText('Clínica 011')).not.toBeInTheDocument()
 
-  await waitFor(() => expect(unlinkSpy).toHaveBeenCalledWith('Saiu da clínica'))
+  await user.click(screen.getByRole('button', { name: 'Selecionar todas (150)' }))
+  expect(await screen.findByText('150 clínicas selecionadas')).toBeInTheDocument()
+  expect(screen.getByText('Vincular 149 · Desvincular 0')).toBeInTheDocument()
+
+  expect(screen.getByRole('button', { name: 'Salvar' })).toBeDisabled()
+  await user.type(screen.getByLabelText('Motivo da alteração'), 'Carteira nova')
+  await user.click(screen.getByRole('button', { name: 'Salvar' }))
+
+  await waitFor(() => expect(patchSpy).toHaveBeenCalledTimes(1))
+  const body = patchSpy.mock.calls[0]?.[0] as Record<string, unknown>
+  expect((body.add_clinic_ids as string[]).length).toBe(149)
+  expect(body.remove_clinic_ids).toEqual([])
+  expect(body.primary_clinic_id).toBe('c1')
+  expect(body.expected_row_version).toBe(1)
+  expect(body.reason).toBe('Carteira nova')
+})
+
+test('search narrows the list on the server and select-all applies only to the filtered ones', async () => {
+  const user = userEvent.setup()
+  server.use(
+    meHandler(MANAGE),
+    pagedClinicsHandler(MANY_CLINICS),
+    detailHandler({ is_autonomous: true }, []),
+  )
+  renderAt('/cadastros/veterinarios/v1')
+
+  await user.click(await screen.findByRole('button', { name: 'Editar clínicas vinculadas' }))
+  await user.type(screen.getByLabelText('Buscar clínica'), 'Clínica 1')
+  const select = await screen.findByRole('button', { name: 'Selecionar as 51 filtradas' })
+  await user.click(select)
+  expect(await screen.findByText('51 clínicas selecionadas')).toBeInTheDocument()
+  await user.click(screen.getByRole('button', { name: 'Limpar seleção' }))
+  expect(await screen.findByText('0 clínicas selecionadas')).toBeInTheDocument()
+})
+
+test('a non-autonomous veterinarian cannot save without a clinic; an autonomous one can', async () => {
+  const user = userEvent.setup()
+  const patchSpy = vi.fn()
+  const linked = [{ clinic_id: 'c1', clinic_name: 'Schweitzer', primary_clinic: true }]
+  server.use(
+    meHandler(MANAGE),
+    clinicsHandler(),
+    detailHandler({}, linked),
+    http.patch('/api/v1/veterinarians/v1/clinics', async ({ request }) => {
+      patchSpy(await request.json())
+      return new HttpResponse(null, { status: 204 })
+    }),
+  )
+  const view = renderAt('/cadastros/veterinarios/v1')
+  await user.click(await screen.findByRole('button', { name: 'Editar clínicas vinculadas' }))
+  await user.click(screen.getByRole('button', { name: 'Remover Schweitzer' }))
+  expect(
+    screen.getByText('Veterinário não autônomo precisa de ao menos uma clínica vinculada.'),
+  ).toBeInTheDocument()
+  await user.type(screen.getByLabelText('Motivo da alteração'), 'Saiu')
+  expect(screen.getByRole('button', { name: 'Salvar' })).toBeDisabled()
+  view.unmount()
+  server.resetHandlers()
+
+  server.use(
+    meHandler(MANAGE),
+    clinicsHandler(),
+    detailHandler({ is_autonomous: true }, linked),
+    http.patch('/api/v1/veterinarians/v1/clinics', async ({ request }) => {
+      patchSpy(await request.json())
+      return new HttpResponse(null, { status: 204 })
+    }),
+  )
+  renderAt('/cadastros/veterinarios/v1')
+  await user.click(await screen.findByRole('button', { name: 'Editar clínicas vinculadas' }))
+  await user.click(screen.getByRole('button', { name: 'Remover Schweitzer' }))
+  await user.type(screen.getByLabelText('Motivo da alteração'), 'Virou autônomo')
+  await user.click(screen.getByRole('button', { name: 'Salvar' }))
+  await waitFor(() =>
+    expect(patchSpy).toHaveBeenCalledWith(
+      expect.objectContaining({ remove_clinic_ids: ['c1'], add_clinic_ids: [] }),
+    ),
+  )
 })

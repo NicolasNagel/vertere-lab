@@ -866,6 +866,14 @@ export type ValidationError = {
   "ctx"?: Record<string, unknown>
 }
 
+export type VeterinarianClinicsUpdateRequest = {
+  "add_clinic_ids"?: Array<string>
+  "remove_clinic_ids"?: Array<string>
+  "primary_clinic_id"?: string | null
+  "expected_row_version": number
+  "reason": string
+}
+
 export type VeterinarianCreateRequest = {
   "name": string
   "crmv": string

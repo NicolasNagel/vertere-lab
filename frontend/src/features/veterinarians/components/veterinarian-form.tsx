@@ -6,8 +6,8 @@ import { z } from 'zod'
 import { describeError } from '../../../shared/api/describe-error'
 import { Checkbox } from '../../../shared/ui/checkbox'
 import { TextField } from '../../../shared/ui/text-field'
-import { useAllClinicsQuery } from '../../clinics/api/use-clinics-query'
 import type { VeterinarianFormValues } from '../api/veterinarians-api'
+import { ClinicBatchPicker } from './clinic-batch-picker'
 import '../../attendances/components/attendance-draft-page.css'
 import './veterinarian-form.css'
 
@@ -40,7 +40,11 @@ interface VeterinarianFormProps {
   error?: unknown
   /** `id` do <form>, para o botão de salvar da barra inferior da tela. */
   formId: string
-  onSubmitCreate: (values: VeterinarianFormValues, clinicIds: string[]) => void
+  onSubmitCreate: (
+    values: VeterinarianFormValues,
+    clinicIds: string[],
+    primaryClinicId: string | null,
+  ) => void
 }
 
 /** Cadastro de veterinário no layout do Novo Protocolo: blocos, e Cancelar | Salvar na barra
@@ -70,15 +74,8 @@ export function VeterinarianForm({
 
   const isAutonomous = watch('isAutonomous')
   const [selectedClinicIds, setSelectedClinicIds] = useState<string[]>([])
+  const [primaryClinicId, setPrimaryClinicId] = useState<string | null>(null)
   const [clinicsError, setClinicsError] = useState<string | null>(null)
-  const clinicsQuery = useAllClinicsQuery({ status: 'ACTIVE' })
-  const activeClinics = clinicsQuery.data?.items ?? []
-
-  function toggleClinic(clinicId: string) {
-    setSelectedClinicIds((current) =>
-      current.includes(clinicId) ? current.filter((id) => id !== clinicId) : [...current, clinicId],
-    )
-  }
 
   const onSubmit = handleSubmit((fields) => {
     if (!fields.isAutonomous && selectedClinicIds.length === 0) {
@@ -86,7 +83,7 @@ export function VeterinarianForm({
       return
     }
     setClinicsError(null)
-    onSubmitCreate(toApiValues(fields), selectedClinicIds)
+    onSubmitCreate(toApiValues(fields), selectedClinicIds, primaryClinicId)
   })
 
   const errorMessage = describeError(error)
@@ -151,22 +148,17 @@ export function VeterinarianForm({
               ? 'Opcional para veterinário autônomo.'
               : 'Obrigatório para veterinário não autônomo.'}
           </p>
-          {clinicsQuery.isLoading && (
-            <p className="veterinarian-form__hint">Carregando clínicas…</p>
-          )}
-          {!clinicsQuery.isLoading && activeClinics.length > 0 && (
-            <div className="veterinarian-form__clinics-list" role="group" aria-label="Clínicas">
-              {activeClinics.map((clinic) => (
-                <Checkbox
-                  key={clinic.id}
-                  label={clinic.name}
-                  disabled={submitting}
-                  checked={selectedClinicIds.includes(clinic.id)}
-                  onChange={() => toggleClinic(clinic.id)}
-                />
-              ))}
-            </div>
-          )}
+          <ClinicBatchPicker
+            idPrefix="veterinarian-new"
+            selectedIds={selectedClinicIds}
+            primaryId={primaryClinicId}
+            knownClinics={[]}
+            disabled={submitting}
+            onChange={(ids, primary) => {
+              setSelectedClinicIds(ids)
+              setPrimaryClinicId(primary)
+            }}
+          />
           {clinicsError && (
             <p role="alert" className="attendance-draft-page__domain-error">
               {clinicsError}

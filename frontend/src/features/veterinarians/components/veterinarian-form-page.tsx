@@ -35,11 +35,11 @@ export function VeterinarianFormPage() {
             formId={FORM_ID}
             submitting={createMutation.isPending}
             error={createMutation.error}
-            onSubmitCreate={(values, clinicIds) => {
+            onSubmitCreate={(values, clinicIds, primaryClinicId) => {
               if (submittingRef.current) return
               submittingRef.current = true
               createMutation.mutate(
-                { values, clinicIds },
+                { values, clinicIds, primaryClinicId },
                 {
                   onSuccess: goToList,
                   onError: () => {

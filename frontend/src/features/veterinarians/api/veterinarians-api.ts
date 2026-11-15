@@ -140,6 +140,7 @@ export async function fetchVeterinarian(id: string): Promise<Veterinarian> {
 export async function createVeterinarian(
   values: VeterinarianFormValues,
   clinicIds: string[] = [],
+  primaryClinicId: string | null = null,
 ): Promise<Veterinarian> {
   // The backend now requires clinic_ids in the same request for a
   // non-autonomous veterinarian (it validates "needs >=1 clinic" at
@@ -151,7 +152,7 @@ export async function createVeterinarian(
     body: {
       ...toApiPayload(values),
       clinic_ids: clinicIds,
-      primary_clinic_id: clinicIds[0] ?? null,
+      primary_clinic_id: primaryClinicId ?? clinicIds[0] ?? null,
     },
   })
   return fromApiVeterinarian(veterinarian)
@@ -184,28 +185,27 @@ export async function deactivateVeterinarian(id: string): Promise<Veterinarian> 
   return fromApiVeterinarian(veterinarian)
 }
 
-export async function linkVeterinarianClinic(
-  veterinarianId: string,
-  clinicId: string,
-  reason: string,
-  primary = false,
-): Promise<void> {
-  await apiRequest<void>(`/veterinarians/${veterinarianId}/clinics`, {
-    method: 'POST',
-    body: { clinic_id: clinicId, primary, reason },
-  })
+export interface VeterinarianClinicsChange {
+  addClinicIds: string[]
+  removeClinicIds: string[]
+  primaryClinicId: string | null
+  expectedRowVersion: number
+  reason: string
 }
 
-export async function unlinkVeterinarianClinic(
+/** Vincula e desvincula várias clínicas de uma vez: uma transação, um motivo, uma auditoria. */
+export async function updateVeterinarianClinics(
   veterinarianId: string,
-  clinicId: string,
-  reason: string,
+  change: VeterinarianClinicsChange,
 ): Promise<void> {
-  const query = new URLSearchParams({ reason })
-  await apiRequest<void>(
-    `/veterinarians/${veterinarianId}/clinics/${clinicId}?${query.toString()}`,
-    {
-      method: 'DELETE',
+  await apiRequest<void>(`/veterinarians/${veterinarianId}/clinics`, {
+    method: 'PATCH',
+    body: {
+      add_clinic_ids: change.addClinicIds,
+      remove_clinic_ids: change.removeClinicIds,
+      primary_clinic_id: change.primaryClinicId,
+      expected_row_version: change.expectedRowVersion,
+      reason: change.reason,
     },
-  )
+  })
 }

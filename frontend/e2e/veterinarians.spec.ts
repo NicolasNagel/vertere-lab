@@ -46,6 +46,17 @@ const clinic = {
   row_version: 1,
 }
 
+const LONG_CLINIC = 'Clínica Veterinária Integrada de Pequenos e Grandes Animais do Vale do Itajaí'
+const CLINICS = [
+  clinic,
+  { ...clinic, id: 'c2', name: LONG_CLINIC },
+  ...Array.from({ length: 118 }, (_, index) => ({
+    ...clinic,
+    id: `c${index + 3}`,
+    name: `Clínica ${String(index + 3).padStart(3, '0')}`,
+  })),
+]
+
 type Mode = 'ok' | 'empty' | 'error'
 
 async function mockApi(page: Page, permissions: string[], mode: Mode = 'ok') {
@@ -73,8 +84,21 @@ async function mockApi(page: Page, permissions: string[], mode: Mode = 'ok') {
       const items = mode === 'empty' ? [] : [veterinarian]
       return route.fulfill(json({ items, total: items.length, page: 1, page_size: 25 }))
     }
-    if (path === '/clinics')
-      return route.fulfill(json({ items: [clinic], total: 1, page: 1, page_size: 100 }))
+    if (path === '/clinics') {
+      const url = new URL(route.request().url())
+      const search = (url.searchParams.get('search') ?? '').toLowerCase()
+      const pageNumber = Number(url.searchParams.get('page') ?? 1)
+      const pageSize = Number(url.searchParams.get('page_size') ?? 20)
+      const filtered = CLINICS.filter((item) => item.name.toLowerCase().includes(search))
+      return route.fulfill(
+        json({
+          items: filtered.slice((pageNumber - 1) * pageSize, pageNumber * pageSize),
+          total: filtered.length,
+          page: pageNumber,
+          page_size: pageSize,
+        }),
+      )
+    }
     return route.fulfill({ status: 404, contentType: 'application/json', body: '{}' })
   })
 }
@@ -122,6 +146,21 @@ for (const viewport of VIEWPORTS) {
       await expectAccessible(page)
       await page.getByRole('button', { name: 'Editar identificação' }).click()
       await expect(page.getByLabel('Motivo da alteração')).toBeVisible()
+      await expectAccessible(page)
+    })
+
+    test('batch clinic picker with 120 clinics is accessible and fits the viewport', async ({
+      page,
+    }) => {
+      await mockApi(page, MANAGER)
+      await page.goto('/cadastros/veterinarios/v1')
+      await page.getByRole('button', { name: 'Editar clínicas vinculadas' }).click()
+      await expect(page.getByRole('group', { name: 'Clínicas disponíveis' })).toBeVisible()
+      await expect(page.getByText('1 clínica selecionada')).toBeVisible()
+      await expectAccessible(page)
+      await page.getByRole('button', { name: 'Selecionar todas (120)' }).click()
+      await expect(page.getByText('120 clínicas selecionadas')).toBeVisible()
+      await expect(page.getByText('Vincular 119 · Desvincular 0')).toBeVisible()
       await expectAccessible(page)
     })
 

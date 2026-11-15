@@ -1,12 +1,9 @@
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 
 import { Checkbox } from '../../../shared/ui/checkbox'
 import { Dropdown } from '../../../shared/ui/dropdown'
-import { Button } from '../../../shared/ui/button'
 import { TextField } from '../../../shared/ui/text-field'
-import { useAllClinicsQuery } from '../../clinics/api/use-clinics-query'
-import { useLinkVeterinarianClinicMutation } from '../api/use-link-veterinarian-clinic-mutation'
-import { useUnlinkVeterinarianClinicMutation } from '../api/use-unlink-veterinarian-clinic-mutation'
+import { useUpdateVeterinarianClinicsMutation } from '../api/use-update-veterinarian-clinics-mutation'
 import { useUpdateVeterinarianMutation } from '../api/use-update-veterinarian-mutation'
 import type {
   Veterinarian,
@@ -14,10 +11,9 @@ import type {
   VeterinarianStatus,
 } from '../api/veterinarians-api'
 import {
-  VeterinarianDetailError,
   VeterinarianDetailFooter,
-  VeterinarianReasonField,
 } from './veterinarian-detail-block'
+import { ClinicBatchPicker, MAX_CLINICS_PER_CHANGE } from './clinic-batch-picker'
 
 interface FormProps {
   veterinarian: Veterinarian
@@ -197,106 +193,87 @@ export function StatusForm(props: FormProps) {
   )
 }
 
-/** Vínculos com clínicas: cada vincular/remover é uma alteração própria e pede motivo. */
+/** Vínculos com clínicas em lote: marca quem entra e quem sai, e salva tudo de uma vez com um
+ * motivo. O resumo "Vincular N · Desvincular M" mostra o efeito antes de salvar. */
 export function ClinicsForm({ veterinarian, onClose }: FormProps) {
+  const initialIds = useMemo(
+    () => veterinarian.clinics.map((clinic) => clinic.clinicId),
+    [veterinarian.clinics],
+  )
+  const initialPrimary = veterinarian.clinics.find((clinic) => clinic.primaryClinic)?.clinicId
   const [reason, setReason] = useState('')
-  const [clinicId, setClinicId] = useState('')
-  const clinicsQuery = useAllClinicsQuery({ status: 'ACTIVE' })
-  const linkMutation = useLinkVeterinarianClinicMutation()
-  const unlinkMutation = useUnlinkVeterinarianClinicMutation()
+  const [selectedIds, setSelectedIds] = useState<string[]>(initialIds)
+  const [primaryId, setPrimaryId] = useState<string | null>(initialPrimary ?? initialIds[0] ?? null)
+  const mutation = useUpdateVeterinarianClinicsMutation()
 
-  const linked = new Set(veterinarian.clinics.map((clinic) => clinic.clinicId))
-  const available = (clinicsQuery.data?.items ?? []).filter((clinic) => !linked.has(clinic.id))
-  const pending = linkMutation.isPending || unlinkMutation.isPending
-  const hasReason = reason.trim().length > 0
+  const addIds = selectedIds.filter((id) => !initialIds.includes(id))
+  const removeIds = initialIds.filter((id) => !selectedIds.includes(id))
+  const primaryChanged = (primaryId ?? null) !== (initialPrimary ?? null) && selectedIds.length > 0
+  const changed = addIds.length > 0 || removeIds.length > 0 || primaryChanged
+  const needsAClinic = !veterinarian.isAutonomous && selectedIds.length === 0
+  const overLimit =
+    addIds.length > MAX_CLINICS_PER_CHANGE || removeIds.length > MAX_CLINICS_PER_CHANGE
+  const canSave = changed && !needsAClinic && !overLimit
+
+  function save() {
+    mutation.mutate(
+      {
+        veterinarianId: veterinarian.id,
+        change: {
+          addClinicIds: addIds,
+          removeClinicIds: removeIds,
+          primaryClinicId: primaryId,
+          expectedRowVersion: veterinarian.rowVersion,
+          reason: reason.trim(),
+        },
+      },
+      { onSuccess: onClose },
+    )
+  }
 
   return (
     <div className="attendance-correction-block__form">
-      <ul className="attendance-readonly-detail__items">
-        {veterinarian.clinics.map((clinic) => (
-          <li
-            key={clinic.clinicId}
-            className="attendance-readonly-detail__item veterinarian-detail-page__edit-row"
-          >
-            <span>
-              {clinic.clinicName}
-              {clinic.primaryClinic ? ' · Principal' : ''}
-            </span>
-            <Button
-              type="button"
-              variant="cancel"
-              aria-label={`Remover vínculo com ${clinic.clinicName}`}
-              disabled={pending || !hasReason}
-              onClick={() =>
-                unlinkMutation.mutate({
-                  veterinarianId: veterinarian.id,
-                  clinicId: clinic.clinicId,
-                  reason: reason.trim(),
-                })
-              }
-            >
-              Remover
-            </Button>
-          </li>
-        ))}
-        {veterinarian.clinics.length === 0 && (
-          <li className="attendance-readonly-detail__item">Nenhuma clínica vinculada.</li>
-        )}
-      </ul>
-
-      <VeterinarianReasonField
+      <ClinicBatchPicker
+        idPrefix={`veterinarian-${veterinarian.id}`}
+        selectedIds={selectedIds}
+        primaryId={primaryId}
+        knownClinics={veterinarian.clinics.map((clinic) => ({
+          id: clinic.clinicId,
+          name: clinic.clinicName,
+        }))}
+        disabled={mutation.isPending}
+        onChange={(ids, primary) => {
+          setSelectedIds(ids)
+          setPrimaryId(primary)
+        }}
+      />
+      <p className="clinic-batch-picker__diff" aria-live="polite">
+        {changed
+          ? `Vincular ${addIds.length} · Desvincular ${removeIds.length}${
+              primaryChanged ? ' · Muda a clínica principal' : ''
+            }`
+          : 'Nenhuma alteração.'}
+      </p>
+      {needsAClinic && (
+        <p role="alert" className="attendance-correction-block__error">
+          Veterinário não autônomo precisa de ao menos uma clínica vinculada.
+        </p>
+      )}
+      {overLimit && (
+        <p role="alert" className="attendance-correction-block__error">
+          Vincule ou desvincule no máximo {MAX_CLINICS_PER_CHANGE} clínicas por vez.
+        </p>
+      )}
+      <VeterinarianDetailFooter
         veterinarianId={veterinarian.id}
         reason={reason}
         onReasonChange={setReason}
-        disabled={pending}
+        canSave={canSave}
+        isPending={mutation.isPending}
+        error={mutation.error}
+        onSave={save}
+        onCancel={onClose}
       />
-
-      {available.length > 0 && (
-        <div className="attendance-correction-block__row">
-          <Dropdown
-            variant="field"
-            label="Vincular clínica"
-            placeholder="Selecione a clínica"
-            options={available.map((clinic) => ({
-              value: clinic.id,
-              label: clinic.name,
-            }))}
-            searchable
-            value={clinicId}
-            disabled={pending}
-            onChange={setClinicId}
-          />
-          <div className="attendance-correction-block__actions">
-            <Button
-              type="button"
-              disabled={pending || !clinicId || !hasReason}
-              onClick={() =>
-                linkMutation.mutate(
-                  {
-                    veterinarianId: veterinarian.id,
-                    clinicId,
-                    reason: reason.trim(),
-                    primary: veterinarian.clinics.length === 0,
-                  },
-                  { onSuccess: () => setClinicId('') },
-                )
-              }
-            >
-              Vincular
-            </Button>
-          </div>
-        </div>
-      )}
-
-      <VeterinarianDetailError
-        veterinarianId={veterinarian.id}
-        error={linkMutation.error ?? unlinkMutation.error}
-      />
-      <div className="attendance-correction-block__actions">
-        <Button type="button" variant="cancel" disabled={pending} onClick={onClose}>
-          Concluir
-        </Button>
-      </div>
     </div>
   )
 }

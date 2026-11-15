@@ -1,12 +1,4 @@
 /* Blocos e campos vêm de attendance-draft-page.css; aqui só a lista de clínicas e o aviso de erro. */
-.veterinarian-form__clinics-list {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(14rem, 1fr));
-  gap: 0.5rem 1rem;
-  max-height: 12rem;
-  overflow-y: auto;
-}
-
 .veterinarian-form__hint {
   margin: 0;
   font-size: 0.8125rem;
