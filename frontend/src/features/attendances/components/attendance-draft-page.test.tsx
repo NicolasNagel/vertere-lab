@@ -321,6 +321,21 @@ test('requires attendances.create and filters the veterinarian list by the selec
   expect(optionLabelsAfter).not.toContain('Dr. Bruno (vinculado c1)')
 })
 
+test('does not list the exam catalog until clinic, veterinarian and patient are chosen', async () => {
+  const user = userEvent.setup()
+  renderPage(['attendances.create'], examsCatalogHandlers([]))
+
+  expect(
+    await screen.findByText('Para marcar exames, falta informar: clínica, veterinário, paciente.'),
+  ).toBeInTheDocument()
+  expect(screen.queryByLabelText('Filtrar exames')).not.toBeInTheDocument()
+
+  await chooseOption(user, 'Clínica solicitante', 'Clínica Central')
+  expect(
+    await screen.findByText('Para marcar exames, falta informar: veterinário, paciente.'),
+  ).toBeInTheDocument()
+})
+
 test('auto-creates the draft once clinic, veterinarian and patient are set, then confirms and returns to the list', async () => {
   const user = userEvent.setup()
   const onDraftCreated = vi.fn()

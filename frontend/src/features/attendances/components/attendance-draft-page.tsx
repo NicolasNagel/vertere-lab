@@ -112,6 +112,12 @@ export function AttendanceDraftPage({ resumeAttendance }: AttendanceDraftPagePro
 
   const examSelections = useAttendanceExamSelections(attendance, () => navigate('/operacao'))
 
+  const missingForExams = [
+    !clinicId && 'clínica',
+    !veterinarianId && 'veterinário',
+    !patient && 'paciente',
+  ].filter((label): label is string => Boolean(label))
+
   const clinicOptions: DropdownOption[] = (clinicsQuery.data?.items ?? []).map((clinic) => ({
     value: clinic.id,
     label: clinic.name,
@@ -419,25 +425,30 @@ export function AttendanceDraftPage({ resumeAttendance }: AttendanceDraftPagePro
                     {examSelections.selections.length === 1 ? '' : 's'}
                   </span>
                 </div>
-                {!attendance && (
-                  <p className="attendance-draft-page__hint">
-                    Preencha clínica, veterinário e paciente para marcar exames.
+                {attendance ? (
+                  <>
+                    <ExamCartGrid
+                      exams={examsQuery.data?.items ?? []}
+                      categories={examCategoriesQuery.data ?? []}
+                      selections={examSelections.selections}
+                      showMoney={showMoney}
+                      canDiscount={canOverridePrice}
+                      patientSpeciesId={patient?.speciesId ?? null}
+                      isLoading={examsQuery.isLoading || examCategoriesQuery.isLoading}
+                      isError={examsQuery.isError || examCategoriesQuery.isError}
+                      disabled={!attendance || examSelections.isPending}
+                      onAdd={examSelections.addExam}
+                      onRemove={examSelections.removeExam}
+                      onUpdate={examSelections.updateSelection}
+                    />
+                  </>
+                ) : (
+                  <p className="attendance-draft-page__hint" role="status">
+                    {missingForExams.length > 0
+                      ? `Para marcar exames, falta informar: ${missingForExams.join(', ')}.`
+                      : 'Preparando o rascunho…'}
                   </p>
                 )}
-                <ExamCartGrid
-                  exams={examsQuery.data?.items ?? []}
-                  categories={examCategoriesQuery.data ?? []}
-                  selections={examSelections.selections}
-                  showMoney={showMoney}
-                  canDiscount={canOverridePrice}
-                  patientSpeciesId={patient?.speciesId ?? null}
-                  isLoading={examsQuery.isLoading || examCategoriesQuery.isLoading}
-                  isError={examsQuery.isError || examCategoriesQuery.isError}
-                  disabled={!attendance || examSelections.isPending}
-                  onAdd={examSelections.addExam}
-                  onRemove={examSelections.removeExam}
-                  onUpdate={examSelections.updateSelection}
-                />
               </section>
 
               {createErrorMessage && (
