@@ -3,6 +3,8 @@ import { useEffect, useRef, useState } from 'react'
 import { ApiError } from '../../../shared/api/errors'
 import { parseMoneyInput } from '../../../shared/lib/money'
 import { Button } from '../../../shared/ui/button'
+import { Dropdown } from '../../../shared/ui/dropdown'
+import { TagIcon } from '../../../shared/ui/icons'
 import { Modal } from '../../../shared/ui/modal'
 import type { AddFinancialAdjustmentParams, FinancialAdjustmentKind } from '../api/closures-api'
 import './closure-reopen-modal.css'
@@ -46,16 +48,18 @@ export function FinancialAdjustmentModal({
     >
         <h2 id="adjustment-title">Adicionar ajuste</h2>
         <p>O ajuste será append-only e não modificará o snapshot original.</p>
-        <label htmlFor="adjustment-kind">Tipo</label>
-        <select
-          id="adjustment-kind"
+        <Dropdown
+          variant="field"
+          icon={<TagIcon />}
+          label="Tipo"
           value={kind}
           disabled={isPending}
-          onChange={(event) => setKind(event.target.value as FinancialAdjustmentKind)}
-        >
-          <option value="DEBIT">Débito</option>
-          <option value="CREDIT">Crédito</option>
-        </select>
+          options={[
+            { value: 'DEBIT', label: 'Débito' },
+            { value: 'CREDIT', label: 'Crédito' },
+          ]}
+          onChange={(value) => setKind(value as FinancialAdjustmentKind)}
+        />
         <label htmlFor="adjustment-amount">Valor</label>
         <input
           ref={amountRef}

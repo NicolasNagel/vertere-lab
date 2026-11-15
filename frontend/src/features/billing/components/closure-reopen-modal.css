@@ -28,3 +28,8 @@
   font-size: 0.8125rem;
   color: var(--color-warning-ink);
 }
+
+/* Menu suspenso de formulário tem o mesmo respiro dos campos de texto. */
+.closure-reopen-modal .dropdown-field {
+  margin-bottom: 0.75rem;
+}

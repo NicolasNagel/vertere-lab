@@ -7,6 +7,7 @@ import type { ReactNode } from 'react'
 import { MemoryRouter } from 'react-router'
 import { afterAll, afterEach, beforeAll, expect, test } from 'vitest'
 
+import { pickOption } from '../../../test/dropdown'
 import { AuthProvider } from '../../auth/auth-provider'
 import { ClosurePage } from './closure-page'
 
@@ -325,7 +326,8 @@ test('the prévia shows eligible and blocked items, the demonstrativo, grouping 
   const view = renderWithProviders(<ClosurePage />)
 
   // Carregando, elegíveis, bloqueados com motivo, demonstrativo e sem botão de fechar.
-  await user.selectOptions(await screen.findByLabelText('Clínica'), 'clinic-a')
+  await screen.findByRole('button', { name: /^Clínica/ })
+  await pickOption(user, 'Clínica', 'Schweitzer')
   expect(await screen.findByText('Carregando prévia…')).toBeInTheDocument()
   expect(await screen.findByText('Rex')).toBeInTheDocument()
   expect(screen.getByText('Mia')).toBeInTheDocument()
@@ -335,7 +337,7 @@ test('the prévia shows eligible and blocked items, the demonstrativo, grouping 
   expect(screen.queryByRole('button', { name: 'Fechar período' })).not.toBeInTheDocument()
 
   // Trocar de clínica não deixa os dados da anterior na tela durante o carregamento.
-  await user.selectOptions(screen.getByLabelText('Clínica'), 'clinic-b')
+  await pickOption(user, 'Clínica', 'VetCenter')
   await waitFor(() => expect(screen.queryByText('Rex')).not.toBeInTheDocument())
   restart(view)
 
@@ -349,7 +351,8 @@ test('the prévia shows eligible and blocked items, the demonstrativo, grouping 
     ),
   )
   renderWithProviders(<ClosurePage />)
-  await user.selectOptions(await screen.findByLabelText('Clínica'), 'clinic-a')
+  await screen.findByRole('button', { name: /^Clínica/ })
+  await pickOption(user, 'Clínica', 'Schweitzer')
   await screen.findByText('Hemograma')
   await user.click(screen.getByRole('button', { name: 'Por protocolo' }))
   expect(await screen.findByText('Hemograma, Bioquímico renal')).toBeInTheDocument()
@@ -376,7 +379,8 @@ test('the prévia shows an empty state and a dedicated message on 403', async ()
     ),
   )
   const view = renderWithProviders(<ClosurePage />)
-  await user.selectOptions(await screen.findByLabelText('Clínica'), 'clinic-a')
+  await screen.findByRole('button', { name: /^Clínica/ })
+  await pickOption(user, 'Clínica', 'Schweitzer')
   expect(
     await screen.findByText('Nenhum atendimento encontrado para esta clínica e período.'),
   ).toBeInTheDocument()
@@ -400,7 +404,8 @@ test('the prévia shows an empty state and a dedicated message on 403', async ()
     ),
   )
   renderWithProviders(<ClosurePage />)
-  await user.selectOptions(await screen.findByLabelText('Clínica'), 'clinic-a')
+  await screen.findByRole('button', { name: /^Clínica/ })
+  await pickOption(user, 'Clínica', 'Schweitzer')
   expect(
     await screen.findByText('Você não tem permissão para visualizar a prévia de fechamento.'),
   ).toBeInTheDocument()
@@ -423,7 +428,8 @@ test('an existing closure is looked up first and shown instead of the prévia, e
     }),
   )
   let view = renderWithProviders(<ClosurePage />)
-  await user.selectOptions(await screen.findByLabelText('Clínica'), 'clinic-a')
+  await screen.findByRole('button', { name: /^Clínica/ })
+  await pickOption(user, 'Clínica', 'Schweitzer')
   expect(await screen.findByText('Rex')).toBeInTheDocument()
   expect(previewRequested).toBe(true)
   restart(view)
@@ -484,7 +490,8 @@ test('closes the period only after explicit confirmation and shows a success ban
   )
   renderWithProviders(<ClosurePage />)
 
-  await user.selectOptions(await screen.findByLabelText('Clínica'), 'clinic-a')
+  await screen.findByRole('button', { name: /^Clínica/ })
+  await pickOption(user, 'Clínica', 'Schweitzer')
   await user.click(await screen.findByRole('button', { name: 'Fechar período' }))
 
   const dialog = within(await screen.findByRole('dialog'))
