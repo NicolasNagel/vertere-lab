@@ -145,6 +145,12 @@ function validity(rule: ClinicFeeRule): string {
   return rule.validTo ? `${from} até ${formatDate(rule.validTo)}` : from
 }
 
+function ruleStatus(rule: ClinicFeeRule): 'Ativa' | 'Inativa' | 'Encerrada' {
+  if (!rule.isActive) return 'Inativa'
+  const today = new Date().toISOString().slice(0, 10)
+  return rule.validTo && rule.validTo < today ? 'Encerrada' : 'Ativa'
+}
+
 /** Cadastro das taxas fixas por clínica; somam ao total do atendimento enquanto vigentes. */
 export function ClinicFeeRulesPanel() {
   const { user } = useAuth()
@@ -222,8 +228,8 @@ export function ClinicFeeRulesPanel() {
                     {formatCurrencyBRL(rule.feeAmount)}
                   </td>
                   <td>
-                    <Badge tone={rule.isActive ? 'success' : 'neutral'}>
-                      {rule.isActive ? 'Ativa' : 'Inativa'}
+                    <Badge tone={ruleStatus(rule) === 'Ativa' ? 'success' : 'neutral'}>
+                      {ruleStatus(rule)}
                     </Badge>
                   </td>
                   <td className="exam-table__actions">

@@ -162,3 +162,14 @@ a regra do Bicho Urbano).
 - Pergunta 2 (tabela de preço própria por clínica?): **não**. O modelo é "preço padrão + regra/ajuste por clínica"; não há tabela própria.
 - Ordem resultante: fatia 1 (tela + `pricing.manage`) → 3 (regras por clínica, backend) → 4 (regras por clínica, tela) → 2 (histórico) → 5 (limpeza).
 - Perguntas 3, 4, 5 (parte respondida), 6 e 7 seguem abertas; as recomendações do plano valem até decisão contrária.
+
+## G. Módulo de Taxas — decisões e implementação (fatias 3+4, 2026-11-15)
+Decisões do usuário: taxa de urgência é **valor fixo**; taxa da clínica é **valor fixo que soma ao total do atendimento**, com datas de vigência; plantão + urgência + taxa da clínica **somam entre si**.
+
+- **Modelo:** `urgency_fee_settings` (linha única), `clinic_fee_rules` (clínica, nome, valor, `valid_from`/`valid_to`, ativa) e, em `attendances`, `is_urgent`, `urgency_fee`, `clinic_fee`, `fee_lines` (JSONB, snapshot por linha: tipo, rótulo, valor, regra). Migration `0041`, reversível.
+- **Total:** calculado no backend = subtotal dos exames + plantão + urgência + taxas da clínica vigentes em `service_date`. Linhas com valor zero não aparecem.
+- **Snapshot / sem retroação:** atendimento confirmado mantém as taxas de quando foi confirmado; mudar o cadastro não o altera. Só uma correção que mude tipo de serviço, urgência, clínica ou data de atendimento reprecifica as taxas (auditado, com o motivo).
+- **Permissões e auditoria:** `pricing.read` para ver valores (sem ela a API devolve `null` nos valores de taxa); `pricing.manage` para alterar. Toda alteração (plantão, urgência, regra da clínica) exige **motivo** e grava `audit_log` com antes/depois; `row_version` → 409 em edição concorrente. Regras por clínica só no escopo laboratório.
+- **Fechamento:** o fechamento continua somando `grand_total`; o campo `on_call_fee_total` agora carrega plantão + urgência + taxa da clínica. **Pendência:** o rótulo "plantão" no CSV/prévia do fechamento está impreciso e deve virar "taxas".
+- **Tela:** aba "Taxas" em Exames & Preços com subcadastros Plantão, Urgência e Por clínica (tabela, modal de edição com motivo, botão "Nova taxa"). Registro de atendimento ganha o marcador "Atendimento urgente" e o resumo de valor lista cada taxa.
+- **Fora desta entrega:** regra da clínica direcionada a exame/categoria; `Idempotency-Key` no `POST /clinic-fee-rules`; efeitos percentuais ou descontos (pergunta 4).

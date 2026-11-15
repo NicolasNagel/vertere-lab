@@ -118,6 +118,12 @@ export function AttendanceReadonlyDetail({ attendance }: AttendanceReadonlyDetai
             <dl className="attendance-readonly-detail__fields">
               <dt>Tipo</dt>
               <dd>{SERVICE_LEVEL_LABELS[attendance.serviceLevel]}</dd>
+              {attendance.isUrgent && (
+                <>
+                  <dt>Urgência</dt>
+                  <dd>Atendimento urgente</dd>
+                </>
+              )}
               <dt>Forma de coleta</dt>
               <dd>{COLLECTION_METHOD_LABELS[attendance.collectionMethod]}</dd>
               <dt>Data</dt>
