@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import date
+from datetime import date, time
 from decimal import Decimal
 from uuid import uuid4
 
@@ -23,6 +23,7 @@ from app.modules.attendances.application.urgency_fee_setting import (
     UpdateUrgencyFeeSettingUseCase,
 )
 from app.modules.attendances.domain.entities import ClinicFeeRule, ServiceLevel
+from app.modules.attendances.domain.fee_schedule import FeeSchedule
 from app.shared.domain.errors import ConflictError, ForbiddenError, NotFoundError, ValidationError
 from tests.attendances.fakes import FakeClinicFeeRuleRepository, FakeClock
 from tests.attendances.test_attendance_use_cases import (
@@ -184,7 +185,7 @@ def test_urgency_fee_setting_needs_permission_reason_version_and_is_audited() ->
         values: dict[str, object] = {
             "actor": _lab_actor(),
             "fee_amount": Decimal("45.00"),
-            "schedule_label": "Fora do horário",
+            "schedule": FeeSchedule(weekdays=(5, 6), start_time=time(8), end_time=time(12, 30)),
             "reason": "Reajuste anual",
             "expected_row_version": 1,
         }
@@ -205,8 +206,20 @@ def test_urgency_fee_setting_needs_permission_reason_version_and_is_audited() ->
     entry = audit.entries[-1]
     assert entry.action == "urgency_fee_settings.updated"
     assert entry.reason == "Reajuste anual"
-    assert entry.before_state == {"fee_amount": "0.00", "schedule_label": ""}
-    assert entry.after_state == {"fee_amount": "45.00", "schedule_label": "Fora do horário"}
+    assert entry.before_state == {
+        "fee_amount": "0.00",
+        "schedule_label": "",
+        "weekdays": [],
+        "start_time": None,
+        "end_time": None,
+    }
+    assert entry.after_state == {
+        "fee_amount": "45.00",
+        "schedule_label": "Fim de semana · 08h às 12:30",
+        "weekdays": [5, 6],
+        "start_time": "08:00",
+        "end_time": "12:30",
+    }
 
     getter = GetUrgencyFeeSettingUseCase(urgency_fee=repo)
     with pytest.raises(ForbiddenError):

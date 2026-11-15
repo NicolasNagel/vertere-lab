@@ -54,7 +54,8 @@ def _reset_data(session_factory: sessionmaker[Session]) -> None:
             text(
                 "UPDATE on_call_fee_settings SET fee_amount = CASE service_level "
                 "WHEN 'PLANTAO_NORMAL' THEN 100.00 WHEN 'PLANTAO_ESPECIAL' THEN 150.00 END, "
-                "schedule_label = '', row_version = 1"
+                "schedule_label = '', weekdays = '{}', start_time = NULL, end_time = NULL, "
+                "row_version = 1"
             )
         )
         session.commit()
@@ -120,7 +121,6 @@ async def test_on_call_fee_settings_are_permission_gated_audited_versioned_and_t
         f"{url}/PLANTAO_NORMAL",
         json={
             "fee_amount": "130.00",
-            "schedule_label": "",
             "reason": "Reajuste",
             "expected_row_version": 1,
         },
@@ -132,7 +132,9 @@ async def test_on_call_fee_settings_are_permission_gated_audited_versioned_and_t
         f"{url}/PLANTAO_NORMAL",
         json={
             "fee_amount": "130.00",
-            "schedule_label": "Seg-Sáb - 19h às 07h",
+            "weekdays": [0, 1, 2, 3, 4, 5],
+            "start_time": "19:00",
+            "end_time": "07:00",
             "reason": "Reajuste",
             "expected_row_version": 1,
         },
@@ -141,7 +143,7 @@ async def test_on_call_fee_settings_are_permission_gated_audited_versioned_and_t
     body = updated.json()
     assert (body["fee_amount"], body["schedule_label"], body["row_version"]) == (
         "130.00",
-        "Seg-Sáb - 19h às 07h",
+        "Seg-Sáb · 19h às 07h",
         2,
     )
     with session_factory() as session:
@@ -154,7 +156,6 @@ async def test_on_call_fee_settings_are_permission_gated_audited_versioned_and_t
         f"{url}/PLANTAO_ESPECIAL",
         json={
             "fee_amount": "160.00",
-            "schedule_label": "",
             "reason": "Reajuste",
             "expected_row_version": 1,
         },
@@ -164,7 +165,6 @@ async def test_on_call_fee_settings_are_permission_gated_audited_versioned_and_t
         f"{url}/PLANTAO_ESPECIAL",
         json={
             "fee_amount": "170.00",
-            "schedule_label": "",
             "reason": "Reajuste",
             "expected_row_version": 1,
         },
@@ -177,7 +177,6 @@ async def test_on_call_fee_settings_are_permission_gated_audited_versioned_and_t
         f"{url}/NORMAL",
         json={
             "fee_amount": "10.00",
-            "schedule_label": "",
             "reason": "Reajuste",
             "expected_row_version": 1,
         },
@@ -279,7 +278,6 @@ async def test_confirmed_attendance_on_call_fee_unaffected_by_later_setting_chan
         "/api/v1/on-call-fee-settings/PLANTAO_NORMAL",
         json={
             "fee_amount": "999.00",
-            "schedule_label": "",
             "reason": "Reajuste",
             "expected_row_version": 1,
         },
@@ -289,3 +287,61 @@ async def test_confirmed_attendance_on_call_fee_unaffected_by_later_setting_chan
     reread = await client.get(f"/api/v1/attendances/{attendance_id}")
     assert reread.status_code == 200
     assert reread.json()["on_call_fee"] == "100.00"
+
+
+async def test_fee_schedule_fields_are_validated_stored_and_audited(
+    client: httpx.AsyncClient, session_factory: sessionmaker[Session]
+) -> None:
+    await _login_as(client, session_factory, role_id=ROLE_FINANCE, email="finance@vertere.local")
+    url = "/api/v1/on-call-fee-settings/PLANTAO_ESPECIAL"
+    base = {"fee_amount": "150.00", "reason": "Ajuste de horário", "expected_row_version": 1}
+
+    for bad in (
+        {"weekdays": [7]},
+        {"weekdays": [1, 1]},
+        {"start_time": "18:00"},
+        {"start_time": "18:00", "end_time": "18:00"},
+        {"schedule_label": "texto livre"},
+    ):
+        response = await client.patch(url, json={**base, **bad})
+        assert response.status_code == 422, bad
+
+    ok = await client.patch(
+        url,
+        json={**base, "weekdays": [4, 5, 6], "start_time": "18:00", "end_time": "07:00"},
+    )
+    assert ok.status_code == 200
+    body = ok.json()
+    assert body["weekdays"] == [4, 5, 6]
+    assert (body["start_time"], body["end_time"]) == ("18:00:00", "07:00:00")
+    assert body["schedule_label"] == "Sex-Dom · 18h às 07h"
+
+    urgency = await client.patch(
+        "/api/v1/urgency-fee-setting",
+        json={
+            "fee_amount": "30.00",
+            "reason": "Horário",
+            "expected_row_version": (await client.get("/api/v1/urgency-fee-setting")).json()[
+                "row_version"
+            ],
+            "weekdays": [0, 1, 2, 3, 4],
+        },
+    )
+    assert urgency.status_code == 200
+    assert urgency.json()["schedule_label"] == "Seg-Sex"
+
+    with session_factory() as session:
+        states = session.execute(
+            text(
+                "SELECT before_state->'weekdays', after_state->'weekdays', reason FROM audit_log "
+                "WHERE action = 'on_call_fee_settings.updated'"
+            )
+        ).all()
+        session.execute(
+            text(
+                "UPDATE urgency_fee_settings SET weekdays = '{}', schedule_label = '', "
+                "fee_amount = 0, row_version = 1"
+            )
+        )
+        session.commit()
+    assert [tuple(row) for row in states] == [([], [4, 5, 6], "Ajuste de horário")]

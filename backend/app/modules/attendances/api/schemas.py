@@ -3,9 +3,9 @@ separate; never the SQLAlchemy model (rule: .claude/rules/02-backend.md)."""
 
 from __future__ import annotations
 
-from datetime import date, datetime
+from datetime import date, datetime, time
 from decimal import Decimal
-from typing import Any, Literal
+from typing import Annotated, Any, Literal
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -208,6 +208,9 @@ class OnCallFeeSettingRead(BaseModel):
     service_level: OnCallServiceLevelLiteral
     fee_amount: Decimal
     schedule_label: str
+    weekdays: list[int]
+    start_time: time | None
+    end_time: time | None
     updated_at: datetime
     row_version: int
 
@@ -220,7 +223,9 @@ class OnCallFeeSettingUpdateRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     fee_amount: Decimal = Field(ge=0)
-    schedule_label: str = Field(default="", max_length=200)
+    weekdays: list[Annotated[int, Field(ge=0, le=6)]] = Field(default_factory=list, max_length=7)
+    start_time: time | None = None
+    end_time: time | None = None
     reason: str = Field(min_length=1, max_length=500)
     expected_row_version: int = Field(ge=1)
 
@@ -229,6 +234,9 @@ class UrgencyFeeSettingRead(BaseModel):
     id: UUID
     fee_amount: Decimal
     schedule_label: str
+    weekdays: list[int]
+    start_time: time | None
+    end_time: time | None
     updated_at: datetime
     row_version: int
 
@@ -237,7 +245,9 @@ class UrgencyFeeSettingUpdateRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     fee_amount: Decimal = Field(ge=0, max_digits=14, decimal_places=2)
-    schedule_label: str = Field(default="", max_length=200)
+    weekdays: list[Annotated[int, Field(ge=0, le=6)]] = Field(default_factory=list, max_length=7)
+    start_time: time | None = None
+    end_time: time | None = None
     reason: str = Field(min_length=1, max_length=500)
     expected_row_version: int = Field(ge=1)
 

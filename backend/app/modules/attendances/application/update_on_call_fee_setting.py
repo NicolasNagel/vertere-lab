@@ -14,6 +14,7 @@ from dataclasses import dataclass
 from decimal import Decimal
 
 from app.modules.attendances.domain.entities import OnCallFeeSetting, ServiceLevel
+from app.modules.attendances.domain.fee_schedule import FeeSchedule, schedule_state
 from app.modules.attendances.domain.repositories import OnCallFeeSettingRepository
 from app.modules.audit.domain.entities import ActorScope, AuditEntry
 from app.modules.audit.domain.repositories import AuditLogWriter
@@ -29,7 +30,7 @@ class UpdateOnCallFeeSettingCommand:
     actor: ActorContext
     service_level: ServiceLevel
     fee_amount: Decimal
-    schedule_label: str
+    schedule: FeeSchedule
     reason: str
     expected_row_version: int
 
@@ -66,11 +67,12 @@ class UpdateOnCallFeeSettingUseCase:
         before_state = {
             "fee_amount": str(setting.fee_amount),
             "schedule_label": setting.schedule_label,
+            **schedule_state(setting.schedule),
         }
 
         setting.update(
             fee_amount=command.fee_amount,
-            schedule_label=command.schedule_label,
+            schedule=command.schedule,
             now=self._clock.now(),
             updated_by=command.actor.id,
         )
@@ -87,6 +89,7 @@ class UpdateOnCallFeeSettingUseCase:
                 after_state={
                     "fee_amount": str(setting.fee_amount),
                     "schedule_label": setting.schedule_label,
+                    **schedule_state(setting.schedule),
                 },
                 reason=reason,
             )

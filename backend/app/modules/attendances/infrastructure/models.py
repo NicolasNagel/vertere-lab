@@ -4,11 +4,19 @@ entities (rule: .claude/rules/03-database.md, "não é Active Record")."""
 from __future__ import annotations
 
 import uuid
-from datetime import date, datetime
+from datetime import date, datetime, time
 from decimal import Decimal
 
-from sqlalchemy import CheckConstraint, ForeignKey, UniqueConstraint, func, text
-from sqlalchemy.dialects.postgresql import JSONB
+from sqlalchemy import (
+    CheckConstraint,
+    ForeignKey,
+    SmallInteger,
+    Time,
+    UniqueConstraint,
+    func,
+    text,
+)
+from sqlalchemy.dialects.postgresql import ARRAY, JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.shared.infrastructure.database import Base
@@ -183,6 +191,11 @@ class OnCallFeeSettingModel(Base):
     service_level: Mapped[str] = mapped_column(nullable=False)
     fee_amount: Mapped[Decimal] = mapped_column(nullable=False)
     schedule_label: Mapped[str] = mapped_column(nullable=False, default="")
+    weekdays: Mapped[list[int]] = mapped_column(
+        ARRAY(SmallInteger), nullable=False, default=list, server_default="{}"
+    )
+    start_time: Mapped[time | None] = mapped_column(Time, nullable=True)
+    end_time: Mapped[time | None] = mapped_column(Time, nullable=True)
     updated_by: Mapped[uuid.UUID | None] = mapped_column(
         ForeignKey("users.id", ondelete="SET NULL"), nullable=True
     )
@@ -205,6 +218,11 @@ class UrgencyFeeSettingModel(Base):
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
     fee_amount: Mapped[Decimal] = mapped_column(nullable=False)
     schedule_label: Mapped[str] = mapped_column(nullable=False, default="")
+    weekdays: Mapped[list[int]] = mapped_column(
+        ARRAY(SmallInteger), nullable=False, default=list, server_default="{}"
+    )
+    start_time: Mapped[time | None] = mapped_column(Time, nullable=True)
+    end_time: Mapped[time | None] = mapped_column(Time, nullable=True)
     updated_by: Mapped[uuid.UUID | None] = mapped_column(
         ForeignKey("users.id", ondelete="SET NULL"), nullable=True
     )

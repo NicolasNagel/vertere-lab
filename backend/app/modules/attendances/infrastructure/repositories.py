@@ -28,6 +28,7 @@ from app.modules.attendances.domain.entities import (
     ServiceLevel,
     UrgencyFeeSetting,
 )
+from app.modules.attendances.domain.fee_schedule import FeeSchedule
 from app.modules.attendances.infrastructure.models import (
     AttendanceExamModel,
     AttendanceModel,
@@ -484,12 +485,29 @@ class SqlAlchemyAttendanceSequenceRepository:
         return model.last_sequence
 
 
+def _schedule_of(model: OnCallFeeSettingModel | UrgencyFeeSettingModel) -> FeeSchedule:
+    return FeeSchedule(
+        weekdays=tuple(model.weekdays),
+        start_time=model.start_time,
+        end_time=model.end_time,
+    )
+
+
+def _store_schedule(
+    model: OnCallFeeSettingModel | UrgencyFeeSettingModel, schedule: FeeSchedule
+) -> None:
+    model.weekdays = list(schedule.weekdays)
+    model.start_time = schedule.start_time
+    model.end_time = schedule.end_time
+
+
 def _on_call_fee_setting_to_domain(model: OnCallFeeSettingModel) -> OnCallFeeSetting:
     return OnCallFeeSetting(
         id=model.id,
         service_level=ServiceLevel(model.service_level),
         fee_amount=model.fee_amount,
         schedule_label=model.schedule_label,
+        schedule=_schedule_of(model),
         updated_by=model.updated_by,
         updated_at=model.updated_at,
         row_version=model.row_version,
@@ -528,6 +546,7 @@ class SqlAlchemyOnCallFeeSettingRepository:
             )
         model.fee_amount = setting.fee_amount
         model.schedule_label = setting.schedule_label
+        _store_schedule(model, setting.schedule)
         model.updated_by = setting.updated_by
 
         # Same reasoning as SqlAlchemyAttendanceRepository.update() above:
@@ -542,6 +561,7 @@ def _urgency_to_domain(model: UrgencyFeeSettingModel) -> UrgencyFeeSetting:
         id=model.id,
         fee_amount=model.fee_amount,
         schedule_label=model.schedule_label,
+        schedule=_schedule_of(model),
         updated_by=model.updated_by,
         updated_at=model.updated_at,
         row_version=model.row_version,
@@ -564,6 +584,7 @@ class SqlAlchemyUrgencyFeeSettingRepository:
             raise LookupError("Taxa de urgência não encontrada para atualização.")
         model.fee_amount = setting.fee_amount
         model.schedule_label = setting.schedule_label
+        _store_schedule(model, setting.schedule)
         model.updated_by = setting.updated_by
         self._session.flush()
         setting.row_version = model.row_version

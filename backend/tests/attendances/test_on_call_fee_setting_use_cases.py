@@ -7,7 +7,7 @@ permission-gated setting.
 
 from __future__ import annotations
 
-from datetime import UTC, datetime
+from datetime import UTC, datetime, time
 from decimal import Decimal
 from uuid import uuid4
 
@@ -22,6 +22,7 @@ from app.modules.attendances.application.update_on_call_fee_setting import (
     UpdateOnCallFeeSettingUseCase,
 )
 from app.modules.attendances.domain.entities import ServiceLevel
+from app.modules.attendances.domain.fee_schedule import FeeSchedule
 from app.modules.identity.application.dtos import AuthenticatedUserDTO
 from app.shared.domain.errors import ConflictError, ForbiddenError, NotFoundError, ValidationError
 from tests.attendances.fakes import (
@@ -52,7 +53,7 @@ def _update_command(
         "actor": _actor(permissions=permissions),
         "service_level": ServiceLevel.PLANTAO_NORMAL,
         "fee_amount": Decimal("120.00"),
-        "schedule_label": "Seg-Sáb - 19h às 07h",
+        "schedule": FeeSchedule(weekdays=(0, 1, 2, 3, 4, 5), start_time=time(19), end_time=time(7)),
         "reason": "Reajuste",
         "expected_row_version": 1,
     }
@@ -82,7 +83,7 @@ def test_update_on_call_fee_setting_persists_audits_and_rejects_invalid_requests
     result = use_case.execute(_update_command())
 
     assert result.fee_amount == Decimal("120.00")
-    assert result.schedule_label == "Seg-Sáb - 19h às 07h"
+    assert result.schedule_label == "Seg-Sáb · 19h às 07h"
     assert result.row_version == 1  # o fake não simula o incremento do banco
     stored = repo.get_by_service_level(ServiceLevel.PLANTAO_NORMAL)
     assert stored is not None
@@ -90,8 +91,20 @@ def test_update_on_call_fee_setting_persists_audits_and_rejects_invalid_requests
     assert [(entry.action, entry.before_state, entry.after_state) for entry in audit.entries] == [
         (
             "on_call_fee_settings.updated",
-            {"fee_amount": "100.00", "schedule_label": ""},
-            {"fee_amount": "120.00", "schedule_label": "Seg-Sáb - 19h às 07h"},
+            {
+                "fee_amount": "100.00",
+                "schedule_label": "",
+                "weekdays": [],
+                "start_time": None,
+                "end_time": None,
+            },
+            {
+                "fee_amount": "120.00",
+                "schedule_label": "Seg-Sáb · 19h às 07h",
+                "weekdays": [0, 1, 2, 3, 4, 5],
+                "start_time": "19:00",
+                "end_time": "07:00",
+            },
         )
     ]
 

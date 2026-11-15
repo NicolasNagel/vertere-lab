@@ -123,6 +123,7 @@ from app.modules.attendances.domain.entities import (
     ServiceLevel,
     UrgencyFeeSetting,
 )
+from app.modules.attendances.domain.fee_schedule import FeeSchedule
 from app.modules.attendances.infrastructure.repositories import (
     SqlAlchemyAttendanceRepository,
     SqlAlchemyClinicFeeRuleRepository,
@@ -549,6 +550,9 @@ def _on_call_fee_setting_read(setting: OnCallFeeSetting) -> OnCallFeeSettingRead
         service_level=cast(OnCallServiceLevelLiteral, setting.service_level.value),
         fee_amount=setting.fee_amount,
         schedule_label=setting.schedule_label,
+        weekdays=list(setting.schedule.weekdays),
+        start_time=setting.schedule.start_time,
+        end_time=setting.schedule.end_time,
         updated_at=setting.updated_at,
         row_version=setting.row_version,
     )
@@ -579,7 +583,11 @@ def update_on_call_fee_setting(
             actor=current_user,
             service_level=ServiceLevel(service_level),
             fee_amount=payload.fee_amount,
-            schedule_label=payload.schedule_label,
+            schedule=FeeSchedule(
+                weekdays=tuple(payload.weekdays),
+                start_time=payload.start_time,
+                end_time=payload.end_time,
+            ),
             reason=payload.reason,
             expected_row_version=payload.expected_row_version,
         ),
@@ -596,6 +604,9 @@ def _urgency_read(setting: UrgencyFeeSetting) -> UrgencyFeeSettingRead:
         id=setting.id,
         fee_amount=setting.fee_amount,
         schedule_label=setting.schedule_label,
+        weekdays=list(setting.schedule.weekdays),
+        start_time=setting.schedule.start_time,
+        end_time=setting.schedule.end_time,
         updated_at=setting.updated_at,
         row_version=setting.row_version,
     )
@@ -623,7 +634,11 @@ def update_urgency_fee_setting(
         command=UpdateUrgencyFeeSettingCommand(
             actor=current_user,
             fee_amount=payload.fee_amount,
-            schedule_label=payload.schedule_label,
+            schedule=FeeSchedule(
+                weekdays=tuple(payload.weekdays),
+                start_time=payload.start_time,
+                end_time=payload.end_time,
+            ),
             reason=payload.reason,
             expected_row_version=payload.expected_row_version,
         ),

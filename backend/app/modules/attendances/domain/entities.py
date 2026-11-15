@@ -20,6 +20,7 @@ from decimal import Decimal
 from enum import StrEnum
 from uuid import UUID
 
+from app.modules.attendances.domain.fee_schedule import FeeSchedule
 from app.shared.domain.errors import (
     AttendanceAlreadyClosedError,
     InvalidStateTransitionError,
@@ -76,6 +77,7 @@ class OnCallFeeSetting:
     service_level: ServiceLevel
     fee_amount: Decimal
     schedule_label: str = ""
+    schedule: FeeSchedule = field(default_factory=FeeSchedule)
     updated_by: UUID | None = None
     updated_at: datetime
     row_version: int = 1
@@ -87,12 +89,13 @@ class OnCallFeeSetting:
             raise ValidationError("Valor da taxa de plantão não pode ser negativo.")
 
     def update(
-        self, *, fee_amount: Decimal, schedule_label: str, now: datetime, updated_by: UUID | None
+        self, *, fee_amount: Decimal, schedule: FeeSchedule, now: datetime, updated_by: UUID | None
     ) -> None:
         if fee_amount < 0:
             raise ValidationError("Valor da taxa de plantão não pode ser negativo.")
         self.fee_amount = fee_amount
-        self.schedule_label = schedule_label
+        self.schedule = schedule
+        self.schedule_label = schedule.label()
         self.updated_by = updated_by
         self.updated_at = now
 
@@ -106,6 +109,7 @@ class UrgencyFeeSetting:
     id: UUID
     fee_amount: Decimal
     schedule_label: str = ""
+    schedule: FeeSchedule = field(default_factory=FeeSchedule)
     updated_by: UUID | None = None
     updated_at: datetime
     row_version: int = 1
@@ -115,12 +119,13 @@ class UrgencyFeeSetting:
             raise ValidationError("Valor da taxa de urgência não pode ser negativo.")
 
     def update(
-        self, *, fee_amount: Decimal, schedule_label: str, now: datetime, updated_by: UUID | None
+        self, *, fee_amount: Decimal, schedule: FeeSchedule, now: datetime, updated_by: UUID | None
     ) -> None:
         if fee_amount < 0:
             raise ValidationError("Valor da taxa de urgência não pode ser negativo.")
         self.fee_amount = fee_amount
-        self.schedule_label = schedule_label
+        self.schedule = schedule
+        self.schedule_label = schedule.label()
         self.updated_by = updated_by
         self.updated_at = now
 

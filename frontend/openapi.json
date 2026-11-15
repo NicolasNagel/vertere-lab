@@ -8812,6 +8812,37 @@
             "type": "string",
             "title": "Schedule Label"
           },
+          "weekdays": {
+            "items": {
+              "type": "integer"
+            },
+            "type": "array",
+            "title": "Weekdays"
+          },
+          "start_time": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Start Time"
+          },
+          "end_time": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "End Time"
+          },
           "updated_at": {
             "type": "string",
             "format": "date-time",
@@ -8828,6 +8859,9 @@
           "service_level",
           "fee_amount",
           "schedule_label",
+          "weekdays",
+          "start_time",
+          "end_time",
           "updated_at",
           "row_version"
         ],
@@ -8848,11 +8882,39 @@
             ],
             "title": "Fee Amount"
           },
-          "schedule_label": {
-            "type": "string",
-            "maxLength": 200,
-            "title": "Schedule Label",
-            "default": ""
+          "weekdays": {
+            "items": {
+              "type": "integer",
+              "maximum": 6.0,
+              "minimum": 0.0
+            },
+            "type": "array",
+            "maxItems": 7,
+            "title": "Weekdays"
+          },
+          "start_time": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Start Time"
+          },
+          "end_time": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "End Time"
           },
           "reason": {
             "type": "string",
@@ -9782,6 +9844,37 @@
             "type": "string",
             "title": "Schedule Label"
           },
+          "weekdays": {
+            "items": {
+              "type": "integer"
+            },
+            "type": "array",
+            "title": "Weekdays"
+          },
+          "start_time": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Start Time"
+          },
+          "end_time": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "End Time"
+          },
           "updated_at": {
             "type": "string",
             "format": "date-time",
@@ -9797,6 +9890,9 @@
           "id",
           "fee_amount",
           "schedule_label",
+          "weekdays",
+          "start_time",
+          "end_time",
           "updated_at",
           "row_version"
         ],
@@ -9817,11 +9913,39 @@
             ],
             "title": "Fee Amount"
           },
-          "schedule_label": {
-            "type": "string",
-            "maxLength": 200,
-            "title": "Schedule Label",
-            "default": ""
+          "weekdays": {
+            "items": {
+              "type": "integer",
+              "maximum": 6.0,
+              "minimum": 0.0
+            },
+            "type": "array",
+            "maxItems": 7,
+            "title": "Weekdays"
+          },
+          "start_time": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Start Time"
+          },
+          "end_time": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "End Time"
           },
           "reason": {
             "type": "string",

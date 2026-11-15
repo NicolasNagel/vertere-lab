@@ -631,13 +631,18 @@ export type OnCallFeeSettingRead = {
   "service_level": "PLANTAO_NORMAL" | "PLANTAO_ESPECIAL"
   "fee_amount": string
   "schedule_label": string
+  "weekdays": Array<number>
+  "start_time": string | null
+  "end_time": string | null
   "updated_at": string
   "row_version": number
 }
 
 export type OnCallFeeSettingUpdateRequest = {
   "fee_amount": number | string
-  "schedule_label"?: string
+  "weekdays"?: Array<number>
+  "start_time"?: string | null
+  "end_time"?: string | null
   "reason": string
   "expected_row_version": number
 }
@@ -795,13 +800,18 @@ export type UrgencyFeeSettingRead = {
   "id": string
   "fee_amount": string
   "schedule_label": string
+  "weekdays": Array<number>
+  "start_time": string | null
+  "end_time": string | null
   "updated_at": string
   "row_version": number
 }
 
 export type UrgencyFeeSettingUpdateRequest = {
   "fee_amount": number | string
-  "schedule_label"?: string
+  "weekdays"?: Array<number>
+  "start_time"?: string | null
+  "end_time"?: string | null
   "reason": string
   "expected_row_version": number
 }
