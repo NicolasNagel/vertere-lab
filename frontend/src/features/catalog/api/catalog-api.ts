@@ -26,6 +26,9 @@ export interface Exam {
   status: ExamStatus
   rowVersion: number
   priceBase: string | null
+  /** Janela de vigência do preço; só vem com `pricing.read`. */
+  priceValidFrom?: string | null
+  priceValidTo?: string | null
   updatedAt: string
 }
 
@@ -77,6 +80,8 @@ interface ApiExam {
   status: ExamStatus
   row_version: number
   price_base: string | null
+  price_valid_from?: string | null
+  price_valid_to?: string | null
   updated_at: string
 }
 
@@ -109,6 +114,8 @@ function fromApiExam(exam: ApiExam): Exam {
     status: exam.status,
     rowVersion: exam.row_version,
     priceBase: exam.price_base,
+    priceValidFrom: exam.price_valid_from ?? null,
+    priceValidTo: exam.price_valid_to ?? null,
     updatedAt: exam.updated_at,
   }
 }

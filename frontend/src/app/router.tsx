@@ -99,6 +99,13 @@ export const router = createBrowserRouter([
         },
       },
       {
+        path: '/cadastros/exames/:examId',
+        lazy: async () => ({
+          Component: (await import('../features/catalog/components/exam-detail-page'))
+            .ExamDetailPage,
+        }),
+      },
+      {
         path: '/cadastros/exames/:examId/editar',
         lazy: async () => ({
           Component: (await import('../features/catalog/components/exam-form-page')).ExamFormPage,
