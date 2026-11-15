@@ -289,7 +289,7 @@ def get_attendance_timeline(
             AttendanceTimelineEntryRead(
                 id=entry.id,
                 occurred_at=entry.occurred_at,
-                actor_user_id=entry.actor_user_id,
+                actor_user_id=entry.actor_user_id if current_user.role_scope != "CLINIC" else None,
                 actor_name=result.actor_names.get(entry.actor_user_id)
                 if entry.actor_user_id
                 else None,

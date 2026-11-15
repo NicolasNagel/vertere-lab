@@ -884,6 +884,11 @@ def test_timeline_exposes_author_names_only_to_lab_scope() -> None:
         )
     )
     assert result.actor_names == {author: "Ana Souza"}
+    global_actor = replace(_actor(permissions=reader), role_scope="GLOBAL")
+    result = use_case.execute(
+        GetAttendanceTimelineQuery(actor=global_actor, attendance_id=draft.id, page=1, page_size=20)
+    )
+    assert result.actor_names == {author: "Ana Souza"}
     clinic_actor = replace(
         _actor(permissions=reader), role_scope="CLINIC", clinic_ids=frozenset({draft.clinic_id})
     )

@@ -43,7 +43,7 @@ class AttendanceTimelineResult:
     total: int
     page: int
     page_size: int
-    # Só preenchido para quem é do laboratório: usuário de clínica não vê nome de funcionário.
+    # Só preenchido para quem não é de clínica (LAB/GLOBAL): usuário de clínica não vê nome de funcionário.
     actor_names: dict[UUID, str] = field(default_factory=dict)
 
 
@@ -74,7 +74,7 @@ class GetAttendanceTimelineUseCase:
             page_size=query.page_size,
         )
         names: dict[UUID, str] = {}
-        if self._user_names is not None and query.actor.role_scope == "LAB":
+        if self._user_names is not None and query.actor.role_scope != "CLINIC":
             ids = {e.actor_user_id for e in entries if e.actor_user_id is not None}
             names = self._user_names.names_by_id(ids) if ids else {}
         return AttendanceTimelineResult(
