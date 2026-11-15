@@ -18,6 +18,7 @@ from uuid import UUID
 from app.modules.attendances.application.attendance_items import (
     AttendanceItemInput,
     require_discount_authority,
+    resolve_clinic_fee_lines,
     snapshot_item,
 )
 from app.modules.attendances.application.closure_settlement import (
@@ -30,8 +31,12 @@ from app.modules.attendances.domain.entities import (
     AttendanceExam,
     AttendanceExamStatus,
     AttendanceRecord,
+    AttendanceStatus,
 )
-from app.modules.attendances.domain.repositories import AttendanceRepository
+from app.modules.attendances.domain.repositories import (
+    AttendanceRepository,
+    ClinicFeeRuleRepository,
+)
 from app.modules.audit.domain.entities import ActorScope, AuditEntry
 from app.modules.audit.domain.repositories import AuditLogWriter
 from app.modules.catalog.domain.repositories import ExamRepository
@@ -66,12 +71,14 @@ class UpdateAttendanceItemsUseCase:
         *,
         attendances: AttendanceRepository,
         exams: ExamRepository,
+        clinic_fee_rules: ClinicFeeRuleRepository,
         closure_settlement: ClosureSettlement,
         audit: AuditLogWriter,
         clock: Clock,
     ) -> None:
         self._attendances = attendances
         self._exams = exams
+        self._clinic_fee_rules = clinic_fee_rules
         self._closure_settlement = closure_settlement
         self._audit = audit
         self._clock = clock
@@ -100,6 +107,26 @@ class UpdateAttendanceItemsUseCase:
             updated_by=command.actor.id,
             closed_correction=True,
         )
+        if attendance.status == AttendanceStatus.CONFIRMED:
+            # Which clinic rules match depends on the exams: re-resolve them (plantão and
+            # urgência stay frozen); a rule edited later never reaches an attendance not edited.
+            assert attendance.service_date is not None
+            attendance.replace_clinic_fees(
+                lines=resolve_clinic_fee_lines(
+                    service_level=attendance.service_level,
+                    is_urgent=attendance.is_urgent,
+                    clinic_id=attendance.clinic_id,
+                    service_date=attendance.service_date,
+                    exam_ids=[
+                        item.exam_id
+                        for item in attendance.items
+                        if item.status == AttendanceExamStatus.ACTIVE
+                    ],
+                    clinic_fee_rules=self._clinic_fee_rules,
+                ),
+                now=self._clock.now(),
+                updated_by=command.actor.id,
+            )
         after = _summary(attendance)
         if after == before:
             return attendance_to_dto(attendance)
@@ -218,5 +245,6 @@ def _summary(attendance: AttendanceRecord) -> dict[str, Any]:
             }
             for item in attendance.items
         ],
+        "clinic_fee": str(attendance.clinic_fee),
         "grand_total": str(attendance.grand_total),
     }

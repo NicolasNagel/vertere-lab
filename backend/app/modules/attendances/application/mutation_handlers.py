@@ -100,6 +100,7 @@ def handle_update_attendance_items(
         result = UpdateAttendanceItemsUseCase(
             attendances=uow.attendances,
             exams=uow.exams,
+            clinic_fee_rules=uow.clinic_fee_rules,
             closure_settlement=uow.closure_settlement,
             audit=uow.audit,
             clock=clock,
@@ -173,6 +174,8 @@ def handle_create_clinic_fee_rule(
                 "fee_amount": str(command.fee_amount),
                 "valid_from": command.valid_from.isoformat(),
                 "valid_to": command.valid_to.isoformat() if command.valid_to else None,
+                "exam_ids": sorted(str(exam_id) for exam_id in command.exam_ids),
+                "attendance_types": sorted(command.attendance_types),
                 "reason": command.reason.strip(),
             },
             now=clock.now(),
@@ -189,7 +192,11 @@ def handle_create_clinic_fee_rule(
             uow.commit()
             return replayed
         result = CreateClinicFeeRuleUseCase(
-            rules=uow.clinic_fee_rules, clinics=uow.clinics, audit=uow.audit, clock=clock
+            rules=uow.clinic_fee_rules,
+            clinics=uow.clinics,
+            exams=uow.exams,
+            audit=uow.audit,
+            clock=clock,
         ).execute(command)
         guard.complete(
             outcome.record_id, status_code=201, body={"id": str(result.id)}, now=clock.now()
@@ -206,7 +213,7 @@ def handle_update_clinic_fee_rule(
 ) -> ClinicFeeRule:
     with uow:
         result = UpdateClinicFeeRuleUseCase(
-            rules=uow.clinic_fee_rules, audit=uow.audit, clock=clock
+            rules=uow.clinic_fee_rules, exams=uow.exams, audit=uow.audit, clock=clock
         ).execute(command)
         uow.commit()
         return result

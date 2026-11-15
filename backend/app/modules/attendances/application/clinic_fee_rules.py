@@ -1,7 +1,7 @@
 """List, create and edit per-clinic fixed fees (`ClinicFeeRule`).
 
 A rule ADDS its fixed amount to the attendance total (once per attendance and rule) while it is
-active and covers the service date. Editing never reaches a confirmed attendance: only a later
+active, covers the service date and its conditions (exams, attendance types) match. Editing never reaches a confirmed attendance: only a later
 correction of that attendance re-resolves its fees. Lab scope only; `pricing.read` to see,
 `pricing.manage` to change; mandatory reason; audit with before/after; row-version conflict.
 """
@@ -13,10 +13,11 @@ from datetime import date
 from decimal import Decimal
 from uuid import UUID, uuid4
 
-from app.modules.attendances.domain.entities import ClinicFeeRule
+from app.modules.attendances.domain.entities import ClinicFeeRule, FeeAttendanceType
 from app.modules.attendances.domain.repositories import ClinicFeeRuleRepository
 from app.modules.audit.domain.entities import ActorScope, AuditEntry
 from app.modules.audit.domain.repositories import AuditLogWriter
+from app.modules.catalog.domain.repositories import ExamRepository
 from app.modules.clinics.domain.repositories import ClinicRepository
 from app.shared.application.authorization import ActorContext
 from app.shared.application.clock import Clock
@@ -33,7 +34,7 @@ def _require(actor: ActorContext, permission: str) -> None:
         raise ForbiddenError(f"Permissão ausente: {permission}")
 
 
-def _state(rule: ClinicFeeRule) -> dict[str, str | None]:
+def _state(rule: ClinicFeeRule) -> dict[str, str | list[str] | None]:
     return {
         "clinic_id": str(rule.clinic_id),
         "name": rule.name,
@@ -41,7 +42,23 @@ def _state(rule: ClinicFeeRule) -> dict[str, str | None]:
         "valid_from": rule.valid_from.isoformat(),
         "valid_to": rule.valid_to.isoformat() if rule.valid_to else None,
         "is_active": str(rule.is_active),
+        "exam_ids": [str(exam_id) for exam_id in rule.exam_ids],
+        "attendance_types": list(rule.attendance_types),
     }
+
+
+def _check_exams(exams: ExamRepository, exam_ids: tuple[UUID, ...]) -> tuple[UUID, ...]:
+    unique = tuple(dict.fromkeys(exam_ids))
+    if unique and len(exams.get_many_by_ids(list(unique))) != len(unique):
+        raise ValidationError("Algum exame da condição não existe.")
+    return unique
+
+
+def _check_types(types: tuple[str, ...]) -> tuple[str, ...]:
+    valid = {t.value for t in FeeAttendanceType}
+    if any(value not in valid for value in types):
+        raise ValidationError("Tipo de atendimento inválido na condição.")
+    return tuple(dict.fromkeys(types))
 
 
 def _reason(raw: str) -> str:
@@ -78,6 +95,8 @@ class CreateClinicFeeRuleCommand:
     valid_from: date
     valid_to: date | None
     reason: str
+    exam_ids: tuple[UUID, ...] = ()
+    attendance_types: tuple[str, ...] = ()
 
 
 class CreateClinicFeeRuleUseCase:
@@ -86,11 +105,13 @@ class CreateClinicFeeRuleUseCase:
         *,
         rules: ClinicFeeRuleRepository,
         clinics: ClinicRepository,
+        exams: ExamRepository,
         audit: AuditLogWriter,
         clock: Clock,
     ) -> None:
         self._rules = rules
         self._clinics = clinics
+        self._exams = exams
         self._audit = audit
         self._clock = clock
 
@@ -99,6 +120,8 @@ class CreateClinicFeeRuleUseCase:
         reason = _reason(command.reason)
         if self._clinics.get_by_id(command.clinic_id) is None:
             raise NotFoundError("Clínica não encontrada.")
+        exam_ids = _check_exams(self._exams, command.exam_ids)
+        attendance_types = _check_types(command.attendance_types)
 
         now = self._clock.now()
         rule = ClinicFeeRule(
@@ -108,6 +131,8 @@ class CreateClinicFeeRuleUseCase:
             fee_amount=command.fee_amount,
             valid_from=command.valid_from,
             valid_to=command.valid_to,
+            exam_ids=exam_ids,
+            attendance_types=attendance_types,
             created_by=command.actor.id,
             updated_by=command.actor.id,
             created_at=now,
@@ -139,13 +164,21 @@ class UpdateClinicFeeRuleCommand:
     is_active: bool
     reason: str
     expected_row_version: int
+    exam_ids: tuple[UUID, ...] = ()
+    attendance_types: tuple[str, ...] = ()
 
 
 class UpdateClinicFeeRuleUseCase:
     def __init__(
-        self, *, rules: ClinicFeeRuleRepository, audit: AuditLogWriter, clock: Clock
+        self,
+        *,
+        rules: ClinicFeeRuleRepository,
+        exams: ExamRepository,
+        audit: AuditLogWriter,
+        clock: Clock,
     ) -> None:
         self._rules = rules
+        self._exams = exams
         self._audit = audit
         self._clock = clock
 
@@ -160,6 +193,8 @@ class UpdateClinicFeeRuleUseCase:
                 "Esta taxa foi alterada por outra pessoa. Recarregue e tente de novo."
             )
 
+        exam_ids = _check_exams(self._exams, command.exam_ids)
+        attendance_types = _check_types(command.attendance_types)
         before_state = _state(rule)
         rule.update(
             name=command.name,
@@ -167,6 +202,8 @@ class UpdateClinicFeeRuleUseCase:
             valid_from=command.valid_from,
             valid_to=command.valid_to,
             is_active=command.is_active,
+            exam_ids=exam_ids,
+            attendance_types=attendance_types,
             now=self._clock.now(),
             updated_by=command.actor.id,
         )

@@ -173,3 +173,33 @@ Decisões do usuário: taxa de urgência é **valor fixo**; taxa da clínica é 
 - **Fechamento:** o fechamento continua somando `grand_total`; o campo `on_call_fee_total` agora carrega plantão + urgência + taxa da clínica. **Pendência:** o rótulo "plantão" no CSV/prévia do fechamento está impreciso e deve virar "taxas".
 - **Tela:** aba "Taxas" em Exames & Preços com subcadastros Plantão, Urgência e Por clínica (tabela, modal de edição com motivo, botão "Nova taxa"). Registro de atendimento ganha o marcador "Atendimento urgente" e o resumo de valor lista cada taxa.
 - **Fora desta entrega:** regra da clínica direcionada a exame/categoria; `Idempotency-Key` no `POST /clinic-fee-rules`; efeitos percentuais ou descontos (pergunta 4).
+
+## H. Urgência fixa e regras por clínica com condições (2026-11-15)
+
+Decisões do usuário que ajustam a seção G:
+
+- **Urgência = só valor fixo.** Sem dias da semana, horário nem texto de agenda. Só o **plantão**
+  tem agenda (dias + horário, informativos). A migration `0043` remove `weekdays`, `start_time`,
+  `end_time` e `schedule_label` de `urgency_fee_settings` (reversível: o downgrade recria as
+  colunas vazias). A API recusa esses campos (`extra=forbid`, 422).
+- **Regra por clínica = condições + valor fixo X.** `clinic_fee_rules.exam_ids` (UUID[]) e
+  `attendance_types` (texto[]; `ROTINA`, `PLANTAO_NORMAL`, `PLANTAO_ESPECIAL`, `URGENTE`).
+  - Lista vazia = qualquer. Dentro de uma lista basta um item (OU); as duas condições preenchidas
+    valem juntas (E).
+  - `ROTINA` = `service_level NORMAL`; `URGENTE` vem da marca de urgência (um atendimento de
+    plantão urgente tem dois tipos).
+  - A condição de exame olha os exames **ativos** do atendimento.
+  - Várias regras da clínica que baterem **somam**, junto com plantão e urgência. Cada regra aplicada
+    vira uma linha em `fee_lines` (nome da regra + valor).
+  - Fora de escopo: condição por categoria, espécie, dia ou horário.
+- **Quando recalcula:** ao confirmar e na prévia; ao corrigir tipo, urgência, clínica ou data
+  (já era assim); e agora também ao **corrigir os exames** de um atendimento confirmado
+  (`PUT /attendances/{id}/items`). Nesse caso só as linhas de clínica são reavaliadas; plantão e
+  urgência ficam congelados como foram gravados. Editar uma regra depois nunca altera um
+  atendimento que ninguém corrigiu.
+- **Validação e auditoria:** exame inexistente ou tipo inválido = 422; criar e editar gravam
+  `exam_ids` e `attendance_types` no antes/depois do `audit_log`; motivo obrigatório,
+  `row_version` (409) e `Idempotency-Key` no POST continuam valendo. `Idempotency-Key` inclui as
+  condições no hash do payload.
+- **Limite conhecido:** o seletor de exames da condição lista os 100 primeiros exames do catálogo
+  (página única da API); passar disso exige busca remota no seletor.

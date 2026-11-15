@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import date, time
+from datetime import date
 from decimal import Decimal
 from uuid import uuid4
 
@@ -23,11 +23,11 @@ from app.modules.attendances.application.urgency_fee_setting import (
     UpdateUrgencyFeeSettingUseCase,
 )
 from app.modules.attendances.domain.entities import ClinicFeeRule, ServiceLevel
-from app.modules.attendances.domain.fee_schedule import FeeSchedule
 from app.shared.domain.errors import ConflictError, ForbiddenError, NotFoundError, ValidationError
 from tests.attendances.fakes import FakeClinicFeeRuleRepository, FakeClock
 from tests.attendances.test_attendance_use_cases import (
     _CLINIC_ID,
+    _EXAM_ID,
     _NOW,
     _actor,
     _command,
@@ -185,7 +185,6 @@ def test_urgency_fee_setting_needs_permission_reason_version_and_is_audited() ->
         values: dict[str, object] = {
             "actor": _lab_actor(),
             "fee_amount": Decimal("45.00"),
-            "schedule": FeeSchedule(weekdays=(5, 6), start_time=time(8), end_time=time(12, 30)),
             "reason": "Reajuste anual",
             "expected_row_version": 1,
         }
@@ -206,20 +205,8 @@ def test_urgency_fee_setting_needs_permission_reason_version_and_is_audited() ->
     entry = audit.entries[-1]
     assert entry.action == "urgency_fee_settings.updated"
     assert entry.reason == "Reajuste anual"
-    assert entry.before_state == {
-        "fee_amount": "0.00",
-        "schedule_label": "",
-        "weekdays": [],
-        "start_time": None,
-        "end_time": None,
-    }
-    assert entry.after_state == {
-        "fee_amount": "45.00",
-        "schedule_label": "Fim de semana · 08h às 12:30",
-        "weekdays": [5, 6],
-        "start_time": "08:00",
-        "end_time": "12:30",
-    }
+    assert entry.before_state == {"fee_amount": "0.00"}
+    assert entry.after_state == {"fee_amount": "45.00"}
 
     getter = GetUrgencyFeeSettingUseCase(urgency_fee=repo)
     with pytest.raises(ForbiddenError):
@@ -233,9 +220,15 @@ def test_clinic_fee_rules_crud_is_gated_audited_and_validated() -> None:
     fixture = _ConfirmFixture()
     rules = fixture.clinic_fee_rules
     create = CreateClinicFeeRuleUseCase(
-        rules=rules, clinics=fixture.clinics, audit=fixture.audit, clock=FakeClock(_NOW)
+        rules=rules,
+        clinics=fixture.clinics,
+        exams=fixture.exams,
+        audit=fixture.audit,
+        clock=FakeClock(_NOW),
     )
-    update = UpdateClinicFeeRuleUseCase(rules=rules, audit=fixture.audit, clock=FakeClock(_NOW))
+    update = UpdateClinicFeeRuleUseCase(
+        rules=rules, exams=fixture.exams, audit=fixture.audit, clock=FakeClock(_NOW)
+    )
 
     def new(**overrides: object) -> CreateClinicFeeRuleCommand:
         values: dict[str, object] = {
@@ -299,3 +292,96 @@ def test_clinic_fee_rules_crud_is_gated_audited_and_validated() -> None:
     with pytest.raises(ForbiddenError):
         lister.execute(ListClinicFeeRulesQuery(actor=_lab_actor(frozenset())))
     assert len(lister.execute(ListClinicFeeRulesQuery(actor=_lab_actor()))) == 1
+
+
+def _confirmed_total(
+    fixture: _ConfirmFixture, **command_overrides: object
+) -> tuple[Decimal, list[str]]:
+    draft = fixture.use_case().execute(_command(**command_overrides))
+    confirmed = fixture.confirm_use_case().execute(_confirm_command(attendance_id=draft.id))
+    return confirmed.clinic_fee, [
+        line.label for line in confirmed.fee_lines if line.kind == "CLINICA"
+    ]
+
+
+def test_rule_with_exam_condition_charges_only_when_the_exam_is_in_the_attendance() -> None:
+    fixture = _ConfirmFixture(exam_price=Decimal("100.00"))
+    fixture.clinic_fee_rules.add(_rule(name="Com exame", exam_ids=(_EXAM_ID,)))
+    fixture.clinic_fee_rules.add(_rule(name="Outro exame", exam_ids=(uuid4(),)))
+
+    assert _confirmed_total(fixture) == (Decimal("5.00"), ["Com exame"])
+
+
+def test_rule_with_attendance_type_condition_matches_level_or_urgency() -> None:
+    fixture = _ConfirmFixture(exam_price=Decimal("100.00"))
+    fixture.clinic_fee_rules.add(_rule(name="Rotina", attendance_types=("ROTINA",)))
+    fixture.clinic_fee_rules.add(_rule(name="Urgente", attendance_types=("URGENTE",)))
+    fixture.clinic_fee_rules.add(_rule(name="Plantão", attendance_types=("PLANTAO_NORMAL",)))
+
+    assert _confirmed_total(fixture) == (Decimal("5.00"), ["Rotina"])
+    assert _confirmed_total(fixture, is_urgent=True) == (Decimal("10.00"), ["Rotina", "Urgente"])
+    assert _confirmed_total(fixture, service_level=ServiceLevel.PLANTAO_NORMAL) == (
+        Decimal("5.00"),
+        ["Plantão"],
+    )
+
+
+def test_rule_with_both_conditions_needs_both_and_any_inside_a_list() -> None:
+    fixture = _ConfirmFixture(exam_price=Decimal("100.00"))
+    fixture.clinic_fee_rules.add(
+        _rule(
+            name="Exame e urgência",
+            exam_ids=(uuid4(), _EXAM_ID),
+            attendance_types=("URGENTE", "PLANTAO_ESPECIAL"),
+        )
+    )
+
+    assert _confirmed_total(fixture) == (Decimal("0"), [])  # exame bate, tipo não
+    assert _confirmed_total(fixture, is_urgent=True) == (Decimal("5.00"), ["Exame e urgência"])
+
+
+def test_rule_without_conditions_matches_everything_and_several_rules_sum() -> None:
+    fixture = _ConfirmFixture(exam_price=Decimal("100.00"))
+    fixture.clinic_fee_rules.add(_rule(name="Geral A", fee_amount=Decimal("3.00")))
+    fixture.clinic_fee_rules.add(_rule(name="Geral B", fee_amount=Decimal("4.00")))
+    fixture.clinic_fee_rules.add(
+        _rule(name="Só plantão especial", attendance_types=("PLANTAO_ESPECIAL",))
+    )
+
+    assert _confirmed_total(fixture) == (Decimal("7.00"), ["Geral A", "Geral B"])
+
+
+def test_clinic_rule_conditions_are_validated_and_audited() -> None:
+    fixture = _ConfirmFixture()
+    create = CreateClinicFeeRuleUseCase(
+        rules=fixture.clinic_fee_rules,
+        clinics=fixture.clinics,
+        exams=fixture.exams,
+        audit=fixture.audit,
+        clock=FakeClock(_NOW),
+    )
+
+    def new(**overrides: object) -> CreateClinicFeeRuleCommand:
+        values: dict[str, object] = {
+            "actor": _lab_actor(),
+            "clinic_id": _CLINIC_ID,
+            "name": "Condicional",
+            "fee_amount": Decimal("5.00"),
+            "valid_from": date(2026, 1, 1),
+            "valid_to": None,
+            "reason": "Acordo",
+        }
+        values.update(overrides)
+        return CreateClinicFeeRuleCommand(**values)  # type: ignore[arg-type]
+
+    with pytest.raises(ValidationError):
+        create.execute(new(exam_ids=(uuid4(),)))
+    with pytest.raises(ValidationError):
+        create.execute(new(attendance_types=("QUALQUER",)))
+
+    rule = create.execute(new(exam_ids=(_EXAM_ID,), attendance_types=("URGENTE",)))
+    assert rule.exam_ids == (_EXAM_ID,)
+    after = fixture.audit.entries[-1].after_state
+    assert after is not None
+    assert after["exam_ids"] == [str(_EXAM_ID)]
+    assert after["attendance_types"] == ["URGENTE"]

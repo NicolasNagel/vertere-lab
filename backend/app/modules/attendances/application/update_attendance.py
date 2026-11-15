@@ -34,7 +34,12 @@ from app.modules.attendances.application.mappers import attendance_to_dto
 from app.modules.attendances.application.party_validation import (
     validate_clinic_veterinarian_patient,
 )
-from app.modules.attendances.domain.entities import AttendanceStatus, CollectionMethod, ServiceLevel
+from app.modules.attendances.domain.entities import (
+    AttendanceExamStatus,
+    AttendanceStatus,
+    CollectionMethod,
+    ServiceLevel,
+)
 from app.modules.attendances.domain.repositories import (
     AttendanceRepository,
     ClinicFeeRuleRepository,
@@ -170,6 +175,11 @@ class UpdateAttendanceUseCase:
                     is_urgent=attendance.is_urgent,
                     clinic_id=attendance.clinic_id,
                     service_date=attendance.service_date,
+                    exam_ids=[
+                        item.exam_id
+                        for item in attendance.items
+                        if item.status == AttendanceExamStatus.ACTIVE
+                    ],
                     on_call_fees=self._on_call_fees,
                     urgency_fee=self._urgency_fee,
                     clinic_fee_rules=self._clinic_fee_rules,

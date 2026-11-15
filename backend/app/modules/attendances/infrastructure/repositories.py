@@ -485,7 +485,7 @@ class SqlAlchemyAttendanceSequenceRepository:
         return model.last_sequence
 
 
-def _schedule_of(model: OnCallFeeSettingModel | UrgencyFeeSettingModel) -> FeeSchedule:
+def _schedule_of(model: OnCallFeeSettingModel) -> FeeSchedule:
     return FeeSchedule(
         weekdays=tuple(model.weekdays),
         start_time=model.start_time,
@@ -493,9 +493,7 @@ def _schedule_of(model: OnCallFeeSettingModel | UrgencyFeeSettingModel) -> FeeSc
     )
 
 
-def _store_schedule(
-    model: OnCallFeeSettingModel | UrgencyFeeSettingModel, schedule: FeeSchedule
-) -> None:
+def _store_schedule(model: OnCallFeeSettingModel, schedule: FeeSchedule) -> None:
     model.weekdays = list(schedule.weekdays)
     model.start_time = schedule.start_time
     model.end_time = schedule.end_time
@@ -560,8 +558,6 @@ def _urgency_to_domain(model: UrgencyFeeSettingModel) -> UrgencyFeeSetting:
     return UrgencyFeeSetting(
         id=model.id,
         fee_amount=model.fee_amount,
-        schedule_label=model.schedule_label,
-        schedule=_schedule_of(model),
         updated_by=model.updated_by,
         updated_at=model.updated_at,
         row_version=model.row_version,
@@ -583,8 +579,6 @@ class SqlAlchemyUrgencyFeeSettingRepository:
         if model is None:
             raise LookupError("Taxa de urgência não encontrada para atualização.")
         model.fee_amount = setting.fee_amount
-        model.schedule_label = setting.schedule_label
-        _store_schedule(model, setting.schedule)
         model.updated_by = setting.updated_by
         self._session.flush()
         setting.row_version = model.row_version
@@ -599,6 +593,8 @@ def _clinic_rule_to_domain(model: ClinicFeeRuleModel) -> ClinicFeeRule:
         valid_from=model.valid_from,
         valid_to=model.valid_to,
         is_active=model.is_active,
+        exam_ids=tuple(model.exam_ids),
+        attendance_types=tuple(model.attendance_types),
         created_by=model.created_by,
         updated_by=model.updated_by,
         created_at=model.created_at,
@@ -649,6 +645,8 @@ class SqlAlchemyClinicFeeRuleRepository:
                 valid_from=rule.valid_from,
                 valid_to=rule.valid_to,
                 is_active=rule.is_active,
+                exam_ids=list(rule.exam_ids),
+                attendance_types=list(rule.attendance_types),
                 created_by=rule.created_by,
                 updated_by=rule.updated_by,
                 created_at=rule.created_at,
@@ -667,6 +665,8 @@ class SqlAlchemyClinicFeeRuleRepository:
         model.valid_from = rule.valid_from
         model.valid_to = rule.valid_to
         model.is_active = rule.is_active
+        model.exam_ids = list(rule.exam_ids)
+        model.attendance_types = list(rule.attendance_types)
         model.updated_by = rule.updated_by
         self._session.flush()
         rule.row_version = model.row_version

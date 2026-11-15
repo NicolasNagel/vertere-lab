@@ -103,13 +103,12 @@ class OnCallFeeSetting:
 @dataclass(kw_only=True)
 class UrgencyFeeSetting:
     """Taxa de urgência: valor fixo único, cobrado uma vez por atendimento marcado como
-    urgente. Existe uma única linha (semeada pela migration 0041); o valor é editável com
-    `pricing.manage`, sempre com motivo e auditoria."""
+    urgente. Sem dias nem horário (só o plantão tem agenda). Existe uma única linha
+    (semeada pela migration 0041); o valor é editável com `pricing.manage`, sempre com
+    motivo e auditoria."""
 
     id: UUID
     fee_amount: Decimal
-    schedule_label: str = ""
-    schedule: FeeSchedule = field(default_factory=FeeSchedule)
     updated_by: UUID | None = None
     updated_at: datetime
     row_version: int = 1
@@ -118,16 +117,35 @@ class UrgencyFeeSetting:
         if self.fee_amount < 0:
             raise ValidationError("Valor da taxa de urgência não pode ser negativo.")
 
-    def update(
-        self, *, fee_amount: Decimal, schedule: FeeSchedule, now: datetime, updated_by: UUID | None
-    ) -> None:
+    def update(self, *, fee_amount: Decimal, now: datetime, updated_by: UUID | None) -> None:
         if fee_amount < 0:
             raise ValidationError("Valor da taxa de urgência não pode ser negativo.")
         self.fee_amount = fee_amount
-        self.schedule = schedule
-        self.schedule_label = schedule.label()
         self.updated_by = updated_by
         self.updated_at = now
+
+
+class FeeAttendanceType(StrEnum):
+    """Tipos de atendimento que uma regra de clínica pode exigir. `URGENTE` vem da marca de
+    urgência; os demais, do `service_level` (NORMAL = rotina)."""
+
+    ROTINA = "ROTINA"
+    PLANTAO_NORMAL = "PLANTAO_NORMAL"
+    PLANTAO_ESPECIAL = "PLANTAO_ESPECIAL"
+    URGENTE = "URGENTE"
+
+
+def attendance_fee_types(service_level: ServiceLevel, is_urgent: bool) -> frozenset[str]:
+    types = {
+        {
+            ServiceLevel.NORMAL: FeeAttendanceType.ROTINA,
+            ServiceLevel.PLANTAO_NORMAL: FeeAttendanceType.PLANTAO_NORMAL,
+            ServiceLevel.PLANTAO_ESPECIAL: FeeAttendanceType.PLANTAO_ESPECIAL,
+        }[service_level].value
+    }
+    if is_urgent:
+        types.add(FeeAttendanceType.URGENTE.value)
+    return frozenset(types)
 
 
 @dataclass(kw_only=True)
@@ -135,7 +153,11 @@ class ClinicFeeRule:
     """Taxa personalizada de uma clínica: valor fixo que SOMA ao total do atendimento (nunca
     substitui preço de exame), cobrado uma vez por atendimento e por regra. Vale para a data do
     serviço entre `valid_from` e `valid_to` (inclusive) enquanto `is_active`. Nunca é apagada:
-    inativar ou encerrar a vigência."""
+    inativar ou encerrar a vigência.
+
+    Condições (opcionais): `exam_ids` (basta um dos exames ativos do atendimento) e
+    `attendance_types` (basta um dos tipos do atendimento). Lista vazia = qualquer; as
+    condições preenchidas valem juntas (E)."""
 
     id: UUID
     clinic_id: UUID
@@ -144,6 +166,8 @@ class ClinicFeeRule:
     valid_from: date
     valid_to: date | None = None
     is_active: bool = True
+    exam_ids: tuple[UUID, ...] = ()
+    attendance_types: tuple[str, ...] = ()
     created_by: UUID | None = None
     updated_by: UUID | None = None
     created_at: datetime
@@ -152,6 +176,8 @@ class ClinicFeeRule:
 
     def __post_init__(self) -> None:
         self._validate(self.name, self.fee_amount, self.valid_from, self.valid_to)
+        self.attendance_types = _clean_types(self.attendance_types)
+        self.exam_ids = tuple(dict.fromkeys(self.exam_ids))
 
     @staticmethod
     def _validate(name: str, fee_amount: Decimal, valid_from: date, valid_to: date | None) -> None:
@@ -161,6 +187,19 @@ class ClinicFeeRule:
             raise ValidationError("Valor da taxa não pode ser negativo.")
         if valid_to is not None and valid_to < valid_from:
             raise ValidationError("O fim da vigência não pode ser anterior ao início.")
+
+    def matches(
+        self, *, exam_ids: frozenset[UUID], service_level: ServiceLevel, is_urgent: bool
+    ) -> bool:
+        """Condições da regra contra o atendimento (as de data/ativa ficam em `applies_on`)."""
+        if self.exam_ids and not exam_ids.intersection(self.exam_ids):
+            return False
+        return not (
+            self.attendance_types
+            and not attendance_fee_types(service_level, is_urgent).intersection(
+                self.attendance_types
+            )
+        )
 
     def applies_on(self, service_date: date) -> bool:
         return (
@@ -177,10 +216,14 @@ class ClinicFeeRule:
         valid_from: date,
         valid_to: date | None,
         is_active: bool,
+        exam_ids: tuple[UUID, ...] = (),
+        attendance_types: tuple[str, ...] = (),
         now: datetime,
         updated_by: UUID | None,
     ) -> None:
         self._validate(name, fee_amount, valid_from, valid_to)
+        self.exam_ids = tuple(dict.fromkeys(exam_ids))
+        self.attendance_types = _clean_types(attendance_types)
         self.name = name.strip()
         self.fee_amount = fee_amount
         self.valid_from = valid_from
@@ -188,6 +231,14 @@ class ClinicFeeRule:
         self.is_active = is_active
         self.updated_by = updated_by
         self.updated_at = now
+
+
+def _clean_types(raw: tuple[str, ...]) -> tuple[str, ...]:
+    valid = {t.value for t in FeeAttendanceType}
+    for value in raw:
+        if value not in valid:
+            raise ValidationError(f"Tipo de atendimento inválido: {value}.")
+    return tuple(dict.fromkeys(raw))
 
 
 class FeeKind(StrEnum):
@@ -532,6 +583,25 @@ class AttendanceRecord:
         self.subtotal = totals.subtotal
         self.discount_total = totals.discount_total
         self.surcharge_total = totals.surcharge_total
+        self.grand_total = totals.grand_total
+        self.updated_by = updated_by
+        self.updated_at = now
+
+    def replace_clinic_fees(
+        self, *, lines: list[FeeLine], now: datetime, updated_by: UUID | None
+    ) -> None:
+        """Swap the clinic-rule lines (the exams changed, so which rules match may have too);
+        plantão and urgência lines stay as frozen. Recomputes `clinic_fee` and `grand_total`."""
+        kept = [line for line in self.fee_lines if line.kind != FeeKind.CLINICA]
+        self.fee_lines = (*kept, *lines)
+        self.clinic_fee = sum((line.amount for line in lines), Decimal("0"))
+        active = [item for item in self.items if item.status == AttendanceExamStatus.ACTIVE]
+        totals = compute_attendance_totals(
+            active,
+            on_call_fee=self.on_call_fee,
+            urgency_fee=self.urgency_fee,
+            clinic_fee=self.clinic_fee,
+        )
         self.grand_total = totals.grand_total
         self.updated_by = updated_by
         self.updated_at = now

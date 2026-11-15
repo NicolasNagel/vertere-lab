@@ -1272,3 +1272,127 @@ async def test_plantao_urgency_and_clinic_fee_add_up_and_stay_hidden_without_pri
             session.execute(text("DELETE FROM clinic_fee_rules"))
             session.execute(text("UPDATE urgency_fee_settings SET fee_amount = 0, row_version = 1"))
             session.commit()
+
+
+async def test_clinic_rule_conditions_apply_by_exam_and_type_and_a_correction_re_resolves(
+    client: httpx.AsyncClient, session_factory: sessionmaker[Session]
+) -> None:
+    await _login_admin(client, session_factory)
+    attendance_id, exam_id = await _create_confirmable_draft(client, session_factory)
+    draft = (await client.get(f"/api/v1/attendances/{attendance_id}")).json()
+    other_category = await _create_exam_category(client, f"Outra {uuid4().hex[:6]}")
+    other_exam = await _create_exam(
+        client,
+        code=f"OUT-{uuid4().hex[:6]}",
+        category_id=other_category,
+        price_base="50.00",
+        species_ids=[_get_species_id(session_factory, name="Canino")],
+    )
+
+    async def create_rule(name: str, amount: str, **conditions: object) -> dict[str, Any]:
+        response = await client.post(
+            "/api/v1/clinic-fee-rules",
+            json={
+                "clinic_id": draft["clinic_id"],
+                "name": name,
+                "fee_amount": amount,
+                "valid_from": "2026-01-01",
+                "reason": "Acordo comercial",
+                **conditions,
+            },
+            headers=_idempotency_header(f"cond-{uuid4().hex}"),
+        )
+        assert response.status_code == 201, response.text
+        created_rule: dict[str, Any] = response.json()
+        return created_rule
+
+    try:
+        invalid = await client.post(
+            "/api/v1/clinic-fee-rules",
+            json={
+                "clinic_id": draft["clinic_id"],
+                "name": "x",
+                "fee_amount": "1",
+                "valid_from": "2026-01-01",
+                "reason": "x",
+                "attendance_types": ["QUALQUER"],
+            },
+            headers=_idempotency_header("cond-invalid"),
+        )
+        assert invalid.status_code == 422
+        unknown_exam = await client.post(
+            "/api/v1/clinic-fee-rules",
+            json={
+                "clinic_id": draft["clinic_id"],
+                "name": "x",
+                "fee_amount": "1",
+                "valid_from": "2026-01-01",
+                "reason": "x",
+                "exam_ids": [str(uuid4())],
+            },
+            headers=_idempotency_header("cond-unknown-exam"),
+        )
+        assert unknown_exam.status_code == 422
+
+        by_other_exam = await create_rule("Só com o outro exame", "4.00", exam_ids=[other_exam])
+        await create_rule("Só urgente", "9.00", attendance_types=["URGENTE"])
+        both = await create_rule(
+            "Exame e rotina", "2.00", exam_ids=[exam_id], attendance_types=["ROTINA"]
+        )
+        assert both["exam_ids"] == [exam_id] and both["attendance_types"] == ["ROTINA"]
+
+        confirm = await client.post(
+            f"/api/v1/attendances/{attendance_id}/confirm",
+            json=_items(exam_id, 1),
+            headers=_idempotency_header("cond-confirm"),
+        )
+        assert confirm.status_code == 200
+        body = confirm.json()
+        # Só a regra com exame + rotina bate: 100 do exame + 2 da clínica.
+        assert [line["label"] for line in body["fee_lines"]] == ["Exame e rotina"]
+        assert (body["clinic_fee"], body["grand_total"]) == ("2.00", "102.00")
+
+        # Editar a regra depois não mexe no atendimento já confirmado.
+        edited_rule = await client.patch(
+            f"/api/v1/clinic-fee-rules/{both['id']}",
+            json={
+                "name": "Exame e rotina",
+                "fee_amount": "20.00",
+                "valid_from": "2026-01-01",
+                "is_active": True,
+                "exam_ids": [exam_id],
+                "attendance_types": ["ROTINA"],
+                "reason": "Reajuste",
+                "expected_row_version": both["row_version"],
+            },
+        )
+        assert edited_rule.status_code == 200
+        assert (await client.get(f"/api/v1/attendances/{attendance_id}")).json()[
+            "grand_total"
+        ] == "102.00"
+
+        # Corrigir os exames reavalia as regras: entra o outro exame, a regra dele passa a bater.
+        corrected = await client.put(
+            f"/api/v1/attendances/{attendance_id}/items",
+            json={
+                "row_version": body["row_version"],
+                "reason": "Incluído exame esquecido",
+                "items": [
+                    {"item_id": body["items"][0]["id"], "quantity": 1},
+                    {"exam_id": other_exam, "quantity": 1},
+                ],
+            },
+        )
+        assert corrected.status_code == 200, corrected.text
+        fixed = corrected.json()
+        assert sorted(line["label"] for line in fixed["fee_lines"]) == [
+            "Exame e rotina",
+            "Só com o outro exame",
+        ]
+        # 100 + 50 de exames + 20 (regra reajustada, agora reavaliada) + 4.
+        assert (fixed["clinic_fee"], fixed["grand_total"]) == ("24.00", "174.00")
+        assert by_other_exam["name"] == "Só com o outro exame"
+    finally:
+        with session_factory() as session:
+            session.execute(text("DELETE FROM clinic_fee_rules"))
+            session.commit()

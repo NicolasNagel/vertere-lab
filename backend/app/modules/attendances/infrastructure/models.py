@@ -11,11 +11,13 @@ from sqlalchemy import (
     CheckConstraint,
     ForeignKey,
     SmallInteger,
+    String,
     Time,
     UniqueConstraint,
     func,
     text,
 )
+from sqlalchemy.dialects import postgresql
 from sqlalchemy.dialects.postgresql import ARRAY, JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -217,12 +219,6 @@ class UrgencyFeeSettingModel(Base):
 
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
     fee_amount: Mapped[Decimal] = mapped_column(nullable=False)
-    schedule_label: Mapped[str] = mapped_column(nullable=False, default="")
-    weekdays: Mapped[list[int]] = mapped_column(
-        ARRAY(SmallInteger), nullable=False, default=list, server_default="{}"
-    )
-    start_time: Mapped[time | None] = mapped_column(Time, nullable=True)
-    end_time: Mapped[time | None] = mapped_column(Time, nullable=True)
     updated_by: Mapped[uuid.UUID | None] = mapped_column(
         ForeignKey("users.id", ondelete="SET NULL"), nullable=True
     )
@@ -252,6 +248,12 @@ class ClinicFeeRuleModel(Base):
     valid_from: Mapped[date] = mapped_column(nullable=False)
     valid_to: Mapped[date | None] = mapped_column(nullable=True)
     is_active: Mapped[bool] = mapped_column(nullable=False, default=True)
+    exam_ids: Mapped[list[uuid.UUID]] = mapped_column(
+        ARRAY(postgresql.UUID(as_uuid=True)), nullable=False, default=list, server_default="{}"
+    )
+    attendance_types: Mapped[list[str]] = mapped_column(
+        ARRAY(String), nullable=False, default=list, server_default="{}"
+    )
     created_by: Mapped[uuid.UUID | None] = mapped_column(
         ForeignKey("users.id", ondelete="SET NULL"), nullable=True
     )

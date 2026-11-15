@@ -101,6 +101,7 @@ class PreviewAttendanceUseCase:
             is_urgent=attendance.is_urgent,
             clinic_id=attendance.clinic_id,
             service_date=attendance.service_date,
+            exam_ids=[item.exam_id for item in items],
             on_call_fees=self._on_call_fees,
             urgency_fee=self._urgency_fee,
             clinic_fee_rules=self._clinic_fee_rules,

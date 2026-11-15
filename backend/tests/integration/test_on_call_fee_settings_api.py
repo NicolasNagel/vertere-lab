@@ -316,19 +316,25 @@ async def test_fee_schedule_fields_are_validated_stored_and_audited(
     assert (body["start_time"], body["end_time"]) == ("18:00:00", "07:00:00")
     assert body["schedule_label"] == "Sex-Dom · 18h às 07h"
 
+    # A urgência é só um valor fixo: dias e horário não existem para ela.
+    urgency_version = (await client.get("/api/v1/urgency-fee-setting")).json()["row_version"]
+    for extra in ({"weekdays": [0, 1]}, {"start_time": "08:00", "end_time": "12:00"}):
+        rejected = await client.patch(
+            "/api/v1/urgency-fee-setting",
+            json={
+                "fee_amount": "30.00",
+                "reason": "Horário",
+                "expected_row_version": urgency_version,
+                **extra,
+            },
+        )
+        assert rejected.status_code == 422, extra
     urgency = await client.patch(
         "/api/v1/urgency-fee-setting",
-        json={
-            "fee_amount": "30.00",
-            "reason": "Horário",
-            "expected_row_version": (await client.get("/api/v1/urgency-fee-setting")).json()[
-                "row_version"
-            ],
-            "weekdays": [0, 1, 2, 3, 4],
-        },
+        json={"fee_amount": "30.00", "reason": "Valor", "expected_row_version": urgency_version},
     )
     assert urgency.status_code == 200
-    assert urgency.json()["schedule_label"] == "Seg-Sex"
+    assert set(urgency.json()) == {"id", "fee_amount", "updated_at", "row_version"}
 
     with session_factory() as session:
         states = session.execute(
@@ -337,11 +343,6 @@ async def test_fee_schedule_fields_are_validated_stored_and_audited(
                 "WHERE action = 'on_call_fee_settings.updated'"
             )
         ).all()
-        session.execute(
-            text(
-                "UPDATE urgency_fee_settings SET weekdays = '{}', schedule_label = '', "
-                "fee_amount = 0, row_version = 1"
-            )
-        )
+        session.execute(text("UPDATE urgency_fee_settings SET fee_amount = 0, row_version = 1"))
         session.commit()
     assert [tuple(row) for row in states] == [([], [4, 5, 6], "Ajuste de horário")]

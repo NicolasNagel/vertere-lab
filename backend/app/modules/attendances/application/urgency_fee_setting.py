@@ -10,7 +10,6 @@ from dataclasses import dataclass
 from decimal import Decimal
 
 from app.modules.attendances.domain.entities import UrgencyFeeSetting
-from app.modules.attendances.domain.fee_schedule import FeeSchedule, schedule_state
 from app.modules.attendances.domain.repositories import UrgencyFeeSettingRepository
 from app.modules.audit.domain.entities import ActorScope, AuditEntry
 from app.modules.audit.domain.repositories import AuditLogWriter
@@ -50,7 +49,6 @@ class GetUrgencyFeeSettingUseCase:
 class UpdateUrgencyFeeSettingCommand:
     actor: ActorContext
     fee_amount: Decimal
-    schedule: FeeSchedule
     reason: str
     expected_row_version: int
 
@@ -77,14 +75,9 @@ class UpdateUrgencyFeeSettingUseCase:
                 "Esta configuração foi alterada por outra pessoa. Recarregue e tente de novo."
             )
 
-        before_state = {
-            "fee_amount": str(setting.fee_amount),
-            "schedule_label": setting.schedule_label,
-            **schedule_state(setting.schedule),
-        }
+        before_state = {"fee_amount": str(setting.fee_amount)}
         setting.update(
             fee_amount=command.fee_amount,
-            schedule=command.schedule,
             now=self._clock.now(),
             updated_by=command.actor.id,
         )
@@ -98,11 +91,7 @@ class UpdateUrgencyFeeSettingUseCase:
                 entity_type="urgency_fee_setting",
                 entity_id=str(setting.id),
                 before_state=before_state,
-                after_state={
-                    "fee_amount": str(setting.fee_amount),
-                    "schedule_label": setting.schedule_label,
-                    **schedule_state(setting.schedule),
-                },
+                after_state={"fee_amount": str(setting.fee_amount)},
                 reason=reason,
             )
         )

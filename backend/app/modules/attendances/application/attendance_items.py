@@ -12,6 +12,7 @@ user may have inactivated a referenced record since the draft was created.
 
 from __future__ import annotations
 
+from collections.abc import Iterable
 from dataclasses import dataclass
 from datetime import date
 from decimal import Decimal
@@ -87,13 +88,15 @@ def resolve_attendance_fees(
     is_urgent: bool,
     clinic_id: UUID,
     service_date: date,
+    exam_ids: Iterable[UUID],
     on_call_fees: OnCallFeeSettingRepository,
     urgency_fee: UrgencyFeeSettingRepository,
     clinic_fee_rules: ClinicFeeRuleRepository,
 ) -> AttendanceFees:
     """Every flat per-attendance fee, resolved once and summed by the caller: plantão (by
     service level) + urgência (fixed amount, only if the attendance is urgent) + each active
-    clinic rule valid on the service date. The three ADD to each other and to the items."""
+    clinic rule valid on the service date whose conditions (exams, attendance types) match.
+    The three ADD to each other and to the items."""
     on_call = resolve_on_call_fee(service_level=service_level, on_call_fees=on_call_fees)
     lines: list[FeeLine] = []
     if on_call > 0:
@@ -110,19 +113,37 @@ def resolve_attendance_fees(
         if urgency > 0:
             lines.append(FeeLine(kind=FeeKind.URGENCIA, label="Urgência", amount=urgency))
 
-    clinic = Decimal("0")
-    for rule in clinic_fee_rules.list_applicable(clinic_id=clinic_id, service_date=service_date):
-        clinic += rule.fee_amount
-        if rule.fee_amount > 0:
-            lines.append(
-                FeeLine(
-                    kind=FeeKind.CLINICA,
-                    label=rule.name,
-                    amount=rule.fee_amount,
-                    rule_id=rule.id,
-                )
-            )
+    clinic_lines = resolve_clinic_fee_lines(
+        service_level=service_level,
+        is_urgent=is_urgent,
+        clinic_id=clinic_id,
+        service_date=service_date,
+        exam_ids=exam_ids,
+        clinic_fee_rules=clinic_fee_rules,
+    )
+    lines.extend(clinic_lines)
+    clinic = sum((line.amount for line in clinic_lines), Decimal("0"))
     return AttendanceFees(on_call=on_call, urgency=urgency, clinic=clinic, lines=tuple(lines))
+
+
+def resolve_clinic_fee_lines(
+    *,
+    service_level: ServiceLevel,
+    is_urgent: bool,
+    clinic_id: UUID,
+    service_date: date,
+    exam_ids: Iterable[UUID],
+    clinic_fee_rules: ClinicFeeRuleRepository,
+) -> list[FeeLine]:
+    """One line per clinic rule that is active on the date AND whose conditions match; all the
+    matching rules of the clinic add up."""
+    exams = frozenset(exam_ids)
+    return [
+        FeeLine(kind=FeeKind.CLINICA, label=rule.name, amount=rule.fee_amount, rule_id=rule.id)
+        for rule in clinic_fee_rules.list_applicable(clinic_id=clinic_id, service_date=service_date)
+        if rule.fee_amount > 0
+        and rule.matches(exam_ids=exams, service_level=service_level, is_urgent=is_urgent)
+    ]
 
 
 def _component_snapshot(exam: Exam, exams: ExamRepository) -> tuple[ExamComponentSnapshot, ...]:

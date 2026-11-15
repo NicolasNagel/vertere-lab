@@ -603,10 +603,6 @@ def _urgency_read(setting: UrgencyFeeSetting) -> UrgencyFeeSettingRead:
     return UrgencyFeeSettingRead(
         id=setting.id,
         fee_amount=setting.fee_amount,
-        schedule_label=setting.schedule_label,
-        weekdays=list(setting.schedule.weekdays),
-        start_time=setting.schedule.start_time,
-        end_time=setting.schedule.end_time,
         updated_at=setting.updated_at,
         row_version=setting.row_version,
     )
@@ -634,11 +630,6 @@ def update_urgency_fee_setting(
         command=UpdateUrgencyFeeSettingCommand(
             actor=current_user,
             fee_amount=payload.fee_amount,
-            schedule=FeeSchedule(
-                weekdays=tuple(payload.weekdays),
-                start_time=payload.start_time,
-                end_time=payload.end_time,
-            ),
             reason=payload.reason,
             expected_row_version=payload.expected_row_version,
         ),
@@ -659,6 +650,8 @@ def _clinic_rule_read(rule: ClinicFeeRule) -> ClinicFeeRuleRead:
         valid_from=rule.valid_from,
         valid_to=rule.valid_to,
         is_active=rule.is_active,
+        exam_ids=list(rule.exam_ids),
+        attendance_types=list(rule.attendance_types),
         updated_at=rule.updated_at,
         row_version=rule.row_version,
     )
@@ -692,6 +685,8 @@ def create_clinic_fee_rule(
             fee_amount=payload.fee_amount,
             valid_from=payload.valid_from,
             valid_to=payload.valid_to,
+            exam_ids=tuple(payload.exam_ids),
+            attendance_types=tuple(payload.attendance_types),
             reason=payload.reason,
         ),
         clock=SystemClock(),
@@ -717,6 +712,8 @@ def update_clinic_fee_rule(
             valid_from=payload.valid_from,
             valid_to=payload.valid_to,
             is_active=payload.is_active,
+            exam_ids=tuple(payload.exam_ids),
+            attendance_types=tuple(payload.attendance_types),
             reason=payload.reason,
             expected_row_version=payload.expected_row_version,
         ),

@@ -233,10 +233,6 @@ class OnCallFeeSettingUpdateRequest(BaseModel):
 class UrgencyFeeSettingRead(BaseModel):
     id: UUID
     fee_amount: Decimal
-    schedule_label: str
-    weekdays: list[int]
-    start_time: time | None
-    end_time: time | None
     updated_at: datetime
     row_version: int
 
@@ -245,11 +241,11 @@ class UrgencyFeeSettingUpdateRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     fee_amount: Decimal = Field(ge=0, max_digits=14, decimal_places=2)
-    weekdays: list[Annotated[int, Field(ge=0, le=6)]] = Field(default_factory=list, max_length=7)
-    start_time: time | None = None
-    end_time: time | None = None
     reason: str = Field(min_length=1, max_length=500)
     expected_row_version: int = Field(ge=1)
+
+
+FeeAttendanceTypeLiteral = Literal["ROTINA", "PLANTAO_NORMAL", "PLANTAO_ESPECIAL", "URGENTE"]
 
 
 class ClinicFeeRuleRead(BaseModel):
@@ -260,6 +256,8 @@ class ClinicFeeRuleRead(BaseModel):
     valid_from: date
     valid_to: date | None
     is_active: bool
+    exam_ids: list[UUID]
+    attendance_types: list[FeeAttendanceTypeLiteral]
     updated_at: datetime
     row_version: int
 
@@ -276,6 +274,8 @@ class ClinicFeeRuleCreateRequest(BaseModel):
     fee_amount: Decimal = Field(ge=0, max_digits=14, decimal_places=2)
     valid_from: date
     valid_to: date | None = None
+    exam_ids: list[UUID] = Field(default_factory=list, max_length=50)
+    attendance_types: list[FeeAttendanceTypeLiteral] = Field(default_factory=list, max_length=4)
     reason: str = Field(min_length=1, max_length=500)
 
 
@@ -287,6 +287,8 @@ class ClinicFeeRuleUpdateRequest(BaseModel):
     valid_from: date
     valid_to: date | None = None
     is_active: bool
+    exam_ids: list[UUID] = Field(default_factory=list, max_length=50)
+    attendance_types: list[FeeAttendanceTypeLiteral] = Field(default_factory=list, max_length=4)
     reason: str = Field(min_length=1, max_length=500)
     expected_row_version: int = Field(ge=1)
 
