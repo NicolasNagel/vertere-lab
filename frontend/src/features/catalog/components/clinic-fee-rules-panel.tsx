@@ -14,7 +14,7 @@ import {
   useUpdateClinicFeeRuleMutation,
 } from '../../attendances/api/use-clinic-fee-rules'
 import { useAllClinicsQuery } from '../../clinics/api/use-clinics-query'
-import { useExamsQuery } from '../api/use-exams-query'
+import { useExamNames } from '../api/use-exam-names'
 import { FeeConditionFields } from './fee-condition-fields'
 import { FeeDialog } from './fee-dialog'
 import { FeeRowPopover } from './fee-row-popover'
@@ -31,13 +31,12 @@ interface RuleFormProps {
   /** `null` = nova taxa. */
   rule: ClinicFeeRule | null
   clinics: { value: string; label: string }[]
-  exams: { value: string; label: string }[]
   /** Abre a edição já com "Taxa ativa" desmarcada (atalho do menu "Inativar taxa"). */
   startInactive?: boolean
   onClose: () => void
 }
 
-function RuleForm({ rule, clinics, exams, startInactive = false, onClose }: RuleFormProps) {
+function RuleForm({ rule, clinics, startInactive = false, onClose }: RuleFormProps) {
   const createMutation = useCreateClinicFeeRuleMutation()
   const updateMutation = useUpdateClinicFeeRuleMutation()
   const mutation = rule ? updateMutation : createMutation
@@ -153,7 +152,6 @@ function RuleForm({ rule, clinics, exams, startInactive = false, onClose }: Rule
       </div>
       <FeeConditionFields
         idPrefix="clinic-fee"
-        exams={exams}
         examIds={examIds}
         attendanceTypes={attendanceTypes}
         onExamIdsChange={setExamIds}
@@ -213,12 +211,8 @@ export function ClinicFeeRulesPanel({
     label: clinic.name,
   }))
   const clinicName = new Map(clinicOptions.map((option) => [option.value, option.label]))
-  const examsQuery = useExamsQuery({ pageSize: 100 })
-  const examOptions = (examsQuery.data?.items ?? []).map((exam) => ({
-    value: exam.id,
-    label: exam.name,
-  }))
-  const examName = new Map(examOptions.map((option) => [option.value, option.label]))
+  // Só os exames citados pelas regras: o nome vem por id, não de uma página fixa do catálogo.
+  const examName = useExamNames((rulesQuery.data ?? []).flatMap((rule) => rule.examIds))
 
   if (!canRead) {
     return <p className="attendance-list-page__hint">Você não tem permissão para ver as taxas.</p>
@@ -338,7 +332,6 @@ export function ClinicFeeRulesPanel({
         <RuleForm
           rule={null}
           clinics={clinicOptions}
-          exams={examOptions}
           onClose={() => onCreatingChange(false)}
         />
       )}
@@ -346,7 +339,6 @@ export function ClinicFeeRulesPanel({
         <RuleForm
           rule={editing.rule}
           clinics={clinicOptions}
-          exams={examOptions}
           startInactive={editing.inactivate}
           onClose={() => setEditing(null)}
         />

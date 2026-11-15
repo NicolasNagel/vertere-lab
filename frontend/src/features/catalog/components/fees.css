@@ -169,3 +169,30 @@
   white-space: normal;
   line-height: 1.35;
 }
+
+/* Seletor de exames da condição: lista paginada pequena e chips com altura limitada. */
+.fees__exam-picker {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  min-width: 0;
+}
+
+.fees__exam-list {
+  display: grid;
+  gap: 0.5rem;
+  min-height: 2.5rem;
+  padding: 0.5rem 0.75rem;
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  background: var(--color-surface);
+}
+
+.fees__note--error {
+  color: var(--color-warning-ink);
+}
+
+.fees__tags--scroll {
+  max-height: 7rem;
+  overflow-y: auto;
+}

@@ -247,3 +247,67 @@ test('new exam and new panel forms are accessible and fit the viewport', async (
   await expect(page.getByRole('heading', { name: 'Novo pacote' })).toBeVisible()
   await expectAccessible(page)
 })
+
+test('clinic rule exam picker searches the server with 160 exams and stays accessible', async ({
+  page,
+}) => {
+  const many = Array.from({ length: 160 }, (_, index) => ({
+    ...exam,
+    id: `x${index + 1}`,
+    code: `EX${String(index + 1).padStart(3, '0')}`,
+    name: `Exame de condição ${String(index + 1).padStart(3, '0')}`,
+  }))
+  await mockApi(page, MANAGER)
+  await page.route('**/api/v1/exams**', (route) => {
+    const url = new URL(route.request().url())
+    const path = url.pathname.replace('/api/v1', '')
+    const byId = many.find((item) => path === `/exams/${item.id}`)
+    if (byId) return route.fulfill(json(byId))
+    if (path !== '/exams') return route.fallback()
+    const term = (url.searchParams.get('search') ?? '').toLowerCase()
+    const size = Number(url.searchParams.get('page_size') ?? 20)
+    const pageNumber = Number(url.searchParams.get('page') ?? 1)
+    const filtered = many.filter((item) => item.name.toLowerCase().includes(term))
+    return route.fulfill(
+      json({
+        items: filtered.slice((pageNumber - 1) * size, pageNumber * size),
+        total: filtered.length,
+        page: pageNumber,
+        page_size: size,
+      }),
+    )
+  })
+  await page.route('**/api/v1/clinic-fee-rules', (route) =>
+    route.fulfill(
+      json({
+        items: [
+          {
+            id: 'r1',
+            clinic_id: 'c1',
+            name: 'Taxa de coleta',
+            fee_amount: '5.00',
+            valid_from: '2026-01-01',
+            valid_to: null,
+            is_active: true,
+            exam_ids: ['x158', 'x159'],
+            attendance_types: [],
+            updated_at: '2026-01-01T00:00:00Z',
+            row_version: 1,
+          },
+        ],
+      }),
+    ),
+  )
+  await page.goto('/cadastros/exames')
+  await page.getByRole('tab', { name: 'Por clínica' }).click()
+  await expect(page.getByText('Exame de condição 158 +1')).toBeVisible()
+  await page.getByRole('button', { name: 'Ações para Taxa de coleta' }).click()
+  await page.getByRole('menuitem', { name: 'Editar taxa' }).click()
+  const dialog = page.getByRole('dialog')
+  await expect(dialog.getByRole('button', { name: 'Remover Exame de condição 158' })).toBeVisible()
+  await dialog.getByLabel('Buscar exame').fill('condição 160')
+  await expect(dialog.getByRole('checkbox', { name: 'Exame de condição 160' })).toBeVisible()
+  await dialog.getByText('Exame de condição 160', { exact: true }).click()
+  await expect(dialog.getByText('3 exames selecionados (máximo 50)')).toBeVisible()
+  await expectAccessible(page)
+})

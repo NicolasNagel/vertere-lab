@@ -91,6 +91,7 @@ function pageHandlers() {
     http.get('/api/v1/exams', () =>
       HttpResponse.json({ items: [hemograma], total: 1, page: 1, page_size: 100 }),
     ),
+    http.get('/api/v1/exams/e1', () => HttpResponse.json(hemograma)),
     http.get('/api/v1/species', () => HttpResponse.json({ items: [] })),
     http.get('/api/v1/exam-categories/active', () => HttpResponse.json({ items: [] })),
   ]
@@ -239,7 +240,7 @@ test('a clinic rule is created with exam and attendance-type conditions', async 
   await user.type(screen.getByLabelText('Vale a partir de'), '2026-02-01')
   await user.click(within(dialog).getByRole('button', { name: 'Urgente' }))
   await user.click(within(dialog).getByRole('button', { name: 'Plantão normal' }))
-  await pickOption(user, 'Adicionar exame', 'Hemograma completo', dialog)
+  await user.click(await within(dialog).findByRole('checkbox', { name: 'Hemograma completo' }))
   expect(within(dialog).getByRole('button', { name: 'Remover Hemograma completo' })).toBeVisible()
   await user.type(screen.getByLabelText('Motivo da alteração'), 'Acordo')
   await user.click(screen.getByRole('button', { name: 'Salvar' }))
@@ -249,6 +250,125 @@ test('a clinic rule is created with exam and attendance-type conditions', async 
     attendance_types: ['URGENTE', 'PLANTAO_NORMAL'],
     fee_amount: '9.00',
   })
+})
+
+const manyExams = Array.from({ length: 150 }, (_, index) => ({
+  ...hemograma,
+  id: `x${index + 1}`,
+  code: `EX${String(index + 1).padStart(3, '0')}`,
+  name: `Exame ${String(index + 1).padStart(3, '0')}`,
+}))
+
+function searchableExamsHandler(seen: URLSearchParams[]) {
+  return [
+    http.get('/api/v1/exams/:id', ({ params }) => {
+      const found = manyExams.find((exam) => exam.id === params.id)
+      return found ? HttpResponse.json(found) : new HttpResponse(null, { status: 404 })
+    }),
+    http.get('/api/v1/exams', ({ request }) => {
+      const query = new URL(request.url).searchParams
+      seen.push(query)
+      const term = (query.get('search') ?? '').toLowerCase()
+      const filtered = manyExams.filter((exam) => exam.name.toLowerCase().includes(term))
+      const size = Number(query.get('page_size') ?? 20)
+      const page = Number(query.get('page') ?? 1)
+      return HttpResponse.json({
+        items: filtered.slice((page - 1) * size, page * size),
+        total: filtered.length,
+        page,
+        page_size: size,
+      })
+    }),
+  ]
+}
+
+test('the exam condition searches the server and reaches exams past the first 100', async () => {
+  const user = userEvent.setup()
+  const seen: URLSearchParams[] = []
+  let created: unknown = null
+  server.use(
+    ...searchableExamsHandler(seen),
+    ...pageHandlers(),
+    meHandler(['pricing.read', 'pricing.manage']),
+    http.get('/api/v1/on-call-fee-settings', () => HttpResponse.json({ items: [] })),
+    clinicsHandler(),
+    http.get('/api/v1/clinic-fee-rules', () => HttpResponse.json({ items: [] })),
+    http.post('/api/v1/clinic-fee-rules', async ({ request }) => {
+      created = await request.json()
+      return HttpResponse.json({ ...rule, id: 'r5' })
+    }),
+  )
+  renderTab()
+
+  await user.click(await screen.findByRole('tab', { name: 'Por clínica' }))
+  await user.click(await screen.findByRole('button', { name: /nova taxa/i }))
+  const dialog = await screen.findByRole('dialog')
+  await pickOption(user, 'Clínica', 'Clínica Alfa', dialog)
+  await user.type(screen.getByLabelText('Nome da taxa'), 'Exame distante')
+  await user.type(screen.getByLabelText('Valor (R$)'), '3')
+  await user.type(screen.getByLabelText('Vale a partir de'), '2026-02-01')
+
+  await user.type(within(dialog).getByLabelText('Buscar exame'), 'Exame 137')
+  await user.click(await within(dialog).findByRole('checkbox', { name: 'Exame 137' }))
+  await waitFor(() =>
+    expect(
+      seen.some((query) => query.get('search') === 'Exame 137' && query.get('status') === 'ACTIVE'),
+    ).toBe(true),
+  )
+  expect(within(dialog).getByRole('button', { name: 'Remover Exame 137' })).toBeVisible()
+  expect(within(dialog).getByText('1 exame selecionado (máximo 50)')).toBeVisible()
+
+  await user.type(screen.getByLabelText('Motivo da alteração'), 'Acordo')
+  await user.click(screen.getByRole('button', { name: 'Salvar' }))
+  await waitFor(() => expect(created).not.toBeNull())
+  expect(created).toMatchObject({ exam_ids: ['x137'] })
+})
+
+test('editing a rule shows the names of selected exams that are not on the current page', async () => {
+  const user = userEvent.setup()
+  server.use(
+    ...searchableExamsHandler([]),
+    ...pageHandlers(),
+    meHandler(['pricing.read', 'pricing.manage']),
+    http.get('/api/v1/on-call-fee-settings', () => HttpResponse.json({ items: [] })),
+    clinicsHandler(),
+    http.get('/api/v1/clinic-fee-rules', () =>
+      HttpResponse.json({ items: [{ ...rule, exam_ids: ['x149', 'x150'] }] }),
+    ),
+  )
+  renderTab()
+
+  await user.click(await screen.findByRole('tab', { name: 'Por clínica' }))
+  expect(await screen.findByText('Exame 149 +1')).toBeVisible()
+  await user.click(screen.getByRole('button', { name: 'Ações para Taxa de coleta' }))
+  await user.click(screen.getByRole('menuitem', { name: 'Editar taxa' }))
+  const dialog = await screen.findByRole('dialog')
+  expect(await within(dialog).findByRole('button', { name: 'Remover Exame 149' })).toBeVisible()
+  expect(within(dialog).getByRole('button', { name: 'Remover Exame 150' })).toBeVisible()
+})
+
+test('the exam condition stops at 50 exams and says so', async () => {
+  const user = userEvent.setup()
+  const fifty = manyExams.slice(0, 50).map((exam) => exam.id)
+  server.use(
+    ...searchableExamsHandler([]),
+    ...pageHandlers(),
+    meHandler(['pricing.read', 'pricing.manage']),
+    http.get('/api/v1/on-call-fee-settings', () => HttpResponse.json({ items: [] })),
+    clinicsHandler(),
+    http.get('/api/v1/clinic-fee-rules', () =>
+      HttpResponse.json({ items: [{ ...rule, exam_ids: fifty }] }),
+    ),
+  )
+  renderTab()
+
+  await user.click(await screen.findByRole('tab', { name: 'Por clínica' }))
+  await user.click(await screen.findByRole('button', { name: 'Ações para Taxa de coleta' }))
+  await user.click(screen.getByRole('menuitem', { name: 'Editar taxa' }))
+  const dialog = await screen.findByRole('dialog')
+  expect(await within(dialog).findByText(/Limite de 50 exames por taxa/)).toBeVisible()
+  await user.type(within(dialog).getByLabelText('Buscar exame'), 'Exame 120')
+  expect(await within(dialog).findByRole('checkbox', { name: 'Exame 120' })).toBeDisabled()
 })
 
 test('the clinic rule row and popover show the conditions in short form', async () => {
