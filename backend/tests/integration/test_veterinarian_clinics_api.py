@@ -321,7 +321,7 @@ async def test_batch_update_links_120_clinics_atomically_with_one_reason_and_aud
             text("SELECT count(*) FROM veterinarian_clinics WHERE veterinarian_id = :id"),
             {"id": veterinarian_id},
         ).scalar_one()
-    assert rows == [("Carteira nova", 121)]
+    assert [tuple(row) for row in rows] == [("Carteira nova", 121)]
     assert links == 121
 
 
