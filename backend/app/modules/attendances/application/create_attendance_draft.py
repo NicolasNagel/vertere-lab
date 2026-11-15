@@ -45,6 +45,7 @@ class CreateAttendanceDraftCommand:
     patient_id: UUID
     collection_method: CollectionMethod = CollectionMethod.INTERNAL
     service_level: ServiceLevel = ServiceLevel.NORMAL
+    is_urgent: bool = False
     service_date: date | None
     notes: str | None
 
@@ -94,6 +95,7 @@ class CreateAttendanceDraftUseCase:
             patient_id=command.patient_id,
             collection_method=command.collection_method,
             service_level=command.service_level,
+            is_urgent=command.is_urgent,
             service_date=command.service_date,
             notes=command.notes,
             status=AttendanceStatus.DRAFT,
@@ -117,6 +119,7 @@ class CreateAttendanceDraftUseCase:
                     "patient_id": str(attendance.patient_id),
                     "collection_method": attendance.collection_method.value,
                     "service_level": attendance.service_level.value,
+                    "is_urgent": str(attendance.is_urgent),
                     "status": attendance.status.value,
                 },
             )

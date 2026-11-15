@@ -26,6 +26,14 @@ class AttendanceExamDTO:
 
 
 @dataclass(frozen=True, kw_only=True)
+class FeeLineDTO:
+    kind: str
+    label: str
+    amount: Decimal
+    rule_id: UUID | None = None
+
+
+@dataclass(frozen=True, kw_only=True)
 class AttendancePreviewDTO:
     """Dry-run projection — deliberately has no `id`/`protocol_number`/
     `row_version`: nothing is persisted, so there is no attendance-exam
@@ -44,6 +52,10 @@ class AttendancePreviewDTO:
     surcharge_total: Decimal
     on_call_fee: Decimal
     grand_total: Decimal
+    is_urgent: bool = False
+    urgency_fee: Decimal = Decimal("0")
+    clinic_fee: Decimal = Decimal("0")
+    fee_lines: tuple[FeeLineDTO, ...] = ()
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -63,6 +75,10 @@ class AttendanceDTO:
     discount_total: Decimal = Decimal("0")
     surcharge_total: Decimal = Decimal("0")
     on_call_fee: Decimal = Decimal("0")
+    is_urgent: bool = False
+    urgency_fee: Decimal = Decimal("0")
+    clinic_fee: Decimal = Decimal("0")
+    fee_lines: tuple[FeeLineDTO, ...] = ()
     grand_total: Decimal = Decimal("0")
     protocol_number: str | None = None
     cancel_reason: str | None = None

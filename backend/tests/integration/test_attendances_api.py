@@ -1121,3 +1121,132 @@ async def test_money_is_withheld_from_users_without_pricing_read(
     assert after["items"][0]["quantity"] == 2
     assert Decimal(after["items"][0]["discount_amount"]) == Decimal("10.00")
     assert Decimal(after["grand_total"]) == Decimal(grand_total) + Decimal("100.00")
+
+
+async def test_plantao_urgency_and_clinic_fee_add_up_and_stay_hidden_without_pricing_read(
+    client: httpx.AsyncClient, session_factory: sessionmaker[Session]
+) -> None:
+    await _login_admin(client, session_factory)
+    attendance_id, exam_id = await _create_confirmable_draft(
+        client, session_factory, service_level="PLANTAO_NORMAL"
+    )
+    draft = (await client.get(f"/api/v1/attendances/{attendance_id}")).json()
+
+    try:
+        urgency = (await client.get("/api/v1/urgency-fee-setting")).json()
+        updated = await client.patch(
+            "/api/v1/urgency-fee-setting",
+            json={
+                "fee_amount": "30.00",
+                "reason": "Valor combinado",
+                "expected_row_version": urgency["row_version"],
+            },
+        )
+        assert updated.status_code == 200
+        stale = await client.patch(
+            "/api/v1/urgency-fee-setting",
+            json={"fee_amount": "31.00", "reason": "x", "expected_row_version": 1},
+        )
+        assert stale.status_code == 409
+
+        created = await client.post(
+            "/api/v1/clinic-fee-rules",
+            json={
+                "clinic_id": draft["clinic_id"],
+                "name": "Taxa de coleta",
+                "fee_amount": "7.50",
+                "valid_from": "2026-01-01",
+                "reason": "Acordo comercial",
+            },
+        )
+        assert created.status_code == 201
+        assert (
+            await client.post(
+                "/api/v1/clinic-fee-rules",
+                json={
+                    "clinic_id": draft["clinic_id"],
+                    "name": "x",
+                    "fee_amount": "1",
+                    "valid_from": "2026-01-01",
+                    "reason": "x",
+                    "amount": "99",
+                },
+            )
+        ).status_code == 422  # campo extra rejeitado (mass assignment)
+
+        patched = await client.patch(
+            f"/api/v1/attendances/{attendance_id}",
+            json={"row_version": draft["row_version"], "is_urgent": True},
+        )
+        assert patched.status_code == 200 and patched.json()["is_urgent"] is True
+
+        confirm = await client.post(
+            f"/api/v1/attendances/{attendance_id}/confirm",
+            json=_items(exam_id, 1),
+            headers=_idempotency_header("fees-confirm"),
+        )
+        assert confirm.status_code == 200
+        body = confirm.json()
+        # 100 do exame + 100 de plantão + 30 de urgência + 7,50 da clínica.
+        assert (body["on_call_fee"], body["urgency_fee"], body["clinic_fee"]) == (
+            "100.00",
+            "30.00",
+            "7.50",
+        )
+        assert body["grand_total"] == "237.50"
+        assert [line["kind"] for line in body["fee_lines"]] == ["PLANTAO", "URGENCIA", "CLINICA"]
+        with session_factory() as session:
+            stored = session.execute(
+                text("SELECT grand_total, urgency_fee, clinic_fee FROM attendances WHERE id = :id"),
+                {"id": attendance_id},
+            ).one()
+        assert (str(stored[0]), str(stored[1]), str(stored[2])) == ("237.50", "30.00", "7.50")
+
+        # Reajustar a taxa depois não muda o atendimento confirmado.
+        await client.patch(
+            f"/api/v1/clinic-fee-rules/{created.json()['id']}",
+            json={
+                "name": "Taxa de coleta",
+                "fee_amount": "9.00",
+                "valid_from": "2026-01-01",
+                "is_active": True,
+                "reason": "Reajuste",
+                "expected_row_version": created.json()["row_version"],
+            },
+        )
+        assert (await client.get(f"/api/v1/attendances/{attendance_id}")).json()[
+            "grand_total"
+        ] == "237.50"
+
+        # Sem `pricing.read` nenhum valor de taxa sai da API (nem na composição).
+        no_price_role = uuid4()
+        with session_factory() as session:
+            now = datetime.now(UTC)
+            session.add(RoleModel(id=no_price_role, name="Operação sem valor 2", scope="LAB"))
+            session.flush()
+            permission = session.query(PermissionModel).filter_by(code="attendances.read").one()
+            session.add(
+                RolePermissionModel(
+                    role_id=no_price_role, permission_id=permission.id, granted_at=now
+                )
+            )
+            session.commit()
+        await _switch_user(
+            client, session_factory, email="semvalor2@vertere.local", role_id=no_price_role
+        )
+        hidden = (await client.get(f"/api/v1/attendances/{attendance_id}")).json()
+        assert all(
+            hidden[field] is None
+            for field in ("on_call_fee", "urgency_fee", "clinic_fee", "grand_total")
+        )
+        assert all(line["amount"] is None for line in hidden["fee_lines"])
+        assert hidden["is_urgent"] is True
+        timeline = (await client.get(f"/api/v1/attendances/{attendance_id}/timeline")).json()
+        assert "urgency_fee" not in str(timeline) and "clinic_fee" not in str(timeline)
+        assert (await client.get("/api/v1/urgency-fee-setting")).status_code == 403
+        assert (await client.get("/api/v1/clinic-fee-rules")).status_code == 403
+    finally:
+        with session_factory() as session:
+            session.execute(text("DELETE FROM clinic_fee_rules"))
+            session.execute(text("UPDATE urgency_fee_settings SET fee_amount = 0, row_version = 1"))
+            session.commit()

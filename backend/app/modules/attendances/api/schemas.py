@@ -38,6 +38,16 @@ class AttendanceExamRead(BaseModel):
     status: AttendanceExamStatusLiteral
 
 
+FeeKindLiteral = Literal["PLANTAO", "URGENCIA", "CLINICA"]
+
+
+class FeeLineRead(BaseModel):
+    kind: FeeKindLiteral
+    label: str
+    amount: Decimal | None
+    rule_id: UUID | None = None
+
+
 class AttendanceRead(BaseModel):
     id: UUID
     clinic_id: UUID
@@ -54,6 +64,10 @@ class AttendanceRead(BaseModel):
     discount_total: Decimal | None
     surcharge_total: Decimal | None
     on_call_fee: Decimal | None
+    is_urgent: bool
+    urgency_fee: Decimal | None
+    clinic_fee: Decimal | None
+    fee_lines: list[FeeLineRead]
     grand_total: Decimal | None
     protocol_number: str | None
     cancel_reason: str | None
@@ -83,6 +97,7 @@ class AttendanceDraftCreateRequest(BaseModel):
     patient_id: UUID
     collection_method: CollectionMethodLiteral = "INTERNAL"
     service_level: ServiceLevelLiteral = "NORMAL"
+    is_urgent: bool = False
     service_date: date | None = None
     notes: str | None = None
 
@@ -152,6 +167,7 @@ class AttendanceUpdateRequest(BaseModel):
     patient_id: UUID | None = None
     collection_method: CollectionMethodLiteral | None = None
     service_level: ServiceLevelLiteral | None = None
+    is_urgent: bool | None = None
     service_date: date | None = None
     notes: str | None = Field(default=None, max_length=2000)
     # Obrigatório fora do rascunho (validado no caso de uso): vai para a auditoria.
@@ -205,6 +221,63 @@ class OnCallFeeSettingUpdateRequest(BaseModel):
 
     fee_amount: Decimal = Field(ge=0)
     schedule_label: str = Field(default="", max_length=200)
+    reason: str = Field(min_length=1, max_length=500)
+    expected_row_version: int = Field(ge=1)
+
+
+class UrgencyFeeSettingRead(BaseModel):
+    id: UUID
+    fee_amount: Decimal
+    schedule_label: str
+    updated_at: datetime
+    row_version: int
+
+
+class UrgencyFeeSettingUpdateRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    fee_amount: Decimal = Field(ge=0, max_digits=14, decimal_places=2)
+    schedule_label: str = Field(default="", max_length=200)
+    reason: str = Field(min_length=1, max_length=500)
+    expected_row_version: int = Field(ge=1)
+
+
+class ClinicFeeRuleRead(BaseModel):
+    id: UUID
+    clinic_id: UUID
+    name: str
+    fee_amount: Decimal
+    valid_from: date
+    valid_to: date | None
+    is_active: bool
+    updated_at: datetime
+    row_version: int
+
+
+class ClinicFeeRuleListResponse(BaseModel):
+    items: list[ClinicFeeRuleRead]
+
+
+class ClinicFeeRuleCreateRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    clinic_id: UUID
+    name: str = Field(min_length=1, max_length=120)
+    fee_amount: Decimal = Field(ge=0, max_digits=14, decimal_places=2)
+    valid_from: date
+    valid_to: date | None = None
+    reason: str = Field(min_length=1, max_length=500)
+
+
+class ClinicFeeRuleUpdateRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    name: str = Field(min_length=1, max_length=120)
+    fee_amount: Decimal = Field(ge=0, max_digits=14, decimal_places=2)
+    valid_from: date
+    valid_to: date | None = None
+    is_active: bool
+    reason: str = Field(min_length=1, max_length=500)
     expected_row_version: int = Field(ge=1)
 
 
@@ -225,4 +298,8 @@ class AttendancePreviewResponse(BaseModel):
     discount_total: Decimal | None
     surcharge_total: Decimal | None
     on_call_fee: Decimal | None
+    is_urgent: bool
+    urgency_fee: Decimal | None
+    clinic_fee: Decimal | None
+    fee_lines: list[FeeLineRead]
     grand_total: Decimal | None

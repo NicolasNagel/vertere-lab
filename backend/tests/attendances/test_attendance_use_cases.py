@@ -63,12 +63,14 @@ from tests.attendances.fakes import (
     FakeAttendanceRepository,
     FakeAttendanceSequenceRepository,
     FakeAuditLogWriter,
+    FakeClinicFeeRuleRepository,
     FakeClinicRepository,
     FakeClock,
     FakeClosureSettlement,
     FakeExamRepository,
     FakeOnCallFeeSettingRepository,
     FakePatientRepository,
+    FakeUrgencyFeeSettingRepository,
     FakeVeterinarianClinicLinkRepository,
     FakeVeterinarianRepository,
     make_clinic,
@@ -140,6 +142,8 @@ class _Fixture:
         )
         self.audit = FakeAuditLogWriter()
         self.on_call_fees = FakeOnCallFeeSettingRepository()
+        self.urgency_fee = FakeUrgencyFeeSettingRepository()
+        self.clinic_fee_rules = FakeClinicFeeRuleRepository()
         self.closure_settlement = FakeClosureSettlement()
 
     def cancel_use_case(self) -> CancelAttendanceUseCase:
@@ -157,6 +161,8 @@ class _Fixture:
             veterinarian_clinics=self.veterinarian_clinics,
             patients=self.patients,
             on_call_fees=self.on_call_fees,
+            urgency_fee=self.urgency_fee,
+            clinic_fee_rules=self.clinic_fee_rules,
             closure_settlement=self.closure_settlement,
             audit=self.audit,
             clock=FakeClock(_NOW),
@@ -312,6 +318,8 @@ class _ConfirmFixture(_Fixture):
             patients=self.patients,
             exams=self.exams,
             on_call_fees=self.on_call_fees,
+            urgency_fee=self.urgency_fee,
+            clinic_fee_rules=self.clinic_fee_rules,
             audit=self.audit,
             clock=FakeClock(_NOW),
         )
@@ -325,6 +333,8 @@ class _ConfirmFixture(_Fixture):
             patients=self.patients,
             exams=self.exams,
             on_call_fees=self.on_call_fees,
+            urgency_fee=self.urgency_fee,
+            clinic_fee_rules=self.clinic_fee_rules,
         )
 
 
@@ -630,6 +640,8 @@ def test_update_draft_attendance_changes_notes_and_clinic_and_audits() -> None:
         veterinarian_clinics=fixture.veterinarian_clinics,
         patients=fixture.patients,
         on_call_fees=fixture.on_call_fees,
+        urgency_fee=fixture.urgency_fee,
+        clinic_fee_rules=fixture.clinic_fee_rules,
         closure_settlement=fixture.closure_settlement,
         audit=fixture.audit,
         clock=FakeClock(_NOW),

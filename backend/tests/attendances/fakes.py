@@ -14,8 +14,10 @@ from app.modules.attendances.application.closure_settlement import FinancialPosi
 from app.modules.attendances.domain.entities import (
     AttendanceRecord,
     AttendanceStatus,
+    ClinicFeeRule,
     OnCallFeeSetting,
     ServiceLevel,
+    UrgencyFeeSetting,
 )
 from app.modules.audit.domain.entities import AuditEntry
 from app.modules.catalog.domain.entities import Exam, ExamStatus
@@ -404,6 +406,48 @@ class FakeOnCallFeeSettingRepository:
 
     def update(self, setting: OnCallFeeSetting) -> None:
         self._settings[setting.service_level] = setting
+
+
+class FakeUrgencyFeeSettingRepository:
+    def __init__(self, fee_amount: Decimal = Decimal("0.00")) -> None:
+        self._setting: UrgencyFeeSetting | None = UrgencyFeeSetting(
+            id=UUID(int=777), fee_amount=fee_amount, updated_at=_SEED_AT
+        )
+
+    def get(self) -> UrgencyFeeSetting | None:
+        return self._setting
+
+    def update(self, setting: UrgencyFeeSetting) -> None:
+        self._setting = setting
+
+
+class FakeClinicFeeRuleRepository:
+    def __init__(self, rules: list[ClinicFeeRule] | None = None) -> None:
+        self.rules: dict[UUID, ClinicFeeRule] = {rule.id: rule for rule in rules or []}
+
+    def get_by_id(self, rule_id: UUID) -> ClinicFeeRule | None:
+        return self.rules.get(rule_id)
+
+    def list_rules(self, *, clinic_id: UUID | None, include_inactive: bool) -> list[ClinicFeeRule]:
+        return [
+            rule
+            for rule in self.rules.values()
+            if (clinic_id is None or rule.clinic_id == clinic_id)
+            and (include_inactive or rule.is_active)
+        ]
+
+    def list_applicable(self, *, clinic_id: UUID, service_date: date) -> list[ClinicFeeRule]:
+        return [
+            rule
+            for rule in self.rules.values()
+            if rule.clinic_id == clinic_id and rule.applies_on(service_date)
+        ]
+
+    def add(self, rule: ClinicFeeRule) -> None:
+        self.rules[rule.id] = rule
+
+    def update(self, rule: ClinicFeeRule) -> None:
+        self.rules[rule.id] = rule
 
 
 def make_clinic(*, clinic_id: UUID, status: ClinicStatus = ClinicStatus.ACTIVE) -> Clinic:

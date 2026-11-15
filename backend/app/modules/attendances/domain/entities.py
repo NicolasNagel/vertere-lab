@@ -97,6 +97,125 @@ class OnCallFeeSetting:
         self.updated_at = now
 
 
+@dataclass(kw_only=True)
+class UrgencyFeeSetting:
+    """Taxa de urgência: valor fixo único, cobrado uma vez por atendimento marcado como
+    urgente. Existe uma única linha (semeada pela migration 0041); o valor é editável com
+    `pricing.manage`, sempre com motivo e auditoria."""
+
+    id: UUID
+    fee_amount: Decimal
+    schedule_label: str = ""
+    updated_by: UUID | None = None
+    updated_at: datetime
+    row_version: int = 1
+
+    def __post_init__(self) -> None:
+        if self.fee_amount < 0:
+            raise ValidationError("Valor da taxa de urgência não pode ser negativo.")
+
+    def update(
+        self, *, fee_amount: Decimal, schedule_label: str, now: datetime, updated_by: UUID | None
+    ) -> None:
+        if fee_amount < 0:
+            raise ValidationError("Valor da taxa de urgência não pode ser negativo.")
+        self.fee_amount = fee_amount
+        self.schedule_label = schedule_label
+        self.updated_by = updated_by
+        self.updated_at = now
+
+
+@dataclass(kw_only=True)
+class ClinicFeeRule:
+    """Taxa personalizada de uma clínica: valor fixo que SOMA ao total do atendimento (nunca
+    substitui preço de exame), cobrado uma vez por atendimento e por regra. Vale para a data do
+    serviço entre `valid_from` e `valid_to` (inclusive) enquanto `is_active`. Nunca é apagada:
+    inativar ou encerrar a vigência."""
+
+    id: UUID
+    clinic_id: UUID
+    name: str
+    fee_amount: Decimal
+    valid_from: date
+    valid_to: date | None = None
+    is_active: bool = True
+    created_by: UUID | None = None
+    updated_by: UUID | None = None
+    created_at: datetime
+    updated_at: datetime
+    row_version: int = 1
+
+    def __post_init__(self) -> None:
+        self._validate(self.name, self.fee_amount, self.valid_from, self.valid_to)
+
+    @staticmethod
+    def _validate(name: str, fee_amount: Decimal, valid_from: date, valid_to: date | None) -> None:
+        if not name.strip():
+            raise ValidationError("Informe o nome da taxa.")
+        if fee_amount < 0:
+            raise ValidationError("Valor da taxa não pode ser negativo.")
+        if valid_to is not None and valid_to < valid_from:
+            raise ValidationError("O fim da vigência não pode ser anterior ao início.")
+
+    def applies_on(self, service_date: date) -> bool:
+        return (
+            self.is_active
+            and self.valid_from <= service_date
+            and (self.valid_to is None or service_date <= self.valid_to)
+        )
+
+    def update(
+        self,
+        *,
+        name: str,
+        fee_amount: Decimal,
+        valid_from: date,
+        valid_to: date | None,
+        is_active: bool,
+        now: datetime,
+        updated_by: UUID | None,
+    ) -> None:
+        self._validate(name, fee_amount, valid_from, valid_to)
+        self.name = name.strip()
+        self.fee_amount = fee_amount
+        self.valid_from = valid_from
+        self.valid_to = valid_to
+        self.is_active = is_active
+        self.updated_by = updated_by
+        self.updated_at = now
+
+
+class FeeKind(StrEnum):
+    PLANTAO = "PLANTAO"
+    URGENCIA = "URGENCIA"
+    CLINICA = "CLINICA"
+
+
+@dataclass(frozen=True)
+class FeeLine:
+    """One fee charged on the whole attendance, frozen on it (snapshot)."""
+
+    kind: FeeKind
+    label: str
+    amount: Decimal
+    rule_id: UUID | None = None
+
+
+@dataclass(frozen=True)
+class AttendanceFees:
+    """Every flat per-attendance fee resolved by the application layer (the domain does no
+    I/O): plantão + urgência + clínica. They always add up."""
+
+    on_call: Decimal = Decimal("0")
+    urgency: Decimal = Decimal("0")
+    clinic: Decimal = Decimal("0")
+    lines: tuple[FeeLine, ...] = ()
+
+    @property
+    def total(self) -> Decimal:
+        return self.on_call + self.urgency + self.clinic
+
+
 @dataclass(frozen=True)
 class ExamComponentSnapshot:
     """One exam inside a panel (pacote), frozen when the panel was added to the attendance."""
@@ -172,11 +291,17 @@ class AttendanceTotals:
     discount_total: Decimal
     surcharge_total: Decimal
     on_call_fee: Decimal
+    urgency_fee: Decimal
+    clinic_fee: Decimal
     grand_total: Decimal
 
 
 def compute_attendance_totals(
-    items: list[AttendanceExam], *, on_call_fee: Decimal = Decimal("0")
+    items: list[AttendanceExam],
+    *,
+    on_call_fee: Decimal = Decimal("0"),
+    urgency_fee: Decimal = Decimal("0"),
+    clinic_fee: Decimal = Decimal("0"),
 ) -> AttendanceTotals:
     """Single point of money math for a set of items (rule:
     .claude/rules/12-attendance.md — "moeda e arredondamento centralizados em
@@ -199,7 +324,9 @@ def compute_attendance_totals(
         discount_total=round_currency(sum((i.discount_amount for i in items), Decimal("0"))),
         surcharge_total=round_currency(sum((i.surcharge_amount for i in items), Decimal("0"))),
         on_call_fee=on_call_fee,
-        grand_total=round_currency(items_total + on_call_fee),
+        urgency_fee=urgency_fee,
+        clinic_fee=clinic_fee,
+        grand_total=round_currency(items_total + on_call_fee + urgency_fee + clinic_fee),
     )
 
 
@@ -220,6 +347,10 @@ class AttendanceRecord:
     discount_total: Decimal = Decimal("0")
     surcharge_total: Decimal = Decimal("0")
     on_call_fee: Decimal = Decimal("0")
+    is_urgent: bool = False
+    urgency_fee: Decimal = Decimal("0")
+    clinic_fee: Decimal = Decimal("0")
+    fee_lines: tuple[FeeLine, ...] = ()
     grand_total: Decimal = Decimal("0")
     protocol_year: int | None = None
     protocol_sequence: int | None = None
@@ -313,6 +444,9 @@ class AttendanceRecord:
         protocol_year: int,
         protocol_sequence: int,
         on_call_fee: Decimal,
+        urgency_fee: Decimal = Decimal("0"),
+        clinic_fee: Decimal = Decimal("0"),
+        fee_lines: tuple[FeeLine, ...] = (),
         now: datetime,
         confirmed_by: UUID | None,
     ) -> None:
@@ -321,13 +455,18 @@ class AttendanceRecord:
         if self.service_date is None:
             raise ValidationError("Data do atendimento é obrigatória para confirmar.")
 
-        totals = compute_attendance_totals(items, on_call_fee=on_call_fee)
+        totals = compute_attendance_totals(
+            items, on_call_fee=on_call_fee, urgency_fee=urgency_fee, clinic_fee=clinic_fee
+        )
 
         self.items = items
         self.subtotal = totals.subtotal
         self.discount_total = totals.discount_total
         self.surcharge_total = totals.surcharge_total
         self.on_call_fee = totals.on_call_fee
+        self.urgency_fee = totals.urgency_fee
+        self.clinic_fee = totals.clinic_fee
+        self.fee_lines = fee_lines
         self.grand_total = totals.grand_total
         self.protocol_year = protocol_year
         self.protocol_sequence = protocol_sequence
@@ -378,7 +517,12 @@ class AttendanceRecord:
                 "Atendimento pertence a um fechamento e não pode ser editado diretamente."
             )
         active = [item for item in items if item.status == AttendanceExamStatus.ACTIVE]
-        totals = compute_attendance_totals(active, on_call_fee=self.on_call_fee)
+        totals = compute_attendance_totals(
+            active,
+            on_call_fee=self.on_call_fee,
+            urgency_fee=self.urgency_fee,
+            clinic_fee=self.clinic_fee,
+        )
         self.items = items
         self.subtotal = totals.subtotal
         self.discount_total = totals.discount_total
@@ -395,6 +539,7 @@ class AttendanceRecord:
         patient_id: UUID | None,
         collection_method: CollectionMethod | None = None,
         service_level: ServiceLevel | None = None,
+        is_urgent: bool | None = None,
         service_date: date | None,
         notes: str | None,
         on_call_fee: Decimal | None = None,
@@ -465,8 +610,13 @@ class AttendanceRecord:
                         Decimal("0"),
                     )
                     + on_call_fee
+                    + self.urgency_fee
+                    + self.clinic_fee
                 )
                 changes["grand_total"] = (str(previous_total), str(self.grand_total))
+        if is_urgent is not None and is_urgent != self.is_urgent:
+            changes["is_urgent"] = (str(self.is_urgent), str(is_urgent))
+            self.is_urgent = is_urgent
         if service_date is not None and service_date != self.service_date:
             changes["service_date"] = (str(self.service_date), str(service_date))
             self.service_date = service_date
@@ -485,3 +635,41 @@ class AttendanceRecord:
             self.updated_by = updated_by
             self.updated_at = now
         return changes
+
+    def reprice_fees(
+        self,
+        *,
+        fees: AttendanceFees,
+        changes: dict[str, tuple[str | None, str | None]],
+        now: datetime,
+        updated_by: UUID | None,
+    ) -> None:
+        """Re-resolve every per-attendance fee after an edit that can change them (service
+        level, urgency, clinic or service date) on an already-priced attendance. Puts the
+        fee/total differences into `changes` (the audit diff) and recomputes `grand_total` from
+        the ACTIVE items plus the new fees."""
+        previous_total = self.grand_total
+        previous_fees = (self.on_call_fee, self.urgency_fee, self.clinic_fee)
+        self.on_call_fee = fees.on_call
+        self.urgency_fee = fees.urgency
+        self.clinic_fee = fees.clinic
+        self.fee_lines = fees.lines
+        active = [item for item in self.items if item.status == AttendanceExamStatus.ACTIVE]
+        items_total = round_currency(sum((i.total_amount for i in active), Decimal("0")))
+        self.grand_total = round_currency(items_total + fees.total)
+        for name, before, after in (
+            ("on_call_fee", previous_fees[0], self.on_call_fee),
+            ("urgency_fee", previous_fees[1], self.urgency_fee),
+            ("clinic_fee", previous_fees[2], self.clinic_fee),
+            ("grand_total", previous_total, self.grand_total),
+        ):
+            # `update_fields` may already have recorded part of the diff (plantão level):
+            # keep its original "before" and only move the "after".
+            original_before = changes[name][0] if name in changes else str(before)
+            if original_before != str(after):
+                changes[name] = (original_before, str(after))
+            else:
+                changes.pop(name, None)
+        if changes:
+            self.updated_by = updated_by
+            self.updated_at = now

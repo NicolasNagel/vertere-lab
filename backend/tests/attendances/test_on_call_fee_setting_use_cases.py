@@ -53,6 +53,7 @@ def _update_command(
         "service_level": ServiceLevel.PLANTAO_NORMAL,
         "fee_amount": Decimal("120.00"),
         "schedule_label": "Seg-Sáb - 19h às 07h",
+        "reason": "Reajuste",
         "expected_row_version": 1,
     }
     values.update(overrides)

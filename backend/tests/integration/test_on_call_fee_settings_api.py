@@ -118,7 +118,12 @@ async def test_on_call_fee_settings_are_permission_gated_audited_versioned_and_t
     assert items["PLANTAO_NORMAL"]["row_version"] == 1
     read_only = await client.patch(
         f"{url}/PLANTAO_NORMAL",
-        json={"fee_amount": "130.00", "schedule_label": "", "expected_row_version": 1},
+        json={
+            "fee_amount": "130.00",
+            "schedule_label": "",
+            "reason": "Reajuste",
+            "expected_row_version": 1,
+        },
     )
     assert read_only.status_code == 403
 
@@ -128,6 +133,7 @@ async def test_on_call_fee_settings_are_permission_gated_audited_versioned_and_t
         json={
             "fee_amount": "130.00",
             "schedule_label": "Seg-Sáb - 19h às 07h",
+            "reason": "Reajuste",
             "expected_row_version": 1,
         },
     )
@@ -146,12 +152,22 @@ async def test_on_call_fee_settings_are_permission_gated_audited_versioned_and_t
 
     first = await client.patch(
         f"{url}/PLANTAO_ESPECIAL",
-        json={"fee_amount": "160.00", "schedule_label": "", "expected_row_version": 1},
+        json={
+            "fee_amount": "160.00",
+            "schedule_label": "",
+            "reason": "Reajuste",
+            "expected_row_version": 1,
+        },
     )
     assert first.status_code == 200
     stale = await client.patch(
         f"{url}/PLANTAO_ESPECIAL",
-        json={"fee_amount": "170.00", "schedule_label": "", "expected_row_version": 1},
+        json={
+            "fee_amount": "170.00",
+            "schedule_label": "",
+            "reason": "Reajuste",
+            "expected_row_version": 1,
+        },
     )
     assert stale.status_code == 409
 
@@ -159,7 +175,12 @@ async def test_on_call_fee_settings_are_permission_gated_audited_versioned_and_t
     # (que ainda checa, caso seja chamado fora da API).
     normal = await client.patch(
         f"{url}/NORMAL",
-        json={"fee_amount": "10.00", "schedule_label": "", "expected_row_version": 1},
+        json={
+            "fee_amount": "10.00",
+            "schedule_label": "",
+            "reason": "Reajuste",
+            "expected_row_version": 1,
+        },
     )
     assert normal.status_code == 422
 
@@ -256,7 +277,12 @@ async def test_confirmed_attendance_on_call_fee_unaffected_by_later_setting_chan
 
     updated = await client.patch(
         "/api/v1/on-call-fee-settings/PLANTAO_NORMAL",
-        json={"fee_amount": "999.00", "schedule_label": "", "expected_row_version": 1},
+        json={
+            "fee_amount": "999.00",
+            "schedule_label": "",
+            "reason": "Reajuste",
+            "expected_row_version": 1,
+        },
     )
     assert updated.status_code == 200
 

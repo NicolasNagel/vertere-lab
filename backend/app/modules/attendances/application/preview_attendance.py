@@ -18,15 +18,20 @@ from uuid import UUID
 
 from app.modules.attendances.application.attendance_items import (
     AttendanceItemInput,
-    resolve_on_call_fee,
+    resolve_attendance_fees,
     validate_and_snapshot_items,
 )
 from app.modules.attendances.application.dtos import AttendancePreviewDTO
-from app.modules.attendances.application.mappers import attendance_exam_to_dto
+from app.modules.attendances.application.mappers import (
+    attendance_exam_to_dto,
+    fee_line_to_dto,
+)
 from app.modules.attendances.domain.entities import AttendanceStatus, compute_attendance_totals
 from app.modules.attendances.domain.repositories import (
     AttendanceRepository,
+    ClinicFeeRuleRepository,
     OnCallFeeSettingRepository,
+    UrgencyFeeSettingRepository,
 )
 from app.modules.catalog.domain.repositories import ExamRepository
 from app.modules.clinics.domain.repositories import ClinicRepository
@@ -57,6 +62,8 @@ class PreviewAttendanceUseCase:
         patients: PatientRepository,
         exams: ExamRepository,
         on_call_fees: OnCallFeeSettingRepository,
+        urgency_fee: UrgencyFeeSettingRepository,
+        clinic_fee_rules: ClinicFeeRuleRepository,
     ) -> None:
         self._attendances = attendances
         self._clinics = clinics
@@ -65,6 +72,8 @@ class PreviewAttendanceUseCase:
         self._patients = patients
         self._exams = exams
         self._on_call_fees = on_call_fees
+        self._urgency_fee = urgency_fee
+        self._clinic_fee_rules = clinic_fee_rules
 
     def execute(self, command: PreviewAttendanceCommand) -> AttendancePreviewDTO:
         if _REQUIRED_PERMISSION not in command.actor.permissions:
@@ -86,11 +95,19 @@ class PreviewAttendanceUseCase:
             patients=self._patients,
             exams=self._exams,
         )
-        on_call_fee = resolve_on_call_fee(
-            service_level=attendance.service_level, on_call_fees=self._on_call_fees
-        )
-        totals = compute_attendance_totals(items, on_call_fee=on_call_fee)
         assert attendance.service_date is not None  # enforced by validate_and_snapshot_items
+        fees = resolve_attendance_fees(
+            service_level=attendance.service_level,
+            is_urgent=attendance.is_urgent,
+            clinic_id=attendance.clinic_id,
+            service_date=attendance.service_date,
+            on_call_fees=self._on_call_fees,
+            urgency_fee=self._urgency_fee,
+            clinic_fee_rules=self._clinic_fee_rules,
+        )
+        totals = compute_attendance_totals(
+            items, on_call_fee=fees.on_call, urgency_fee=fees.urgency, clinic_fee=fees.clinic
+        )
 
         return AttendancePreviewDTO(
             attendance_id=attendance.id,
@@ -105,5 +122,9 @@ class PreviewAttendanceUseCase:
             discount_total=totals.discount_total,
             surcharge_total=totals.surcharge_total,
             on_call_fee=totals.on_call_fee,
+            is_urgent=attendance.is_urgent,
+            urgency_fee=totals.urgency_fee,
+            clinic_fee=totals.clinic_fee,
+            fee_lines=tuple(fee_line_to_dto(line) for line in fees.lines),
             grand_total=totals.grand_total,
         )

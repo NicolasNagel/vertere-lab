@@ -9,7 +9,9 @@ from app.modules.attendances.application.closure_settlement import ClosureSettle
 from app.modules.attendances.domain.repositories import (
     AttendanceRepository,
     AttendanceSequenceRepository,
+    ClinicFeeRuleRepository,
     OnCallFeeSettingRepository,
+    UrgencyFeeSettingRepository,
 )
 from app.modules.audit.domain.repositories import AuditLogWriter
 from app.modules.catalog.domain.repositories import ExamRepository
@@ -37,6 +39,10 @@ class AttendanceUnitOfWork(Protocol):
     def exams(self) -> ExamRepository: ...
     @property
     def on_call_fees(self) -> OnCallFeeSettingRepository: ...
+    @property
+    def urgency_fee(self) -> UrgencyFeeSettingRepository: ...
+    @property
+    def clinic_fee_rules(self) -> ClinicFeeRuleRepository: ...
     @property
     def closure_settlement(self) -> ClosureSettlement: ...
     @property

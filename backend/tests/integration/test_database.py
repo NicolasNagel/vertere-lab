@@ -112,6 +112,8 @@ def test_alembic_upgrade_head_runs_on_empty_database(
             "attendance_exams",
             "attendance_sequences",
             "on_call_fee_settings",
+            "urgency_fee_settings",
+            "clinic_fee_rules",
             "import_batches",
             "import_staging_rows",
             "import_exceptions",

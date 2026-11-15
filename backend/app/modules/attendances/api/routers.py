@@ -27,17 +27,31 @@ from app.modules.attendances.api.schemas import (
     AttendanceTimelineEntryRead,
     AttendanceTimelineResponse,
     AttendanceUpdateRequest,
+    ClinicFeeRuleCreateRequest,
+    ClinicFeeRuleListResponse,
+    ClinicFeeRuleRead,
+    ClinicFeeRuleUpdateRequest,
     CollectionMethodLiteral,
     ExamComponentRead,
+    FeeKindLiteral,
+    FeeLineRead,
     OnCallFeeSettingListResponse,
     OnCallFeeSettingRead,
     OnCallFeeSettingUpdateRequest,
     OnCallServiceLevelLiteral,
     ServiceLevelLiteral,
+    UrgencyFeeSettingRead,
+    UrgencyFeeSettingUpdateRequest,
 )
 from app.modules.attendances.application.attendance_items import AttendanceItemInput
 from app.modules.attendances.application.cancel_attendance import (
     CancelAttendanceCommand,
+)
+from app.modules.attendances.application.clinic_fee_rules import (
+    CreateClinicFeeRuleCommand,
+    ListClinicFeeRulesQuery,
+    ListClinicFeeRulesUseCase,
+    UpdateClinicFeeRuleCommand,
 )
 from app.modules.attendances.application.confirm_attendance import (
     ConfirmAttendanceCommand,
@@ -51,6 +65,7 @@ from app.modules.attendances.application.dtos import (
     AttendanceDTO,
     AttendanceExamDTO,
     AttendancePreviewDTO,
+    FeeLineDTO,
 )
 from app.modules.attendances.application.get_attendance import (
     GetAttendanceQuery,
@@ -74,9 +89,12 @@ from app.modules.attendances.application.list_attendances import (
 from app.modules.attendances.application.mutation_handlers import (
     handle_cancel_attendance,
     handle_create_attendance_draft,
+    handle_create_clinic_fee_rule,
     handle_update_attendance,
     handle_update_attendance_items,
+    handle_update_clinic_fee_rule,
     handle_update_on_call_fee_setting,
+    handle_update_urgency_fee_setting,
 )
 from app.modules.attendances.application.preview_attendance import (
     PreviewAttendanceCommand,
@@ -92,15 +110,24 @@ from app.modules.attendances.application.update_attendance_items import (
 from app.modules.attendances.application.update_on_call_fee_setting import (
     UpdateOnCallFeeSettingCommand,
 )
+from app.modules.attendances.application.urgency_fee_setting import (
+    GetUrgencyFeeSettingQuery,
+    GetUrgencyFeeSettingUseCase,
+    UpdateUrgencyFeeSettingCommand,
+)
 from app.modules.attendances.domain.entities import (
     AttendanceStatus,
+    ClinicFeeRule,
     CollectionMethod,
     OnCallFeeSetting,
     ServiceLevel,
+    UrgencyFeeSetting,
 )
 from app.modules.attendances.infrastructure.repositories import (
     SqlAlchemyAttendanceRepository,
+    SqlAlchemyClinicFeeRuleRepository,
     SqlAlchemyOnCallFeeSettingRepository,
+    SqlAlchemyUrgencyFeeSettingRepository,
 )
 from app.modules.attendances.infrastructure.uow import SqlAlchemyAttendanceUnitOfWork
 from app.modules.audit.infrastructure.repositories import (
@@ -129,6 +156,18 @@ def _can_see_money(actor: ActorContext) -> bool:
 
 def _money(value: Decimal, show_money: bool) -> Decimal | None:
     return value if show_money else None
+
+
+def _fee_lines_read(lines: tuple[FeeLineDTO, ...], show_money: bool) -> list[FeeLineRead]:
+    return [
+        FeeLineRead(
+            kind=cast(FeeKindLiteral, line.kind),
+            label=line.label,
+            amount=_money(line.amount, show_money),
+            rule_id=line.rule_id,
+        )
+        for line in lines
+    ]
 
 
 def _attendance_exam_read(dto: AttendanceExamDTO, show_money: bool) -> AttendanceExamRead:
@@ -165,6 +204,10 @@ def _attendance_read(dto: AttendanceDTO, show_money: bool) -> AttendanceRead:
         discount_total=_money(dto.discount_total, show_money),
         surcharge_total=_money(dto.surcharge_total, show_money),
         on_call_fee=_money(dto.on_call_fee, show_money),
+        is_urgent=dto.is_urgent,
+        urgency_fee=_money(dto.urgency_fee, show_money),
+        clinic_fee=_money(dto.clinic_fee, show_money),
+        fee_lines=_fee_lines_read(dto.fee_lines, show_money),
         grand_total=_money(dto.grand_total, show_money),
         protocol_number=dto.protocol_number,
         cancel_reason=dto.cancel_reason,
@@ -190,6 +233,10 @@ def _attendance_preview_read(
         discount_total=_money(dto.discount_total, show_money),
         surcharge_total=_money(dto.surcharge_total, show_money),
         on_call_fee=_money(dto.on_call_fee, show_money),
+        is_urgent=dto.is_urgent,
+        urgency_fee=_money(dto.urgency_fee, show_money),
+        clinic_fee=_money(dto.clinic_fee, show_money),
+        fee_lines=_fee_lines_read(dto.fee_lines, show_money),
         grand_total=_money(dto.grand_total, show_money),
     )
 
@@ -345,6 +392,7 @@ def update_attendance(
             service_level=(
                 ServiceLevel(payload.service_level) if payload.service_level is not None else None
             ),
+            is_urgent=payload.is_urgent,
             service_date=payload.service_date,
             notes=payload.notes,
             reason=payload.reason,
@@ -399,6 +447,7 @@ def create_attendance_draft(
             patient_id=payload.patient_id,
             collection_method=CollectionMethod(payload.collection_method),
             service_level=ServiceLevel(payload.service_level),
+            is_urgent=payload.is_urgent,
             service_date=payload.service_date,
             notes=payload.notes,
         ),
@@ -422,6 +471,8 @@ def preview_attendance(
         patients=SqlAlchemyPatientRepository(session),
         exams=SqlAlchemyExamRepository(session),
         on_call_fees=SqlAlchemyOnCallFeeSettingRepository(session),
+        urgency_fee=SqlAlchemyUrgencyFeeSettingRepository(session),
+        clinic_fee_rules=SqlAlchemyClinicFeeRuleRepository(session),
     )
     result = use_case.execute(
         PreviewAttendanceCommand(
@@ -529,8 +580,129 @@ def update_on_call_fee_setting(
             service_level=ServiceLevel(service_level),
             fee_amount=payload.fee_amount,
             schedule_label=payload.schedule_label,
+            reason=payload.reason,
             expected_row_version=payload.expected_row_version,
         ),
         clock=SystemClock(),
     )
     return _on_call_fee_setting_read(result)
+
+
+urgency_fee_router = APIRouter(prefix="/urgency-fee-setting", tags=["attendances"])
+
+
+def _urgency_read(setting: UrgencyFeeSetting) -> UrgencyFeeSettingRead:
+    return UrgencyFeeSettingRead(
+        id=setting.id,
+        fee_amount=setting.fee_amount,
+        schedule_label=setting.schedule_label,
+        updated_at=setting.updated_at,
+        row_version=setting.row_version,
+    )
+
+
+@urgency_fee_router.get("", response_model=UrgencyFeeSettingRead)
+def get_urgency_fee_setting(
+    session: SqlAlchemySession = Depends(get_session),
+    current_user: ActorContext = Depends(require_permission("pricing.read")),
+) -> UrgencyFeeSettingRead:
+    result = GetUrgencyFeeSettingUseCase(
+        urgency_fee=SqlAlchemyUrgencyFeeSettingRepository(session)
+    ).execute(GetUrgencyFeeSettingQuery(actor=current_user))
+    return _urgency_read(result)
+
+
+@urgency_fee_router.patch("", response_model=UrgencyFeeSettingRead)
+def update_urgency_fee_setting(
+    payload: UrgencyFeeSettingUpdateRequest,
+    uow: SqlAlchemyUnitOfWork = Depends(get_unit_of_work),
+    current_user: ActorContext = Depends(require_permission("pricing.manage")),
+) -> UrgencyFeeSettingRead:
+    result = handle_update_urgency_fee_setting(
+        uow=SqlAlchemyAttendanceUnitOfWork(uow),
+        command=UpdateUrgencyFeeSettingCommand(
+            actor=current_user,
+            fee_amount=payload.fee_amount,
+            schedule_label=payload.schedule_label,
+            reason=payload.reason,
+            expected_row_version=payload.expected_row_version,
+        ),
+        clock=SystemClock(),
+    )
+    return _urgency_read(result)
+
+
+clinic_fee_rules_router = APIRouter(prefix="/clinic-fee-rules", tags=["attendances"])
+
+
+def _clinic_rule_read(rule: ClinicFeeRule) -> ClinicFeeRuleRead:
+    return ClinicFeeRuleRead(
+        id=rule.id,
+        clinic_id=rule.clinic_id,
+        name=rule.name,
+        fee_amount=rule.fee_amount,
+        valid_from=rule.valid_from,
+        valid_to=rule.valid_to,
+        is_active=rule.is_active,
+        updated_at=rule.updated_at,
+        row_version=rule.row_version,
+    )
+
+
+@clinic_fee_rules_router.get("", response_model=ClinicFeeRuleListResponse)
+def list_clinic_fee_rules(
+    clinic_id: UUID | None = Query(default=None),
+    session: SqlAlchemySession = Depends(get_session),
+    current_user: ActorContext = Depends(require_permission("pricing.read")),
+) -> ClinicFeeRuleListResponse:
+    result = ListClinicFeeRulesUseCase(rules=SqlAlchemyClinicFeeRuleRepository(session)).execute(
+        ListClinicFeeRulesQuery(actor=current_user, clinic_id=clinic_id)
+    )
+    return ClinicFeeRuleListResponse(items=[_clinic_rule_read(rule) for rule in result])
+
+
+@clinic_fee_rules_router.post("", response_model=ClinicFeeRuleRead, status_code=201)
+def create_clinic_fee_rule(
+    payload: ClinicFeeRuleCreateRequest,
+    uow: SqlAlchemyUnitOfWork = Depends(get_unit_of_work),
+    current_user: ActorContext = Depends(require_permission("pricing.manage")),
+) -> ClinicFeeRuleRead:
+    result = handle_create_clinic_fee_rule(
+        uow=SqlAlchemyAttendanceUnitOfWork(uow),
+        command=CreateClinicFeeRuleCommand(
+            actor=current_user,
+            clinic_id=payload.clinic_id,
+            name=payload.name,
+            fee_amount=payload.fee_amount,
+            valid_from=payload.valid_from,
+            valid_to=payload.valid_to,
+            reason=payload.reason,
+        ),
+        clock=SystemClock(),
+    )
+    return _clinic_rule_read(result)
+
+
+@clinic_fee_rules_router.patch("/{rule_id}", response_model=ClinicFeeRuleRead)
+def update_clinic_fee_rule(
+    rule_id: UUID,
+    payload: ClinicFeeRuleUpdateRequest,
+    uow: SqlAlchemyUnitOfWork = Depends(get_unit_of_work),
+    current_user: ActorContext = Depends(require_permission("pricing.manage")),
+) -> ClinicFeeRuleRead:
+    result = handle_update_clinic_fee_rule(
+        uow=SqlAlchemyAttendanceUnitOfWork(uow),
+        command=UpdateClinicFeeRuleCommand(
+            actor=current_user,
+            rule_id=rule_id,
+            name=payload.name,
+            fee_amount=payload.fee_amount,
+            valid_from=payload.valid_from,
+            valid_to=payload.valid_to,
+            is_active=payload.is_active,
+            reason=payload.reason,
+            expected_row_version=payload.expected_row_version,
+        ),
+        clock=SystemClock(),
+    )
+    return _clinic_rule_read(result)

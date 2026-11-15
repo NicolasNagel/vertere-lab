@@ -19,7 +19,7 @@ from app.modules.attendances.application.attendance_items import (
     AttendanceItemInput as ConfirmAttendanceItemInput,
 )
 from app.modules.attendances.application.attendance_items import (
-    resolve_on_call_fee,
+    resolve_attendance_fees,
     validate_and_snapshot_items,
 )
 from app.modules.attendances.application.dtos import AttendanceDTO
@@ -28,7 +28,9 @@ from app.modules.attendances.domain.entities import AttendanceStatus
 from app.modules.attendances.domain.repositories import (
     AttendanceRepository,
     AttendanceSequenceRepository,
+    ClinicFeeRuleRepository,
     OnCallFeeSettingRepository,
+    UrgencyFeeSettingRepository,
 )
 from app.modules.audit.domain.entities import ActorScope, AuditEntry
 from app.modules.audit.domain.repositories import AuditLogWriter
@@ -69,6 +71,8 @@ class ConfirmAttendanceUseCase:
         patients: PatientRepository,
         exams: ExamRepository,
         on_call_fees: OnCallFeeSettingRepository,
+        urgency_fee: UrgencyFeeSettingRepository,
+        clinic_fee_rules: ClinicFeeRuleRepository,
         audit: AuditLogWriter,
         clock: Clock,
     ) -> None:
@@ -80,6 +84,8 @@ class ConfirmAttendanceUseCase:
         self._patients = patients
         self._exams = exams
         self._on_call_fees = on_call_fees
+        self._urgency_fee = urgency_fee
+        self._clinic_fee_rules = clinic_fee_rules
         self._audit = audit
         self._clock = clock
 
@@ -111,14 +117,23 @@ class ConfirmAttendanceUseCase:
         protocol_year = attendance.service_date.year
         protocol_sequence = self._attendance_sequences.next_sequence(protocol_year)
 
-        on_call_fee = resolve_on_call_fee(
-            service_level=attendance.service_level, on_call_fees=self._on_call_fees
+        fees = resolve_attendance_fees(
+            service_level=attendance.service_level,
+            is_urgent=attendance.is_urgent,
+            clinic_id=attendance.clinic_id,
+            service_date=attendance.service_date,
+            on_call_fees=self._on_call_fees,
+            urgency_fee=self._urgency_fee,
+            clinic_fee_rules=self._clinic_fee_rules,
         )
         attendance.confirm(
             items=items,
             protocol_year=protocol_year,
             protocol_sequence=protocol_sequence,
-            on_call_fee=on_call_fee,
+            on_call_fee=fees.on_call,
+            urgency_fee=fees.urgency,
+            clinic_fee=fees.clinic,
+            fee_lines=fees.lines,
             now=now,
             confirmed_by=command.actor.id,
         )

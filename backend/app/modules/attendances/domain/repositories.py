@@ -15,8 +15,10 @@ from uuid import UUID
 from app.modules.attendances.domain.entities import (
     AttendanceRecord,
     AttendanceStatus,
+    ClinicFeeRule,
     OnCallFeeSetting,
     ServiceLevel,
+    UrgencyFeeSetting,
 )
 
 
@@ -103,3 +105,27 @@ class OnCallFeeSettingRepository(Protocol):
     def list_all(self) -> list[OnCallFeeSetting]: ...
 
     def update(self, setting: OnCallFeeSetting) -> None: ...
+
+
+class UrgencyFeeSettingRepository(Protocol):
+    """Single configurable row (seeded by migration 0041)."""
+
+    def get(self) -> UrgencyFeeSetting | None: ...
+
+    def update(self, setting: UrgencyFeeSetting) -> None: ...
+
+
+class ClinicFeeRuleRepository(Protocol):
+    def get_by_id(self, rule_id: UUID) -> ClinicFeeRule | None: ...
+
+    def list_rules(
+        self, *, clinic_id: UUID | None, include_inactive: bool
+    ) -> list[ClinicFeeRule]: ...
+
+    def list_applicable(self, *, clinic_id: UUID, service_date: date) -> list[ClinicFeeRule]:
+        """Active rules of the clinic whose validity covers `service_date`."""
+        ...
+
+    def add(self, rule: ClinicFeeRule) -> None: ...
+
+    def update(self, rule: ClinicFeeRule) -> None: ...

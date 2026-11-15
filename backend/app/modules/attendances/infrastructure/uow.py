@@ -8,7 +8,9 @@ from typing import Self
 from app.modules.attendances.infrastructure.repositories import (
     SqlAlchemyAttendanceRepository,
     SqlAlchemyAttendanceSequenceRepository,
+    SqlAlchemyClinicFeeRuleRepository,
     SqlAlchemyOnCallFeeSettingRepository,
+    SqlAlchemyUrgencyFeeSettingRepository,
 )
 from app.modules.audit.infrastructure.repositories import SqlAlchemyAuditLogWriter
 from app.modules.billing.application.settle_attendance_correction import (
@@ -47,6 +49,8 @@ class SqlAlchemyAttendanceUnitOfWork:
         self.patients = SqlAlchemyPatientRepository(session)
         self.exams = SqlAlchemyExamRepository(session)
         self.on_call_fees = SqlAlchemyOnCallFeeSettingRepository(session)
+        self.urgency_fee = SqlAlchemyUrgencyFeeSettingRepository(session)
+        self.clinic_fee_rules = SqlAlchemyClinicFeeRuleRepository(session)
         self.audit = SqlAlchemyAuditLogWriter(session)
         self.closure_settlement = AttendanceCorrectionSettlement(
             closures=SqlAlchemyMonthlyClosureRepository(session),

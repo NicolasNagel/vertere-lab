@@ -21,7 +21,10 @@ from dataclasses import dataclass
 from datetime import date
 from uuid import UUID
 
-from app.modules.attendances.application.attendance_items import resolve_on_call_fee
+from app.modules.attendances.application.attendance_items import (
+    resolve_attendance_fees,
+    resolve_on_call_fee,
+)
 from app.modules.attendances.application.closure_settlement import (
     ClosureSettlement,
     FinancialPosition,
@@ -34,7 +37,9 @@ from app.modules.attendances.application.party_validation import (
 from app.modules.attendances.domain.entities import AttendanceStatus, CollectionMethod, ServiceLevel
 from app.modules.attendances.domain.repositories import (
     AttendanceRepository,
+    ClinicFeeRuleRepository,
     OnCallFeeSettingRepository,
+    UrgencyFeeSettingRepository,
 )
 from app.modules.audit.domain.entities import ActorScope, AuditEntry
 from app.modules.audit.domain.repositories import AuditLogWriter
@@ -47,6 +52,7 @@ from app.shared.application.clock import Clock
 from app.shared.domain.errors import ConflictError, ForbiddenError, NotFoundError, ValidationError
 
 _REQUIRED_PERMISSION = "attendances.update"
+_FEE_INPUTS = frozenset({"service_level", "is_urgent", "clinic_id", "service_date"})
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -59,6 +65,7 @@ class UpdateAttendanceCommand:
     patient_id: UUID | None = None
     collection_method: CollectionMethod | None = None
     service_level: ServiceLevel | None = None
+    is_urgent: bool | None = None
     service_date: date | None = None
     notes: str | None = None
     reason: str | None = None
@@ -74,6 +81,8 @@ class UpdateAttendanceUseCase:
         veterinarian_clinics: VeterinarianClinicLinkRepository,
         patients: PatientRepository,
         on_call_fees: OnCallFeeSettingRepository,
+        urgency_fee: UrgencyFeeSettingRepository,
+        clinic_fee_rules: ClinicFeeRuleRepository,
         closure_settlement: ClosureSettlement,
         audit: AuditLogWriter,
         clock: Clock,
@@ -84,6 +93,8 @@ class UpdateAttendanceUseCase:
         self._veterinarian_clinics = veterinarian_clinics
         self._patients = patients
         self._on_call_fees = on_call_fees
+        self._urgency_fee = urgency_fee
+        self._clinic_fee_rules = clinic_fee_rules
         self._closure_settlement = closure_settlement
         self._audit = audit
         self._clock = clock
@@ -140,6 +151,7 @@ class UpdateAttendanceUseCase:
             patient_id=command.patient_id,
             collection_method=command.collection_method,
             service_level=command.service_level,
+            is_urgent=command.is_urgent,
             service_date=command.service_date,
             notes=command.notes,
             on_call_fee=on_call_fee,
@@ -147,6 +159,25 @@ class UpdateAttendanceUseCase:
             now=self._clock.now(),
             updated_by=command.actor.id,
         )
+
+        # Fees that depend on the header (level, urgency, clinic, date) are re-resolved on an
+        # already-priced attendance; a rule changed later never reaches one that was not edited.
+        if attendance.status != AttendanceStatus.DRAFT and _FEE_INPUTS & changes.keys():
+            assert attendance.service_date is not None
+            attendance.reprice_fees(
+                fees=resolve_attendance_fees(
+                    service_level=attendance.service_level,
+                    is_urgent=attendance.is_urgent,
+                    clinic_id=attendance.clinic_id,
+                    service_date=attendance.service_date,
+                    on_call_fees=self._on_call_fees,
+                    urgency_fee=self._urgency_fee,
+                    clinic_fee_rules=self._clinic_fee_rules,
+                ),
+                changes=changes,
+                now=self._clock.now(),
+                updated_by=command.actor.id,
+            )
 
         if not changes:
             return attendance_to_dto(attendance)
@@ -182,6 +213,7 @@ def _has_edits(command: UpdateAttendanceCommand) -> bool:
             command.patient_id,
             command.collection_method,
             command.service_level,
+            command.is_urgent,
             command.service_date,
             command.notes,
         )

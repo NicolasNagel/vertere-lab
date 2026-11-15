@@ -19,16 +19,22 @@ from app.modules.attendances.domain.entities import (
     AttendanceExamStatus,
     AttendanceRecord,
     AttendanceStatus,
+    ClinicFeeRule,
     CollectionMethod,
     ExamComponentSnapshot,
+    FeeKind,
+    FeeLine,
     OnCallFeeSetting,
     ServiceLevel,
+    UrgencyFeeSetting,
 )
 from app.modules.attendances.infrastructure.models import (
     AttendanceExamModel,
     AttendanceModel,
     AttendanceSequenceModel,
+    ClinicFeeRuleModel,
     OnCallFeeSettingModel,
+    UrgencyFeeSettingModel,
 )
 from app.modules.patients.infrastructure.models import PatientModel
 from app.shared.infrastructure.sql import LIKE_ESCAPE, contains_pattern
@@ -59,6 +65,30 @@ def _item_to_domain(model: AttendanceExamModel) -> AttendanceExam:
     )
 
 
+def _fee_lines_to_json(lines: tuple[FeeLine, ...]) -> list[dict[str, str | None]]:
+    return [
+        {
+            "kind": line.kind.value,
+            "label": line.label,
+            "amount": str(line.amount),
+            "rule_id": str(line.rule_id) if line.rule_id else None,
+        }
+        for line in lines
+    ]
+
+
+def _fee_lines_from_json(raw: list[dict[str, str | None]]) -> tuple[FeeLine, ...]:
+    return tuple(
+        FeeLine(
+            kind=FeeKind(str(entry["kind"])),
+            label=entry["label"] or "",
+            amount=Decimal(entry["amount"] or "0"),
+            rule_id=UUID(entry["rule_id"]) if entry.get("rule_id") else None,
+        )
+        for entry in raw
+    )
+
+
 def _to_domain(model: AttendanceModel) -> AttendanceRecord:
     return AttendanceRecord(
         id=model.id,
@@ -76,6 +106,10 @@ def _to_domain(model: AttendanceModel) -> AttendanceRecord:
         discount_total=model.discount_total,
         surcharge_total=model.surcharge_total,
         on_call_fee=model.on_call_fee,
+        is_urgent=model.is_urgent,
+        urgency_fee=model.urgency_fee,
+        clinic_fee=model.clinic_fee,
+        fee_lines=_fee_lines_from_json(model.fee_lines),
         grand_total=model.grand_total,
         protocol_year=model.protocol_year,
         protocol_sequence=model.protocol_sequence,
@@ -135,6 +169,10 @@ class SqlAlchemyAttendanceRepository:
                 discount_total=attendance.discount_total,
                 surcharge_total=attendance.surcharge_total,
                 on_call_fee=attendance.on_call_fee,
+                is_urgent=attendance.is_urgent,
+                urgency_fee=attendance.urgency_fee,
+                clinic_fee=attendance.clinic_fee,
+                fee_lines=_fee_lines_to_json(attendance.fee_lines),
                 grand_total=attendance.grand_total,
                 protocol_year=attendance.protocol_year,
                 protocol_sequence=attendance.protocol_sequence,
@@ -198,6 +236,10 @@ class SqlAlchemyAttendanceRepository:
         model.discount_total = attendance.discount_total
         model.surcharge_total = attendance.surcharge_total
         model.on_call_fee = attendance.on_call_fee
+        model.is_urgent = attendance.is_urgent
+        model.urgency_fee = attendance.urgency_fee
+        model.clinic_fee = attendance.clinic_fee
+        model.fee_lines = _fee_lines_to_json(attendance.fee_lines)
         model.grand_total = attendance.grand_total
         model.protocol_year = attendance.protocol_year
         model.protocol_sequence = attendance.protocol_sequence
@@ -493,3 +535,117 @@ class SqlAlchemyOnCallFeeSettingRepository:
         # onto the domain object the caller will hand to the API response.
         self._session.flush()
         setting.row_version = model.row_version
+
+
+def _urgency_to_domain(model: UrgencyFeeSettingModel) -> UrgencyFeeSetting:
+    return UrgencyFeeSetting(
+        id=model.id,
+        fee_amount=model.fee_amount,
+        schedule_label=model.schedule_label,
+        updated_by=model.updated_by,
+        updated_at=model.updated_at,
+        row_version=model.row_version,
+    )
+
+
+class SqlAlchemyUrgencyFeeSettingRepository:
+    def __init__(self, session: SqlAlchemySession) -> None:
+        self._session = session
+
+    def get(self) -> UrgencyFeeSetting | None:
+        model = self._session.execute(select(UrgencyFeeSettingModel).limit(1)).scalar_one_or_none()
+        return _urgency_to_domain(model) if model is not None else None
+
+    def update(self, setting: UrgencyFeeSetting) -> None:
+        model = self._session.execute(
+            select(UrgencyFeeSettingModel).where(UrgencyFeeSettingModel.id == setting.id)
+        ).scalar_one_or_none()
+        if model is None:
+            raise LookupError("Taxa de urgência não encontrada para atualização.")
+        model.fee_amount = setting.fee_amount
+        model.schedule_label = setting.schedule_label
+        model.updated_by = setting.updated_by
+        self._session.flush()
+        setting.row_version = model.row_version
+
+
+def _clinic_rule_to_domain(model: ClinicFeeRuleModel) -> ClinicFeeRule:
+    return ClinicFeeRule(
+        id=model.id,
+        clinic_id=model.clinic_id,
+        name=model.name,
+        fee_amount=model.fee_amount,
+        valid_from=model.valid_from,
+        valid_to=model.valid_to,
+        is_active=model.is_active,
+        created_by=model.created_by,
+        updated_by=model.updated_by,
+        created_at=model.created_at,
+        updated_at=model.updated_at,
+        row_version=model.row_version,
+    )
+
+
+class SqlAlchemyClinicFeeRuleRepository:
+    def __init__(self, session: SqlAlchemySession) -> None:
+        self._session = session
+
+    def get_by_id(self, rule_id: UUID) -> ClinicFeeRule | None:
+        model = self._session.get(ClinicFeeRuleModel, rule_id)
+        return _clinic_rule_to_domain(model) if model is not None else None
+
+    def list_rules(self, *, clinic_id: UUID | None, include_inactive: bool) -> list[ClinicFeeRule]:
+        stmt = select(ClinicFeeRuleModel).order_by(
+            ClinicFeeRuleModel.clinic_id, ClinicFeeRuleModel.valid_from.desc()
+        )
+        if clinic_id is not None:
+            stmt = stmt.where(ClinicFeeRuleModel.clinic_id == clinic_id)
+        if not include_inactive:
+            stmt = stmt.where(ClinicFeeRuleModel.is_active.is_(True))
+        return [_clinic_rule_to_domain(m) for m in self._session.execute(stmt).scalars().all()]
+
+    def list_applicable(self, *, clinic_id: UUID, service_date: date) -> list[ClinicFeeRule]:
+        stmt = (
+            select(ClinicFeeRuleModel)
+            .where(
+                ClinicFeeRuleModel.clinic_id == clinic_id,
+                ClinicFeeRuleModel.is_active.is_(True),
+                ClinicFeeRuleModel.valid_from <= service_date,
+                (ClinicFeeRuleModel.valid_to.is_(None))
+                | (ClinicFeeRuleModel.valid_to >= service_date),
+            )
+            .order_by(ClinicFeeRuleModel.name, ClinicFeeRuleModel.id)
+        )
+        return [_clinic_rule_to_domain(m) for m in self._session.execute(stmt).scalars().all()]
+
+    def add(self, rule: ClinicFeeRule) -> None:
+        self._session.add(
+            ClinicFeeRuleModel(
+                id=rule.id,
+                clinic_id=rule.clinic_id,
+                name=rule.name,
+                fee_amount=rule.fee_amount,
+                valid_from=rule.valid_from,
+                valid_to=rule.valid_to,
+                is_active=rule.is_active,
+                created_by=rule.created_by,
+                updated_by=rule.updated_by,
+                created_at=rule.created_at,
+                updated_at=rule.updated_at,
+                row_version=rule.row_version,
+            )
+        )
+        self._session.flush()
+
+    def update(self, rule: ClinicFeeRule) -> None:
+        model = self._session.get(ClinicFeeRuleModel, rule.id)
+        if model is None:
+            raise LookupError(f"Taxa da clínica {rule.id} não encontrada para atualização.")
+        model.name = rule.name
+        model.fee_amount = rule.fee_amount
+        model.valid_from = rule.valid_from
+        model.valid_to = rule.valid_to
+        model.is_active = rule.is_active
+        model.updated_by = rule.updated_by
+        self._session.flush()
+        rule.row_version = model.row_version

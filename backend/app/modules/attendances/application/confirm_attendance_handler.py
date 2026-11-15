@@ -51,6 +51,8 @@ class ConfirmAttendanceHandler:
                 patients=self._uow.patients,
                 exams=self._uow.exams,
                 on_call_fees=self._uow.on_call_fees,
+                urgency_fee=self._uow.urgency_fee,
+                clinic_fee_rules=self._uow.clinic_fee_rules,
                 audit=self._uow.audit,
                 clock=self._clock,
             ).execute(command)
@@ -82,6 +84,8 @@ class ConfirmAttendanceHandler:
             discount_total=Decimal(str(decimals["discount_total"])),
             surcharge_total=Decimal(str(decimals["surcharge_total"])),
             on_call_fee=Decimal(str(decimals["on_call_fee"])),
+            urgency_fee=Decimal(str(decimals.get("urgency_fee", result.urgency_fee))),
+            clinic_fee=Decimal(str(decimals.get("clinic_fee", result.clinic_fee))),
             grand_total=Decimal(str(decimals["grand_total"])),
             items=[
                 replace(
@@ -120,6 +124,8 @@ def _replay_snapshot(result: AttendanceDTO) -> dict[str, object]:
             "discount_total": str(result.discount_total),
             "surcharge_total": str(result.surcharge_total),
             "on_call_fee": str(result.on_call_fee),
+            "urgency_fee": str(result.urgency_fee),
+            "clinic_fee": str(result.clinic_fee),
             "grand_total": str(result.grand_total),
         },
         "item_decimals": {

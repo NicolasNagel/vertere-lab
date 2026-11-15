@@ -36,6 +36,8 @@ _MONEY_KEYS = frozenset(
         "discount_total",
         "surcharge_total",
         "on_call_fee",
+        "urgency_fee",
+        "clinic_fee",
         "fee_amount",
         "grand_total",
     }

@@ -30,6 +30,7 @@ class UpdateOnCallFeeSettingCommand:
     service_level: ServiceLevel
     fee_amount: Decimal
     schedule_label: str
+    reason: str
     expected_row_version: int
 
 
@@ -46,6 +47,10 @@ class UpdateOnCallFeeSettingUseCase:
             raise ForbiddenError("Configuração de plantão é exclusiva do laboratório.")
         if _REQUIRED_PERMISSION not in command.actor.permissions:
             raise ForbiddenError(f"Permissão ausente: {_REQUIRED_PERMISSION}")
+
+        reason = command.reason.strip()
+        if not reason:
+            raise ValidationError("Informe o motivo da alteração.")
 
         if command.service_level == ServiceLevel.NORMAL:
             raise ValidationError("NORMAL não tem taxa de plantão configurável.")
@@ -83,6 +88,7 @@ class UpdateOnCallFeeSettingUseCase:
                     "fee_amount": str(setting.fee_amount),
                     "schedule_label": setting.schedule_label,
                 },
+                reason=reason,
             )
         )
 
