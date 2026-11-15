@@ -16,6 +16,7 @@ from app.shared.application.clock import Clock
 from app.shared.domain.errors import ConflictError, ForbiddenError, NotFoundError
 
 _REQUIRED_PERMISSION = "clinics.manage"
+_CLINIC_SELF_SERVICE_STATUSES = frozenset({ClinicStatus.ACTIVE, ClinicStatus.INACTIVE})
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -71,6 +72,15 @@ class UpdateClinicUseCase:
             if existing is not None and existing.id != clinic.id:
                 raise DuplicateTaxIdError("CNPJ já cadastrado para outra clínica.")
 
+        new_status = ClinicStatus(command.status)
+        if (
+            command.actor.role_scope == "CLINIC"
+            and new_status != clinic.status
+            and not {new_status, clinic.status} <= _CLINIC_SELF_SERVICE_STATUSES
+        ):
+            # Inadimplente/especial é decisão comercial do laboratório, não da própria clínica.
+            raise ForbiddenError("Usuário de clínica não pode alterar este status da clínica.")
+
         before_state = {"name": clinic.name, "status": clinic.status.value}
 
         clinic.update_details(
@@ -78,7 +88,7 @@ class UpdateClinicUseCase:
             tax_id=tax_id,
             phone=command.phone,
             email=command.email,
-            status=ClinicStatus(command.status),
+            status=new_status,
             address_zip_code=command.address_zip_code,
             address_street=command.address_street,
             address_number=command.address_number,

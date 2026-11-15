@@ -174,3 +174,26 @@ def test_list_and_get_clinics() -> None:
     assert result.items[0].name == "Bicho Urbano"
     with pytest.raises(NotFoundError):
         GetClinicUseCase(clinics=clinics).execute(GetClinicQuery(actor=reader, clinic_id=uuid4()))
+
+
+def test_clinic_scope_cannot_set_commercial_statuses_but_can_toggle_active() -> None:
+    clinics = FakeClinicRepository()
+    audit = FakeAuditLogWriter()
+    create = CreateClinicUseCase(clinics=clinics, audit=audit, clock=FakeClock(_NOW))
+    update = UpdateClinicUseCase(clinics=clinics, audit=audit, clock=FakeClock(_NOW))
+    created = create.execute(_create_command())
+    own = _clinic_actor(clinic_ids=frozenset({created.id}))
+
+    with pytest.raises(ForbiddenError):
+        update.execute(_update_command(created, actor=own, status=ClinicStatus.SPECIAL.value))
+    with pytest.raises(ForbiddenError):
+        update.execute(_update_command(created, actor=own, status=ClinicStatus.DELINQUENT.value))
+    inactive = update.execute(
+        _update_command(created, actor=own, status=ClinicStatus.INACTIVE.value)
+    )
+    assert inactive.status == ClinicStatus.INACTIVE.value
+
+    # Quem é do laboratório marca inadimplente; a clínica não consegue sair sozinha desse estado.
+    delinquent = update.execute(_update_command(inactive, status=ClinicStatus.DELINQUENT.value))
+    with pytest.raises(ForbiddenError):
+        update.execute(_update_command(delinquent, actor=own, status=ClinicStatus.ACTIVE.value))

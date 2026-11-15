@@ -143,3 +143,28 @@ async def test_clinic_updates_use_row_versions_and_deactivation_preserves_the_re
     assert (deactivated.status_code, deactivated.json()["status"]) == (200, "INACTIVE")
     kept = await client.get(url)
     assert (kept.status_code, kept.json()["name"]) == (200, "Versao Dois")
+
+
+async def test_clinic_payload_is_bounded_and_the_masked_zip_code_is_normalized(
+    client: httpx.AsyncClient, session_factory: sessionmaker[Session]
+) -> None:
+    await _login_as(client, session_factory, email="lab@vertere.local", role_id=ROLE_LAB_ADMIN)
+
+    masked = await client.post(
+        "/api/v1/clinics", json={"name": "  Clínica CEP  ", "address_zip_code": "12345-678"}
+    )
+    assert masked.status_code == 201
+    assert masked.json()["address_zip_code"] == "12345678"
+    assert masked.json()["name"] == "Clínica CEP"
+
+    oversized = [
+        {"name": "N" * 1_000_000},
+        {"name": "ok", "notes": "x" * 2_000_000},
+        {"name": "ok", "phone": "9" * 5_000},
+        {"name": "ok", "address_zip_code": "1234567890123"},
+        {"name": "ok", "address_zip_code": "123"},
+        {"name": "ok", "email": "nao-e-email"},
+        {"name": "   "},
+    ]
+    for payload in oversized:
+        assert (await client.post("/api/v1/clinics", json=payload)).status_code == 422
