@@ -1,6 +1,9 @@
-import { useNavigate, useParams } from 'react-router'
+import { Link, useNavigate, useParams } from 'react-router'
 
 import { Button } from '../../../shared/ui/button'
+import { ArrowLeftIcon } from '../../../shared/ui/icons'
+import { PageHeader } from '../../../shared/ui/page-header'
+import '../../../shared/ui/button.css'
 import { useAuth } from '../../auth/auth-context'
 import { useCreateExamMutation } from '../api/use-create-exam-mutation'
 import { useExamQuery } from '../api/use-exam-query'
@@ -53,28 +56,20 @@ export function ExamFormPage({ newPanel = false }: ExamFormPageProps = {}) {
 
   return (
     <div className="exam-form-page">
-      <div className="exam-form-page__header">
-        <div>
-          <div className="exam-form-page__breadcrumb">
-            <button type="button" className="exam-form-page__breadcrumb-link" onClick={goToList}>
-              Exames &amp; Preços
-            </button>
-            <span aria-hidden="true">›</span>
-            <span>{isEditing ? (exam?.name ?? '') : `Novo ${noun}`}</span>
-          </div>
-          <h1 className="exam-form-page__title">
-            {isEditing ? `Editar ${noun}` : `Cadastro de ${noun}`}
-          </h1>
-        </div>
-        <div className="exam-form-page__actions">
-          <Button type="button" variant="cancel" onClick={goToList} disabled={submitting}>
-            Cancelar
-          </Button>
-          <Button type="submit" form={FORM_ID} disabled={submitting}>
-            {submitting ? 'Salvando…' : `Salvar ${noun}`}
-          </Button>
-        </div>
-      </div>
+      <PageHeader
+        title={isEditing ? `Editar ${noun}` : `Novo ${noun}`}
+        actions={
+          <>
+            <Link to="/cadastros/exames" className="button button--secondary">
+              <ArrowLeftIcon />
+              Voltar
+            </Link>
+            <Button type="submit" form={FORM_ID} disabled={submitting}>
+              {submitting ? 'Salvando…' : `Salvar ${noun}`}
+            </Button>
+          </>
+        }
+      />
 
       <div className="exam-form-page__body">
         <ExamForm

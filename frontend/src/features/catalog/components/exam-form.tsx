@@ -6,6 +6,7 @@ import { z } from 'zod'
 import { useSpeciesQuery } from '../../patients/api/use-species-query'
 import { Button } from '../../../shared/ui/button'
 import { Checkbox } from '../../../shared/ui/checkbox'
+import { TagIcon } from '../../../shared/ui/icons'
 import { SelectField } from '../../../shared/ui/select'
 import { TextField } from '../../../shared/ui/text-field'
 import { ApiError } from '../../../shared/api/errors'
@@ -223,154 +224,163 @@ export function ExamForm({
   })
 
   const errorMessage = describeError(error)
+  const disabled = submitting
 
   return (
     <form className="exam-form" id={formId} onSubmit={onSubmit} noValidate>
-      <div className="exam-form__grid">
-        <div className="exam-form__col exam-form__col--main">
-          <div className="exam-form__card">
-            <p className="exam-form__card-title">Informações gerais</p>
-            <div className="exam-form__row">
-              <TextField
-                id="exam-code"
-                label="Código"
-                disabled
-                value={exam?.code ?? 'Gerado automaticamente ao salvar'}
-              />
-            </div>
+      <section className="exam-form__section" aria-labelledby="exam-form-general">
+        <h2 id="exam-form-general" className="exam-form__section-title">
+          {isPanel ? 'Identificação do pacote' : 'Identificação'}
+        </h2>
+        <div className="exam-form__row">
+          <TextField
+            id="exam-code"
+            label="Código"
+            disabled
+            value={exam?.code ?? 'Gerado automaticamente ao salvar'}
+          />
+          <TextField
+            id="exam-name"
+            label={isPanel ? 'Nome do pacote' : 'Nome'}
+            disabled={disabled}
+            errorMessage={errors.name?.message}
+            {...register('name')}
+          />
+        </div>
+        <TextField
+          id="exam-description"
+          label="Descrição"
+          disabled={disabled}
+          {...register('description')}
+        />
+      </section>
 
+      <section className="exam-form__section" aria-labelledby="exam-form-category">
+        <h2 id="exam-form-category" className="exam-form__section-title">
+          Classificação
+        </h2>
+        <div className="exam-form__row">
+          <SelectField
+            id="exam-category"
+            label="Categoria"
+            leadingIcon={<TagIcon />}
+            options={[
+              { value: '', label: categoriesQuery.isLoading ? 'Carregando…' : 'Selecione…' },
+              ...categoryOptions.map((category) => ({
+                value: category.id,
+                label:
+                  category.status === 'INACTIVE' ? `${category.name} (inativa)` : category.name,
+              })),
+            ]}
+            disabled={disabled || categoriesQuery.isLoading}
+            errorMessage={errors.categoryId?.message}
+            {...register('categoryId')}
+          />
+          <div className="exam-form__new-category">
             <TextField
-              id="exam-name"
-              label={isPanel ? 'Nome do pacote' : 'Nome'}
-              disabled={submitting}
-              errorMessage={errors.name?.message}
-              {...register('name')}
+              id="exam-new-category"
+              label="Criar nova categoria"
+              disabled={disabled || createCategoryMutation.isPending}
+              value={newCategoryName}
+              onChange={(event) => setNewCategoryName(event.target.value)}
             />
-
-            <TextField
-              id="exam-description"
-              label="Descrição"
-              disabled={submitting}
-              {...register('description')}
-            />
-
-            <div className="exam-form__row">
-              <SelectField
-                id="exam-category"
-                label="Categoria"
-                options={[
-                  { value: '', label: categoriesQuery.isLoading ? 'Carregando…' : 'Selecione…' },
-                  ...categoryOptions.map((category) => ({
-                    value: category.id,
-                    label:
-                      category.status === 'INACTIVE' ? `${category.name} (inativa)` : category.name,
-                  })),
-                ]}
-                disabled={submitting || categoriesQuery.isLoading}
-                errorMessage={errors.categoryId?.message}
-                {...register('categoryId')}
-              />
-            </div>
-            <div className="exam-form__new-category">
-              <TextField
-                id="exam-new-category"
-                label="Criar nova categoria"
-                disabled={submitting || createCategoryMutation.isPending}
-                value={newCategoryName}
-                onChange={(event) => setNewCategoryName(event.target.value)}
-              />
-              <Button
-                type="button"
-                variant="ghost"
-                disabled={!newCategoryName.trim() || submitting || createCategoryMutation.isPending}
-                onClick={handleCreateCategory}
-              >
-                Criar categoria
-              </Button>
-            </div>
+            <Button
+              type="button"
+              variant="secondary"
+              disabled={!newCategoryName.trim() || disabled || createCategoryMutation.isPending}
+              onClick={handleCreateCategory}
+            >
+              Criar categoria
+            </Button>
           </div>
         </div>
+      </section>
 
-        <div className="exam-form__col exam-form__col--side">
-          {isPanel && (
-            <div className="exam-form__card">
-              <p className="exam-form__card-title">Exames do pacote</p>
-              <PanelComponentsField
-                selectedIds={componentIds}
-                disabled={submitting}
-                errorMessage={componentsError}
-                onChange={(ids) => {
-                  setComponentIds(ids)
-                  setComponentsError(null)
-                }}
-              />
-            </div>
-          )}
-          <div className="exam-form__card">
-            <p className="exam-form__card-title">Precificação</p>
-            <TextField
-              id="exam-price-base"
-              label={isPanel ? 'Preço do pacote' : 'Preço base'}
-              disabled={submitting || !canManagePrice}
-              errorMessage={errors.priceBase?.message}
-              {...register('priceBase')}
-            />
-            {!canManagePrice && (
-              <p className="exam-form__hint">Alterar preço exige a permissão de gerir preços.</p>
-            )}
-          </div>
+      {isPanel && (
+        <section className="exam-form__section" aria-labelledby="exam-form-components">
+          <h2 id="exam-form-components" className="exam-form__section-title">
+            Exames do pacote
+          </h2>
+          <PanelComponentsField
+            selectedIds={componentIds}
+            disabled={disabled}
+            errorMessage={componentsError}
+            onChange={(ids) => {
+              setComponentIds(ids)
+              setComponentsError(null)
+            }}
+          />
+        </section>
+      )}
 
-          <div className="exam-form__card">
-            <p className="exam-form__card-title">Espécies atendidas</p>
-            {speciesQuery.isLoading && <p className="exam-form__hint">Carregando espécies…</p>}
-            {!speciesQuery.isLoading && (
-              <div className="exam-form__species-list" role="group" aria-label="Espécies">
-                {(speciesQuery.data ?? []).map((species) => (
-                  <Checkbox
-                    key={species.id}
-                    label={species.name}
-                    disabled={submitting}
-                    checked={speciesIds.includes(species.id)}
-                    onChange={() => toggleSpecies(species.id)}
-                  />
-                ))}
-              </div>
-            )}
-            {speciesError && (
-              <p role="alert" className="exam-form__domain-error">
-                {speciesError}
-              </p>
-            )}
-          </div>
-
-          {exam && (
-            <div className="exam-form__card">
-              <p className="exam-form__card-title">Motivo da alteração</p>
-              <TextField
-                id="exam-reason"
-                label="Motivo (obrigatório ao mudar preço ou status)"
-                disabled={submitting}
-                value={reason}
-                errorMessage={reasonError ?? undefined}
-                onChange={(event) => setReason(event.target.value)}
-              />
-            </div>
-          )}
-
-          {exam && (
-            <div className="exam-form__card">
-              <p className="exam-form__card-title">Status</p>
-              <SelectField
-                id="exam-status"
-                label="Status"
-                options={STATUS_OPTIONS}
-                disabled={submitting}
-                {...register('status')}
-              />
-            </div>
-          )}
+      <section className="exam-form__section" aria-labelledby="exam-form-price">
+        <h2 id="exam-form-price" className="exam-form__section-title">
+          Preço
+        </h2>
+        <div className="exam-form__row">
+          <TextField
+            id="exam-price-base"
+            label={isPanel ? 'Preço do pacote' : 'Preço base'}
+            inputMode="decimal"
+            disabled={disabled || !canManagePrice}
+            errorMessage={errors.priceBase?.message}
+            {...register('priceBase')}
+          />
         </div>
-      </div>
+        {!canManagePrice && (
+          <p className="exam-form__hint">Alterar preço exige a permissão de gerir preços.</p>
+        )}
+      </section>
+
+      <section className="exam-form__section" aria-labelledby="exam-form-species">
+        <h2 id="exam-form-species" className="exam-form__section-title">
+          Espécies atendidas
+        </h2>
+        {speciesQuery.isLoading && <p className="exam-form__hint">Carregando espécies…</p>}
+        {!speciesQuery.isLoading && (
+          <div className="exam-form__species-list" role="group" aria-label="Espécies">
+            {(speciesQuery.data ?? []).map((species) => (
+              <Checkbox
+                key={species.id}
+                label={species.name}
+                disabled={disabled}
+                checked={speciesIds.includes(species.id)}
+                onChange={() => toggleSpecies(species.id)}
+              />
+            ))}
+          </div>
+        )}
+        {speciesError && (
+          <p role="alert" className="exam-form__domain-error">
+            {speciesError}
+          </p>
+        )}
+      </section>
+
+      {exam && (
+        <section className="exam-form__section" aria-labelledby="exam-form-change">
+          <h2 id="exam-form-change" className="exam-form__section-title">
+            Situação e motivo da alteração
+          </h2>
+          <div className="exam-form__row">
+            <SelectField
+              id="exam-status"
+              label="Status"
+              options={STATUS_OPTIONS}
+              disabled={disabled}
+              {...register('status')}
+            />
+            <TextField
+              id="exam-reason"
+              label="Motivo (obrigatório ao mudar preço ou status)"
+              disabled={disabled}
+              value={reason}
+              errorMessage={reasonError ?? undefined}
+              onChange={(event) => setReason(event.target.value)}
+            />
+          </div>
+        </section>
+      )}
 
       {errorMessage && (
         <p role="alert" className="exam-form__domain-error">
@@ -380,11 +390,11 @@ export function ExamForm({
 
       {!hideActions && (
         <div className="exam-form__actions">
-          <Button type="button" variant="cancel" onClick={onCancel} disabled={submitting}>
+          <Button type="button" variant="cancel" onClick={onCancel} disabled={disabled}>
             Cancelar
           </Button>
-          <Button type="submit" className="exam-form__submit" disabled={submitting}>
-            {submitting ? 'Salvando…' : 'Salvar'}
+          <Button type="submit" disabled={disabled}>
+            {disabled ? 'Salvando…' : 'Salvar'}
           </Button>
         </div>
       )}

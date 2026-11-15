@@ -83,8 +83,8 @@ test('the exam form blocks a save without species, cancels back to the list and 
   // Cancelar volta para a lista sem salvar.
   server.use(...common)
   view = renderApp(['/cadastros/exames/novo'])
-  await screen.findByRole('heading', { name: 'Cadastro de exame' })
-  await user.click(screen.getByRole('button', { name: 'Cancelar' }))
+  await screen.findByRole('heading', { name: 'Novo exame' })
+  await user.click(screen.getByRole('link', { name: 'Voltar' }))
   await waitFor(() =>
     expect(screen.getByRole('heading', { name: 'Exames & Preços' })).toBeInTheDocument(),
   )
@@ -114,7 +114,7 @@ test('the exam form blocks a save without species, cancels back to the list and 
     }),
   )
   renderApp(['/cadastros/exames/novo'])
-  expect(await screen.findByRole('heading', { name: 'Cadastro de exame' })).toBeInTheDocument()
+  expect(await screen.findByRole('heading', { name: 'Novo exame' })).toBeInTheDocument()
   expect(screen.getByLabelText('Código')).toHaveValue('Gerado automaticamente ao salvar')
   await user.type(screen.getByLabelText('Nome'), 'Urinálise')
   await user.selectOptions(await screen.findByLabelText('Categoria'), 'Hematologia')

@@ -53,6 +53,7 @@ async function mockApi(page: Page, permissions: string[]) {
           permissions,
         }),
       )
+    if (path === '/exams/e1') return route.fulfill(json(exam))
     if (path === '/exams') return route.fulfill(list([exam]))
     if (path === '/species')
       return route.fulfill(
@@ -109,5 +110,32 @@ test('on-call fees tab is accessible', async ({ page }) => {
     'aria-selected',
     'true',
   )
+  await expectAccessible(page)
+})
+
+test('exam detail with edit blocks is accessible, also with a block open', async ({ page }) => {
+  await mockApi(page, MANAGER)
+  await page.goto('/cadastros/exames/e1')
+  await expect(page.getByRole('button', { name: /^Editar/ }).first()).toBeVisible()
+  await expectAccessible(page)
+  await page.getByRole('button', { name: /^Editar/ }).first().click()
+  await expectAccessible(page)
+})
+
+test('exam detail for a read-only price viewer shows no edit buttons', async ({ page }) => {
+  await mockApi(page, ['catalog.read', 'pricing.read'])
+  await page.goto('/cadastros/exames/e1')
+  await expect(page.getByText('HEMO').first()).toBeVisible()
+  await expect(page.getByRole('button', { name: /^Editar/ })).toHaveCount(0)
+  await expectAccessible(page)
+})
+
+test('new exam and new panel forms are accessible and fit the viewport', async ({ page }) => {
+  await mockApi(page, MANAGER)
+  await page.goto('/cadastros/exames/novo')
+  await expect(page.getByRole('heading', { name: 'Novo exame' })).toBeVisible()
+  await expectAccessible(page)
+  await page.goto('/cadastros/exames/novo-pacote')
+  await expect(page.getByRole('heading', { name: 'Novo pacote' })).toBeVisible()
   await expectAccessible(page)
 })
