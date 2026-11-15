@@ -7,7 +7,7 @@ import { useSpeciesQuery } from '../../patients/api/use-species-query'
 import { Button } from '../../../shared/ui/button'
 import { Checkbox } from '../../../shared/ui/checkbox'
 import { TagIcon } from '../../../shared/ui/icons'
-import { SelectField } from '../../../shared/ui/select'
+import { Dropdown } from '../../../shared/ui/dropdown'
 import { TextField } from '../../../shared/ui/text-field'
 import { ApiError } from '../../../shared/api/errors'
 import { useActiveExamCategoriesQuery } from '../api/use-active-exam-categories-query'
@@ -74,9 +74,7 @@ interface ExamFormProps {
   error?: unknown
   onCancel: () => void
   onSubmitCreate?: (values: ExamFormValues) => void
-  onSubmitUpdate?: (
-    values: ExamFormValues & { status: ExamStatus; reason: string | null },
-  ) => void
+  onSubmitUpdate?: (values: ExamFormValues & { status: ExamStatus; reason: string | null }) => void
   // Quando a página que hospeda o form renderiza seus próprios botões de
   // ação (ex.: no header, como no mockup 19), passe `formId` + `hideActions`
   // para que o submit externo aponte para este form via atributo `form=`
@@ -106,6 +104,7 @@ export function ExamForm({
     register,
     handleSubmit,
     setValue,
+    watch,
     formState: { errors },
   } = useForm<ExamFormFields>({
     resolver: zodResolver(examSchema),
@@ -261,21 +260,20 @@ export function ExamForm({
           Classificação
         </h2>
         <div className="attendance-draft-page__row">
-          <SelectField
-            id="exam-category"
+          <Dropdown
+            variant="field"
             label="Categoria"
-            leadingIcon={<TagIcon />}
-            options={[
-              { value: '', label: categoriesQuery.isLoading ? 'Carregando…' : 'Selecione…' },
-              ...categoryOptions.map((category) => ({
-                value: category.id,
-                label:
-                  category.status === 'INACTIVE' ? `${category.name} (inativa)` : category.name,
-              })),
-            ]}
+            icon={<TagIcon />}
+            placeholder={categoriesQuery.isLoading ? 'Carregando…' : 'Selecione a categoria'}
+            options={categoryOptions.map((category) => ({
+              value: category.id,
+              label: category.status === 'INACTIVE' ? `${category.name} (inativa)` : category.name,
+            }))}
+            searchable
             disabled={disabled || categoriesQuery.isLoading}
+            value={watch('categoryId')}
             errorMessage={errors.categoryId?.message}
-            {...register('categoryId')}
+            onChange={(value) => setValue('categoryId', value, { shouldValidate: true })}
           />
           <div className="exam-form__new-category">
             <TextField
@@ -329,7 +327,9 @@ export function ExamForm({
           />
         </div>
         {!canManagePrice && (
-          <p className="attendance-draft-page__hint">Alterar preço exige a permissão de gerir preços.</p>
+          <p className="attendance-draft-page__hint">
+            Alterar preço exige a permissão de gerir preços.
+          </p>
         )}
       </section>
 
@@ -337,7 +337,9 @@ export function ExamForm({
         <h2 id="exam-form-species" className="attendance-draft-page__section-title">
           Espécies atendidas
         </h2>
-        {speciesQuery.isLoading && <p className="attendance-draft-page__hint">Carregando espécies…</p>}
+        {speciesQuery.isLoading && (
+          <p className="attendance-draft-page__hint">Carregando espécies…</p>
+        )}
         {!speciesQuery.isLoading && (
           <div className="exam-form__species-list" role="group" aria-label="Espécies">
             {(speciesQuery.data ?? []).map((species) => (
@@ -364,12 +366,13 @@ export function ExamForm({
             Situação e motivo da alteração
           </h2>
           <div className="attendance-draft-page__row">
-            <SelectField
-              id="exam-status"
+            <Dropdown
+              variant="field"
               label="Status"
               options={STATUS_OPTIONS}
               disabled={disabled}
-              {...register('status')}
+              value={watch('status')}
+              onChange={(value) => setValue('status', value as ExamStatus)}
             />
             <TextField
               id="exam-reason"

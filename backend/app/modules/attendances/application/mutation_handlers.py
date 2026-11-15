@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from uuid import UUID
+
 from app.modules.attendances.application.cancel_attendance import (
     CancelAttendanceCommand,
     CancelAttendanceUseCase,
@@ -40,6 +42,8 @@ from app.modules.attendances.domain.entities import (
     UrgencyFeeSetting,
 )
 from app.shared.application.clock import Clock
+from app.shared.domain.errors import NotFoundError
+from app.shared.idempotency.application.guard import IdempotencyGuard
 
 
 def handle_create_attendance_draft(
@@ -155,11 +159,41 @@ def handle_create_clinic_fee_rule(
     uow: AttendanceUnitOfWork,
     command: CreateClinicFeeRuleCommand,
     clock: Clock,
+    idempotency_key: str,
 ) -> ClinicFeeRule:
     with uow:
+        guard = IdempotencyGuard(records=uow.idempotency_records)
+        outcome = guard.begin(
+            actor_id=command.actor.id,
+            operation="clinic_fee_rules.create",
+            idempotency_key=idempotency_key,
+            payload={
+                "clinic_id": str(command.clinic_id),
+                "name": command.name.strip(),
+                "fee_amount": str(command.fee_amount),
+                "valid_from": command.valid_from.isoformat(),
+                "valid_to": command.valid_to.isoformat() if command.valid_to else None,
+                "reason": command.reason.strip(),
+            },
+            now=clock.now(),
+        )
+        if outcome.replayed_response is not None:
+            _, body = outcome.replayed_response
+            try:
+                rule_id = UUID(str(body["id"]))
+            except (KeyError, ValueError) as exc:
+                raise NotFoundError("Resultado idempotente da taxa não encontrado.") from exc
+            replayed = uow.clinic_fee_rules.get_by_id(rule_id)
+            if replayed is None:
+                raise NotFoundError("Resultado idempotente da taxa não encontrado.")
+            uow.commit()
+            return replayed
         result = CreateClinicFeeRuleUseCase(
             rules=uow.clinic_fee_rules, clinics=uow.clinics, audit=uow.audit, clock=clock
         ).execute(command)
+        guard.complete(
+            outcome.record_id, status_code=201, body={"id": str(result.id)}, now=clock.now()
+        )
         uow.commit()
         return result
 

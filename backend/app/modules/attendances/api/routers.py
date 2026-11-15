@@ -679,6 +679,7 @@ def list_clinic_fee_rules(
 @clinic_fee_rules_router.post("", response_model=ClinicFeeRuleRead, status_code=201)
 def create_clinic_fee_rule(
     payload: ClinicFeeRuleCreateRequest,
+    idempotency_key: str = Header(..., alias="Idempotency-Key", min_length=1, max_length=255),
     uow: SqlAlchemyUnitOfWork = Depends(get_unit_of_work),
     current_user: ActorContext = Depends(require_permission("pricing.manage")),
 ) -> ClinicFeeRuleRead:
@@ -694,6 +695,7 @@ def create_clinic_fee_rule(
             reason=payload.reason,
         ),
         clock=SystemClock(),
+        idempotency_key=idempotency_key,
     )
     return _clinic_rule_read(result)
 

@@ -1149,20 +1149,42 @@ async def test_plantao_urgency_and_clinic_fee_add_up_and_stay_hidden_without_pri
         )
         assert stale.status_code == 409
 
+        rule_payload = {
+            "clinic_id": draft["clinic_id"],
+            "name": "Taxa de coleta",
+            "fee_amount": "7.50",
+            "valid_from": "2026-01-01",
+            "reason": "Acordo comercial",
+        }
+        # Sem Idempotency-Key a criação é recusada.
+        assert (await client.post("/api/v1/clinic-fee-rules", json=rule_payload)).status_code == 422
         created = await client.post(
             "/api/v1/clinic-fee-rules",
-            json={
-                "clinic_id": draft["clinic_id"],
-                "name": "Taxa de coleta",
-                "fee_amount": "7.50",
-                "valid_from": "2026-01-01",
-                "reason": "Acordo comercial",
-            },
+            json=rule_payload,
+            headers=_idempotency_header("fee-rule-1"),
         )
         assert created.status_code == 201
+        # Mesma chave e mesmo payload: devolve a mesma regra, sem criar outra.
+        replayed = await client.post(
+            "/api/v1/clinic-fee-rules",
+            json=rule_payload,
+            headers=_idempotency_header("fee-rule-1"),
+        )
+        assert replayed.status_code == 201
+        assert replayed.json()["id"] == created.json()["id"]
+        listed = await client.get("/api/v1/clinic-fee-rules")
+        assert [r["name"] for r in listed.json()["items"]].count("Taxa de coleta") == 1
+        # Mesma chave com payload diferente: 409.
+        conflicting = await client.post(
+            "/api/v1/clinic-fee-rules",
+            json={**rule_payload, "fee_amount": "9.00"},
+            headers=_idempotency_header("fee-rule-1"),
+        )
+        assert conflicting.status_code == 409
         assert (
             await client.post(
                 "/api/v1/clinic-fee-rules",
+                headers=_idempotency_header("fee-rule-2"),
                 json={
                     "clinic_id": draft["clinic_id"],
                     "name": "x",

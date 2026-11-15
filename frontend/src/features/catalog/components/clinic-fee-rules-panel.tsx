@@ -4,7 +4,7 @@ import { formatCurrencyBRL, formatDate } from '../../../shared/lib/formatters'
 import { Badge } from '../../../shared/ui/badge'
 import { Checkbox } from '../../../shared/ui/checkbox'
 import { KebabMenu, type KebabMenuItem } from '../../../shared/ui/kebab-menu'
-import { SelectField } from '../../../shared/ui/select'
+import { Dropdown } from '../../../shared/ui/dropdown'
 import { TextField } from '../../../shared/ui/text-field'
 import { useAuth } from '../../auth/auth-context'
 import type { ClinicFeeRule } from '../../attendances/api/clinic-fee-rules-api'
@@ -44,6 +44,8 @@ function RuleForm({ rule, clinics, startInactive = false, onClose }: RuleFormPro
   const [validTo, setValidTo] = useState(rule?.validTo ?? '')
   const [isActive, setIsActive] = useState(startInactive ? false : (rule?.isActive ?? true))
   const [reason, setReason] = useState('')
+  // Uma chave por diálogo aberto: clique duplo ou reenvio após falha de rede não cria duas taxas.
+  const [idempotencyKey] = useState(() => crypto.randomUUID())
 
   const normalized = normalizeMoney(amount)
   const rangeError = validTo !== '' && validFrom !== '' && validTo < validFrom
@@ -68,11 +70,14 @@ function RuleForm({ rule, clinics, startInactive = false, onClose }: RuleFormPro
     }
     if (rule) {
       updateMutation.mutate(
-        { id: rule.id, input: { ...values, isActive, expectedRowVersion: rule.rowVersion } },
+        {
+          id: rule.id,
+          input: { ...values, isActive, expectedRowVersion: rule.rowVersion },
+        },
         { onSuccess: onClose },
       )
     } else {
-      createMutation.mutate({ ...values, clinicId }, { onSuccess: onClose })
+      createMutation.mutate({ ...values, clinicId, idempotencyKey }, { onSuccess: onClose })
     }
   }
 
@@ -90,13 +95,15 @@ function RuleForm({ rule, clinics, startInactive = false, onClose }: RuleFormPro
       onClose={onClose}
       onSave={save}
     >
-      <SelectField
-        id="clinic-fee-clinic"
+      <Dropdown
+        variant="field"
         label="Clínica"
+        placeholder="Selecione a clínica"
+        options={clinics}
+        searchable
         disabled={rule !== null}
         value={clinicId}
-        options={[{ value: '', label: 'Selecione…' }, ...clinics]}
-        onChange={(event) => setClinicId(event.target.value)}
+        onChange={setClinicId}
       />
       <div className="fees__row">
         <TextField
@@ -171,7 +178,10 @@ export function ClinicFeeRulesPanel({
   const canRead = user?.permissions.includes('pricing.read') ?? false
   const canManage = user?.permissions.includes('pricing.manage') ?? false
   const [selectedId, setSelectedId] = useState<string | null>(null)
-  const [editing, setEditing] = useState<{ rule: ClinicFeeRule; inactivate: boolean } | null>(null)
+  const [editing, setEditing] = useState<{
+    rule: ClinicFeeRule
+    inactivate: boolean
+  } | null>(null)
   const rulesQuery = useClinicFeeRulesQuery(clinicFilter || undefined)
   const clinicsQuery = useAllClinicsQuery({ status: 'ACTIVE' })
   const clinicOptions = (clinicsQuery.data?.items ?? []).map((clinic) => ({

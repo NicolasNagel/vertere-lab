@@ -8,6 +8,7 @@ import { afterAll, afterEach, beforeAll, expect, test } from 'vitest'
 
 import { AuthProvider } from '../../auth/auth-provider'
 import { ExamDetailPage } from './exam-detail-page'
+import { pickOption } from '../../../test/dropdown'
 
 const server = setupServer()
 
@@ -18,7 +19,13 @@ afterAll(() => server.close())
 function meHandler(permissions: string[]) {
   return http.get('/api/v1/auth/me', () =>
     HttpResponse.json({
-      user: { id: 'u1', email: 'a@b.com', full_name: 'A', role_id: 'r1', role_name: 'LAB_ADMIN' },
+      user: {
+        id: 'u1',
+        email: 'a@b.com',
+        full_name: 'A',
+        role_id: 'r1',
+        role_name: 'LAB_ADMIN',
+      },
       permissions,
     }),
   )
@@ -45,7 +52,9 @@ function commonHandlers(exam: Record<string, unknown> = examBody) {
   return [
     http.get('/api/v1/exams/e1', () => HttpResponse.json(exam)),
     http.get('/api/v1/species', () =>
-      HttpResponse.json({ items: [{ id: 's1', name: 'Cão', created_at: '2026-01-01T00:00:00Z' }] }),
+      HttpResponse.json({
+        items: [{ id: 's1', name: 'Cão', created_at: '2026-01-01T00:00:00Z' }],
+      }),
     ),
     http.get('/api/v1/exam-categories/active', () =>
       HttpResponse.json({
@@ -56,7 +65,9 @@ function commonHandlers(exam: Record<string, unknown> = examBody) {
 }
 
 function renderPage() {
-  const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+  const queryClient = new QueryClient({
+    defaultOptions: { queries: { retry: false } },
+  })
   return render(
     <QueryClientProvider client={queryClient}>
       <AuthProvider>
@@ -74,7 +85,11 @@ function renderPage() {
 test('shows the blocks, hides price without pricing.read and has no edit without catalog.manage', async () => {
   server.use(
     meHandler(['catalog.read']),
-    ...commonHandlers({ ...examBody, price_base: null, price_valid_from: null }),
+    ...commonHandlers({
+      ...examBody,
+      price_base: null,
+      price_valid_from: null,
+    }),
   )
   renderPage()
 
@@ -103,13 +118,17 @@ test('saving needs a reason, sends it with the row version and omits the price w
     ...commonHandlers(),
     http.patch('/api/v1/exams/e1', async ({ request }) => {
       sent = (await request.json()) as Record<string, unknown>
-      return HttpResponse.json({ ...examBody, status: 'INACTIVE', row_version: 4 })
+      return HttpResponse.json({
+        ...examBody,
+        status: 'INACTIVE',
+        row_version: 4,
+      })
     }),
   )
   renderPage()
 
   await user.click(await screen.findByRole('button', { name: 'Editar status' }))
-  await user.selectOptions(screen.getByRole('combobox', { name: 'Status' }), 'INACTIVE')
+  await pickOption(user, 'Status', 'Inativo')
   expect(screen.getByRole('button', { name: 'Salvar' })).toBeDisabled()
 
   await user.type(screen.getByLabelText('Motivo da alteração'), 'Exame descontinuado')
@@ -132,7 +151,12 @@ test('a version conflict shows the message and offers to reload', async () => {
     ...commonHandlers(),
     http.patch('/api/v1/exams/e1', () =>
       HttpResponse.json(
-        { error: { code: 'CONFLICT', message: 'Este exame foi alterado por outra pessoa.' } },
+        {
+          error: {
+            code: 'CONFLICT',
+            message: 'Este exame foi alterado por outra pessoa.',
+          },
+        },
         { status: 409 },
       ),
     ),
@@ -160,5 +184,7 @@ test('shows an error state when the exam cannot be loaded and a 403 message with
   )
   renderPage()
 
-  expect(await screen.findByRole('alert')).toHaveTextContent('Você não tem permissão para visualizar este exame.')
+  expect(await screen.findByRole('alert')).toHaveTextContent(
+    'Você não tem permissão para visualizar este exame.',
+  )
 })

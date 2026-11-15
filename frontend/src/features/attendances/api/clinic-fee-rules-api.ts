@@ -53,11 +53,12 @@ export interface ClinicFeeRuleValues {
 }
 
 export async function createClinicFeeRule(
-  input: ClinicFeeRuleValues & { clinicId: string },
+  input: ClinicFeeRuleValues & { clinicId: string; idempotencyKey: string },
 ): Promise<ClinicFeeRule> {
   return fromApi(
     await apiRequest<ApiClinicFeeRule>('/clinic-fee-rules', {
       method: 'POST',
+      headers: { 'Idempotency-Key': input.idempotencyKey },
       body: {
         clinic_id: input.clinicId,
         name: input.name,

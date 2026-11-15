@@ -7,6 +7,7 @@ import { afterAll, afterEach, beforeAll, expect, test } from 'vitest'
 
 import { AuthProvider } from '../../auth/auth-provider'
 import { MemoryRouter } from 'react-router'
+import { pickOption } from '../../../test/dropdown'
 import { ExamsPage } from './exams-page'
 
 const server = setupServer()
@@ -18,7 +19,13 @@ afterAll(() => server.close())
 function meHandler(permissions: string[]) {
   return http.get('/api/v1/auth/me', () =>
     HttpResponse.json({
-      user: { id: 'u1', email: 'a@b.com', full_name: 'A', role_id: 'r1', role_name: 'FINANCE' },
+      user: {
+        id: 'u1',
+        email: 'a@b.com',
+        full_name: 'A',
+        role_id: 'r1',
+        role_name: 'FINANCE',
+      },
       permissions,
     }),
   )
@@ -77,7 +84,9 @@ function pageHandlers() {
 }
 
 function renderTab() {
-  const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+  const queryClient = new QueryClient({
+    defaultOptions: { queries: { retry: false } },
+  })
   return render(
     <QueryClientProvider client={queryClient}>
       <AuthProvider>
@@ -99,7 +108,11 @@ test('urgency register shows the fixed value and saves with reason and row versi
     http.get('/api/v1/urgency-fee-setting', () => HttpResponse.json(urgency)),
     http.patch('/api/v1/urgency-fee-setting', async ({ request }) => {
       body = await request.json()
-      return HttpResponse.json({ ...urgency, fee_amount: '40.00', row_version: 4 })
+      return HttpResponse.json({
+        ...urgency,
+        fee_amount: '40.00',
+        row_version: 4,
+      })
     }),
   )
   renderTab()
@@ -135,7 +148,12 @@ test('clinic register lists rules and creates one with validity and reason', asy
     http.get('/api/v1/clinic-fee-rules', () => HttpResponse.json({ items: [rule] })),
     http.post('/api/v1/clinic-fee-rules', async ({ request }) => {
       created = await request.json()
-      return HttpResponse.json({ ...rule, id: 'r2', name: 'Taxa nova', fee_amount: '7.50' })
+      return HttpResponse.json({
+        ...rule,
+        id: 'r2',
+        name: 'Taxa nova',
+        fee_amount: '7.50',
+      })
     }),
   )
   renderTab()
@@ -147,7 +165,7 @@ test('clinic register lists rules and creates one with validity and reason', asy
 
   await user.click(screen.getByRole('button', { name: /nova taxa/i }))
   await screen.findByRole('dialog')
-  await user.selectOptions(screen.getByLabelText('Clínica'), 'c1')
+  await pickOption(user, 'Clínica', 'Clínica Alfa', await screen.findByRole('dialog'))
   await user.type(screen.getByLabelText('Nome da taxa'), 'Taxa nova')
   await user.type(screen.getByLabelText('Valor (R$)'), '7,5')
   await user.type(screen.getByLabelText('Vale a partir de'), '2026-02-01')

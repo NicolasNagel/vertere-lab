@@ -1,7 +1,8 @@
 import { useState } from 'react'
 
 import { Checkbox } from '../../../shared/ui/checkbox'
-import { SelectField } from '../../../shared/ui/select'
+import { Dropdown } from '../../../shared/ui/dropdown'
+import { TagIcon } from '../../../shared/ui/icons'
 import { TextField } from '../../../shared/ui/text-field'
 import { useSpeciesQuery } from '../../patients/api/use-species-query'
 import type { Exam, ExamCategory, ExamFormValues, ExamStatus } from '../api/catalog-api'
@@ -96,7 +97,12 @@ export function IdentityForm(props: FormProps) {
         api={api}
         canSave={changed && name.trim().length > 0}
         onClose={onClose}
-        onSave={() => api.save({ name: name.trim(), description: description.trim() || null })}
+        onSave={() =>
+          api.save({
+            name: name.trim(),
+            description: description.trim() || null,
+          })
+        }
       />
     </div>
   )
@@ -115,12 +121,16 @@ export function CategorySpeciesForm(props: FormProps & { categories: ExamCategor
 
   return (
     <div className="attendance-correction-block__form">
-      <SelectField
-        id="exam-edit-category"
+      <Dropdown
+        variant="field"
         label="Categoria"
+        icon={<TagIcon />}
+        options={categories.map((category) => ({
+          value: category.id,
+          label: category.name,
+        }))}
         value={categoryId}
-        options={categories.map((category) => ({ value: category.id, label: category.name }))}
-        onChange={(event) => setCategoryId(event.target.value)}
+        onChange={setCategoryId}
       />
       <div role="group" aria-label="Espécies atendidas" className="exam-detail__chips">
         {(speciesQuery.data ?? []).map((species) => (
@@ -208,15 +218,15 @@ export function StatusForm(props: FormProps) {
 
   return (
     <div className="attendance-correction-block__form">
-      <SelectField
-        id="exam-edit-status"
+      <Dropdown
+        variant="field"
         label="Status"
-        value={status}
         options={[
           { value: 'ACTIVE', label: 'Ativo' },
           { value: 'INACTIVE', label: 'Inativo' },
         ]}
-        onChange={(event) => setStatus(event.target.value as ExamStatus)}
+        value={status}
+        onChange={(value) => setStatus(value as ExamStatus)}
       />
       <Footer
         exam={exam}

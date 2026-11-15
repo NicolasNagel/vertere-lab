@@ -9,6 +9,7 @@ import { afterAll, afterEach, beforeAll, expect, test } from 'vitest'
 import { AuthProvider } from '../../auth/auth-provider'
 import { ExamFormPage } from './exam-form-page'
 import { ExamsPage } from './exams-page'
+import { pickOption } from '../../../test/dropdown'
 
 const server = setupServer()
 
@@ -19,7 +20,13 @@ afterAll(() => server.close())
 function meHandler(permissions: string[]) {
   return http.get('/api/v1/auth/me', () =>
     HttpResponse.json({
-      user: { id: 'u1', email: 'a@b.com', full_name: 'A', role_id: 'r1', role_name: 'LAB_ADMIN' },
+      user: {
+        id: 'u1',
+        email: 'a@b.com',
+        full_name: 'A',
+        role_id: 'r1',
+        role_name: 'LAB_ADMIN',
+      },
       permissions,
     }),
   )
@@ -42,7 +49,9 @@ function categoriesHandler() {
 }
 
 function renderApp(initialEntries: string[]) {
-  const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+  const queryClient = new QueryClient({
+    defaultOptions: { queries: { retry: false } },
+  })
   return render(
     <QueryClientProvider client={queryClient}>
       <AuthProvider>
@@ -73,7 +82,8 @@ test('the exam form blocks a save without species, cancels back to the list and 
   server.use(...common)
   let view = renderApp(['/cadastros/exames/novo'])
   await user.type(await screen.findByLabelText('Nome'), 'Urinálise')
-  await user.selectOptions(await screen.findByLabelText('Categoria'), 'Hematologia')
+  await screen.findByRole('button', { name: /^Categoria/ })
+  await pickOption(user, 'Categoria', 'Hematologia')
   await user.type(screen.getByLabelText('Preço base'), '40.00')
   await user.click(screen.getByRole('button', { name: 'Salvar exame' }))
   expect(await screen.findByText('Selecione ao menos uma espécie atendida.')).toBeInTheDocument()
@@ -117,7 +127,8 @@ test('the exam form blocks a save without species, cancels back to the list and 
   expect(await screen.findByRole('heading', { name: 'Novo exame' })).toBeInTheDocument()
   expect(screen.getByLabelText('Código')).toHaveValue('Gerado automaticamente ao salvar')
   await user.type(screen.getByLabelText('Nome'), 'Urinálise')
-  await user.selectOptions(await screen.findByLabelText('Categoria'), 'Hematologia')
+  await screen.findByRole('button', { name: /^Categoria/ })
+  await pickOption(user, 'Categoria', 'Hematologia')
   await user.type(screen.getByLabelText('Preço base'), '40.00')
   await user.click(await screen.findByLabelText('Gato'))
   await user.click(screen.getByRole('button', { name: 'Salvar exame' }))

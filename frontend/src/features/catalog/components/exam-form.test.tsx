@@ -6,6 +6,7 @@ import { setupServer } from 'msw/node'
 import type { ReactNode } from 'react'
 import { afterAll, afterEach, beforeAll, expect, test, vi } from 'vitest'
 
+import { dropdownTrigger, pickOption } from '../../../test/dropdown'
 import type { Exam } from '../api/catalog-api'
 import { ExamForm } from './exam-form'
 
@@ -39,7 +40,9 @@ const existingExam: Exam = {
 }
 
 function renderWithProviders(children: ReactNode) {
-  const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+  const queryClient = new QueryClient({
+    defaultOptions: { queries: { retry: false } },
+  })
   return render(<QueryClientProvider client={queryClient}>{children}</QueryClientProvider>)
 }
 
@@ -48,7 +51,16 @@ test('editing an exam whose category was deactivated still shows and retains tha
     speciesHandler(),
     // active list does NOT include the exam's category — it was deactivated
     http.get('/api/v1/exam-categories/active', () =>
-      HttpResponse.json({ items: [{ id: 'cat-active', name: 'Bioquímica', status: 'ACTIVE', row_version: 1 }] }),
+      HttpResponse.json({
+        items: [
+          {
+            id: 'cat-active',
+            name: 'Bioquímica',
+            status: 'ACTIVE',
+            row_version: 1,
+          },
+        ],
+      }),
     ),
     http.get('/api/v1/exam-categories/cat-inactive', () =>
       HttpResponse.json({
@@ -69,9 +81,9 @@ test('editing an exam whose category was deactivated still shows and retains tha
     />,
   )
 
-  const select = await screen.findByLabelText<HTMLSelectElement>('Categoria')
-  await waitFor(() => expect(select).toHaveValue('cat-inactive'))
-  expect(screen.getByText('Hematologia (inativa)')).toBeInTheDocument()
+  await waitFor(() =>
+    expect(dropdownTrigger('Categoria')).toHaveTextContent('Hematologia (inativa)'),
+  )
 
   const user = userEvent.setup()
   await user.click(screen.getByRole('button', { name: 'Salvar' }))
@@ -90,7 +102,12 @@ test('creating a category inline selects it once the refetched list includes it'
     http.get('/api/v1/exam-categories/active', () => HttpResponse.json({ items: categories })),
     http.post('/api/v1/exam-categories', async ({ request }) => {
       const body = (await request.json()) as { name: string }
-      const created = { id: 'cat2', name: body.name, status: 'ACTIVE' as const, row_version: 1 }
+      const created = {
+        id: 'cat2',
+        name: body.name,
+        status: 'ACTIVE' as const,
+        row_version: 1,
+      }
       categories = [...categories, created]
       return HttpResponse.json(created, { status: 201 })
     }),
@@ -103,9 +120,7 @@ test('creating a category inline selects it once the refetched list includes it'
   await user.type(await screen.findByLabelText('Criar nova categoria'), 'Bioquímica')
   await user.click(screen.getByRole('button', { name: 'Criar categoria' }))
 
-  await waitFor(() =>
-    expect(screen.getByLabelText<HTMLSelectElement>('Categoria')).toHaveValue('cat2'),
-  )
+  await waitFor(() => expect(dropdownTrigger('Categoria')).toHaveTextContent('Bioquímica'))
 })
 
 function apiExam(id: string, name: string, overrides: Record<string, unknown> = {}) {
@@ -133,7 +148,10 @@ test('a new panel needs at least 2 exams and submits them in the chosen order', 
   const exams = [
     apiExam('a', 'Hemograma'),
     apiExam('b', 'ALT'),
-    apiExam('p', 'CHECK-UP', { is_panel: true, component_exam_ids: ['a', 'b'] }),
+    apiExam('p', 'CHECK-UP', {
+      is_panel: true,
+      component_exam_ids: ['a', 'b'],
+    }),
   ]
   server.use(
     speciesHandler(),
@@ -162,8 +180,10 @@ test('a new panel needs at least 2 exams and submits them in the chosen order', 
   )
 
   await user.type(await screen.findByLabelText('Nome do pacote'), 'BÁSICO 1')
-  await waitFor(() => expect(screen.getByLabelText('Categoria')).toHaveValue(''))
-  await user.selectOptions(screen.getByLabelText('Categoria'), 'cat1')
+  await waitFor(() =>
+    expect(dropdownTrigger('Categoria')).toHaveTextContent('Selecione a categoria'),
+  )
+  await pickOption(user, 'Categoria', 'Perfis')
   await user.type(screen.getByLabelText('Preço do pacote'), '70.00')
   await user.click(await screen.findByLabelText('Cão'))
 
@@ -182,7 +202,10 @@ test('a new panel needs at least 2 exams and submits them in the chosen order', 
 
   await waitFor(() =>
     expect(onSubmitCreate).toHaveBeenCalledWith(
-      expect.objectContaining({ name: 'BÁSICO 1', componentExamIds: ['b', 'a'] }),
+      expect.objectContaining({
+        name: 'BÁSICO 1',
+        componentExamIds: ['b', 'a'],
+      }),
     ),
   )
 })
@@ -193,7 +216,14 @@ test('without pricing.manage the price is read-only and is not sent; a status ch
     speciesHandler(),
     http.get('/api/v1/exam-categories/active', () =>
       HttpResponse.json({
-        items: [{ id: 'cat-inactive', name: 'Hematologia', status: 'ACTIVE', row_version: 1 }],
+        items: [
+          {
+            id: 'cat-inactive',
+            name: 'Hematologia',
+            status: 'ACTIVE',
+            row_version: 1,
+          },
+        ],
       }),
     ),
   )
@@ -209,7 +239,7 @@ test('without pricing.manage the price is read-only and is not sent; a status ch
   )
 
   expect(await screen.findByLabelText('Preço base')).toBeDisabled()
-  await user.selectOptions(screen.getByLabelText('Status'), 'INACTIVE')
+  await pickOption(user, 'Status', 'Inativo')
   await user.click(screen.getByRole('button', { name: 'Salvar' }))
   expect(await screen.findByText(/Informe o motivo/)).toBeInTheDocument()
   expect(onSubmitUpdate).not.toHaveBeenCalled()
