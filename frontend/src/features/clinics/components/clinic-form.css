@@ -4,27 +4,6 @@
   min-height: 0;
 }
 
-.clinic-form__sections {
-  display: grid;
-  gap: 0.75rem;
-}
-
-.clinic-form__section {
-  padding: 1rem 1.25rem 0.25rem;
-  background: var(--color-surface);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-md);
-}
-
-.clinic-form__section-title {
-  margin: 0 0 0.75rem;
-  font-size: 0.6875rem;
-  font-weight: 700;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  color: var(--color-text-secondary);
-}
-
 .clinic-form__grid {
   display: grid;
   grid-template-columns: repeat(6, minmax(0, 1fr));
@@ -52,7 +31,7 @@
 }
 
 /* Campo sozinho numa seção (Observação) ocupa a largura toda. */
-.clinic-form__section > .text-field {
+.clinic-form .attendance-draft-page__section > .text-field {
   max-width: none;
 }
 
@@ -60,12 +39,6 @@
   margin: -0.25rem 0 0.625rem;
   font-size: 0.75rem;
   color: var(--color-text-secondary);
-}
-
-.clinic-form__domain-error {
-  margin: 0;
-  font-size: 0.8125rem;
-  color: var(--color-danger);
 }
 
 .clinic-form__actions {

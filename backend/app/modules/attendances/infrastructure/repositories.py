@@ -529,7 +529,7 @@ class SqlAlchemyOnCallFeeSettingRepository:
     def list_all(self) -> list[OnCallFeeSetting]:
         models = (
             self._session.execute(
-                select(OnCallFeeSettingModel).order_by(OnCallFeeSettingModel.service_level)
+                select(OnCallFeeSettingModel).order_by(OnCallFeeSettingModel.service_level.desc())
             )
             .scalars()
             .all()

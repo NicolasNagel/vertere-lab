@@ -5,6 +5,8 @@ interface AttendanceListPaginationProps {
   page: number
   pageSize: number
   total: number
+  /** Nome do item no resumo; Operação usa o padrão "atendimento". */
+  itemLabel?: [singular: string, plural: string]
   onPageChange: (page: number) => void
 }
 
@@ -12,6 +14,7 @@ export function AttendanceListPagination({
   page,
   pageSize,
   total,
+  itemLabel = ['atendimento', 'atendimentos'],
   onPageChange,
 }: AttendanceListPaginationProps) {
   const totalPages = Math.max(1, Math.ceil(total / pageSize))
@@ -22,8 +25,8 @@ export function AttendanceListPagination({
     <div className="attendance-list-pagination">
       <span className="attendance-list-pagination__summary">
         {total === 0
-          ? 'Nenhum atendimento'
-          : `Mostrando ${rangeStart}–${rangeEnd} de ${total} ${pluralize(total, 'atendimento', 'atendimentos')}`}
+          ? `Nenhum ${itemLabel[0]}`
+          : `Mostrando ${rangeStart}–${rangeEnd} de ${total} ${pluralize(total, itemLabel[0], itemLabel[1])}`}
       </span>
       <div className="attendance-list-pagination__controls">
         <button

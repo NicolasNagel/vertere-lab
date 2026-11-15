@@ -106,7 +106,8 @@ test('editing needs a reason, sends the row version and a conflict offers reload
   )
   const view = renderPanel()
 
-  await user.click(await screen.findByRole('button', { name: 'Editar Plantão normal' }))
+  await user.click(await screen.findByRole('button', { name: 'Ações para Plantão normal' }))
+  await user.click(screen.getByRole('menuitem', { name: 'Editar taxa' }))
   const amount = screen.getByLabelText('Valor da taxa (R$)')
   await user.clear(amount)
   await user.type(amount, '120,00')
@@ -142,7 +143,8 @@ test('editing needs a reason, sends the row version and a conflict offers reload
     ),
   )
   renderPanel()
-  await user.click(await screen.findByRole('button', { name: 'Editar Plantão normal' }))
+  await user.click(await screen.findByRole('button', { name: 'Ações para Plantão normal' }))
+  await user.click(screen.getByRole('menuitem', { name: 'Editar taxa' }))
   const conflictAmount = screen.getByLabelText('Valor da taxa (R$)')
   await user.clear(conflictAmount)
   await user.type(conflictAmount, '999')
@@ -177,7 +179,8 @@ test('edits weekdays and hours, with presets and midnight crossing', async () =>
   )
   renderPanel()
 
-  await user.click(await screen.findByRole('button', { name: 'Editar Plantão normal' }))
+  await user.click(await screen.findByRole('button', { name: 'Ações para Plantão normal' }))
+  await user.click(screen.getByRole('menuitem', { name: 'Editar taxa' }))
   await user.click(screen.getByRole('button', { name: 'Seg-Sex' }))
   expect(screen.getByRole('button', { name: 'Segunda-feira' })).toHaveAttribute(
     'aria-pressed',

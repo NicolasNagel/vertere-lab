@@ -417,7 +417,7 @@ async def test_close_header_totals_match_items_and_on_call_fee_counts_once_per_a
     assert (Decimal(stored[0]), Decimal(stored[1])) == (Decimal("150.00"), Decimal("280.00"))
     exported = await client.get(f"/api/v1/closures/{plantao_body['id']}/export")
     assert exported.status_code == 200
-    assert "taxa_de_plantao_total,150.00" in exported.text
+    assert "taxas_total,150.00" in exported.text
 
 
 async def test_concurrent_close_attempts_for_the_same_period_only_one_succeeds(

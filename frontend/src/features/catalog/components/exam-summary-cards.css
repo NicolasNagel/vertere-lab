@@ -1,4 +1,6 @@
 .exam-summary-cards {
+  /* Mesma largura das colunas de blocos (attendance-readonly-detail: 60rem). */
+  max-width: 60rem;
   padding: 0 0 1rem;
   grid-template-columns: repeat(auto-fit, minmax(min(14rem, 100%), 1fr));
 }

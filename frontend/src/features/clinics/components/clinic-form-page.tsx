@@ -10,9 +10,12 @@ import { useClinicQuery } from '../api/use-clinic-query'
 import { useCreateClinicMutation } from '../api/use-create-clinic-mutation'
 import { useUpdateClinicMutation } from '../api/use-update-clinic-mutation'
 import { ClinicForm } from './clinic-form'
+import '../../attendances/components/attendance-draft-page.css'
+import '../../attendances/components/attendance-summary-bar.css'
 import './clinic-form-page.css'
 
 const LIST_PATH = '/cadastros/clinicas'
+const FORM_ID = 'clinic-form'
 
 /** Tela de cadastro: `/cadastros/clinicas/nova` (criar) e `/:clinicId/editar` (editar). */
 export function ClinicFormPage() {
@@ -71,6 +74,8 @@ export function ClinicFormPage() {
         )}
         <ClinicForm
           key={clinic?.rowVersion ?? 'new'}
+          formId={FORM_ID}
+          hideActions
           clinic={isEditing ? clinic : null}
           submitting={createMutation.isPending || updateMutation.isPending}
           error={isEditing ? updateMutation.error : createMutation.error}
@@ -104,9 +109,30 @@ export function ClinicFormPage() {
   }
 
   return (
-    <div className="clinic-form-page">
+    <div className="attendance-draft-page">
       <PageHeader title={title} />
-      <div className="clinic-form-page__body">{renderBody()}</div>
+      <div className="attendance-draft-page__body">{renderBody()}</div>
+      {canManage && (
+        <div className="attendance-summary-bar" role="region" aria-label="Ações da clínica">
+          <div className="attendance-summary-bar__actions clinic-form-page__actions">
+            <Button
+              type="button"
+              variant="cancel"
+              disabled={createMutation.isPending || updateMutation.isPending}
+              onClick={goToList}
+            >
+              Cancelar
+            </Button>
+            <Button
+              type="submit"
+              form={FORM_ID}
+              disabled={createMutation.isPending || updateMutation.isPending}
+            >
+              {createMutation.isPending || updateMutation.isPending ? 'Salvando…' : 'Salvar'}
+            </Button>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

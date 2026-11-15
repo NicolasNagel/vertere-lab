@@ -140,7 +140,7 @@ test('exam summary popover is accessible', async ({ page }) => {
   await page.goto('/cadastros/exames')
   await page.getByRole('button', { name: /Hemograma completo com contagem/, exact: false }).first().click()
   await expect(page.getByRole('dialog')).toBeVisible()
-  await expect(page.getByRole('link', { name: 'Editar exame' })).toBeVisible()
+  await expect(page.getByRole('link', { name: 'Abrir exame' })).toBeVisible()
   await expectAccessible(page)
 })
 
@@ -157,8 +157,8 @@ test('without pricing.read the table shows no price column and stays accessible'
 test('fees tab and its three registers and dialogs are accessible', async ({ page }) => {
   await mockApi(page, MANAGER)
   await page.goto('/cadastros/exames')
-  await page.getByRole('tab', { name: 'Taxas', exact: true }).click()
-  await expect(page.getByRole('tab', { name: 'Taxas', exact: true })).toHaveAttribute(
+  await page.getByRole('tab', { name: 'Plantão', exact: true }).click()
+  await expect(page.getByRole('tab', { name: 'Plantão', exact: true })).toHaveAttribute(
     'aria-selected',
     'true',
   )
@@ -168,7 +168,11 @@ test('fees tab and its three registers and dialogs are accessible', async ({ pag
   await expect(page.getByText('18h às 07h').first()).toBeVisible()
   await expectAccessible(page)
 
-  await page.getByRole('button', { name: 'Editar Plantão normal' }).click()
+  // Clicar na linha abre o resumo; "Editar taxa" leva ao formulário.
+  await page.getByRole('button', { name: 'Plantão normal', exact: true }).click()
+  await expect(page.getByRole('dialog')).toBeVisible()
+  await expectAccessible(page)
+  await page.getByRole('button', { name: 'Editar taxa' }).click()
   await expect(page.getByRole('dialog')).toBeVisible()
   await expect(page.getByRole('button', { name: 'Sábado' })).toHaveAttribute('aria-pressed', 'true')
   await page.getByRole('button', { name: 'Seg-Sex' }).click()
@@ -186,7 +190,8 @@ test('fees tab and its three registers and dialogs are accessible', async ({ pag
   await page.getByRole('tab', { name: 'Urgência' }).click()
   await expect(page.getByText('R$ 30,00')).toBeVisible()
   await expectAccessible(page)
-  await page.getByRole('button', { name: 'Editar taxa de urgência' }).click()
+  await page.getByRole('button', { name: 'Ações para Urgência' }).click()
+  await page.getByRole('menuitem', { name: 'Editar taxa' }).click()
   await expect(page.getByLabel('Horário de início')).toBeVisible()
   await expectAccessible(page)
   await page.keyboard.press('Escape')
@@ -194,6 +199,10 @@ test('fees tab and its three registers and dialogs are accessible', async ({ pag
   await page.getByRole('tab', { name: 'Por clínica' }).click()
   await expect(page.getByText('Taxa de coleta')).toBeVisible()
   await expectAccessible(page)
+  await page.getByRole('button', { name: 'Taxa de coleta', exact: true }).click()
+  await expect(page.getByRole('dialog')).toBeVisible()
+  await expectAccessible(page)
+  await page.keyboard.press('Escape')
   await page.getByRole('button', { name: /nova taxa/i }).click()
   await expect(page.getByRole('dialog')).toBeVisible()
   await expectAccessible(page)

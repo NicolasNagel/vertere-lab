@@ -1,27 +1,7 @@
-.fees__tabs {
-  padding: 0.625rem 0.875rem;
-  border-bottom: 1px solid var(--color-border);
-}
 
-.fees__toolbar {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 0.5rem;
-  padding: 0.625rem 0.875rem;
-  border-bottom: 1px solid var(--color-border);
-}
 
-.fees__toolbar-spacer {
-  flex: 1 1 auto;
-}
 
-.fees__intro {
-  margin: 0;
-  padding: 0.75rem 0.875rem;
-  font-size: 0.8125rem;
-  color: var(--color-text-secondary);
-}
+
 
 .fees__form {
   display: flex;
@@ -41,24 +21,9 @@
   color: var(--color-warning-ink);
 }
 
-.fees__actions {
-  display: flex;
-  gap: 0.75rem;
-}
 
-.fees__hint {
-  padding: 1.5rem 1.25rem;
-  font-size: 0.8125rem;
-  color: var(--color-text-secondary);
-}
 
-.fees__hint--error {
-  color: var(--color-warning-ink);
-}
 
-.fees__new {
-  width: auto;
-}
 
 .fees__days {
   margin: 0;

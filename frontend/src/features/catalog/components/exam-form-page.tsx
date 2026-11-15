@@ -1,7 +1,6 @@
-import { Link, useNavigate, useParams } from 'react-router'
+import { useNavigate, useParams } from 'react-router'
 
 import { Button } from '../../../shared/ui/button'
-import { ArrowLeftIcon } from '../../../shared/ui/icons'
 import { PageHeader } from '../../../shared/ui/page-header'
 import '../../../shared/ui/button.css'
 import { useAuth } from '../../auth/auth-context'
@@ -9,6 +8,8 @@ import { useCreateExamMutation } from '../api/use-create-exam-mutation'
 import { useExamQuery } from '../api/use-exam-query'
 import { useUpdateExamMutation } from '../api/use-update-exam-mutation'
 import { ExamForm } from './exam-form'
+import '../../attendances/components/attendance-draft-page.css'
+import '../../attendances/components/attendance-summary-bar.css'
 import './exam-form-page.css'
 
 const FORM_ID = 'exam-form'
@@ -34,16 +35,16 @@ export function ExamFormPage({ newPanel = false }: ExamFormPageProps = {}) {
 
   if (isEditing && examQuery.isLoading) {
     return (
-      <div className="exam-form-page">
-        <p className="exam-form-page__empty">Carregando…</p>
+      <div className="attendance-draft-page">
+        <p className="attendance-draft-page__hint">Carregando…</p>
       </div>
     )
   }
 
   if (isEditing && !examQuery.data) {
     return (
-      <div className="exam-form-page">
-        <p className="exam-form-page__empty">Exame não encontrado.</p>
+      <div className="attendance-draft-page">
+        <p className="attendance-draft-page__hint">Exame não encontrado.</p>
       </div>
     )
   }
@@ -55,23 +56,10 @@ export function ExamFormPage({ newPanel = false }: ExamFormPageProps = {}) {
   const submitError = isEditing ? updateMutation.error : createMutation.error
 
   return (
-    <div className="exam-form-page">
-      <PageHeader
-        title={isEditing ? `Editar ${noun}` : `Novo ${noun}`}
-        actions={
-          <>
-            <Link to="/cadastros/exames" className="button button--secondary">
-              <ArrowLeftIcon />
-              Voltar
-            </Link>
-            <Button type="submit" form={FORM_ID} disabled={submitting}>
-              {submitting ? 'Salvando…' : `Salvar ${noun}`}
-            </Button>
-          </>
-        }
-      />
+    <div className="attendance-draft-page">
+      <PageHeader title={isEditing ? `Editar ${noun}` : `Novo ${noun}`} />
 
-      <div className="exam-form-page__body">
+      <div className="attendance-draft-page__body">
         <ExamForm
           exam={exam}
           submitting={submitting}
@@ -92,6 +80,17 @@ export function ExamFormPage({ newPanel = false }: ExamFormPageProps = {}) {
             )
           }}
         />
+      </div>
+
+      <div className="attendance-summary-bar" role="region" aria-label={`Ações do ${noun}`}>
+        <div className="attendance-summary-bar__actions exam-form-page__actions">
+          <Button type="button" variant="cancel" disabled={submitting} onClick={goToList}>
+            Cancelar
+          </Button>
+          <Button type="submit" form={FORM_ID} disabled={submitting}>
+            {submitting ? 'Salvando…' : `Salvar ${noun}`}
+          </Button>
+        </div>
       </div>
     </div>
   )

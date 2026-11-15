@@ -15,6 +15,7 @@ import { useCreateExamCategoryMutation } from '../api/use-create-exam-category-m
 import { useExamCategoryQuery } from '../api/use-exam-category-query'
 import { PanelComponentsField } from './panel-components-field'
 import type { Exam, ExamFormValues, ExamStatus } from '../api/catalog-api'
+import '../../attendances/components/attendance-draft-page.css'
 import './exam-form.css'
 
 const examSchema = z.object({
@@ -227,12 +228,12 @@ export function ExamForm({
   const disabled = submitting
 
   return (
-    <form className="exam-form" id={formId} onSubmit={onSubmit} noValidate>
-      <section className="exam-form__section" aria-labelledby="exam-form-general">
-        <h2 id="exam-form-general" className="exam-form__section-title">
+    <form className="attendance-draft-page__stack" id={formId} onSubmit={onSubmit} noValidate>
+      <section className="attendance-draft-page__section" aria-labelledby="exam-form-general">
+        <h2 id="exam-form-general" className="attendance-draft-page__section-title">
           {isPanel ? 'Identificação do pacote' : 'Identificação'}
         </h2>
-        <div className="exam-form__row">
+        <div className="attendance-draft-page__row">
           <TextField
             id="exam-code"
             label="Código"
@@ -255,11 +256,11 @@ export function ExamForm({
         />
       </section>
 
-      <section className="exam-form__section" aria-labelledby="exam-form-category">
-        <h2 id="exam-form-category" className="exam-form__section-title">
+      <section className="attendance-draft-page__section" aria-labelledby="exam-form-category">
+        <h2 id="exam-form-category" className="attendance-draft-page__section-title">
           Classificação
         </h2>
-        <div className="exam-form__row">
+        <div className="attendance-draft-page__row">
           <SelectField
             id="exam-category"
             label="Categoria"
@@ -297,8 +298,8 @@ export function ExamForm({
       </section>
 
       {isPanel && (
-        <section className="exam-form__section" aria-labelledby="exam-form-components">
-          <h2 id="exam-form-components" className="exam-form__section-title">
+        <section className="attendance-draft-page__section" aria-labelledby="exam-form-components">
+          <h2 id="exam-form-components" className="attendance-draft-page__section-title">
             Exames do pacote
           </h2>
           <PanelComponentsField
@@ -313,11 +314,11 @@ export function ExamForm({
         </section>
       )}
 
-      <section className="exam-form__section" aria-labelledby="exam-form-price">
-        <h2 id="exam-form-price" className="exam-form__section-title">
+      <section className="attendance-draft-page__section" aria-labelledby="exam-form-price">
+        <h2 id="exam-form-price" className="attendance-draft-page__section-title">
           Preço
         </h2>
-        <div className="exam-form__row">
+        <div className="attendance-draft-page__row">
           <TextField
             id="exam-price-base"
             label={isPanel ? 'Preço do pacote' : 'Preço base'}
@@ -328,15 +329,15 @@ export function ExamForm({
           />
         </div>
         {!canManagePrice && (
-          <p className="exam-form__hint">Alterar preço exige a permissão de gerir preços.</p>
+          <p className="attendance-draft-page__hint">Alterar preço exige a permissão de gerir preços.</p>
         )}
       </section>
 
-      <section className="exam-form__section" aria-labelledby="exam-form-species">
-        <h2 id="exam-form-species" className="exam-form__section-title">
+      <section className="attendance-draft-page__section" aria-labelledby="exam-form-species">
+        <h2 id="exam-form-species" className="attendance-draft-page__section-title">
           Espécies atendidas
         </h2>
-        {speciesQuery.isLoading && <p className="exam-form__hint">Carregando espécies…</p>}
+        {speciesQuery.isLoading && <p className="attendance-draft-page__hint">Carregando espécies…</p>}
         {!speciesQuery.isLoading && (
           <div className="exam-form__species-list" role="group" aria-label="Espécies">
             {(speciesQuery.data ?? []).map((species) => (
@@ -351,18 +352,18 @@ export function ExamForm({
           </div>
         )}
         {speciesError && (
-          <p role="alert" className="exam-form__domain-error">
+          <p role="alert" className="attendance-draft-page__domain-error">
             {speciesError}
           </p>
         )}
       </section>
 
       {exam && (
-        <section className="exam-form__section" aria-labelledby="exam-form-change">
-          <h2 id="exam-form-change" className="exam-form__section-title">
+        <section className="attendance-draft-page__section" aria-labelledby="exam-form-change">
+          <h2 id="exam-form-change" className="attendance-draft-page__section-title">
             Situação e motivo da alteração
           </h2>
-          <div className="exam-form__row">
+          <div className="attendance-draft-page__row">
             <SelectField
               id="exam-status"
               label="Status"
@@ -383,7 +384,7 @@ export function ExamForm({
       )}
 
       {errorMessage && (
-        <p role="alert" className="exam-form__domain-error">
+        <p role="alert" className="attendance-draft-page__domain-error">
           {errorMessage}
         </p>
       )}

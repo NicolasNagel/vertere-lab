@@ -216,7 +216,7 @@ test('a manager imports exams from CSV with per-row errors and opens a row in th
   await user.click(screen.getByText('Hemograma completo'))
   const summary = within(await screen.findByRole('dialog', { name: 'Hemograma completo' }))
   expect(summary.getByText('Hematologia')).toBeInTheDocument()
-  await user.click(summary.getByRole('link', { name: 'Editar exame' }))
+  await user.click(summary.getByRole('link', { name: 'Abrir exame' }))
   expect(await screen.findByText('Detalhe do exame')).toBeInTheDocument()
 })
 
@@ -250,12 +250,11 @@ test('the fees tab shows the fee registers (plantão, urgência, por clínica) i
   renderApp()
 
   await screen.findByText('Hemograma completo')
-  await user.click(screen.getByRole('tab', { name: 'Taxas' }))
-  expect(screen.queryByText('Hemograma completo')).not.toBeInTheDocument()
-  expect(screen.getByRole('tab', { name: 'Taxas' })).toHaveAttribute('aria-selected', 'true')
-  expect(screen.getByRole('tab', { name: 'Plantão' })).toHaveAttribute('aria-selected', 'true')
   expect(screen.getByRole('tab', { name: 'Urgência' })).toBeInTheDocument()
   expect(screen.getByRole('tab', { name: 'Por clínica' })).toBeInTheDocument()
+  await user.click(screen.getByRole('tab', { name: 'Plantão' }))
+  expect(screen.queryByText('Hemograma completo')).not.toBeInTheDocument()
+  expect(screen.getByRole('tab', { name: 'Plantão' })).toHaveAttribute('aria-selected', 'true')
 })
 
 test('deactivating an exam from the row menu calls the API', async () => {

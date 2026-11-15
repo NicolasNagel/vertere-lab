@@ -7,6 +7,7 @@ import { Button } from '../../../shared/ui/button'
 import { Modal } from '../../../shared/ui/modal'
 import { TextField } from '../../../shared/ui/text-field'
 import '../../../shared/ui/button.css'
+import '../../attendances/components/attendance-patient-form.css'
 import '../../attendances/components/attendance-row-popover.css'
 import './fees.css'
 
@@ -94,13 +95,7 @@ export function FeeDialog({
               {message}
             </p>
           )}
-          <div className="fees__actions">
-            <Button type="submit" disabled={isPending || !canSave || !reason.trim()}>
-              {isPending ? 'Salvando…' : 'Salvar'}
-            </Button>
-            <Button type="button" variant="cancel" disabled={isPending} onClick={onClose}>
-              Cancelar
-            </Button>
+          <div className="attendance-patient-form__actions">
             {isConflict && (
               <Button
                 type="button"
@@ -110,6 +105,12 @@ export function FeeDialog({
                 Recarregar
               </Button>
             )}
+            <Button type="button" variant="cancel" disabled={isPending} onClick={onClose}>
+              Cancelar
+            </Button>
+            <Button type="submit" disabled={isPending || !canSave || !reason.trim()}>
+              {isPending ? 'Salvando…' : 'Salvar'}
+            </Button>
           </div>
         </form>
       </aside>

@@ -3,6 +3,8 @@ import { Badge } from '../../../shared/ui/badge'
 import { KebabMenu, type KebabMenuItem } from '../../../shared/ui/kebab-menu'
 import type { Species } from '../../patients/api/patients-api'
 import type { Exam, ExamCategory } from '../api/catalog-api'
+import '../../attendances/components/attendance-list-table.css'
+import '../../attendances/components/attendance-list-page.css'
 import './exam-table.css'
 
 interface ExamTableProps {
@@ -34,21 +36,21 @@ export function ExamTable({
   const categoryNameById = new Map(categories.map((category) => [category.id, category.name]))
   const speciesNameById = new Map(species.map((item) => [item.id, item.name]))
 
-  if (isLoading) return <p className="exam-table__hint">Carregando…</p>
+  if (isLoading) return <p className="attendance-list-page__hint">Carregando…</p>
   if (isError) {
     return (
-      <p role="alert" className="exam-table__hint exam-table__hint--error">
+      <p role="alert" className="attendance-list-page__error">
         Não foi possível carregar os exames. Tente novamente.
       </p>
     )
   }
   if (exams.length === 0) {
-    return <p className="exam-table__hint">Nenhum exame encontrado para os filtros selecionados.</p>
+    return <p className="attendance-list-page__hint">Nenhum exame encontrado para os filtros selecionados.</p>
   }
 
   return (
-    <div className="exam-table">
-      <table className="exam-table__table">
+    <div className="attendance-list-table">
+      <table className="attendance-list-table__table exam-table__table">
         <thead>
           <tr>
             <th scope="col">Código</th>
@@ -56,7 +58,7 @@ export function ExamTable({
             <th scope="col">Categoria</th>
             <th scope="col">Espécies</th>
             {priceVisible && (
-              <th scope="col" className="exam-table__num">
+              <th scope="col" className="attendance-list-table__num">
                 Preço
               </th>
             )}
@@ -81,10 +83,11 @@ export function ExamTable({
               <tr
                 key={exam.id}
                 data-inactive={exam.status === 'INACTIVE' || undefined}
+                data-selectable
                 data-selected={exam.id === selectedId || undefined}
                 onClick={() => onRowClick(exam.id)}
               >
-                <td className="exam-table__code">{exam.code}</td>
+                <td className="attendance-list-table__protocol">{exam.code}</td>
                 <td>
                   <div className="exam-table__name">
                     <button
@@ -112,7 +115,7 @@ export function ExamTable({
                 </td>
                 <td className="exam-table__muted">{speciesLabel || '—'}</td>
                 {priceVisible && (
-                  <td className="exam-table__num exam-table__price">
+                  <td className="attendance-list-table__num attendance-list-table__value">
                     {exam.priceBase ? formatCurrencyBRL(exam.priceBase) : '—'}
                   </td>
                 )}

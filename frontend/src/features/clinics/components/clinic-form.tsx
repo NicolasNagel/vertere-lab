@@ -10,6 +10,7 @@ import { TextField } from '../../../shared/ui/text-field'
 import { ApiError } from '../../../shared/api/errors'
 import { formatCep, formatTaxId } from '../../../shared/lib/formatters'
 import type { Clinic, ClinicFormValues, ClinicStatus } from '../api/clinics-api'
+import '../../attendances/components/attendance-draft-page.css'
 import './clinic-form.css'
 
 const optionalEmail = z.union([z.literal(''), z.email('Informe um e-mail válido.')])
@@ -103,6 +104,9 @@ interface ClinicFormProps {
   clinic: Clinic | null
   submitting: boolean
   error?: unknown
+  /** `id` do <form>, para um botão de salvar fora dele (barra inferior da tela). */
+  formId?: string
+  hideActions?: boolean
   onCancel: () => void
   onSubmitCreate?: (values: ClinicFormValues) => void
   onSubmitUpdate?: (values: ClinicFormValues & { status: ClinicStatus }) => void
@@ -112,6 +116,8 @@ export function ClinicForm({
   clinic,
   submitting,
   error,
+  formId,
+  hideActions = false,
   onCancel,
   onSubmitCreate,
   onSubmitUpdate,
@@ -157,10 +163,10 @@ export function ClinicForm({
   const errorMessage = describeError(error)
 
   return (
-    <form className="clinic-form" onSubmit={onSubmit} noValidate>
-      <div className="clinic-form__sections">
-        <section className="clinic-form__section" aria-labelledby="clinic-section-id">
-          <h2 id="clinic-section-id" className="clinic-form__section-title">
+    <form className="clinic-form" id={formId} onSubmit={onSubmit} noValidate>
+      <div className="attendance-draft-page__stack">
+        <section className="attendance-draft-page__section" aria-labelledby="clinic-section-id">
+          <h2 id="clinic-section-id" className="attendance-draft-page__section-title">
             Identificação
           </h2>
           <div className="clinic-form__grid">
@@ -193,8 +199,8 @@ export function ClinicForm({
           </div>
         </section>
 
-        <section className="clinic-form__section" aria-labelledby="clinic-section-contact">
-          <h2 id="clinic-section-contact" className="clinic-form__section-title">
+        <section className="attendance-draft-page__section" aria-labelledby="clinic-section-contact">
+          <h2 id="clinic-section-contact" className="attendance-draft-page__section-title">
             Contato
           </h2>
           <div className="clinic-form__grid">
@@ -216,8 +222,8 @@ export function ClinicForm({
           </div>
         </section>
 
-        <section className="clinic-form__section" aria-labelledby="clinic-section-address">
-          <h2 id="clinic-section-address" className="clinic-form__section-title">
+        <section className="attendance-draft-page__section" aria-labelledby="clinic-section-address">
+          <h2 id="clinic-section-address" className="attendance-draft-page__section-title">
             Endereço
           </h2>
           <div className="clinic-form__grid">
@@ -292,8 +298,8 @@ export function ClinicForm({
           </div>
         </section>
 
-        <section className="clinic-form__section" aria-labelledby="clinic-section-notes">
-          <h2 id="clinic-section-notes" className="clinic-form__section-title">
+        <section className="attendance-draft-page__section" aria-labelledby="clinic-section-notes">
+          <h2 id="clinic-section-notes" className="attendance-draft-page__section-title">
             Informações adicionais
           </h2>
           <TextField
@@ -305,20 +311,22 @@ export function ClinicForm({
         </section>
 
         {errorMessage && (
-          <p role="alert" className="clinic-form__domain-error">
+          <p role="alert" className="attendance-draft-page__domain-error">
             {errorMessage}
           </p>
         )}
       </div>
 
-      <div className="clinic-form__actions">
-        <Button type="button" variant="cancel" onClick={onCancel} disabled={submitting}>
-          Cancelar
-        </Button>
-        <Button type="submit" className="clinic-form__submit" disabled={submitting}>
-          {submitting ? 'Salvando…' : 'Salvar'}
-        </Button>
-      </div>
+      {!hideActions && (
+        <div className="clinic-form__actions">
+          <Button type="button" variant="cancel" onClick={onCancel} disabled={submitting}>
+            Cancelar
+          </Button>
+          <Button type="submit" className="clinic-form__submit" disabled={submitting}>
+            {submitting ? 'Salvando…' : 'Salvar'}
+          </Button>
+        </div>
+      )}
     </form>
   )
 }

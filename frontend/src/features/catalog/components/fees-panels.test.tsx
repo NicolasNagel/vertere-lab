@@ -1,12 +1,13 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { render, screen, waitFor } from '@testing-library/react'
+import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { http, HttpResponse } from 'msw'
 import { setupServer } from 'msw/node'
 import { afterAll, afterEach, beforeAll, expect, test } from 'vitest'
 
 import { AuthProvider } from '../../auth/auth-provider'
-import { FeesTab } from './fees-tab'
+import { MemoryRouter } from 'react-router'
+import { ExamsPage } from './exams-page'
 
 const server = setupServer()
 
@@ -64,12 +65,25 @@ function clinicsHandler() {
   )
 }
 
+// A aba de taxas vive dentro de Exames & Preços; estas rotas só alimentam a tela em volta.
+function pageHandlers() {
+  return [
+    http.get('/api/v1/exams', () =>
+      HttpResponse.json({ items: [], total: 0, page: 1, page_size: 25 }),
+    ),
+    http.get('/api/v1/species', () => HttpResponse.json({ items: [] })),
+    http.get('/api/v1/exam-categories/active', () => HttpResponse.json({ items: [] })),
+  ]
+}
+
 function renderTab() {
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   return render(
     <QueryClientProvider client={queryClient}>
       <AuthProvider>
-        <FeesTab />
+        <MemoryRouter>
+          <ExamsPage />
+        </MemoryRouter>
       </AuthProvider>
     </QueryClientProvider>,
   )
@@ -79,6 +93,7 @@ test('urgency register shows the fixed value and saves with reason and row versi
   const user = userEvent.setup()
   let body: unknown = null
   server.use(
+    ...pageHandlers(),
     meHandler(['pricing.read', 'pricing.manage']),
     http.get('/api/v1/on-call-fee-settings', () => HttpResponse.json({ items: [] })),
     http.get('/api/v1/urgency-fee-setting', () => HttpResponse.json(urgency)),
@@ -91,7 +106,8 @@ test('urgency register shows the fixed value and saves with reason and row versi
 
   await user.click(await screen.findByRole('tab', { name: 'Urgência' }))
   expect(await screen.findByText('R$ 30,00')).toBeInTheDocument()
-  await user.click(screen.getByRole('button', { name: 'Editar taxa de urgência' }))
+  await user.click(screen.getByRole('button', { name: 'Ações para Urgência' }))
+  await user.click(screen.getByRole('menuitem', { name: 'Editar taxa' }))
   const amount = screen.getByLabelText('Valor da taxa (R$)')
   await user.clear(amount)
   await user.type(amount, '40')
@@ -112,6 +128,7 @@ test('clinic register lists rules and creates one with validity and reason', asy
   const user = userEvent.setup()
   let created: unknown = null
   server.use(
+    ...pageHandlers(),
     meHandler(['pricing.read', 'pricing.manage']),
     http.get('/api/v1/on-call-fee-settings', () => HttpResponse.json({ items: [] })),
     clinicsHandler(),
@@ -149,6 +166,7 @@ test('clinic register lists rules and creates one with validity and reason', asy
 
 test('without pricing.manage the registers are read-only', async () => {
   server.use(
+    ...pageHandlers(),
     meHandler(['pricing.read']),
     http.get('/api/v1/on-call-fee-settings', () => HttpResponse.json({ items: [] })),
     clinicsHandler(),
@@ -160,4 +178,24 @@ test('without pricing.manage the registers are read-only', async () => {
   expect(await screen.findByText('Taxa de coleta')).toBeInTheDocument()
   expect(screen.queryByRole('button', { name: /nova taxa/i })).not.toBeInTheDocument()
   expect(screen.queryByRole('button', { name: /editar/i })).not.toBeInTheDocument()
+})
+
+test('clicking a fee row opens the summary popover with the edit action', async () => {
+  const user = userEvent.setup()
+  server.use(
+    ...pageHandlers(),
+    meHandler(['pricing.read', 'pricing.manage']),
+    http.get('/api/v1/on-call-fee-settings', () => HttpResponse.json({ items: [] })),
+    clinicsHandler(),
+    http.get('/api/v1/clinic-fee-rules', () => HttpResponse.json({ items: [rule] })),
+  )
+  renderTab()
+
+  await user.click(await screen.findByRole('tab', { name: 'Por clínica' }))
+  await user.click(await screen.findByRole('button', { name: 'Taxa de coleta' }))
+  const summary = within(await screen.findByRole('dialog'))
+  expect(summary.getByRole('heading', { name: 'Taxa de coleta' })).toBeInTheDocument()
+  expect(summary.getByText('R$ 5,00')).toBeInTheDocument()
+  await user.click(summary.getByRole('button', { name: 'Editar taxa' }))
+  expect(await screen.findByLabelText('Nome da taxa')).toHaveValue('Taxa de coleta')
 })

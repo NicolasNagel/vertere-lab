@@ -2,10 +2,8 @@ import { useState } from 'react'
 
 import { formatCurrencyBRL, formatDate } from '../../../shared/lib/formatters'
 import { Badge } from '../../../shared/ui/badge'
-import { Button } from '../../../shared/ui/button'
 import { Checkbox } from '../../../shared/ui/checkbox'
-import { Dropdown } from '../../../shared/ui/dropdown'
-import { PlusIcon, TagIcon } from '../../../shared/ui/icons'
+import { KebabMenu, type KebabMenuItem } from '../../../shared/ui/kebab-menu'
 import { SelectField } from '../../../shared/ui/select'
 import { TextField } from '../../../shared/ui/text-field'
 import { useAuth } from '../../auth/auth-context'
@@ -17,7 +15,10 @@ import {
 } from '../../attendances/api/use-clinic-fee-rules'
 import { useAllClinicsQuery } from '../../clinics/api/use-clinics-query'
 import { FeeDialog } from './fee-dialog'
+import { FeeRowPopover } from './fee-row-popover'
 import { normalizeMoney } from '../lib/normalize-money'
+import '../../attendances/components/attendance-list-table.css'
+import '../../attendances/components/attendance-list-page.css'
 import './exam-table.css'
 import './fees.css'
 
@@ -27,10 +28,12 @@ interface RuleFormProps {
   /** `null` = nova taxa. */
   rule: ClinicFeeRule | null
   clinics: { value: string; label: string }[]
+  /** Abre a edição já com "Taxa ativa" desmarcada (atalho do menu "Inativar taxa"). */
+  startInactive?: boolean
   onClose: () => void
 }
 
-function RuleForm({ rule, clinics, onClose }: RuleFormProps) {
+function RuleForm({ rule, clinics, startInactive = false, onClose }: RuleFormProps) {
   const createMutation = useCreateClinicFeeRuleMutation()
   const updateMutation = useUpdateClinicFeeRuleMutation()
   const mutation = rule ? updateMutation : createMutation
@@ -39,7 +42,7 @@ function RuleForm({ rule, clinics, onClose }: RuleFormProps) {
   const [amount, setAmount] = useState(rule?.feeAmount ?? '')
   const [validFrom, setValidFrom] = useState(rule?.validFrom ?? '')
   const [validTo, setValidTo] = useState(rule?.validTo ?? '')
-  const [isActive, setIsActive] = useState(rule?.isActive ?? true)
+  const [isActive, setIsActive] = useState(startInactive ? false : (rule?.isActive ?? true))
   const [reason, setReason] = useState('')
 
   const normalized = normalizeMoney(amount)
@@ -151,13 +154,24 @@ function ruleStatus(rule: ClinicFeeRule): 'Ativa' | 'Inativa' | 'Encerrada' {
   return rule.validTo && rule.validTo < today ? 'Encerrada' : 'Ativa'
 }
 
+interface ClinicFeeRulesPanelProps {
+  /** Filtro de clínica e botão "Nova taxa" ficam no cabeçalho da tela, como na Operação. */
+  clinicFilter: string
+  creating: boolean
+  onCreatingChange: (value: boolean) => void
+}
+
 /** Cadastro das taxas fixas por clínica; somam ao total do atendimento enquanto vigentes. */
-export function ClinicFeeRulesPanel() {
+export function ClinicFeeRulesPanel({
+  clinicFilter,
+  creating,
+  onCreatingChange,
+}: ClinicFeeRulesPanelProps) {
   const { user } = useAuth()
   const canRead = user?.permissions.includes('pricing.read') ?? false
   const canManage = user?.permissions.includes('pricing.manage') ?? false
-  const [clinicFilter, setClinicFilter] = useState('')
-  const [dialog, setDialog] = useState<{ rule: ClinicFeeRule | null } | null>(null)
+  const [selectedId, setSelectedId] = useState<string | null>(null)
+  const [editing, setEditing] = useState<{ rule: ClinicFeeRule; inactivate: boolean } | null>(null)
   const rulesQuery = useClinicFeeRulesQuery(clinicFilter || undefined)
   const clinicsQuery = useAllClinicsQuery({ status: 'ACTIVE' })
   const clinicOptions = (clinicsQuery.data?.items ?? []).map((clinic) => ({
@@ -166,48 +180,34 @@ export function ClinicFeeRulesPanel() {
   }))
   const clinicName = new Map(clinicOptions.map((option) => [option.value, option.label]))
 
-  if (!canRead) return <p className="fees__hint">Você não tem permissão para ver as taxas.</p>
+  if (!canRead) {
+    return <p className="attendance-list-page__hint">Você não tem permissão para ver as taxas.</p>
+  }
+  const rules = rulesQuery.data ?? []
+  const selected = rules.find((rule) => rule.id === selectedId) ?? null
 
   return (
     <>
-      <div className="fees__toolbar">
-        <Dropdown
-          label="Clínica"
-          icon={<TagIcon />}
-          options={[{ value: '', label: 'Todas' }, ...clinicOptions]}
-          value={clinicFilter}
-          onChange={setClinicFilter}
-        />
-        <span className="fees__toolbar-spacer" />
-        {canManage && (
-          <Button
-            type="button"
-            variant="primary"
-            className="fees__new"
-            onClick={() => setDialog({ rule: null })}
-          >
-            <PlusIcon /> Nova taxa
-          </Button>
-        )}
-      </div>
-      {rulesQuery.isLoading && <p className="fees__hint">Carregando…</p>}
+      {rulesQuery.isLoading && <p className="attendance-list-page__hint">Carregando…</p>}
       {rulesQuery.isError && (
-        <p role="alert" className="fees__hint fees__hint--error">
+        <p role="alert" className="attendance-list-page__error">
           Não foi possível carregar as taxas das clínicas. Tente novamente.
         </p>
       )}
-      {rulesQuery.data && rulesQuery.data.length === 0 && (
-        <p className="fees__hint">Nenhuma taxa cadastrada para as clínicas selecionadas.</p>
+      {rulesQuery.data && rules.length === 0 && (
+        <p className="attendance-list-page__hint">
+          Nenhuma taxa cadastrada para as clínicas selecionadas.
+        </p>
       )}
-      {rulesQuery.data && rulesQuery.data.length > 0 && (
-        <div className="exam-table">
-          <table className="exam-table__table">
+      {rules.length > 0 && (
+        <div className="attendance-list-table">
+          <table className="attendance-list-table__table exam-table__table">
             <thead>
               <tr>
                 <th scope="col">Clínica</th>
                 <th scope="col">Taxa</th>
                 <th scope="col">Vigência</th>
-                <th scope="col" className="exam-table__num">
+                <th scope="col" className="attendance-list-table__num">
                   Valor
                 </th>
                 <th scope="col">Status</th>
@@ -217,14 +217,29 @@ export function ClinicFeeRulesPanel() {
               </tr>
             </thead>
             <tbody>
-              {rulesQuery.data.map((rule) => (
-                <tr key={rule.id} data-inactive={!rule.isActive || undefined}>
+              {rules.map((rule) => (
+                <tr
+                  key={rule.id}
+                  data-selectable
+                  data-selected={rule.id === selectedId || undefined}
+                  data-inactive={!rule.isActive || undefined}
+                  onClick={() => setSelectedId(rule.id)}
+                >
                   <td>{clinicName.get(rule.clinicId) ?? '—'}</td>
                   <td>
-                    <b>{rule.name}</b>
+                    <button
+                      type="button"
+                      className="exam-table__name-link"
+                      onClick={(event) => {
+                        event.stopPropagation()
+                        setSelectedId(rule.id)
+                      }}
+                    >
+                      {rule.name}
+                    </button>
                   </td>
                   <td className="exam-table__muted">{validity(rule)}</td>
-                  <td className="exam-table__num exam-table__price">
+                  <td className="attendance-list-table__num attendance-list-table__value">
                     {formatCurrencyBRL(rule.feeAmount)}
                   </td>
                   <td>
@@ -232,17 +247,12 @@ export function ClinicFeeRulesPanel() {
                       {ruleStatus(rule)}
                     </Badge>
                   </td>
-                  <td className="exam-table__actions">
+                  <td className="exam-table__actions" onClick={(event) => event.stopPropagation()}>
                     {canManage && (
-                      <Button
-                        type="button"
-                        variant="secondary"
-                        size="sm"
-                        aria-label={`Editar ${rule.name}`}
-                        onClick={() => setDialog({ rule })}
-                      >
-                        Editar
-                      </Button>
+                      <KebabMenu
+                        label={`Ações para ${rule.name}`}
+                        items={ruleMenu(rule, setEditing)}
+                      />
                     )}
                   </td>
                 </tr>
@@ -251,9 +261,61 @@ export function ClinicFeeRulesPanel() {
           </table>
         </div>
       )}
-      {dialog && (
-        <RuleForm rule={dialog.rule} clinics={clinicOptions} onClose={() => setDialog(null)} />
+      {selected && (
+        <FeeRowPopover
+          titleId="clinic-fee-popover-title"
+          title={selected.name}
+          badge={
+            <Badge tone={ruleStatus(selected) === 'Ativa' ? 'success' : 'neutral'}>
+              {ruleStatus(selected)}
+            </Badge>
+          }
+          sub={clinicName.get(selected.clinicId) ?? undefined}
+          canManage={canManage}
+          editLabel="Editar taxa"
+          menuItems={ruleMenu(selected, (value) => {
+            setEditing(value)
+            setSelectedId(null)
+          }).filter((item) => item.destructive)}
+          fields={[
+            { label: 'Valor', value: formatCurrencyBRL(selected.feeAmount) },
+            { label: 'Vigência', value: validity(selected) },
+          ]}
+          onEdit={() => {
+            setEditing({ rule: selected, inactivate: false })
+            setSelectedId(null)
+          }}
+          onClose={() => setSelectedId(null)}
+        />
+      )}
+      {creating && (
+        <RuleForm rule={null} clinics={clinicOptions} onClose={() => onCreatingChange(false)} />
+      )}
+      {editing && (
+        <RuleForm
+          rule={editing.rule}
+          clinics={clinicOptions}
+          startInactive={editing.inactivate}
+          onClose={() => setEditing(null)}
+        />
       )}
     </>
   )
+}
+
+function ruleMenu(
+  rule: ClinicFeeRule,
+  open: (value: { rule: ClinicFeeRule; inactivate: boolean }) => void,
+): KebabMenuItem[] {
+  const items: KebabMenuItem[] = [
+    { label: 'Editar taxa', onSelect: () => open({ rule, inactivate: false }) },
+  ]
+  if (rule.isActive) {
+    items.push({
+      label: 'Inativar taxa',
+      onSelect: () => open({ rule, inactivate: true }),
+      destructive: true,
+    })
+  }
+  return items
 }

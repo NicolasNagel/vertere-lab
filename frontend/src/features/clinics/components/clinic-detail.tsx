@@ -5,6 +5,7 @@ import { formatTaxId, getInitials } from '../../../shared/lib/formatters'
 import type { Clinic } from '../api/clinics-api'
 import { ClinicStatusBadge } from './clinic-status-badge'
 import '../../../shared/ui/button.css'
+import '../../attendances/components/attendance-row-popover.css'
 import './clinic-detail.css'
 
 function displayValue(value: string | null): string {
@@ -29,7 +30,7 @@ export function ClinicDetail({
 }: ClinicDetailProps) {
   if (isLoading || !clinic) {
     return (
-      <aside className="clinic-detail" aria-label="Detalhes da clínica">
+      <aside className="attendance-row-popover" aria-label="Detalhes da clínica">
         <p id="clinic-detail-title" className="clinic-detail__empty">
           {isLoading ? 'Carregando…' : 'Clínica não encontrada.'}
         </p>
@@ -43,20 +44,20 @@ export function ClinicDetail({
       : []
 
   return (
-    <aside className="clinic-detail" aria-label="Detalhes da clínica">
-      <header className="clinic-detail__header">
-        <div className="clinic-detail__heading">
-          <h2 id="clinic-detail-title" className="clinic-detail__title">{clinic.name}</h2>
-          <div className="clinic-detail__sub">
+    <aside className="attendance-row-popover" aria-label="Detalhes da clínica">
+      <header className="attendance-row-popover__header">
+        <div className="attendance-row-popover__heading">
+          <h2 id="clinic-detail-title" className="attendance-row-popover__title">{clinic.name}</h2>
+          <div className="attendance-row-popover__sub">
             <ClinicStatusBadge status={clinic.status} />
             <span className="clinic-detail__mono">{displayValue(formatTaxId(clinic.taxId))}</span>
           </div>
         </div>
-        <div className="clinic-detail__actions">
+        <div className="attendance-row-popover__actions">
           {canManage && (
             <>
               <Link
-                className="button button--secondary clinic-detail__edit"
+                className="button button--secondary attendance-row-popover__open"
                 to={`/cadastros/clinicas/${clinic.id}/editar`}
               >
                 Editar
@@ -66,7 +67,7 @@ export function ClinicDetail({
           )}
           <button
             type="button"
-            className="clinic-detail__close"
+            className="attendance-row-popover__close"
             aria-label="Fechar detalhes"
             onClick={onClose}
           >
@@ -75,10 +76,10 @@ export function ClinicDetail({
         </div>
       </header>
 
-      <div className="clinic-detail__body">
+      <div className="attendance-row-popover__body">
         <section>
-          <h3 className="clinic-detail__section">Contato</h3>
-          <dl className="clinic-detail__fields">
+          <h3 className="attendance-row-popover__section">Contato</h3>
+          <dl className="attendance-row-popover__fields">
             <dt>Telefone</dt>
             <dd className="clinic-detail__mono">{displayValue(clinic.phone)}</dd>
             <dt>E-mail</dt>
@@ -89,8 +90,8 @@ export function ClinicDetail({
         </section>
 
         <section>
-          <h3 className="clinic-detail__section">Endereço</h3>
-          <dl className="clinic-detail__fields">
+          <h3 className="attendance-row-popover__section">Endereço</h3>
+          <dl className="attendance-row-popover__fields">
             <dt>CEP</dt>
             <dd className="clinic-detail__mono">{displayValue(clinic.addressZipCode)}</dd>
             <dt>Rua</dt>
@@ -111,7 +112,7 @@ export function ClinicDetail({
         </section>
 
         <section>
-          <h3 className="clinic-detail__section">
+          <h3 className="attendance-row-popover__section">
             Veterinários vinculados ({clinic.veterinarians.length})
           </h3>
           {clinic.veterinarians.length === 0 ? (

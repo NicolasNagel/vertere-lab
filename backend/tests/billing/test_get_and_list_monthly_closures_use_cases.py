@@ -176,10 +176,10 @@ def test_csv_export_lists_items_and_only_shows_on_call_fee_when_present() -> Non
     closure = _closure()
     lines = _csv_lines(closure)
     assert lines == [_CSV_HEADER, "P000001/26,Rex,Hemograma,100.00,1,0,0,100.00"]
-    assert "taxa_de_plantao_total" not in "".join(lines)
+    assert "taxas_total" not in "".join(lines)
 
     closure.on_call_fee_total = Decimal("150.00")
-    assert "taxa_de_plantao_total,150.00" in _csv_lines(closure)
+    assert "taxas_total,150.00" in _csv_lines(closure)
 
     closure.items.clear()
     closure.item_count = 0

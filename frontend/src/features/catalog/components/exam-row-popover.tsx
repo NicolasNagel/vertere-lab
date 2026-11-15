@@ -16,7 +16,7 @@ interface ExamRowPopoverProps {
   exam: Exam
   categories: ExamCategory[]
   species: Species[]
-  /** `catalog.manage`: libera "Editar exame" e "Inativar". */
+  /** `catalog.manage`: libera "Inativar"; editar acontece nos blocos do detalhe, como na Operação. */
   canManage: boolean
   onClose: () => void
   onDeactivate: (examId: string) => void
@@ -68,7 +68,7 @@ export function ExamRowPopover({
             to={`/cadastros/exames/${exam.id}`}
             className="button button--secondary attendance-row-popover__open"
           >
-            {canManage ? 'Editar exame' : 'Abrir exame'}
+            Abrir exame
           </Link>
           {menuItems.length > 0 && <KebabMenu label="Mais ações" items={menuItems} />}
           <button

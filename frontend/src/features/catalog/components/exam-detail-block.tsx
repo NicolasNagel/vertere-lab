@@ -8,7 +8,7 @@ import { TextField } from '../../../shared/ui/text-field'
 import { examQueryKey } from '../api/use-exam-query'
 import '../../../shared/ui/button.css'
 import '../../attendances/components/attendance-readonly-detail.css'
-import './exam-detail-block.css'
+import '../../attendances/components/attendance-correction-block.css'
 
 interface ExamDetailBlockProps {
   title: string
@@ -25,14 +25,14 @@ export function ExamDetailBlock({ title, examId, canEdit, children, form }: Exam
 
   return (
     <section className="attendance-readonly-detail__section" aria-labelledby={headingId}>
-      <div className="exam-detail__header">
+      <div className="attendance-correction-block__header">
         <h2 id={headingId} className="attendance-readonly-detail__section-title">
           {title}
         </h2>
         {canEdit && !editing && (
           <button
             type="button"
-            className="button button--secondary exam-detail__edit"
+            className="button button--secondary attendance-correction-block__edit"
             aria-label={`Editar ${title.toLowerCase()}`}
             onClick={() => setEditing(true)}
           >
@@ -72,7 +72,7 @@ export function ExamDetailFooter({
   const isConflict = error instanceof ApiError && error.status === 409
 
   return (
-    <div className="exam-detail__footer">
+    <div className="attendance-correction-block__footer">
       <TextField
         id={`exam-reason-${examId}`}
         label="Motivo da alteração"
@@ -81,11 +81,11 @@ export function ExamDetailFooter({
         onChange={(event) => onReasonChange(event.target.value)}
       />
       {message && (
-        <p className="exam-detail__error" role="alert">
+        <p className="attendance-correction-block__error" role="alert">
           {message}
         </p>
       )}
-      <div className="exam-detail__actions">
+      <div className="attendance-correction-block__actions">
         <Button type="button" disabled={isPending || !canSave || !reason.trim()} onClick={onSave}>
           {isPending ? 'Salvando…' : 'Salvar'}
         </Button>

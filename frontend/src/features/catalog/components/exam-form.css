@@ -1,37 +1,4 @@
-.exam-form {
-  display: flex;
-  flex-direction: column;
-  gap: 1rem;
-  max-width: 60rem;
-  min-width: 0;
-}
-
-/* Mesmo padrão dos blocos do Novo Protocolo: caixa com borda fina e título à esquerda. */
-.exam-form__section {
-  display: flex;
-  flex-direction: column;
-  gap: 0.875rem;
-  padding: 1rem;
-  background: var(--color-surface);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-md);
-  min-width: 0;
-}
-
-.exam-form__section-title {
-  margin: 0;
-  font-size: 0.9375rem;
-  font-weight: 650;
-  color: var(--color-text-primary);
-}
-
-.exam-form__row {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 0.875rem;
-  align-items: start;
-}
-
+/* Só o que é próprio do cadastro de exame; blocos e linhas vêm de attendance-draft-page.css. */
 .exam-form__new-category {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
@@ -44,25 +11,10 @@
   margin-top: 1.125rem;
 }
 
-.exam-form__hint {
-  font-size: 0.8125rem;
-  color: var(--color-text-secondary);
-  margin: 0;
-}
-
 .exam-form__species-list {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(10rem, 1fr));
   gap: 0.5rem 0.875rem;
-}
-
-.exam-form__domain-error {
-  background: #fdf6f2;
-  border: 1px solid #f5e2da;
-  padding: 0.75rem;
-  margin: 0;
-  font-size: 0.8125rem;
-  color: var(--color-warning-ink);
 }
 
 .exam-form__actions {
@@ -73,7 +25,6 @@
 }
 
 @media (max-width: 40rem) {
-  .exam-form__row,
   .exam-form__new-category {
     grid-template-columns: 1fr;
   }

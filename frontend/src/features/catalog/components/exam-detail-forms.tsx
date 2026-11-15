@@ -78,7 +78,7 @@ export function IdentityForm(props: FormProps) {
   const changed = name.trim() !== exam.name || description.trim() !== (exam.description ?? '')
 
   return (
-    <div className="exam-detail__form">
+    <div className="attendance-correction-block__form">
       <TextField
         id="exam-edit-name"
         label="Nome"
@@ -114,7 +114,7 @@ export function CategorySpeciesForm(props: FormProps & { categories: ExamCategor
     speciesIds.some((id) => !exam.speciesIds.includes(id))
 
   return (
-    <div className="exam-detail__form">
+    <div className="attendance-correction-block__form">
       <SelectField
         id="exam-edit-category"
         label="Categoria"
@@ -158,7 +158,7 @@ export function CompositionForm(props: FormProps) {
     ids.some((id, index) => id !== exam.componentExamIds[index])
 
   return (
-    <div className="exam-detail__form">
+    <div className="attendance-correction-block__form">
       <PanelComponentsField
         selectedIds={ids}
         errorMessage={ids.length < 2 ? 'Um pacote precisa de ao menos 2 exames.' : null}
@@ -182,7 +182,7 @@ export function PriceForm(props: FormProps) {
   const normalized = price.trim().replace(',', '.')
 
   return (
-    <div className="exam-detail__form">
+    <div className="attendance-correction-block__form">
       <TextField
         id="exam-edit-price"
         label={exam.isPanel ? 'Preço do pacote' : 'Preço base'}
@@ -207,7 +207,7 @@ export function StatusForm(props: FormProps) {
   const [status, setStatus] = useState<ExamStatus>(exam.status)
 
   return (
-    <div className="exam-detail__form">
+    <div className="attendance-correction-block__form">
       <SelectField
         id="exam-edit-status"
         label="Status"

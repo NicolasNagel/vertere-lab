@@ -111,9 +111,9 @@ test('lists clinics in a table with the masked CNPJ and singular count, without 
   expect(screen.getByRole('columnheader', { name: 'CNPJ' })).toBeInTheDocument()
   expect(screen.getByText('78.977.352/0001-99')).toBeInTheDocument()
   expect(screen.queryByText('78977352000199')).not.toBeInTheDocument()
-  expect(screen.getByText('1 ativa')).toBeInTheDocument()
+  expect(screen.getByText('Mostrando 1–1 de 1 clínica')).toBeInTheDocument()
   expect(screen.queryByRole('link', { name: /Nova clínica/i })).not.toBeInTheDocument()
-  expect(screen.queryByRole('link', { name: /^Editar / })).not.toBeInTheDocument()
+  expect(screen.queryByRole('button', { name: /^Ações para / })).not.toBeInTheDocument()
 })
 
 test('selecting a row opens the detail panel with an edit link only for managers', async () => {
@@ -137,10 +137,7 @@ test('selecting a row opens the detail panel with an edit link only for managers
     'href',
     '/cadastros/clinicas/c1/editar',
   )
-  expect(screen.getByRole('link', { name: 'Editar Schweitzer' })).toHaveAttribute(
-    'href',
-    '/cadastros/clinicas/c1/editar',
-  )
+  expect(screen.getByRole('button', { name: 'Ações para Schweitzer' })).toBeInTheDocument()
   expect(screen.getByRole('link', { name: /Nova clínica/i })).toHaveAttribute(
     'href',
     '/cadastros/clinicas/nova',

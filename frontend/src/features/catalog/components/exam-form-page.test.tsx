@@ -84,7 +84,7 @@ test('the exam form blocks a save without species, cancels back to the list and 
   server.use(...common)
   view = renderApp(['/cadastros/exames/novo'])
   await screen.findByRole('heading', { name: 'Novo exame' })
-  await user.click(screen.getByRole('link', { name: 'Voltar' }))
+  await user.click(screen.getByRole('button', { name: 'Cancelar' }))
   await waitFor(() =>
     expect(screen.getByRole('heading', { name: 'Exames & Preços' })).toBeInTheDocument(),
   )

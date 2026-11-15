@@ -1,23 +1,12 @@
-.clinic-form-page {
-  min-height: 100%;
-  background: var(--color-surface-cream);
-}
-
-.clinic-form-page__body {
-  margin: 1rem 1.25rem 0;
-  max-width: 62rem;
+/* Corpo, blocos e barra inferior vêm de attendance-draft-page.css e attendance-summary-bar.css. */
+.clinic-form-page__actions {
+  margin-left: auto;
 }
 
 .clinic-form-page__notice {
   margin: 0;
   font-size: 0.875rem;
   color: var(--color-text-secondary);
-}
-
-@media (max-width: 48rem) {
-  .clinic-form-page__body {
-    margin: 0.75rem 0.75rem 0;
-  }
 }
 
 .clinic-form-page__conflict {

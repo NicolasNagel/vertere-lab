@@ -1,7 +1,7 @@
 import { useState } from 'react'
 
 import { formatCurrencyBRL } from '../../../shared/lib/formatters'
-import { Button } from '../../../shared/ui/button'
+import { KebabMenu } from '../../../shared/ui/kebab-menu'
 import { CalendarIcon, ClockIcon } from '../../../shared/ui/icons'
 import { TextField } from '../../../shared/ui/text-field'
 import { useAuth } from '../../auth/auth-context'
@@ -12,10 +12,13 @@ import {
   useUrgencyFeeQuery,
 } from '../../attendances/api/use-urgency-fee-query'
 import { FeeDialog } from './fee-dialog'
+import { FeeRowPopover } from './fee-row-popover'
 import { FeeScheduleFields } from './fee-schedule-fields'
 import { ScheduleDays } from './schedule-days'
 import { hoursLabel, sameSchedule, scheduleError } from '../lib/fee-schedule'
 import { normalizeMoney } from '../lib/normalize-money'
+import '../../attendances/components/attendance-list-table.css'
+import '../../attendances/components/attendance-list-page.css'
 import './exam-table.css'
 import './fees.css'
 
@@ -82,13 +85,16 @@ export function UrgencyFeePanel() {
   const canRead = user?.permissions.includes('pricing.read') ?? false
   const canManage = user?.permissions.includes('pricing.manage') ?? false
   const query = useUrgencyFeeQuery(canRead)
+  const [selected, setSelected] = useState(false)
   const [editing, setEditing] = useState(false)
 
-  if (!canRead) return <p className="fees__hint">Você não tem permissão para ver as taxas.</p>
-  if (query.isLoading) return <p className="fees__hint">Carregando…</p>
+  if (!canRead) {
+    return <p className="attendance-list-page__hint">Você não tem permissão para ver as taxas.</p>
+  }
+  if (query.isLoading) return <p className="attendance-list-page__hint">Carregando…</p>
   if (query.isError || !query.data) {
     return (
-      <p role="alert" className="fees__hint fees__hint--error">
+      <p role="alert" className="attendance-list-page__error">
         Não foi possível carregar a taxa de urgência. Tente novamente.
       </p>
     )
@@ -97,12 +103,12 @@ export function UrgencyFeePanel() {
 
   return (
     <>
-      <p className="fees__intro">
+      <p className="attendance-list-page__hint">
         Cobrada uma vez em todo atendimento marcado como urgente. Soma-se ao plantão e às taxas da
         clínica.
       </p>
-      <div className="exam-table">
-        <table className="exam-table__table">
+      <div className="attendance-list-table">
+        <table className="attendance-list-table__table exam-table__table">
           <thead>
             <tr>
               <th scope="col">Taxa</th>
@@ -116,7 +122,7 @@ export function UrgencyFeePanel() {
                   <ClockIcon /> Horário
                 </span>
               </th>
-              <th scope="col" className="exam-table__num">
+              <th scope="col" className="attendance-list-table__num">
                 Valor
               </th>
               <th scope="col" className="exam-table__actions-header">
@@ -125,34 +131,61 @@ export function UrgencyFeePanel() {
             </tr>
           </thead>
           <tbody>
-            <tr>
+            <tr
+              data-selectable
+              data-selected={selected || undefined}
+              onClick={() => setSelected(true)}
+            >
               <td>
-                <b>Urgência</b>
+                <button
+                  type="button"
+                  className="exam-table__name-link"
+                  onClick={(event) => {
+                    event.stopPropagation()
+                    setSelected(true)
+                  }}
+                >
+                  Urgência
+                </button>
               </td>
               <td className="exam-table__muted">
                 <ScheduleDays setting={setting} />
               </td>
               <td className="exam-table__muted">{hoursLabel(setting.schedule) || '—'}</td>
-              <td className="exam-table__num exam-table__price">
+              <td className="attendance-list-table__num attendance-list-table__value">
                 {formatCurrencyBRL(setting.feeAmount)}
               </td>
-              <td className="exam-table__actions">
+              <td className="exam-table__actions" onClick={(event) => event.stopPropagation()}>
                 {canManage && (
-                  <Button
-                    type="button"
-                    variant="secondary"
-                    size="sm"
-                    aria-label="Editar taxa de urgência"
-                    onClick={() => setEditing(true)}
-                  >
-                    Editar
-                  </Button>
+                  <KebabMenu
+                    label="Ações para Urgência"
+                    items={[{ label: 'Editar taxa', onSelect: () => setEditing(true) }]}
+                  />
                 )}
               </td>
             </tr>
           </tbody>
         </table>
       </div>
+      {selected && (
+        <FeeRowPopover
+          titleId="urgency-fee-popover-title"
+          title="Taxa de urgência"
+          sub="Valor fixo por atendimento urgente"
+          canManage={canManage}
+          editLabel="Editar taxa"
+          fields={[
+            { label: 'Valor', value: formatCurrencyBRL(setting.feeAmount) },
+            { label: 'Dias', value: <ScheduleDays setting={setting} /> },
+            { label: 'Horário', value: hoursLabel(setting.schedule) || '—' },
+          ]}
+          onEdit={() => {
+            setEditing(true)
+            setSelected(false)
+          }}
+          onClose={() => setSelected(false)}
+        />
+      )}
       {editing && <EditForm setting={setting} onClose={() => setEditing(false)} />}
     </>
   )

@@ -1,20 +1,4 @@
-.exam-form-page {
-  display: flex;
-  flex-direction: column;
-  height: 100%;
-  background: var(--color-surface-cream);
-}
-
-.exam-form-page__body {
-  flex: 1;
-  padding: 1rem 1.25rem;
-  overflow-y: auto;
-  min-height: 0;
-}
-
-.exam-form-page__empty {
-  font-size: 0.8125rem;
-  color: var(--color-text-secondary);
-  margin: 0;
-  padding: 1rem 1.25rem;
+/* A barra inferior vem de attendance-summary-bar.css; aqui só empurra as ações para a direita. */
+.exam-form-page__actions {
+  margin-left: auto;
 }

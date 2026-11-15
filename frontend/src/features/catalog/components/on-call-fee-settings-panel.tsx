@@ -1,7 +1,7 @@
 import { useState } from 'react'
 
 import { formatCurrencyBRL } from '../../../shared/lib/formatters'
-import { Button } from '../../../shared/ui/button'
+import { KebabMenu } from '../../../shared/ui/kebab-menu'
 import { CalendarIcon, ClockIcon } from '../../../shared/ui/icons'
 import { TextField } from '../../../shared/ui/text-field'
 import { useAuth } from '../../auth/auth-context'
@@ -12,10 +12,13 @@ import type {
 import { useOnCallFeeSettingsQuery } from '../../attendances/api/use-on-call-fee-settings-query'
 import { useUpdateOnCallFeeSettingMutation } from '../../attendances/api/use-update-on-call-fee-setting-mutation'
 import { FeeDialog } from './fee-dialog'
+import { FeeRowPopover } from './fee-row-popover'
 import { FeeScheduleFields } from './fee-schedule-fields'
 import { ScheduleDays } from './schedule-days'
 import { hoursLabel, sameSchedule, scheduleError } from '../lib/fee-schedule'
 import { normalizeMoney } from '../lib/normalize-money'
+import '../../attendances/components/attendance-list-table.css'
+import '../../attendances/components/attendance-list-page.css'
 import './exam-table.css'
 import './fees.css'
 
@@ -89,34 +92,36 @@ function EditForm({ setting, onClose }: EditFormProps) {
   )
 }
 
-/** Cadastro das taxas de plantão: uma linha por tipo, edição sempre possível com motivo. */
+/** Cadastro das taxas de plantão: uma linha por tipo; clicar abre o resumo, editar sempre possível com motivo. */
 export function OnCallFeeSettingsPanel() {
   const { user } = useAuth()
   const canRead = user?.permissions.includes('pricing.read') ?? false
   const canManage = user?.permissions.includes('pricing.manage') ?? false
   const query = useOnCallFeeSettingsQuery(canRead)
+  const [selectedLevel, setSelectedLevel] = useState<OnCallServiceLevel | null>(null)
   const [editing, setEditing] = useState<OnCallFeeSetting | null>(null)
 
   if (!canRead) {
-    return <p className="fees__hint">Você não tem permissão para ver as taxas.</p>
+    return <p className="attendance-list-page__hint">Você não tem permissão para ver as taxas.</p>
   }
-  if (query.isLoading) return <p className="fees__hint">Carregando…</p>
+  if (query.isLoading) return <p className="attendance-list-page__hint">Carregando…</p>
   if (query.isError) {
     return (
-      <p role="alert" className="fees__hint fees__hint--error">
+      <p role="alert" className="attendance-list-page__error">
         Não foi possível carregar as taxas de plantão. Tente novamente.
       </p>
     )
   }
+  const selected = (query.data ?? []).find((setting) => setting.serviceLevel === selectedLevel)
 
   return (
     <>
-      <p className="fees__intro">
-        Cobrada uma vez por atendimento de plantão. O horário é só informativo: o tipo do
+      <p className="attendance-list-page__hint">
+        Cobrada uma vez por atendimento de plantão. Dias e horário são só informativos: o tipo do
         atendimento é escolhido na hora do registro.
       </p>
-      <div className="exam-table">
-        <table className="exam-table__table">
+      <div className="attendance-list-table">
+        <table className="attendance-list-table__table exam-table__table">
           <thead>
             <tr>
               <th scope="col">Tipo</th>
@@ -130,7 +135,7 @@ export function OnCallFeeSettingsPanel() {
                   <ClockIcon /> Horário
                 </span>
               </th>
-              <th scope="col" className="exam-table__num">
+              <th scope="col" className="attendance-list-table__num">
                 Valor
               </th>
               <th scope="col" className="exam-table__actions-header">
@@ -140,28 +145,37 @@ export function OnCallFeeSettingsPanel() {
           </thead>
           <tbody>
             {(query.data ?? []).map((setting) => (
-              <tr key={setting.id}>
+              <tr
+                key={setting.id}
+                data-selectable
+                data-selected={setting.serviceLevel === selectedLevel || undefined}
+                onClick={() => setSelectedLevel(setting.serviceLevel)}
+              >
                 <td>
-                  <b>{TIER_LABELS[setting.serviceLevel]}</b>
+                  <button
+                    type="button"
+                    className="exam-table__name-link"
+                    onClick={(event) => {
+                      event.stopPropagation()
+                      setSelectedLevel(setting.serviceLevel)
+                    }}
+                  >
+                    {TIER_LABELS[setting.serviceLevel]}
+                  </button>
                 </td>
                 <td className="exam-table__muted">
                   <ScheduleDays setting={setting} />
                 </td>
                 <td className="exam-table__muted">{hoursLabel(setting.schedule) || '—'}</td>
-                <td className="exam-table__num exam-table__price">
+                <td className="attendance-list-table__num attendance-list-table__value">
                   {formatCurrencyBRL(setting.feeAmount)}
                 </td>
-                <td className="exam-table__actions">
+                <td className="exam-table__actions" onClick={(event) => event.stopPropagation()}>
                   {canManage && (
-                    <Button
-                      type="button"
-                      variant="secondary"
-                      size="sm"
-                      aria-label={`Editar ${TIER_LABELS[setting.serviceLevel]}`}
-                      onClick={() => setEditing(setting)}
-                    >
-                      Editar
-                    </Button>
+                    <KebabMenu
+                      label={`Ações para ${TIER_LABELS[setting.serviceLevel]}`}
+                      items={[{ label: 'Editar taxa', onSelect: () => setEditing(setting) }]}
+                    />
                   )}
                 </td>
               </tr>
@@ -169,6 +183,25 @@ export function OnCallFeeSettingsPanel() {
           </tbody>
         </table>
       </div>
+      {selected && (
+        <FeeRowPopover
+          titleId="on-call-fee-popover-title"
+          title={TIER_LABELS[selected.serviceLevel]}
+          sub="Valor fixo por atendimento"
+          canManage={canManage}
+          editLabel="Editar taxa"
+          fields={[
+            { label: 'Valor', value: formatCurrencyBRL(selected.feeAmount) },
+            { label: 'Dias', value: <ScheduleDays setting={selected} /> },
+            { label: 'Horário', value: hoursLabel(selected.schedule) || '—' },
+          ]}
+          onEdit={() => {
+            setEditing(selected)
+            setSelectedLevel(null)
+          }}
+          onClose={() => setSelectedLevel(null)}
+        />
+      )}
       {editing && <EditForm setting={editing} onClose={() => setEditing(null)} />}
     </>
   )
