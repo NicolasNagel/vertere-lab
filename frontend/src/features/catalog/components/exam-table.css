@@ -164,3 +164,17 @@
   white-space: nowrap;
   color: var(--color-brand-ink);
 }
+
+.exam-table__name-link {
+  border: none;
+  background: transparent;
+  padding: 0;
+  font: inherit;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.exam-table__name-link:hover {
+  text-decoration: underline;
+}

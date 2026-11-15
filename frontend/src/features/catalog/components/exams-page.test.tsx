@@ -238,7 +238,7 @@ test('deactivating an exam from the row menu calls the API', async () => {
   renderApp()
 
   await screen.findByText('Hemograma completo')
-  const row = screen.getByText('Hemograma completo').closest('[role="button"]')
+  const row = screen.getByText('Hemograma completo').closest('.exam-table__row')
   expect(row).not.toBeNull()
   await user.click(within(row as HTMLElement).getByRole('button', { name: /Ações para/i }))
   await user.click(await screen.findByRole('menuitem', { name: 'Inativar' }))

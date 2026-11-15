@@ -74,24 +74,24 @@ export function ExamTable({
                 className="exam-table__row"
                 data-price-visible={priceVisible}
                 data-clickable
-                role="button"
-                tabIndex={0}
                 onClick={() => onRowClick(exam.id)}
-                onKeyDown={(event) => {
-                  if (event.key === 'Enter' || event.key === ' ') {
-                    event.preventDefault()
-                    onRowClick(exam.id)
-                  }
-                }}
               >
                 <div className="exam-table__code" title={exam.code}>
                   {exam.code}
                 </div>
                 <div>
                   <div className="exam-table__name">
-                    <span className="exam-table__name-text" title={exam.name}>
+                    <button
+                      type="button"
+                      className="exam-table__name-text exam-table__name-link"
+                      title={exam.name}
+                      onClick={(event) => {
+                        event.stopPropagation()
+                        onRowClick(exam.id)
+                      }}
+                    >
                       {exam.name}
-                    </span>
+                    </button>
                     <span className="exam-table__status" data-status={exam.status}>
                       {STATUS_LABELS[exam.status]}
                     </span>
