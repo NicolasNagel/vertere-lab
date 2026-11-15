@@ -27,6 +27,9 @@ const urgency = {
   id: 'u',
   fee_amount: '30.00',
   schedule_label: '',
+  weekdays: [],
+  start_time: null,
+  end_time: null,
   updated_at: '2026-01-01T00:00:00Z',
   row_version: 3,
 }
@@ -97,7 +100,9 @@ test('urgency register shows the fixed value and saves with reason and row versi
   await waitFor(() => expect(body).not.toBeNull())
   expect(body).toEqual({
     fee_amount: '40.00',
-    schedule_label: '',
+    weekdays: [],
+    start_time: null,
+    end_time: null,
     reason: 'Reajuste',
     expected_row_version: 3,
   })

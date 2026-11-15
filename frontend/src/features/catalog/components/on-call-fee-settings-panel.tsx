@@ -2,6 +2,7 @@ import { useState } from 'react'
 
 import { formatCurrencyBRL } from '../../../shared/lib/formatters'
 import { Button } from '../../../shared/ui/button'
+import { CalendarIcon, ClockIcon } from '../../../shared/ui/icons'
 import { TextField } from '../../../shared/ui/text-field'
 import { useAuth } from '../../auth/auth-context'
 import type {
@@ -11,6 +12,9 @@ import type {
 import { useOnCallFeeSettingsQuery } from '../../attendances/api/use-on-call-fee-settings-query'
 import { useUpdateOnCallFeeSettingMutation } from '../../attendances/api/use-update-on-call-fee-setting-mutation'
 import { FeeDialog } from './fee-dialog'
+import { FeeScheduleFields } from './fee-schedule-fields'
+import { ScheduleDays } from './schedule-days'
+import { hoursLabel, sameSchedule, scheduleError } from '../lib/fee-schedule'
 import { normalizeMoney } from '../lib/normalize-money'
 import './exam-table.css'
 import './fees.css'
@@ -28,17 +32,18 @@ interface EditFormProps {
 function EditForm({ setting, onClose }: EditFormProps) {
   const mutation = useUpdateOnCallFeeSettingMutation()
   const [amount, setAmount] = useState(setting.feeAmount)
-  const [schedule, setSchedule] = useState(setting.scheduleLabel)
+  const [schedule, setSchedule] = useState(setting.schedule)
   const [reason, setReason] = useState('')
   const normalized = normalizeMoney(amount)
-  const changed = normalized !== setting.feeAmount || schedule.trim() !== setting.scheduleLabel
+  const changed = normalized !== setting.feeAmount || !sameSchedule(schedule, setting.schedule)
+  const invalid = normalized === null || scheduleError(schedule) !== undefined
 
   return (
     <FeeDialog
       titleId="on-call-fee-dialog"
       title={`Editar ${TIER_LABELS[setting.serviceLevel].toLowerCase()}`}
       subtitle="Valor fixo por atendimento"
-      canSave={normalized !== null && changed}
+      canSave={!invalid && changed}
       isPending={mutation.isPending}
       error={mutation.error}
       reason={reason}
@@ -52,7 +57,7 @@ function EditForm({ setting, onClose }: EditFormProps) {
             serviceLevel: setting.serviceLevel,
             input: {
               feeAmount: normalized,
-              scheduleLabel: schedule.trim(),
+              schedule,
               reason: reason.trim(),
               expectedRowVersion: setting.rowVersion,
             },
@@ -70,14 +75,16 @@ function EditForm({ setting, onClose }: EditFormProps) {
           errorMessage={normalized === null ? 'Informe um valor, ex.: 100,00' : undefined}
           onChange={(event) => setAmount(event.target.value)}
         />
-        <TextField
-          id="on-call-fee-schedule"
-          label="Horário de aplicação (informativo)"
-          placeholder="Ex.: Seg–Sáb · 19h às 07h"
-          value={schedule}
-          onChange={(event) => setSchedule(event.target.value)}
-        />
       </div>
+      {setting.scheduleLabel &&
+        setting.schedule.weekdays.length === 0 &&
+        !setting.schedule.startTime && (
+          <p className="fees__note">
+            Texto anterior: {setting.scheduleLabel}. Ao salvar, ele é substituído pelos campos
+            abaixo.
+          </p>
+        )}
+      <FeeScheduleFields idPrefix="on-call-fee" value={schedule} onChange={setSchedule} />
     </FeeDialog>
   )
 }
@@ -113,7 +120,16 @@ export function OnCallFeeSettingsPanel() {
           <thead>
             <tr>
               <th scope="col">Tipo</th>
-              <th scope="col">Horário (informativo)</th>
+              <th scope="col">
+                <span className="fees__th-icon">
+                  <CalendarIcon /> Dias
+                </span>
+              </th>
+              <th scope="col">
+                <span className="fees__th-icon">
+                  <ClockIcon /> Horário
+                </span>
+              </th>
               <th scope="col" className="exam-table__num">
                 Valor
               </th>
@@ -128,7 +144,10 @@ export function OnCallFeeSettingsPanel() {
                 <td>
                   <b>{TIER_LABELS[setting.serviceLevel]}</b>
                 </td>
-                <td className="exam-table__muted">{setting.scheduleLabel || '—'}</td>
+                <td className="exam-table__muted">
+                  <ScheduleDays setting={setting} />
+                </td>
+                <td className="exam-table__muted">{hoursLabel(setting.schedule) || '—'}</td>
                 <td className="exam-table__num exam-table__price">
                   {formatCurrencyBRL(setting.feeAmount)}
                 </td>

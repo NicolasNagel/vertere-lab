@@ -28,7 +28,10 @@ const fee = (level: string, amount: string) => ({
   id: `f-${level}`,
   service_level: level,
   fee_amount: amount,
-  schedule_label: 'Fins de semana',
+  schedule_label: 'Fim de semana · 18h às 07h',
+  weekdays: [5, 6],
+  start_time: '18:00:00',
+  end_time: '07:00:00',
   updated_at: '2026-01-01T00:00:00Z',
   row_version: 1,
 })
@@ -73,6 +76,9 @@ async function mockApi(page: Page, permissions: string[]) {
           id: 'u',
           fee_amount: '30.00',
           schedule_label: '',
+          weekdays: [],
+          start_time: null,
+          end_time: null,
           updated_at: '2026-01-01T00:00:00Z',
           row_version: 1,
         }),
@@ -157,16 +163,33 @@ test('fees tab and its three registers and dialogs are accessible', async ({ pag
     'true',
   )
   await expect(page.getByText('R$ 50,00')).toBeVisible()
+  await expect(page.getByRole('columnheader', { name: 'Dias' })).toBeVisible()
+  await expect(page.getByRole('columnheader', { name: 'Horário' })).toBeVisible()
+  await expect(page.getByText('18h às 07h').first()).toBeVisible()
   await expectAccessible(page)
 
   await page.getByRole('button', { name: 'Editar Plantão normal' }).click()
   await expect(page.getByRole('dialog')).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Sábado' })).toHaveAttribute('aria-pressed', 'true')
+  await page.getByRole('button', { name: 'Seg-Sex' }).click()
+  await expect(page.getByRole('button', { name: 'Segunda-feira' })).toHaveAttribute(
+    'aria-pressed',
+    'true',
+  )
+  await expect(page.getByText(/vira a meia-noite/)).toBeVisible()
   await expectAccessible(page)
+  await page.setViewportSize({ width: 390, height: 800 })
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true)
+  await page.setViewportSize({ width: 1280, height: 800 })
   await page.keyboard.press('Escape')
 
   await page.getByRole('tab', { name: 'Urgência' }).click()
   await expect(page.getByText('R$ 30,00')).toBeVisible()
   await expectAccessible(page)
+  await page.getByRole('button', { name: 'Editar taxa de urgência' }).click()
+  await expect(page.getByLabel('Horário de início')).toBeVisible()
+  await expectAccessible(page)
+  await page.keyboard.press('Escape')
 
   await page.getByRole('tab', { name: 'Por clínica' }).click()
   await expect(page.getByText('Taxa de coleta')).toBeVisible()

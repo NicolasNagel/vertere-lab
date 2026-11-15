@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { render, screen, waitFor } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { http, HttpResponse } from 'msw'
 import { setupServer } from 'msw/node'
@@ -116,7 +116,9 @@ test('editing needs a reason, sends the row version and a conflict offers reload
   await waitFor(() => expect(receivedBody).not.toBeNull())
   expect(receivedBody).toEqual({
     fee_amount: '120.00',
-    schedule_label: '',
+    weekdays: [],
+    start_time: null,
+    end_time: null,
     reason: 'Reajuste anual',
     expected_row_version: 1,
   })
@@ -150,4 +152,59 @@ test('editing needs a reason, sends the row version and a conflict offers reload
     await screen.findByText('Esta configuração foi alterada por outra pessoa.'),
   ).toBeInTheDocument()
   expect(screen.getByRole('button', { name: 'Recarregar' })).toBeInTheDocument()
+})
+
+test('edits weekdays and hours, with presets and midnight crossing', async () => {
+  const user = userEvent.setup()
+  let receivedBody: unknown = null
+  server.use(
+    meHandler(['pricing.read', 'pricing.manage']),
+    settingsHandler(),
+    http.patch('/api/v1/on-call-fee-settings/PLANTAO_NORMAL', async ({ request }) => {
+      receivedBody = await request.json()
+      return HttpResponse.json({
+        id: 's1',
+        service_level: 'PLANTAO_NORMAL',
+        fee_amount: '100.00',
+        schedule_label: 'Seg-Sex · 19h às 07h',
+        weekdays: [0, 1, 2, 3, 4],
+        start_time: '19:00:00',
+        end_time: '07:00:00',
+        updated_at: '2026-01-02T00:00:00Z',
+        row_version: 2,
+      })
+    }),
+  )
+  renderPanel()
+
+  await user.click(await screen.findByRole('button', { name: 'Editar Plantão normal' }))
+  await user.click(screen.getByRole('button', { name: 'Seg-Sex' }))
+  expect(screen.getByRole('button', { name: 'Segunda-feira' })).toHaveAttribute(
+    'aria-pressed',
+    'true',
+  )
+  expect(screen.getByRole('button', { name: 'Sábado' })).toHaveAttribute('aria-pressed', 'false')
+  await user.click(screen.getByRole('button', { name: 'Sábado' }))
+  await user.click(screen.getByRole('button', { name: 'Sábado' }))
+  fireEvent.change(screen.getByLabelText('Horário de início'), { target: { value: '19:00' } })
+  expect(screen.getByRole('button', { name: 'Salvar' })).toBeDisabled()
+  expect(await screen.findByText('Informe o horário de início e o de fim.')).toBeInTheDocument()
+  fireEvent.change(screen.getByLabelText('Horário de fim'), { target: { value: '19:00' } })
+  expect(
+    await screen.findByText('O horário de fim deve ser diferente do início.'),
+  ).toBeInTheDocument()
+  fireEvent.change(screen.getByLabelText('Horário de fim'), { target: { value: '07:00' } })
+  expect(screen.getByText(/vira a meia-noite/)).toBeInTheDocument()
+  await user.type(screen.getByLabelText('Motivo da alteração'), 'Definir plantão')
+  await user.click(screen.getByRole('button', { name: 'Salvar' }))
+
+  await waitFor(() => expect(receivedBody).not.toBeNull())
+  expect(receivedBody).toEqual({
+    fee_amount: '100.00',
+    weekdays: [0, 1, 2, 3, 4],
+    start_time: '19:00',
+    end_time: '07:00',
+    reason: 'Definir plantão',
+    expected_row_version: 1,
+  })
 })
