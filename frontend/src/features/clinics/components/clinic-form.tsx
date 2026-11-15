@@ -5,7 +5,8 @@ import { z } from 'zod'
 
 import { useCepLookupQuery } from '../../address-lookup/api/use-cep-lookup-query'
 import { Button } from '../../../shared/ui/button'
-import { SelectField } from '../../../shared/ui/select'
+import { Dropdown } from '../../../shared/ui/dropdown'
+import { TagIcon } from '../../../shared/ui/icons'
 import { TextField } from '../../../shared/ui/text-field'
 import { ApiError } from '../../../shared/api/errors'
 import { formatCep, formatTaxId } from '../../../shared/lib/formatters'
@@ -187,14 +188,17 @@ export function ClinicForm({
               {...register('taxId')}
             />
             {clinic && (
-              <SelectField
-                id="clinic-status"
-                label="Status"
-                className="clinic-form__span-2"
-                options={STATUS_OPTIONS}
-                disabled={submitting}
-                {...register('status')}
-              />
+              <div className="clinic-form__span-2">
+                <Dropdown
+                  variant="field"
+                  icon={<TagIcon />}
+                  label="Status"
+                  options={STATUS_OPTIONS}
+                  value={watch('status')}
+                  onChange={(value) => setValue('status', value as ClinicStatus, { shouldDirty: true })}
+                  disabled={submitting}
+                />
+              </div>
             )}
           </div>
         </section>
