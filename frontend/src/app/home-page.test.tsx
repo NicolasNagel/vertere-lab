@@ -9,7 +9,7 @@ vi.mock('../features/auth/auth-context', () => ({
   useAuth: () => ({
     user: {
       fullName: 'Fabianna Garcia',
-      permissions: ['attendances.read', 'attendances.create'],
+      permissions: ['attendances.read', 'attendances.create', 'pricing.read'],
     },
   }),
 }))

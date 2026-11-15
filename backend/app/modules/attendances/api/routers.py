@@ -108,6 +108,7 @@ from app.modules.audit.infrastructure.repositories import (
 from app.modules.catalog.infrastructure.repositories import SqlAlchemyExamRepository
 from app.modules.clinics.infrastructure.repositories import SqlAlchemyClinicRepository
 from app.modules.identity.api.dependencies import require_permission
+from app.modules.identity.infrastructure.repositories import SqlAlchemyUserNameLookup
 from app.modules.patients.infrastructure.repositories import SqlAlchemyPatientRepository
 from app.modules.veterinarian_clinics.infrastructure.repositories import (
     SqlAlchemyVeterinarianClinicLinkRepository,
@@ -276,6 +277,7 @@ def get_attendance_timeline(
     use_case = GetAttendanceTimelineUseCase(
         attendances=SqlAlchemyAttendanceRepository(session),
         audit=SqlAlchemyAuditLogReader(session),
+        user_names=SqlAlchemyUserNameLookup(session),
     )
     result = use_case.execute(
         GetAttendanceTimelineQuery(
@@ -288,6 +290,9 @@ def get_attendance_timeline(
                 id=entry.id,
                 occurred_at=entry.occurred_at,
                 actor_user_id=entry.actor_user_id,
+                actor_name=result.actor_names.get(entry.actor_user_id)
+                if entry.actor_user_id
+                else None,
                 action=entry.action,
                 before_state=entry.before_state,
                 after_state=entry.after_state,

@@ -46,6 +46,7 @@ export function AttendanceTimeline({ attendanceId }: AttendanceTimelineProps) {
                     <div className="attendance-timeline__entry-header">
                       <span>{describeTimelineAction(entry.action)}</span>
                       <span className="attendance-timeline__entry-date">
+                        {entry.actorName ? `${entry.actorName} · ` : ''}
                         {formatDateTime(entry.occurredAt)}
                       </span>
                     </div>

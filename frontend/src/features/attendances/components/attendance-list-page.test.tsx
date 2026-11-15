@@ -179,7 +179,7 @@ test('lists attendances with resolved names, shows drafts without protocol or to
 
   // Confirmado: nomes resolvidos de clínica, veterinário e paciente.
   server.use(
-    meHandler(['attendances.read']),
+    meHandler(['attendances.read', 'pricing.read']),
     ...lookups,
     statusCountsHandler(),
     attendancesHandler([
@@ -201,12 +201,29 @@ test('lists attendances with resolved names, shows drafts without protocol or to
   expect(dataRow.getByText(/4 anos/)).toBeInTheDocument()
   expect(dataRow.getByText('Hemograma')).toBeInTheDocument()
   expect(dataRow.getByText('R$ 100,00')).toBeInTheDocument()
+  expect(screen.getByRole('columnheader', { name: 'Valor' })).toBeInTheDocument()
+  expect(screen.getByText('Valor atendido')).toBeInTheDocument()
+  view.unmount()
+  server.resetHandlers()
+
+  // Sem pricing.read: nem a coluna Valor nem o cartão de valor aparecem.
+  server.use(
+    meHandler(['attendances.read']),
+    ...lookups,
+    statusCountsHandler(),
+    attendancesHandler([attendanceItem()]),
+  )
+  view = renderWithProviders(<AttendanceListPage />)
+  expect(await screen.findByText('P000001/26')).toBeInTheDocument()
+  expect(screen.queryByRole('columnheader', { name: 'Valor' })).not.toBeInTheDocument()
+  expect(screen.queryByText('Valor atendido')).not.toBeInTheDocument()
+  expect(screen.queryByText(/R\$/)).not.toBeInTheDocument()
   view.unmount()
   server.resetHandlers()
 
   // Rascunho: sem protocolo nem total.
   server.use(
-    meHandler(['attendances.read']),
+    meHandler(['attendances.read', 'pricing.read']),
     ...lookups,
     statusCountsHandler(),
     attendancesHandler([
@@ -290,6 +307,7 @@ function timelineHandler(attendanceId = 'a1') {
           id: 't2',
           occurred_at: '2026-01-05T10:05:00Z',
           actor_user_id: 'u1',
+          actor_name: 'Ana Souza',
           action: 'attendances.confirmed',
           before_state: null,
           after_state: null,
@@ -346,6 +364,7 @@ test('clicking a row opens the summary popover with exams, totals and history, a
   expect(summary.getByText('Hemograma')).toBeInTheDocument()
   expect(within(summary.getByLabelText('Valores')).getByText('R$ 90,00')).toBeInTheDocument()
   expect(await summary.findByText('Atendimento confirmado')).toBeInTheDocument()
+  expect(summary.getByText(/Ana Souza/)).toBeInTheDocument()
   expect(summary.getByText('Rascunho criado')).toBeInTheDocument()
   expect(summary.getByRole('link', { name: 'Abrir atendimento' })).toHaveAttribute(
     'href',

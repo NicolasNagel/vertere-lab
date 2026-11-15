@@ -1,45 +1,50 @@
-import { Link } from 'react-router'
+import { Link } from "react-router";
 
-import { formatCurrencyBRL, formatServiceDateTime } from '../../../shared/lib/formatters'
-import { EyeIcon, PatientsIcon } from '../../../shared/ui/icons'
-import { SERVICE_LEVEL_LABELS, type Attendance } from '../api/attendances-api'
-import { AttendanceStatusBadge } from './attendance-status-badge'
-import './attendance-list-table.css'
+import {
+  formatCurrencyBRL,
+  formatServiceDateTime,
+} from "../../../shared/lib/formatters";
+import { EyeIcon, PatientsIcon } from "../../../shared/ui/icons";
+import { SERVICE_LEVEL_LABELS, type Attendance } from "../api/attendances-api";
+import { AttendanceStatusBadge } from "./attendance-status-badge";
+import "./attendance-list-table.css";
 
 export interface PatientDisplay {
-  name: string
-  detail: string
-  ownerName?: string
-  sex?: 'MALE' | 'FEMALE'
+  name: string;
+  detail: string;
+  ownerName?: string;
+  sex?: "MALE" | "FEMALE";
 }
 
 interface AttendanceListTableProps {
-  attendances: Attendance[]
-  clinicNameById: Record<string, string>
-  veterinarianNameById: Record<string, string>
-  patientDisplayById: Record<string, PatientDisplay>
+  attendances: Attendance[];
+  clinicNameById: Record<string, string>;
+  veterinarianNameById: Record<string, string>;
+  patientDisplayById: Record<string, PatientDisplay>;
   /** Linha com o resumo aberto (popover). */
-  selectedId?: string | null
+  selectedId?: string | null;
   /** Clique ou Enter na linha abre o resumo. */
-  onSelect: (attendance: Attendance) => void
+  onSelect: (attendance: Attendance) => void;
+  /** `pricing.read`: sem ele a coluna Valor nem aparece. */
+  showMoney: boolean;
 }
 
 function ExamChips({ attendance }: { attendance: Attendance }) {
-  const [first, ...rest] = attendance.items
-  if (!first) return <span className="attendance-list-table__muted">—</span>
+  const [first, ...rest] = attendance.items;
+  if (!first) return <span className="attendance-list-table__muted">—</span>;
   return (
     <span className="attendance-list-table__chips">
       <span className="attendance-list-table__chip">{first.examName}</span>
       {rest.length > 0 && (
         <span
           className="attendance-list-table__chip attendance-list-table__chip--more"
-          title={attendance.items.map((item) => item.examName).join(', ')}
+          title={attendance.items.map((item) => item.examName).join(", ")}
         >
           +{rest.length}
         </span>
       )}
     </span>
-  )
+  );
 }
 
 export function AttendanceListTable({
@@ -49,6 +54,7 @@ export function AttendanceListTable({
   patientDisplayById,
   selectedId = null,
   onSelect,
+  showMoney,
 }: AttendanceListTableProps) {
   if (attendances.length === 0) {
     return (
@@ -57,7 +63,7 @@ export function AttendanceListTable({
           Nenhum atendimento encontrado para os filtros selecionados.
         </p>
       </div>
-    )
+    );
   }
 
   return (
@@ -72,9 +78,11 @@ export function AttendanceListTable({
             <th scope="col">Data · Hora</th>
             <th scope="col">Tipo</th>
             <th scope="col">Status</th>
-            <th scope="col" className="attendance-list-table__num">
-              Valor
-            </th>
+            {showMoney && (
+              <th scope="col" className="attendance-list-table__num">
+                Valor
+              </th>
+            )}
             <th scope="col" className="attendance-list-table__actions-header">
               Ações
             </th>
@@ -82,9 +90,10 @@ export function AttendanceListTable({
         </thead>
         <tbody>
           {attendances.map((attendance) => {
-            const patient = patientDisplayById[attendance.patientId]
-            const clinicName = clinicNameById[attendance.clinicId] ?? '—'
-            const veterinarianName = veterinarianNameById[attendance.veterinarianId] ?? '—'
+            const patient = patientDisplayById[attendance.patientId];
+            const clinicName = clinicNameById[attendance.clinicId] ?? "—";
+            const veterinarianName =
+              veterinarianNameById[attendance.veterinarianId] ?? "—";
             return (
               <tr
                 key={attendance.id}
@@ -92,26 +101,30 @@ export function AttendanceListTable({
                 aria-haspopup="dialog"
                 aria-expanded={attendance.id === selectedId}
                 data-selected={attendance.id === selectedId || undefined}
-                data-cancelled={attendance.status === 'CANCELLED' || undefined}
+                data-cancelled={attendance.status === "CANCELLED" || undefined}
                 onClick={() => onSelect(attendance)}
                 onKeyDown={(event) => {
-                  if (event.target !== event.currentTarget) return
-                  if (event.key === 'Enter' || event.key === ' ') {
-                    event.preventDefault()
-                    onSelect(attendance)
+                  if (event.target !== event.currentTarget) return;
+                  if (event.key === "Enter" || event.key === " ") {
+                    event.preventDefault();
+                    onSelect(attendance);
                   }
                 }}
               >
                 <td className="attendance-list-table__protocol">
-                  {attendance.protocolNumber ?? 'Rascunho'}
+                  {attendance.protocolNumber ?? "Rascunho"}
                 </td>
                 <td>
                   <div
                     className="attendance-list-table__stack"
                     title={`${veterinarianName} · ${clinicName}`}
                   >
-                    <span className="attendance-list-table__primary">{veterinarianName}</span>
-                    <span className="attendance-list-table__muted">{clinicName}</span>
+                    <span className="attendance-list-table__primary">
+                      {veterinarianName}
+                    </span>
+                    <span className="attendance-list-table__muted">
+                      {clinicName}
+                    </span>
                   </div>
                 </td>
                 <td>
@@ -120,19 +133,23 @@ export function AttendanceListTable({
                       className="attendance-list-table__avatar"
                       data-sex={patient?.sex}
                       title={
-                        patient?.sex === 'MALE'
-                          ? 'Macho'
-                          : patient?.sex === 'FEMALE'
-                            ? 'Fêmea'
+                        patient?.sex === "MALE"
+                          ? "Macho"
+                          : patient?.sex === "FEMALE"
+                            ? "Fêmea"
                             : undefined
                       }
                     >
                       <PatientsIcon />
                     </span>
                     <div className="attendance-list-table__stack">
-                      <span className="attendance-list-table__primary">{patient?.name ?? '—'}</span>
+                      <span className="attendance-list-table__primary">
+                        {patient?.name ?? "—"}
+                      </span>
                       {patient?.detail && (
-                        <span className="attendance-list-table__muted">{patient.detail}</span>
+                        <span className="attendance-list-table__muted">
+                          {patient.detail}
+                        </span>
                       )}
                     </div>
                   </div>
@@ -141,7 +158,10 @@ export function AttendanceListTable({
                   <ExamChips attendance={attendance} />
                 </td>
                 <td className="attendance-list-table__muted">
-                  {formatServiceDateTime(attendance.serviceDate, attendance.createdAt)}
+                  {formatServiceDateTime(
+                    attendance.serviceDate,
+                    attendance.createdAt,
+                  )}
                 </td>
                 <td>
                   <span
@@ -154,14 +174,18 @@ export function AttendanceListTable({
                 <td>
                   <AttendanceStatusBadge status={attendance.status} />
                 </td>
-                <td className="attendance-list-table__num attendance-list-table__value">
-                  {/* Sem itens = nunca foi confirmado (rascunho, ou cancelado
+                {showMoney && (
+                  <td className="attendance-list-table__num attendance-list-table__value">
+                    {/* Sem itens = nunca foi confirmado (rascunho, ou cancelado
                       ainda em rascunho) — grand_total é "0.00" por padrão nesse
                       caso e mostrar como valor real seria enganoso. Um
                       cancelado que chegou a ser confirmado antes tem itens e
                       mostra o total de verdade. */}
-                  {attendance.items.length === 0 ? '—' : formatCurrencyBRL(attendance.grandTotal)}
-                </td>
+                    {attendance.items.length === 0
+                      ? "—"
+                      : formatCurrencyBRL(attendance.grandTotal)}
+                  </td>
+                )}
                 <td
                   className="attendance-list-table__actions"
                   onClick={(event) => event.stopPropagation()}
@@ -170,16 +194,16 @@ export function AttendanceListTable({
                     to={`/operacao/${attendance.id}`}
                     className="attendance-list-table__view-button"
                     title="Ver detalhes do protocolo"
-                    aria-label={`Ver detalhes do protocolo ${attendance.protocolNumber ?? 'rascunho'}`}
+                    aria-label={`Ver detalhes do protocolo ${attendance.protocolNumber ?? "rascunho"}`}
                   >
                     <EyeIcon />
                   </Link>
                 </td>
               </tr>
-            )
+            );
           })}
         </tbody>
       </table>
     </div>
-  )
+  );
 }

@@ -6,6 +6,7 @@ ORM models never leak past this file (rule: .claude/rules/03-database.md).
 
 from __future__ import annotations
 
+from collections.abc import Collection
 from datetime import datetime
 from typing import Any
 from uuid import UUID, uuid4
@@ -65,6 +66,21 @@ def _session_to_domain(model: SessionModel) -> Session:
         ip_address=model.ip_address,
         user_agent=model.user_agent,
     )
+
+
+class SqlAlchemyUserNameLookup:
+    """Read-only `id -> full_name` lookup (timeline author names); no domain entity needed."""
+
+    def __init__(self, session: SqlAlchemySession) -> None:
+        self._session = session
+
+    def names_by_id(self, user_ids: Collection[UUID]) -> dict[UUID, str]:
+        if not user_ids:
+            return {}
+        rows = self._session.execute(
+            select(UserModel.id, UserModel.full_name).where(UserModel.id.in_(user_ids))
+        ).all()
+        return {row.id: row.full_name for row in rows}
 
 
 class SqlAlchemyUserRepository:

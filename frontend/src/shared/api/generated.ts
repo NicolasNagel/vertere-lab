@@ -128,6 +128,7 @@ export type AttendanceTimelineEntryRead = {
   "id": string
   "occurred_at": string
   "actor_user_id": string | null
+  "actor_name"?: string | null
   "action": string
   "before_state": Record<string, unknown> | null
   "after_state": Record<string, unknown> | null

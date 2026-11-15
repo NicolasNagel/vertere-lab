@@ -858,3 +858,36 @@ def test_confirmed_and_cancelled_attendances_can_be_corrected_with_a_reason_and_
     )
     assert fixed.notes == "Cancelado por engano de cadastro"
     assert fixed.status == AttendanceStatus.CANCELLED.value
+
+
+class _FakeUserNames:
+    def __init__(self, names: dict[UUID, str]) -> None:
+        self._names = names
+
+    def names_by_id(self, user_ids: object) -> dict[UUID, str]:
+        return {uid: n for uid, n in self._names.items() if uid in user_ids}  # type: ignore[operator]
+
+
+def test_timeline_exposes_author_names_only_to_lab_scope() -> None:
+    fixture = _Fixture()
+    draft = fixture.use_case().execute(_command())
+    author = fixture.audit.entries[0].actor_user_id
+    assert author is not None
+    lookup = _FakeUserNames({author: "Ana Souza"})
+    use_case = GetAttendanceTimelineUseCase(
+        attendances=fixture.attendances, audit=fixture.audit, user_names=lookup
+    )
+    reader = frozenset({"attendances.read"})
+    result = use_case.execute(
+        GetAttendanceTimelineQuery(
+            actor=_actor(permissions=reader), attendance_id=draft.id, page=1, page_size=20
+        )
+    )
+    assert result.actor_names == {author: "Ana Souza"}
+    clinic_actor = replace(
+        _actor(permissions=reader), role_scope="CLINIC", clinic_ids=frozenset({draft.clinic_id})
+    )
+    result = use_case.execute(
+        GetAttendanceTimelineQuery(actor=clinic_actor, attendance_id=draft.id, page=1, page_size=20)
+    )
+    assert result.actor_names == {}

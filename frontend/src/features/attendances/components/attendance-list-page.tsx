@@ -166,7 +166,7 @@ export function AttendanceListPage() {
         </p>
       ) : (
         <>
-          <AttendanceSummaryCards counts={statusCountsQuery.data} />
+          <AttendanceSummaryCards counts={statusCountsQuery.data} showMoney={showMoney} />
 
           <div className="attendance-list-page__panel">
             <div className="attendance-list-page__filter-row">
@@ -219,6 +219,7 @@ export function AttendanceListPage() {
                     veterinarianNameById={veterinarianNameById}
                     patientDisplayById={patientDisplayById}
                     selectedId={selectedAttendance?.id ?? null}
+                    showMoney={showMoney}
                     onSelect={handleSelect}
                   />
                   <AttendanceListPagination

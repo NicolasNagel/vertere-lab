@@ -170,6 +170,7 @@ class AttendanceTimelineEntryRead(BaseModel):
     id: UUID
     occurred_at: datetime
     actor_user_id: UUID | None
+    actor_name: str | None = None
     action: str
     before_state: dict[str, Any] | None
     after_state: dict[str, Any] | None

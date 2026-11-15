@@ -192,6 +192,7 @@ export function AttendanceRowPopover({
               <li key={entry.id}>
                 <b>{describeTimelineAction(entry.action)}</b>
                 <span className="attendance-row-popover__muted">
+                  {entry.actorName ? `${entry.actorName} · ` : ''}
                   {formatDateTime(entry.occurredAt)}
                   {entry.reason ? ` · ${entry.reason}` : ''}
                 </span>

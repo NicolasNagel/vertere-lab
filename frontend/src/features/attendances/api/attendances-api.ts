@@ -142,6 +142,7 @@ export interface AttendanceTimelineEntry {
   id: string
   occurredAt: string
   actorUserId: string | null
+  actorName: string | null
   action: string
   beforeState: Record<string, unknown> | null
   afterState: Record<string, unknown> | null
@@ -221,6 +222,7 @@ interface ApiAttendanceTimelineEntry {
   id: string
   occurred_at: string
   actor_user_id: string | null
+  actor_name?: string | null
   action: string
   before_state: Record<string, unknown> | null
   after_state: Record<string, unknown> | null
@@ -283,6 +285,7 @@ function fromApiTimelineEntry(entry: ApiAttendanceTimelineEntry): AttendanceTime
     id: entry.id,
     occurredAt: entry.occurred_at,
     actorUserId: entry.actor_user_id,
+    actorName: entry.actor_name ?? null,
     action: entry.action,
     beforeState: entry.before_state,
     afterState: entry.after_state,

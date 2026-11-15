@@ -751,6 +751,7 @@ async def test_timeline_lists_this_attendance_most_recent_first_and_paginates(
     ]
     assert body["items"][0]["after_state"] == {"notes": "Retorno agendado"}
     assert body["items"][0]["reason"] == "Combinado por telefone"
+    assert all(item["actor_name"] for item in body["items"])  # LAB scope sees author names
 
     row_version = 1
     for index in range(3):
