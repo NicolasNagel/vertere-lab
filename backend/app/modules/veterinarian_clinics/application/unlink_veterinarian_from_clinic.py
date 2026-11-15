@@ -19,6 +19,7 @@ class UnlinkVeterinarianFromClinicCommand:
     actor: ActorContext
     veterinarian_id: UUID
     clinic_id: UUID
+    reason: str | None = None
 
 
 class UnlinkVeterinarianFromClinicUseCase:
@@ -76,5 +77,6 @@ class UnlinkVeterinarianFromClinicUseCase:
                     "veterinarian_id": str(command.veterinarian_id),
                     "clinic_id": str(command.clinic_id),
                 },
+                reason=command.reason,
             )
         )

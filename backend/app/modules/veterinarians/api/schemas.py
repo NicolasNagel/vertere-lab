@@ -48,6 +48,7 @@ class VeterinarianLinkClinicRequest(BaseModel):
 
     clinic_id: UUID
     primary: bool = False
+    reason: str = Field(min_length=1, max_length=500)
 
 
 class VeterinarianCreateRequest(BaseModel):
@@ -74,3 +75,4 @@ class VeterinarianUpdateRequest(BaseModel):
     status: VeterinarianStatusLiteral
     notes: str | None = None
     expected_row_version: int
+    reason: str = Field(min_length=1, max_length=500)

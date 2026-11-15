@@ -164,9 +164,24 @@ async def test_veterinarian_clinic_links_availability_versions_and_deactivation(
 
     # Versão errada conflita; versões encadeadas usam a devolvida pela edição anterior.
     url = f"/api/v1/veterinarians/{linked_body['id']}"
-    base = {"crmv": "CRMV-SC 09002", "is_autonomous": False, "status": "ACTIVE"}
+    base = {
+        "crmv": "CRMV-SC 09002",
+        "is_autonomous": False,
+        "status": "ACTIVE",
+        "reason": "Correção cadastral",
+    }
     stale = await client.patch(url, json={**base, "name": "Renomeado", "expected_row_version": 99})
     assert stale.status_code == 409
+    no_reason = {key: value for key, value in base.items() if key != "reason"}
+    missing_reason = await client.patch(
+        url,
+        json={
+            **no_reason,
+            "name": "Sem motivo",
+            "expected_row_version": linked_body["row_version"],
+        },
+    )
+    assert missing_reason.status_code == 422
     versions = [linked_body["row_version"]]
     for name in ("Vet Um", "Vet Dois"):
         update = await client.patch(

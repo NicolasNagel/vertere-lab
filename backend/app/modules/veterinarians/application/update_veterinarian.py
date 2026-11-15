@@ -8,13 +8,13 @@ from app.modules.audit.domain.repositories import AuditLogWriter
 from app.modules.veterinarians.application.dtos import VeterinarianDTO
 from app.modules.veterinarians.application.mappers import veterinarian_to_dto
 from app.modules.veterinarians.application.visibility import ensure_veterinarian_visible
-from app.modules.veterinarians.domain.entities import VeterinarianStatus
+from app.modules.veterinarians.domain.entities import Veterinarian, VeterinarianStatus
 from app.modules.veterinarians.domain.errors import DuplicateCrmvError
 from app.modules.veterinarians.domain.repositories import VeterinarianRepository
 from app.modules.veterinarians.domain.value_objects import Crmv
 from app.shared.application.authorization import ActorContext
 from app.shared.application.clock import Clock
-from app.shared.domain.errors import ConflictError, ForbiddenError, NotFoundError
+from app.shared.domain.errors import ConflictError, ForbiddenError, NotFoundError, ValidationError
 
 _REQUIRED_PERMISSION = "veterinarians.manage"
 
@@ -31,6 +31,20 @@ class UpdateVeterinarianCommand:
     status: str
     notes: str | None
     expected_row_version: int
+    reason: str
+
+
+def _audit_state(veterinarian: Veterinarian) -> dict[str, str | bool | None]:
+    """Before/after of a correction. Phone and e-mail are PII: only whether they are set is kept."""
+    return {
+        "name": veterinarian.name,
+        "crmv": str(veterinarian.crmv),
+        "is_autonomous": veterinarian.is_autonomous,
+        "status": veterinarian.status.value,
+        "notes": veterinarian.notes,
+        "has_phone": veterinarian.phone is not None,
+        "has_email": veterinarian.email is not None,
+    }
 
 
 class UpdateVeterinarianUseCase:
@@ -49,6 +63,10 @@ class UpdateVeterinarianUseCase:
         if _REQUIRED_PERMISSION not in command.actor.permissions:
             raise ForbiddenError(f"Permissão ausente: {_REQUIRED_PERMISSION}")
 
+        reason = command.reason.strip()
+        if not reason:
+            raise ValidationError("Informe o motivo da alteração.")
+
         veterinarian = self._veterinarians.get_by_id(command.veterinarian_id)
         if veterinarian is None:
             raise NotFoundError("Veterinário não encontrado.")
@@ -64,7 +82,7 @@ class UpdateVeterinarianUseCase:
         if existing is not None and existing.id != veterinarian.id:
             raise DuplicateCrmvError("CRMV já cadastrado para outro veterinário.")
 
-        before_state = {"name": veterinarian.name, "status": veterinarian.status.value}
+        before_state = _audit_state(veterinarian)
 
         veterinarian.update_details(
             name=command.name,
@@ -87,7 +105,8 @@ class UpdateVeterinarianUseCase:
                 entity_type="veterinarian",
                 entity_id=str(veterinarian.id),
                 before_state=before_state,
-                after_state={"name": veterinarian.name, "status": veterinarian.status.value},
+                after_state=_audit_state(veterinarian),
+                reason=reason,
             )
         )
 

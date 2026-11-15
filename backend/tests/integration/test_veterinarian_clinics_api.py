@@ -124,7 +124,9 @@ async def test_veterinarian_clinic_links_are_bidirectional_idempotent_guarded_an
     link_url = f"/api/v1/veterinarians/{veterinarian_id}/clinics"
 
     # Vínculo aparece nos dois lados.
-    linked = await client.post(link_url, json={"clinic_id": clinic_id, "primary": True})
+    linked = await client.post(
+        link_url, json={"clinic_id": clinic_id, "primary": True, "reason": "Vínculo inicial"}
+    )
     assert linked.status_code == 204
     vet_detail = await client.get(f"/api/v1/veterinarians/{veterinarian_id}")
     assert vet_detail.json()["clinics"] == [
@@ -141,7 +143,9 @@ async def test_veterinarian_clinic_links_are_bidirectional_idempotent_guarded_an
     ]
 
     # Repetir o vínculo é idempotente.
-    again = await client.post(link_url, json={"clinic_id": clinic_id, "primary": True})
+    again = await client.post(
+        link_url, json={"clinic_id": clinic_id, "primary": True, "reason": "Vínculo inicial"}
+    )
     assert again.status_code == 204
     after_repeat = await client.get(f"/api/v1/veterinarians/{veterinarian_id}")
     assert len(after_repeat.json()["clinics"]) == 1
@@ -154,12 +158,14 @@ async def test_veterinarian_clinic_links_are_bidirectional_idempotent_guarded_an
         role_id=ROLE_TECHNICAL,
     )
     await _login(client, email="technical@vertere.local", password="s3nhaForte!")
-    denied = await client.post(link_url, json={"clinic_id": clinic_id, "primary": False})
+    denied = await client.post(
+        link_url, json={"clinic_id": clinic_id, "primary": False, "reason": "Teste"}
+    )
     assert denied.status_code == 403
     await _login(client, email="admin@vertere.local", password="s3nhaForte!")
 
     # Desvincular libera o autônomo; a última clínica de um não autônomo conflita.
-    unlinked = await client.delete(f"{link_url}/{clinic_id}")
+    unlinked = await client.delete(f"{link_url}/{clinic_id}", params={"reason": "Desligamento"})
     assert unlinked.status_code == 204
     assert (await client.get(f"/api/v1/veterinarians/{veterinarian_id}")).json()["clinics"] == []
 
@@ -170,7 +176,9 @@ async def test_veterinarian_clinic_links_are_bidirectional_idempotent_guarded_an
         is_autonomous=False,
         clinic_ids=[clinic_id],
     )
-    last = await client.delete(f"/api/v1/veterinarians/{employed_id}/clinics/{clinic_id}")
+    last = await client.delete(
+        f"/api/v1/veterinarians/{employed_id}/clinics/{clinic_id}", params={"reason": "Teste"}
+    )
     assert last.status_code == 409
     kept = await client.get(f"/api/v1/veterinarians/{employed_id}")
     assert len(kept.json()["clinics"]) == 1
@@ -243,6 +251,7 @@ async def test_clinic_actor_only_sees_veterinarians_and_links_of_own_clinic(
             "is_autonomous": False,
             "status": "ACTIVE",
             "expected_row_version": 1,
+            "reason": "Correção",
         },
     )
     assert foreign_update.status_code == 404

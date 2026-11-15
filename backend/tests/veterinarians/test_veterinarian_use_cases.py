@@ -106,6 +106,7 @@ def _update_command(created: VeterinarianDTO, **overrides: object) -> UpdateVete
         "status": VeterinarianStatus.ACTIVE.value,
         "notes": None,
         "expected_row_version": created.row_version,
+        "reason": "Correção cadastral",
     }
     defaults.update(overrides)
     return UpdateVeterinarianCommand(**defaults)  # type: ignore[arg-type]
@@ -216,10 +217,21 @@ def test_veterinarian_update_and_deactivation_are_versioned_audited_and_preserve
         update.execute(_update_command(created, expected_row_version=created.row_version + 1))
     with pytest.raises(NotFoundError):
         update.execute(_update_command(created, veterinarian_id=uuid4()))
-    updated = update.execute(_update_command(created))
+    for blank in ("", "   "):
+        with pytest.raises(ValidationError):
+            update.execute(_update_command(created, reason=blank))
+    updated = update.execute(_update_command(created, phone="48999990000"))
     assert updated.name == "Dra. Fabianna Garcia Renomeada"
     assert updated.row_version == created.row_version + 1
-    assert audit.entries[-1].action == "veterinarians.updated"
+    entry = audit.entries[-1]
+    assert entry.action == "veterinarians.updated"
+    assert entry.reason == "Correção cadastral"
+    assert entry.before_state is not None and entry.after_state is not None
+    assert entry.before_state["name"] == "Dra. Fabianna Garcia"
+    assert entry.after_state["name"] == "Dra. Fabianna Garcia Renomeada"
+    # Telefone e e-mail são PII: o audit guarda só se existem, nunca o valor.
+    assert entry.after_state["has_phone"] is True
+    assert "48999990000" not in str(entry.after_state)
 
     result = deactivate.execute(
         DeactivateVeterinarianCommand(
@@ -309,6 +321,7 @@ def test_clinic_actor_only_reaches_own_clinic_and_autonomous_veterinarians() -> 
                 status="ACTIVE",
                 notes=None,
                 expected_row_version=foreign.row_version,
+                reason="Correção",
             )
         )
     with pytest.raises(NotFoundError):

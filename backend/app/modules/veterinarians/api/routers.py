@@ -198,6 +198,7 @@ def update_veterinarian(
             status=payload.status,
             notes=payload.notes,
             expected_row_version=payload.expected_row_version,
+            reason=payload.reason,
         ),
         clock=SystemClock(),
     )
@@ -232,6 +233,7 @@ def link_veterinarian_clinic(
             veterinarian_id=veterinarian_id,
             clinic_id=payload.clinic_id,
             primary_clinic=payload.primary,
+            reason=payload.reason,
         ),
         clock=SystemClock(),
     )
@@ -241,12 +243,16 @@ def link_veterinarian_clinic(
 def unlink_veterinarian_clinic(
     veterinarian_id: UUID,
     clinic_id: UUID,
+    reason: str = Query(min_length=1, max_length=500),
     uow: SqlAlchemyUnitOfWork = Depends(get_unit_of_work),
     current_user: ActorContext = Depends(require_permission("veterinarians.manage")),
 ) -> None:
     handle_unlink_veterinarian(
         uow=SqlAlchemyClinicDirectoryUnitOfWork(uow),
         command=UnlinkVeterinarianFromClinicCommand(
-            actor=current_user, veterinarian_id=veterinarian_id, clinic_id=clinic_id
+            actor=current_user,
+            veterinarian_id=veterinarian_id,
+            clinic_id=clinic_id,
+            reason=reason,
         ),
     )
