@@ -28,8 +28,12 @@ from app.modules.veterinarian_clinics.application.mutation_handlers import (
     handle_create_veterinarian,
     handle_deactivate_veterinarian,
     handle_link_veterinarian,
+    handle_set_veterinarian_clinics,
     handle_unlink_veterinarian,
     handle_update_veterinarian,
+)
+from app.modules.veterinarian_clinics.application.set_veterinarian_clinics import (
+    SetVeterinarianClinicsCommand,
 )
 from app.modules.veterinarian_clinics.application.unlink_veterinarian_from_clinic import (
     UnlinkVeterinarianFromClinicCommand,
@@ -41,6 +45,7 @@ from app.modules.veterinarian_clinics.infrastructure.uow import (
     SqlAlchemyClinicDirectoryUnitOfWork,
 )
 from app.modules.veterinarians.api.schemas import (
+    VeterinarianClinicsUpdateRequest,
     VeterinarianCreateRequest,
     VeterinarianDetailRead,
     VeterinarianLinkClinicRequest,
@@ -217,6 +222,28 @@ def deactivate_veterinarian(
         clock=SystemClock(),
     )
     return _veterinarian_read(result)
+
+
+@router.patch("/{veterinarian_id}/clinics", status_code=204)
+def update_veterinarian_clinics(
+    veterinarian_id: UUID,
+    payload: VeterinarianClinicsUpdateRequest,
+    uow: SqlAlchemyUnitOfWork = Depends(get_unit_of_work),
+    current_user: ActorContext = Depends(require_permission("veterinarians.manage")),
+) -> None:
+    handle_set_veterinarian_clinics(
+        uow=SqlAlchemyClinicDirectoryUnitOfWork(uow),
+        command=SetVeterinarianClinicsCommand(
+            actor=current_user,
+            veterinarian_id=veterinarian_id,
+            add_clinic_ids=tuple(payload.add_clinic_ids),
+            remove_clinic_ids=tuple(payload.remove_clinic_ids),
+            primary_clinic_id=payload.primary_clinic_id,
+            expected_row_version=payload.expected_row_version,
+            reason=payload.reason,
+        ),
+        clock=SystemClock(),
+    )
 
 
 @router.post("/{veterinarian_id}/clinics", status_code=204)

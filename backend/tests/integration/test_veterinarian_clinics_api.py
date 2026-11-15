@@ -260,3 +260,85 @@ async def test_clinic_actor_only_sees_veterinarians_and_links_of_own_clinic(
     assert [item["clinic_id"] for item in shared.json()["clinics"]] == [own_clinic_id]
     other_clinic_vets = await client.get(f"/api/v1/clinics/{other_clinic_id}")
     assert other_clinic_vets.status_code == 404
+
+
+async def test_batch_update_links_120_clinics_atomically_with_one_reason_and_audit(
+    client: httpx.AsyncClient, session_factory: sessionmaker[Session]
+) -> None:
+    await _login_admin(client, session_factory)
+    first = await _create_clinic(client, "Clínica 000")
+    extras = [await _create_clinic(client, f"Clínica {index:03d}") for index in range(1, 121)]
+    inactive = await _create_clinic(client, "Clínica inativa")
+    assert (await client.post(f"/api/v1/clinics/{inactive}/deactivate")).status_code == 200
+    veterinarian_id = await _create_veterinarian(
+        client, name="Dra. Lote", crmv="CRMV-SC 90001", is_autonomous=False, clinic_ids=[first]
+    )
+
+    detail = (await client.get(f"/api/v1/veterinarians/{veterinarian_id}")).json()
+    version = detail["row_version"]
+    url = f"/api/v1/veterinarians/{veterinarian_id}/clinics"
+
+    # sem motivo -> 422; versão velha -> 409; clínica inativa no lote -> 422 e nada muda
+    base = {"add_clinic_ids": extras, "remove_clinic_ids": [], "expected_row_version": version}
+    assert (await client.patch(url, json={**base, "reason": ""})).status_code == 422
+    assert (
+        await client.patch(url, json={**base, "reason": "x", "expected_row_version": version + 9})
+    ).status_code == 409
+    bad = {**base, "add_clinic_ids": [*extras, inactive], "reason": "Carteira nova"}
+    assert (await client.patch(url, json=bad)).status_code == 422
+    after_bad = (await client.get(f"/api/v1/veterinarians/{veterinarian_id}")).json()
+    assert len(after_bad["clinics"]) == 1 and after_bad["row_version"] == version
+
+    ok = await client.patch(
+        url, json={**base, "primary_clinic_id": extras[0], "reason": "Carteira nova"}
+    )
+    assert ok.status_code == 204
+    final = (await client.get(f"/api/v1/veterinarians/{veterinarian_id}")).json()
+    assert len(final["clinics"]) == 121
+    assert [c["clinic_id"] for c in final["clinics"] if c["primary_clinic"]] == [extras[0]]
+    assert final["row_version"] == version + 1
+
+    # reaplicar com a versão antiga agora é conflito (outra pessoa já alterou)
+    assert (await client.patch(url, json={**base, "reason": "de novo"})).status_code == 409
+
+    # não autônomo não pode ficar sem clínica
+    everything = {
+        "add_clinic_ids": [],
+        "remove_clinic_ids": [first, *extras],
+        "expected_row_version": final["row_version"],
+        "reason": "Zerar",
+    }
+    assert (await client.patch(url, json=everything)).status_code == 409
+
+    with session_factory() as session:
+        rows = session.execute(
+            text(
+                "SELECT reason, jsonb_array_length(after_state->'clinic_ids') "
+                "FROM audit_log WHERE action = 'veterinarian_clinics.batch_updated'"
+            )
+        ).all()
+        links = session.execute(
+            text("SELECT count(*) FROM veterinarian_clinics WHERE veterinarian_id = :id"),
+            {"id": veterinarian_id},
+        ).scalar_one()
+    assert rows == [("Carteira nova", 121)]
+    assert links == 121
+
+
+async def test_batch_update_needs_manage_permission(
+    client: httpx.AsyncClient, session_factory: sessionmaker[Session]
+) -> None:
+    await _login_admin(client, session_factory)
+    veterinarian_id = await _create_veterinarian(client, name="Dr. X", crmv="CRMV-SC 90002")
+    clinic_id = await _create_clinic(client, "Clínica X")
+    await client.post("/api/v1/auth/logout")
+    _create_user(
+        session_factory, email="tech@vertere.local", password="s3nhaForte!", role_id=ROLE_TECHNICAL
+    )
+    await _login(client, email="tech@vertere.local", password="s3nhaForte!")
+
+    response = await client.patch(
+        f"/api/v1/veterinarians/{veterinarian_id}/clinics",
+        json={"add_clinic_ids": [clinic_id], "expected_row_version": 1, "reason": "x"},
+    )
+    assert response.status_code == 403

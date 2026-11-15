@@ -13,6 +13,10 @@ from app.modules.veterinarian_clinics.application.link_veterinarian_to_clinic im
     LinkVeterinarianToClinicCommand,
     LinkVeterinarianToClinicUseCase,
 )
+from app.modules.veterinarian_clinics.application.set_veterinarian_clinics import (
+    SetVeterinarianClinicsCommand,
+    SetVeterinarianClinicsUseCase,
+)
 from app.modules.veterinarian_clinics.application.unlink_veterinarian_from_clinic import (
     UnlinkVeterinarianFromClinicCommand,
     UnlinkVeterinarianFromClinicUseCase,
@@ -124,5 +128,19 @@ def handle_unlink_veterinarian(
     with uow:
         UnlinkVeterinarianFromClinicUseCase(
             veterinarians=uow.veterinarians, links=uow.links, audit=uow.audit
+        ).execute(command)
+        uow.commit()
+
+
+def handle_set_veterinarian_clinics(
+    *, uow: ClinicDirectoryUnitOfWork, command: SetVeterinarianClinicsCommand, clock: Clock
+) -> None:
+    with uow:
+        SetVeterinarianClinicsUseCase(
+            veterinarians=uow.veterinarians,
+            clinics=uow.clinics,
+            links=uow.links,
+            audit=uow.audit,
+            clock=clock,
         ).execute(command)
         uow.commit()
