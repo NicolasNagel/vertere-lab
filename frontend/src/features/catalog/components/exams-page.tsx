@@ -66,9 +66,24 @@ export function ExamsPage() {
     categoryId: categoryId || undefined,
     speciesId: speciesId || undefined,
   }
-  const listQuery = useExamsQuery({ ...filters, status: status || undefined, page, pageSize: 25 })
-  const activeCount = useExamsQuery({ ...filters, status: 'ACTIVE', page: 1, pageSize: 1 })
-  const inactiveCount = useExamsQuery({ ...filters, status: 'INACTIVE', page: 1, pageSize: 1 })
+  const listQuery = useExamsQuery({
+    ...filters,
+    status: status || undefined,
+    page,
+    pageSize: 25,
+  })
+  const activeCount = useExamsQuery({
+    ...filters,
+    status: 'ACTIVE',
+    page: 1,
+    pageSize: 1,
+  })
+  const inactiveCount = useExamsQuery({
+    ...filters,
+    status: 'INACTIVE',
+    page: 1,
+    pageSize: 1,
+  })
   const categoriesQuery = useActiveExamCategoriesQuery()
   const speciesQuery = useSpeciesQuery()
   const clinicsQuery = useAllClinicsQuery({ status: 'ACTIVE' })
@@ -182,7 +197,10 @@ export function ExamsPage() {
                 icon={<TagIcon />}
                 options={[
                   { value: '', label: 'Todas' },
-                  ...categories.map((category) => ({ value: category.id, label: category.name })),
+                  ...categories.map((category) => ({
+                    value: category.id,
+                    label: category.name,
+                  })),
                 ]}
                 value={categoryId}
                 onChange={change(setCategoryId)}
@@ -192,7 +210,10 @@ export function ExamsPage() {
                 icon={<PatientsIcon />}
                 options={[
                   { value: '', label: 'Todas' },
-                  ...species.map((item) => ({ value: item.id, label: item.name })),
+                  ...species.map((item) => ({
+                    value: item.id,
+                    label: item.name,
+                  })),
                 ]}
                 value={speciesId}
                 onChange={change(setSpeciesId)}

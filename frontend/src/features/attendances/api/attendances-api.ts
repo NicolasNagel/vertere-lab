@@ -7,12 +7,7 @@ import type {
 } from '../../../shared/api/generated'
 
 export type AttendanceStatus =
-  | 'DRAFT'
-  | 'CONFIRMED'
-  | 'IN_PROGRESS'
-  | 'COMPLETED'
-  | 'CANCELLED'
-  | 'ON_HOLD'
+  'DRAFT' | 'CONFIRMED' | 'IN_PROGRESS' | 'COMPLETED' | 'CANCELLED' | 'ON_HOLD'
 
 /** Status em que o atendimento ainda pode ser cancelado (mesma regra da lista e do detalhe). */
 export const CANCELLABLE_STATUSES: ReadonlySet<AttendanceStatus> = new Set(['DRAFT', 'CONFIRMED'])
@@ -393,7 +388,10 @@ export async function fetchAttendances(params: AttendanceListParams = {}): Promi
   }
 }
 
-export type AttendanceStatusCountsParams = Omit<AttendanceListParams, 'page' | 'pageSize' | 'status'>
+export type AttendanceStatusCountsParams = Omit<
+  AttendanceListParams,
+  'page' | 'pageSize' | 'status'
+>
 
 export async function fetchAttendanceStatusCounts(
   params: AttendanceStatusCountsParams = {},
@@ -411,9 +409,7 @@ export async function fetchAttendanceStatusCounts(
     total: number
     by_status: Record<string, number>
     billed_total: string | null
-  }>(
-    `/attendances/status-counts?${query.toString()}`,
-  )
+  }>(`/attendances/status-counts?${query.toString()}`)
   return {
     total: body.total,
     byStatus: body.by_status as Partial<Record<AttendanceStatus, number>>,
@@ -536,7 +532,10 @@ export async function fetchAttendanceTimeline(
   page: number,
   pageSize: number,
 ): Promise<AttendanceTimelinePage> {
-  const query = new URLSearchParams({ page: String(page), page_size: String(pageSize) })
+  const query = new URLSearchParams({
+    page: String(page),
+    page_size: String(pageSize),
+  })
   const body = await apiRequest<ApiAttendanceTimelinePage>(
     `/attendances/${id}/timeline?${query.toString()}`,
   )

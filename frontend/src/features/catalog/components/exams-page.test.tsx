@@ -164,7 +164,9 @@ test('lists exams, filters by category and gates actions and prices by permissio
   )
   await user.click(await screen.findByRole('button', { name: /Categoria/ }))
   await user.click(await screen.findByRole('option', { name: 'Bioquímica' }))
-  await waitFor(() => expect(requested.some((query) => query.includes('category_id=cat2'))).toBe(true))
+  await waitFor(() =>
+    expect(requested.some((query) => query.includes('category_id=cat2'))).toBe(true),
+  )
   expect(await screen.findByText(/Nenhum exame encontrado/)).toBeInTheDocument()
   restart(view)
 
@@ -221,12 +223,7 @@ test('a manager imports exams from CSV with per-row errors and opens a row in th
 })
 
 test('the summary popover is read-only for users without catalog.manage and closes with Escape', async () => {
-  server.use(
-    meHandler(['catalog.read']),
-    speciesHandler(),
-    categoriesHandler(),
-    examsListHandler(),
-  )
+  server.use(meHandler(['catalog.read']), speciesHandler(), categoriesHandler(), examsListHandler())
   const user = userEvent.setup()
   renderApp()
 

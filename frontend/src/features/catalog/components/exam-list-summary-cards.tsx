@@ -18,7 +18,11 @@ export function ExamListSummaryCards({
 }: ExamListSummaryCardsProps) {
   const cards = [
     { label: 'Exames', value: total, hint: scopeLabel },
-    { label: 'Ativos', value: active, hint: 'disponíveis para novos atendimentos' },
+    {
+      label: 'Ativos',
+      value: active,
+      hint: 'disponíveis para novos atendimentos',
+    },
     { label: 'Inativos', value: inactive, hint: 'fora de novos atendimentos' },
   ]
   return (

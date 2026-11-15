@@ -26,7 +26,10 @@ function describeError(error: unknown): string | null {
  * de `AttendanceConfirmationForm` para ser reaproveitado também pela tela
  * de abertura de protocolo unificada, sem duplicar a lógica de
  * preço/idempotência/conflito de versão. */
-export function useAttendanceExamSelections(attendance: Attendance | null, onConfirmed: (attendance: Attendance) => void) {
+export function useAttendanceExamSelections(
+  attendance: Attendance | null,
+  onConfirmed: (attendance: Attendance) => void,
+) {
   const queryClient = useQueryClient()
   const [selections, setSelections] = useState<DraftExamSelection[]>([])
   const submissionStarted = useRef(false)
@@ -91,11 +94,14 @@ export function useAttendanceExamSelections(attendance: Attendance | null, onCon
 
   function handleReload() {
     if (!attendance) return
-    void queryClient.invalidateQueries({ queryKey: attendanceQueryKey(attendance.id) })
+    void queryClient.invalidateQueries({
+      queryKey: attendanceQueryKey(attendance.id),
+    })
   }
 
   const errorMessage = describeError(confirmMutation.error)
-  const isConflict = confirmMutation.error instanceof ApiError && confirmMutation.error.status === 409
+  const isConflict =
+    confirmMutation.error instanceof ApiError && confirmMutation.error.status === 409
 
   return {
     selections,

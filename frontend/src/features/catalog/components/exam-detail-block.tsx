@@ -96,7 +96,11 @@ export function ExamDetailFooter({
           <Button
             type="button"
             variant="ghost"
-            onClick={() => void queryClient.invalidateQueries({ queryKey: examQueryKey(examId) })}
+            onClick={() =>
+              void queryClient.invalidateQueries({
+                queryKey: examQueryKey(examId),
+              })
+            }
           >
             Recarregar exame
           </Button>

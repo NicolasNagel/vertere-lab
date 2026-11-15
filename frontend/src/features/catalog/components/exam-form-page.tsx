@@ -69,13 +69,14 @@ export function ExamFormPage({ newPanel = false }: ExamFormPageProps = {}) {
           panel={newPanel}
           canManagePrice={user?.permissions.includes('pricing.manage') ?? false}
           onCancel={goToList}
-          onSubmitCreate={(values) =>
-            createMutation.mutate(values, { onSuccess: goToList })
-          }
+          onSubmitCreate={(values) => createMutation.mutate(values, { onSuccess: goToList })}
           onSubmitUpdate={(values) => {
             if (!examId || !exam) return
             updateMutation.mutate(
-              { id: examId, values: { ...values, expectedRowVersion: exam.rowVersion } },
+              {
+                id: examId,
+                values: { ...values, expectedRowVersion: exam.rowVersion },
+              },
               { onSuccess: goToList },
             )
           }}

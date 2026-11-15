@@ -39,7 +39,13 @@ export function FeeRowPopover({
   onClose,
 }: FeeRowPopoverProps) {
   return (
-    <Modal size="md" dismissOnBackdrop className="attendance-popover" titleId={titleId} onClose={onClose}>
+    <Modal
+      size="md"
+      dismissOnBackdrop
+      className="attendance-popover"
+      titleId={titleId}
+      onClose={onClose}
+    >
       <aside className="attendance-row-popover" aria-label={`Resumo: ${title}`}>
         <header className="attendance-row-popover__header">
           <div className="attendance-row-popover__heading">

@@ -26,7 +26,10 @@ export function useCreateClinicFeeRuleMutation() {
 
 interface UpdateVariables {
   id: string
-  input: ClinicFeeRuleValues & { isActive: boolean; expectedRowVersion: number }
+  input: ClinicFeeRuleValues & {
+    isActive: boolean
+    expectedRowVersion: number
+  }
 }
 
 export function useUpdateClinicFeeRuleMutation() {

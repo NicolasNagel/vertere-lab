@@ -174,7 +174,12 @@ export function OnCallFeeSettingsPanel() {
                   {canManage && (
                     <KebabMenu
                       label={`Ações para ${TIER_LABELS[setting.serviceLevel]}`}
-                      items={[{ label: 'Editar taxa', onSelect: () => setEditing(setting) }]}
+                      items={[
+                        {
+                          label: 'Editar taxa',
+                          onSelect: () => setEditing(setting),
+                        },
+                      ]}
                     />
                   )}
                 </td>

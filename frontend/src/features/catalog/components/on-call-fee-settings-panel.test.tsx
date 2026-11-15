@@ -189,14 +189,20 @@ test('edits weekdays and hours, with presets and midnight crossing', async () =>
   expect(screen.getByRole('button', { name: 'Sábado' })).toHaveAttribute('aria-pressed', 'false')
   await user.click(screen.getByRole('button', { name: 'Sábado' }))
   await user.click(screen.getByRole('button', { name: 'Sábado' }))
-  fireEvent.change(screen.getByLabelText('Horário de início'), { target: { value: '19:00' } })
+  fireEvent.change(screen.getByLabelText('Horário de início'), {
+    target: { value: '19:00' },
+  })
   expect(screen.getByRole('button', { name: 'Salvar' })).toBeDisabled()
   expect(await screen.findByText('Informe o horário de início e o de fim.')).toBeInTheDocument()
-  fireEvent.change(screen.getByLabelText('Horário de fim'), { target: { value: '19:00' } })
+  fireEvent.change(screen.getByLabelText('Horário de fim'), {
+    target: { value: '19:00' },
+  })
   expect(
     await screen.findByText('O horário de fim deve ser diferente do início.'),
   ).toBeInTheDocument()
-  fireEvent.change(screen.getByLabelText('Horário de fim'), { target: { value: '07:00' } })
+  fireEvent.change(screen.getByLabelText('Horário de fim'), {
+    target: { value: '07:00' },
+  })
   expect(screen.getByText(/vira a meia-noite/)).toBeInTheDocument()
   await user.type(screen.getByLabelText('Motivo da alteração'), 'Definir plantão')
   await user.click(screen.getByRole('button', { name: 'Salvar' }))

@@ -45,7 +45,13 @@ export function ExamRowPopover({
   const hasStart = exam.priceValidFrom && !exam.priceValidFrom.startsWith('1900')
   const menuItems: KebabMenuItem[] =
     canManage && exam.status === 'ACTIVE'
-      ? [{ label: 'Inativar exame', onSelect: () => onDeactivate(exam.id), destructive: true }]
+      ? [
+          {
+            label: 'Inativar exame',
+            onSelect: () => onDeactivate(exam.id),
+            destructive: true,
+          },
+        ]
       : []
 
   return (

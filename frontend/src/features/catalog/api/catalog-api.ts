@@ -233,6 +233,9 @@ export async function importExams(file: File): Promise<ExamImportResult> {
   })
   return {
     importedCount: body.imported_count,
-    errors: body.errors.map((error) => ({ line: error.line, message: error.message })),
+    errors: body.errors.map((error) => ({
+      line: error.line,
+      message: error.message,
+    })),
   }
 }

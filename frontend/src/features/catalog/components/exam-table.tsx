@@ -45,7 +45,11 @@ export function ExamTable({
     )
   }
   if (exams.length === 0) {
-    return <p className="attendance-list-page__hint">Nenhum exame encontrado para os filtros selecionados.</p>
+    return (
+      <p className="attendance-list-page__hint">
+        Nenhum exame encontrado para os filtros selecionados.
+      </p>
+    )
   }
 
   return (
@@ -72,7 +76,13 @@ export function ExamTable({
           {exams.map((exam) => {
             const menuItems: KebabMenuItem[] =
               canManage && exam.status !== 'INACTIVE'
-                ? [{ label: 'Inativar', onSelect: () => onDeactivate(exam.id), destructive: true }]
+                ? [
+                    {
+                      label: 'Inativar',
+                      onSelect: () => onDeactivate(exam.id),
+                      destructive: true,
+                    },
+                  ]
                 : []
             const speciesLabel = exam.speciesIds
               .map((id) => speciesNameById.get(id))

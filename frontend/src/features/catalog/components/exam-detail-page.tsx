@@ -1,59 +1,58 @@
-import { useQueries } from "@tanstack/react-query";
-import { Link, useParams } from "react-router";
+import { useQueries } from '@tanstack/react-query'
+import { Link, useParams } from 'react-router'
 
-import { ApiError } from "../../../shared/api/errors";
-import { formatCurrencyBRL, formatDate } from "../../../shared/lib/formatters";
-import { Badge } from "../../../shared/ui/badge";
-import { ArrowLeftIcon } from "../../../shared/ui/icons";
-import { PageHeader } from "../../../shared/ui/page-header";
-import { useAuth } from "../../auth/auth-context";
-import { useSpeciesQuery } from "../../patients/api/use-species-query";
-import { fetchExam } from "../api/catalog-api";
-import { useActiveExamCategoriesQuery } from "../api/use-active-exam-categories-query";
-import { examQueryKey, useExamQuery } from "../api/use-exam-query";
-import { ExamDetailBlock } from "./exam-detail-block";
+import { ApiError } from '../../../shared/api/errors'
+import { formatCurrencyBRL, formatDate } from '../../../shared/lib/formatters'
+import { Badge } from '../../../shared/ui/badge'
+import { ArrowLeftIcon } from '../../../shared/ui/icons'
+import { PageHeader } from '../../../shared/ui/page-header'
+import { useAuth } from '../../auth/auth-context'
+import { useSpeciesQuery } from '../../patients/api/use-species-query'
+import { fetchExam } from '../api/catalog-api'
+import { useActiveExamCategoriesQuery } from '../api/use-active-exam-categories-query'
+import { examQueryKey, useExamQuery } from '../api/use-exam-query'
+import { ExamDetailBlock } from './exam-detail-block'
 import {
   CategorySpeciesForm,
   CompositionForm,
   IdentityForm,
   PriceForm,
   StatusForm,
-} from "./exam-detail-forms";
-import { ExamSummaryCards } from "./exam-summary-cards";
-import "../../../shared/ui/button.css";
-import "../../attendances/components/attendance-detail-page.css";
-import "../../attendances/components/attendance-readonly-detail.css";
+} from './exam-detail-forms'
+import { ExamSummaryCards } from './exam-summary-cards'
+import '../../../shared/ui/button.css'
+import '../../attendances/components/attendance-detail-page.css'
+import '../../attendances/components/attendance-readonly-detail.css'
 
 /** Detalhe do exame em blocos, cada um com "Editar" + motivo. Preço só com `pricing.read`
  * e só editável com `pricing.manage`; o backend é quem decide de verdade. */
 export function ExamDetailPage() {
-  const { examId } = useParams<{ examId: string }>();
-  const { user } = useAuth();
-  const permissions = user?.permissions ?? [];
-  const canEdit = permissions.includes("catalog.manage");
-  const canManagePrice = permissions.includes("pricing.manage");
+  const { examId } = useParams<{ examId: string }>()
+  const { user } = useAuth()
+  const permissions = user?.permissions ?? []
+  const canEdit = permissions.includes('catalog.manage')
+  const canManagePrice = permissions.includes('pricing.manage')
 
-  const examQuery = useExamQuery(examId ?? null);
-  const categoriesQuery = useActiveExamCategoriesQuery();
-  const speciesQuery = useSpeciesQuery();
-  const exam = examQuery.data;
+  const examQuery = useExamQuery(examId ?? null)
+  const categoriesQuery = useActiveExamCategoriesQuery()
+  const speciesQuery = useSpeciesQuery()
+  const exam = examQuery.data
   const componentQueries = useQueries({
     queries: (exam?.componentExamIds ?? []).map((id) => ({
       queryKey: examQueryKey(id),
       queryFn: () => fetchExam(id),
     })),
-  });
+  })
 
   const back = (
     <Link to="/cadastros/exames" className="button button--secondary">
       <ArrowLeftIcon />
       Voltar
     </Link>
-  );
+  )
 
   if (examQuery.isLoading || examQuery.isError || !exam) {
-    const forbidden =
-      examQuery.error instanceof ApiError && examQuery.error.status === 403;
+    const forbidden = examQuery.error instanceof ApiError && examQuery.error.status === 403
     return (
       <div className="attendance-detail-page">
         <PageHeader title="Exame" actions={back} />
@@ -63,24 +62,23 @@ export function ExamDetailPage() {
           ) : (
             <p role="alert" className="attendance-detail-page__error">
               {forbidden
-                ? "Você não tem permissão para visualizar este exame."
-                : "Não foi possível carregar o exame. Tente novamente."}
+                ? 'Você não tem permissão para visualizar este exame.'
+                : 'Não foi possível carregar o exame. Tente novamente.'}
             </p>
           )}
         </div>
       </div>
-    );
+    )
   }
 
-  const categories = categoriesQuery.data ?? [];
-  const categoryName =
-    categories.find((c) => c.id === exam.categoryId)?.name ?? "—";
+  const categories = categoriesQuery.data ?? []
+  const categoryName = categories.find((c) => c.id === exam.categoryId)?.name ?? '—'
   const speciesNames = (speciesQuery.data ?? [])
     .filter((s) => exam.speciesIds.includes(s.id))
     .map((s) => s.name)
-    .join(" · ");
-  const formProps = { exam, canManagePrice, onClose: () => undefined };
-  const priceVisible = exam.priceBase !== null;
+    .join(' · ')
+  const formProps = { exam, canManagePrice, onClose: () => undefined }
+  const priceVisible = exam.priceBase !== null
 
   return (
     <div className="attendance-detail-page">
@@ -88,11 +86,9 @@ export function ExamDetailPage() {
         title={exam.name}
         subtitle={
           <span className="attendance-detail-page__sub">
-            <span className="attendance-readonly-detail__mono">
-              {exam.code}
-            </span>
-            <Badge tone={exam.status === "ACTIVE" ? "success" : "neutral"}>
-              {exam.status === "ACTIVE" ? "Ativo" : "Inativo"}
+            <span className="attendance-readonly-detail__mono">{exam.code}</span>
+            <Badge tone={exam.status === 'ACTIVE' ? 'success' : 'neutral'}>
+              {exam.status === 'ACTIVE' ? 'Ativo' : 'Inativo'}
             </Badge>
           </span>
         }
@@ -107,18 +103,13 @@ export function ExamDetailPage() {
             .map((s) => s.name)}
         />
         <div className="attendance-readonly-detail">
-          <div
-            className="attendance-readonly-detail__columns"
-            data-money={priceVisible}
-          >
+          <div className="attendance-readonly-detail__columns" data-money={priceVisible}>
             <div className="attendance-readonly-detail__column">
               <ExamDetailBlock
                 title="Identificação"
                 examId={exam.id}
                 canEdit={canEdit}
-                form={({ close }) => (
-                  <IdentityForm {...formProps} onClose={close} />
-                )}
+                form={({ close }) => <IdentityForm {...formProps} onClose={close} />}
               >
                 <dl className="attendance-readonly-detail__fields">
                   <dt>Nome</dt>
@@ -126,7 +117,7 @@ export function ExamDetailPage() {
                   <dt>Código</dt>
                   <dd>{exam.code}</dd>
                   <dt>Descrição</dt>
-                  <dd>{exam.description || "—"}</dd>
+                  <dd>{exam.description || '—'}</dd>
                 </dl>
               </ExamDetailBlock>
 
@@ -135,18 +126,14 @@ export function ExamDetailPage() {
                 examId={exam.id}
                 canEdit={canEdit}
                 form={({ close }) => (
-                  <CategorySpeciesForm
-                    {...formProps}
-                    categories={categories}
-                    onClose={close}
-                  />
+                  <CategorySpeciesForm {...formProps} categories={categories} onClose={close} />
                 )}
               >
                 <dl className="attendance-readonly-detail__fields">
                   <dt>Categoria</dt>
                   <dd>{categoryName}</dd>
                   <dt>Espécies</dt>
-                  <dd>{speciesNames || "—"}</dd>
+                  <dd>{speciesNames || '—'}</dd>
                 </dl>
               </ExamDetailBlock>
 
@@ -155,9 +142,7 @@ export function ExamDetailPage() {
                   title="Composição"
                   examId={exam.id}
                   canEdit={canEdit}
-                  form={({ close }) => (
-                    <CompositionForm {...formProps} onClose={close} />
-                  )}
+                  form={({ close }) => <CompositionForm {...formProps} onClose={close} />}
                 >
                   <ul className="attendance-readonly-detail__items">
                     {componentQueries.map((query, index) => (
@@ -165,7 +150,7 @@ export function ExamDetailPage() {
                         key={exam.componentExamIds[index]}
                         className="attendance-readonly-detail__item"
                       >
-                        {query.data?.name ?? "…"}
+                        {query.data?.name ?? '…'}
                       </li>
                     ))}
                   </ul>
@@ -178,21 +163,17 @@ export function ExamDetailPage() {
                   title="Preço e vigência"
                   examId={exam.id}
                   canEdit={canEdit && canManagePrice}
-                  form={({ close }) => (
-                    <PriceForm {...formProps} onClose={close} />
-                  )}
+                  form={({ close }) => <PriceForm {...formProps} onClose={close} />}
                 >
                   <dl className="attendance-readonly-detail__fields">
                     <dt>Preço</dt>
-                    <dd>{formatCurrencyBRL(exam.priceBase ?? "0")}</dd>
+                    <dd>{formatCurrencyBRL(exam.priceBase ?? '0')}</dd>
                     <dt>Vigência</dt>
                     <dd>
-                      {exam.priceValidFrom && !exam.priceValidFrom.startsWith("1900")
+                      {exam.priceValidFrom && !exam.priceValidFrom.startsWith('1900')
                         ? `desde ${formatDate(exam.priceValidFrom)}`
-                        : "Sem data de início"}
-                      {exam.priceValidTo
-                        ? ` até ${formatDate(exam.priceValidTo)}`
-                        : ""}
+                        : 'Sem data de início'}
+                      {exam.priceValidTo ? ` até ${formatDate(exam.priceValidTo)}` : ''}
                     </dd>
                   </dl>
                   {!canManagePrice && (
@@ -207,13 +188,11 @@ export function ExamDetailPage() {
                 title="Status"
                 examId={exam.id}
                 canEdit={canEdit}
-                form={({ close }) => (
-                  <StatusForm {...formProps} onClose={close} />
-                )}
+                form={({ close }) => <StatusForm {...formProps} onClose={close} />}
               >
                 <dl className="attendance-readonly-detail__fields">
                   <dt>Status</dt>
-                  <dd>{exam.status === "ACTIVE" ? "Ativo" : "Inativo"}</dd>
+                  <dd>{exam.status === 'ACTIVE' ? 'Ativo' : 'Inativo'}</dd>
                 </dl>
               </ExamDetailBlock>
             </div>
@@ -221,5 +200,5 @@ export function ExamDetailPage() {
         </div>
       </div>
     </div>
-  );
+  )
 }

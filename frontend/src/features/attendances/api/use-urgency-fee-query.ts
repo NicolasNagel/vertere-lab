@@ -6,7 +6,11 @@ export const URGENCY_FEE_QUERY_KEY = ['urgency-fee-setting'] as const
 
 /** `enabled` fica falso para quem não tem `pricing.read` (a API recusaria a leitura). */
 export function useUrgencyFeeQuery(enabled = true) {
-  return useQuery({ queryKey: URGENCY_FEE_QUERY_KEY, queryFn: fetchUrgencyFee, enabled })
+  return useQuery({
+    queryKey: URGENCY_FEE_QUERY_KEY,
+    queryFn: fetchUrgencyFee,
+    enabled,
+  })
 }
 
 export function useUpdateUrgencyFeeMutation() {
