@@ -88,7 +88,8 @@ test('price block is read-only without pricing.manage but editable blocks still 
   server.use(meHandler(['catalog.read', 'catalog.manage', 'pricing.read']), ...commonHandlers())
   renderPage()
 
-  expect(await screen.findByText('R$ 85,00')).toBeInTheDocument()
+  expect((await screen.findAllByText('R$ 85,00')).length).toBeGreaterThan(0)
+  expect(screen.getByRole('region', { name: 'Resumo do exame' })).toBeInTheDocument()
   expect(screen.getByText(/Alterar preço exige a permissão/)).toBeInTheDocument()
   expect(screen.queryByRole('button', { name: 'Editar preço e vigência' })).not.toBeInTheDocument()
   expect(screen.getByRole('button', { name: 'Editar status' })).toBeInTheDocument()

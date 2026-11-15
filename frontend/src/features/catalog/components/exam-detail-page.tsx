@@ -19,6 +19,7 @@ import {
   PriceForm,
   StatusForm,
 } from "./exam-detail-forms";
+import { ExamSummaryCards } from "./exam-summary-cards";
 import "../../../shared/ui/button.css";
 import "../../attendances/components/attendance-detail-page.css";
 import "../../attendances/components/attendance-readonly-detail.css";
@@ -99,6 +100,12 @@ export function ExamDetailPage() {
       />
 
       <div className="attendance-detail-page__body">
+        <ExamSummaryCards
+          exam={exam}
+          speciesNames={(speciesQuery.data ?? [])
+            .filter((s) => exam.speciesIds.includes(s.id))
+            .map((s) => s.name)}
+        />
         <div className="attendance-readonly-detail">
           <div
             className="attendance-readonly-detail__columns"
