@@ -107,7 +107,11 @@ export function VeterinarianRowPopover({
                 : 'Nenhuma clínica vinculada ainda.'}
             </p>
           ) : (
-            <ul className="attendance-row-popover__exams clinic-batch-picker__scroll">
+            <ul
+              className="attendance-row-popover__exams clinic-batch-picker__scroll"
+              aria-label="Clínicas vinculadas"
+              tabIndex={0}
+            >
               {veterinarian.clinics.map((clinic) => (
                 <li key={clinic.clinicId}>
                   <span>

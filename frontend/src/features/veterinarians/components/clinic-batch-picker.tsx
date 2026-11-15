@@ -228,7 +228,7 @@ export function ClinicBatchPicker({
           />
         )}
         {selectedIds.length > 0 && (
-          <ul className="clinic-batch-picker__chips" aria-label="Clínicas selecionadas">
+          <ul className="clinic-batch-picker__chips" aria-label="Clínicas selecionadas" tabIndex={0}>
             {visibleSelected.map((id) => (
               <li key={id} className="clinic-batch-picker__chip" data-primary={id === primaryId}>
                 <span>

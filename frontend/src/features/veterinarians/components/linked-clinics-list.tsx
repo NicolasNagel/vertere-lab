@@ -42,7 +42,11 @@ export function LinkedClinicsList({
           {visible.length} de {clinics.length} clínicas
         </p>
       )}
-      <ul className="clinic-batch-picker__chips clinic-batch-picker__chips--read">
+      <ul
+        className="clinic-batch-picker__chips clinic-batch-picker__chips--read"
+        aria-label="Clínicas vinculadas"
+        tabIndex={0}
+      >
         {visible.map((clinic) => (
           <li
             key={clinic.clinicId}
