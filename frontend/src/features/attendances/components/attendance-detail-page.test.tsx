@@ -8,6 +8,7 @@ import { afterAll, afterEach, beforeAll, expect, test } from 'vitest'
 
 import { AuthProvider } from '../../auth/auth-provider'
 import { AttendanceDetailPage } from './attendance-detail-page'
+import { pickOption } from '../../../test/dropdown'
 
 const server = setupServer()
 
@@ -538,7 +539,7 @@ test('every block of a confirmed attendance can be corrected with a reason', asy
   }
 
   await user.click(screen.getByRole('button', { name: 'Editar atendimento' }))
-  await user.selectOptions(screen.getByLabelText('Tipo de atendimento'), 'PLANTAO_NORMAL')
+  await pickOption(user, 'Tipo de atendimento', 'Plantão Normal')
   // Sem motivo não salva.
   expect(screen.getByRole('button', { name: 'Salvar' })).toBeDisabled()
   await user.type(screen.getByLabelText('Motivo da alteração'), 'Era plantão')

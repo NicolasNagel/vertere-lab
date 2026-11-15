@@ -6,7 +6,7 @@ import { useDebouncedValue } from '../../../shared/lib/use-debounced-value'
 import { Modal } from '../../../shared/ui/modal'
 import { PageHeader } from '../../../shared/ui/page-header'
 import { PlusIcon, SearchIcon } from '../../../shared/ui/icons'
-import type { SelectOption } from '../../../shared/ui/select'
+import type { DropdownOption } from '../../../shared/ui/dropdown'
 import { useAuth } from '../../auth/auth-context'
 import { useAllClinicsQuery } from '../../clinics/api/use-clinics-query'
 import { useAllPatientsQuery } from '../../patients/api/use-patients-query'
@@ -77,7 +77,7 @@ export function AttendanceListPage() {
       : null,
   )
 
-  const clinicOptions: SelectOption[] = (clinicsQuery.data?.items ?? []).map((clinic) => ({
+  const clinicOptions: DropdownOption[] = (clinicsQuery.data?.items ?? []).map((clinic) => ({
     value: clinic.id,
     label: clinic.name,
   }))

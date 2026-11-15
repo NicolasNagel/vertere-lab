@@ -1,7 +1,8 @@
 import { useState } from 'react'
 
 import { Checkbox } from '../../../shared/ui/checkbox'
-import { SelectField, type SelectOption } from '../../../shared/ui/select'
+import { Dropdown, type DropdownOption } from '../../../shared/ui/dropdown'
+import { ClinicsIcon, ExamsIcon, TagIcon, UserIcon } from '../../../shared/ui/icons'
 import { TextField } from '../../../shared/ui/text-field'
 import { useAllClinicsQuery } from '../../clinics/api/use-clinics-query'
 import type { Patient } from '../../patients/api/patients-api'
@@ -52,11 +53,11 @@ export function RequesterCorrectionForm({ attendance, onClose }: CorrectionFormP
     status: 'ACTIVE',
     availableForClinicId: clinicId || undefined,
   })
-  const clinicOptions: SelectOption[] = (clinicsQuery.data?.items ?? []).map((clinic) => ({
+  const clinicOptions: DropdownOption[] = (clinicsQuery.data?.items ?? []).map((clinic) => ({
     value: clinic.id,
     label: clinic.name,
   }))
-  const veterinarianOptions: SelectOption[] = (veterinariansQuery.data?.items ?? []).map((vet) => ({
+  const veterinarianOptions: DropdownOption[] = (veterinariansQuery.data?.items ?? []).map((vet) => ({
     value: vet.id,
     label: vet.name,
   }))
@@ -67,24 +68,30 @@ export function RequesterCorrectionForm({ attendance, onClose }: CorrectionFormP
   return (
     <div className="attendance-correction-block__form">
       <div className="attendance-correction-block__row">
-        <SelectField
-          id="correction-clinic"
+        <Dropdown
+          variant="field"
+          searchable
+          icon={<ClinicsIcon />}
           label="Clínica solicitante"
+          placeholder="Selecione a clínica"
           disabled={mutation.isPending}
           value={clinicId}
-          options={[{ value: '', label: 'Selecione a clínica' }, ...clinicOptions]}
-          onChange={(event) => {
-            setClinicId(event.target.value)
+          options={clinicOptions}
+          onChange={(value) => {
+            setClinicId(value)
             setVeterinarianId('')
           }}
         />
-        <SelectField
-          id="correction-veterinarian"
+        <Dropdown
+          variant="field"
+          searchable
+          icon={<UserIcon />}
           label="Veterinário responsável"
+          placeholder="Selecione o veterinário"
           disabled={mutation.isPending || !clinicId}
           value={veterinarianId}
-          options={[{ value: '', label: 'Selecione o veterinário' }, ...veterinarianOptions]}
-          onChange={(event) => setVeterinarianId(event.target.value)}
+          options={veterinarianOptions}
+          onChange={setVeterinarianId}
         />
       </div>
       <CorrectionFooter
@@ -155,8 +162,9 @@ export function ServiceCorrectionForm({ attendance, onClose }: CorrectionFormPro
   return (
     <div className="attendance-correction-block__form">
       <div className="attendance-correction-block__row">
-        <SelectField
-          id="correction-service-level"
+        <Dropdown
+          variant="field"
+          icon={<TagIcon />}
           label="Tipo de atendimento"
           disabled={mutation.isPending}
           value={serviceLevel}
@@ -164,10 +172,11 @@ export function ServiceCorrectionForm({ attendance, onClose }: CorrectionFormPro
             value: level,
             label: SERVICE_LEVEL_LABELS[level],
           }))}
-          onChange={(event) => setServiceLevel(event.target.value as ServiceLevel)}
+          onChange={(value) => setServiceLevel(value as ServiceLevel)}
         />
-        <SelectField
-          id="correction-collection-method"
+        <Dropdown
+          variant="field"
+          icon={<ExamsIcon />}
           label="Forma de coleta"
           disabled={mutation.isPending}
           value={collectionMethod}
@@ -175,7 +184,7 @@ export function ServiceCorrectionForm({ attendance, onClose }: CorrectionFormPro
             value: method,
             label: COLLECTION_METHOD_LABELS[method],
           }))}
-          onChange={(event) => setCollectionMethod(event.target.value as CollectionMethod)}
+          onChange={(value) => setCollectionMethod(value as CollectionMethod)}
         />
         <TextField
           id="correction-service-date"
