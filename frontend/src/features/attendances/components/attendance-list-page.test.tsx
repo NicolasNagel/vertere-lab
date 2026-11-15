@@ -114,6 +114,7 @@ function attendanceItem(overrides: Record<string, unknown> = {}) {
         exam_code: 'HEMO',
         exam_name: 'Hemograma',
         price_base: '100.00',
+        components: [],
         quantity: 1,
         discount_amount: '0.00',
         surcharge_amount: '0.00',
@@ -279,4 +280,151 @@ test('debounces the protocol search and warns when a name lookup fails', async (
   await user.type(screen.getByPlaceholderText('Buscar protocolo...'), 'P0000')
   await waitFor(() => expect(searches.at(-1)).toBe('P0000'))
   expect(searches.filter((value) => value !== null)).toEqual(['P0000'])
+})
+
+function timelineHandler(attendanceId = 'a1') {
+  return http.get(`/api/v1/attendances/${attendanceId}/timeline`, () =>
+    HttpResponse.json({
+      items: [
+        {
+          id: 't2',
+          occurred_at: '2026-01-05T10:05:00Z',
+          actor_user_id: 'u1',
+          action: 'attendances.confirmed',
+          before_state: null,
+          after_state: null,
+          reason: null,
+        },
+        {
+          id: 't1',
+          occurred_at: '2026-01-05T10:00:00Z',
+          actor_user_id: 'u1',
+          action: 'attendances.draft_created',
+          before_state: null,
+          after_state: null,
+          reason: null,
+        },
+      ],
+      total: 2,
+      page: 1,
+      page_size: 20,
+    }),
+  )
+}
+
+function useListHandlers(permissions: string[], items: Record<string, unknown>[]) {
+  server.use(
+    meHandler(permissions),
+    clinicsHandler(),
+    veterinariansHandler(),
+    speciesHandler(),
+    patientsHandler(),
+    statusCountsHandler(),
+    attendancesHandler(items),
+    timelineHandler(),
+  )
+}
+
+test('clicking a row opens the summary popover with exams, totals and history, and Escape closes it', async () => {
+  const user = userEvent.setup()
+  useListHandlers(
+    ['attendances.read', 'pricing.read'],
+    [attendanceItem({ discount_total: '10.00', grand_total: '90.00', subtotal: '100.00' })],
+  )
+  renderWithProviders(<AttendanceListPage />)
+
+  const row = (await screen.findAllByRole('row'))[1] as HTMLElement
+  expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+  await user.click(row)
+
+  const popover = await screen.findByRole('dialog', { name: 'P000001/26' })
+  const summary = within(popover)
+  expect(summary.getByText('Dra. Ana')).toBeInTheDocument()
+  expect(summary.getByText('Clínica Central')).toBeInTheDocument()
+  expect(summary.getByText(/Bidu/)).toBeInTheDocument()
+  expect(summary.getByText('Tutor: Maria Souza')).toBeInTheDocument()
+  expect(summary.getByText('Hemograma')).toBeInTheDocument()
+  expect(within(summary.getByLabelText('Valores')).getByText('R$ 90,00')).toBeInTheDocument()
+  expect(await summary.findByText('Atendimento confirmado')).toBeInTheDocument()
+  expect(summary.getByText('Rascunho criado')).toBeInTheDocument()
+  expect(summary.getByRole('link', { name: 'Abrir atendimento' })).toHaveAttribute(
+    'href',
+    '/operacao/a1',
+  )
+
+  await user.keyboard('{Escape}')
+  await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+  expect(row).toHaveFocus()
+})
+
+test('the summary popover hides every amount from users without pricing.read', async () => {
+  const user = userEvent.setup()
+  useListHandlers(['attendances.read'], [attendanceItem({ discount_total: '10.00' })])
+  renderWithProviders(<AttendanceListPage />)
+
+  await user.click((await screen.findAllByRole('row'))[1] as HTMLElement)
+  const summary = within(await screen.findByRole('dialog', { name: 'P000001/26' }))
+
+  expect(summary.getByText('Hemograma')).toBeInTheDocument()
+  expect(summary.queryByLabelText('Valores')).not.toBeInTheDocument()
+  expect(summary.queryByText(/R\$/)).not.toBeInTheDocument()
+})
+
+test('cancel button in the popover needs attendances.cancel and a cancellable status', async () => {
+  const user = userEvent.setup()
+
+  // Sem permissão de cancelar.
+  useListHandlers(['attendances.read'], [attendanceItem()])
+  let view = renderWithProviders(<AttendanceListPage />)
+  await user.click((await screen.findAllByRole('row'))[1] as HTMLElement)
+  const noPermission = within(await screen.findByRole('dialog', { name: 'P000001/26' }))
+  expect(noPermission.queryByRole('button', { name: 'Mais ações' })).not.toBeInTheDocument()
+  view.unmount()
+  server.resetHandlers()
+
+  // Já cancelado.
+  useListHandlers(
+    ['attendances.read', 'attendances.cancel'],
+    [attendanceItem({ status: 'CANCELLED', cancel_reason: 'Duplicado' })],
+  )
+  view = renderWithProviders(<AttendanceListPage />)
+  await user.click((await screen.findAllByRole('row'))[1] as HTMLElement)
+  const cancelled = within(await screen.findByRole('dialog', { name: 'P000001/26' }))
+  expect(cancelled.queryByRole('button', { name: 'Mais ações' })).not.toBeInTheDocument()
+  expect(cancelled.getByText('Motivo do cancelamento: Duplicado')).toBeInTheDocument()
+  view.unmount()
+  server.resetHandlers()
+
+  // Confirmado com permissão: o botão fecha o popover e abre o modal de motivo.
+  useListHandlers(['attendances.read', 'attendances.cancel'], [attendanceItem()])
+  renderWithProviders(<AttendanceListPage />)
+  await user.click((await screen.findAllByRole('row'))[1] as HTMLElement)
+  const popover = within(await screen.findByRole('dialog', { name: 'P000001/26' }))
+  await user.click(popover.getByRole('button', { name: 'Mais ações' }))
+  await user.click(popover.getByRole('menuitem', { name: 'Cancelar atendimento' }))
+
+  expect(await screen.findByRole('button', { name: 'Confirmar cancelamento' })).toBeInTheDocument()
+  expect(screen.queryByRole('dialog', { name: 'P000001/26' })).not.toBeInTheDocument()
+})
+
+test('clicking the details link inside a row does not open the popover, and reopening on another row shows that attendance', async () => {
+  const user = userEvent.setup()
+  useListHandlers(
+    ['attendances.read'],
+    [attendanceItem(), attendanceItem({ id: 'a2', protocol_number: 'P000002/26' })],
+  )
+  server.use(timelineHandler('a2'))
+  renderWithProviders(<AttendanceListPage />)
+
+  const rows = await screen.findAllByRole('row')
+  await user.click(within(rows[1] as HTMLElement).getByRole('link'))
+  expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+
+  await user.click(rows[1] as HTMLElement)
+  expect(await screen.findByRole('dialog', { name: 'P000001/26' })).toBeInTheDocument()
+  await user.keyboard('{Escape}')
+  await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+  await user.click(rows[2] as HTMLElement)
+  expect(await screen.findByRole('dialog', { name: 'P000002/26' })).toBeInTheDocument()
+  expect(screen.getAllByRole('dialog')).toHaveLength(1)
 })

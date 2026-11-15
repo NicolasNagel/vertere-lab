@@ -80,7 +80,7 @@ export function FinancialAdjustmentModal({
           </p>
         )}
         <div className="closure-reopen-modal__actions">
-          <Button type="button" variant="ghost" disabled={isPending} onClick={onCancel}>
+          <Button type="button" variant="cancel" disabled={isPending} onClick={onCancel}>
             Cancelar
           </Button>
           <Button

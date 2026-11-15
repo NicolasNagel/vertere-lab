@@ -1,0 +1,6 @@
+.patient-age-field {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 6.5rem;
+  gap: 0.5rem;
+  align-items: start;
+}

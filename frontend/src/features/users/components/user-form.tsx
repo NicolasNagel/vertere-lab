@@ -121,7 +121,7 @@ export function UserForm({ roles, clinics, submitting, error, onCancel, onSubmit
       )}
 
       <div className="user-form__actions">
-        <Button type="button" variant="ghost" onClick={onCancel} disabled={submitting}>
+        <Button type="button" variant="cancel" onClick={onCancel} disabled={submitting}>
           Cancelar
         </Button>
         <Button type="submit" className="user-form__submit" disabled={submitting}>

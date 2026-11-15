@@ -219,7 +219,7 @@ export function VeterinarianForm({
       )}
 
       <div className="veterinarian-form__actions">
-        <Button type="button" variant="ghost" onClick={onCancel} disabled={submitting}>
+        <Button type="button" variant="cancel" onClick={onCancel} disabled={submitting}>
           Cancelar
         </Button>
         <Button type="submit" className="veterinarian-form__submit" disabled={submitting}>

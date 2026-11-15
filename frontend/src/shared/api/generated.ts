@@ -55,6 +55,20 @@ export type AttendanceHistoryImportResponse = {
   "exceptions": Array<ImportRowExceptionRead>
 }
 
+export type AttendanceItemEditRequest = {
+  "item_id"?: string | null
+  "exam_id"?: string | null
+  "quantity"?: number
+  "discount_amount"?: number | string | null
+  "override_reason"?: string | null
+}
+
+export type AttendanceItemsUpdateRequest = {
+  "row_version": number
+  "reason": string
+  "items": Array<AttendanceItemEditRequest>
+}
+
 export type AttendanceListResponse = {
   "items": Array<AttendanceRead>
   "total": number
@@ -136,6 +150,7 @@ export type AttendanceUpdateRequest = {
   "service_level"?: "NORMAL" | "PLANTAO_NORMAL" | "PLANTAO_ESPECIAL" | null
   "service_date"?: string | null
   "notes"?: string | null
+  "reason"?: string | null
 }
 
 export type AuthResponse = {
@@ -583,6 +598,8 @@ export type PatientCreateRequest = {
   "owner_phone"?: string | null
   "owner_document"?: string | null
   "notes"?: string | null
+  "age_value"?: number | null
+  "age_unit"?: "YEARS" | "MONTHS" | null
 }
 
 export type PatientListResponse = {
@@ -608,6 +625,9 @@ export type PatientRead = {
   "created_at": string
   "updated_at": string
   "row_version": number
+  "age_value": number | null
+  "age_unit": "YEARS" | "MONTHS" | null
+  "age_recorded_on": string | null
 }
 
 export type PatientStatus = "ACTIVE" | "INACTIVE"
@@ -625,6 +645,8 @@ export type PatientUpdateRequest = {
   "notes"?: string | null
   "expected_row_version": number
   "clinic_id"?: string | null
+  "age_value"?: number | null
+  "age_unit"?: "YEARS" | "MONTHS" | null
 }
 
 export type PermissionRead = {

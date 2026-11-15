@@ -23,7 +23,7 @@ from app.modules.audit.domain.repositories import AuditLogWriter
 from app.modules.clinics.domain.repositories import ClinicRepository
 from app.modules.patients.application.dtos import PatientDTO
 from app.modules.patients.application.mappers import patient_to_dto
-from app.modules.patients.domain.entities import Patient, PatientSex, PatientStatus
+from app.modules.patients.domain.entities import Patient, PatientAge, PatientSex, PatientStatus
 from app.modules.patients.domain.repositories import PatientRepository, SpeciesRepository
 from app.shared.application.authorization import ActorContext
 from app.shared.application.clock import Clock
@@ -45,6 +45,8 @@ class CreatePatientCommand:
     owner_phone: str | None
     owner_document: str | None
     notes: str | None
+    age_value: int | None = None
+    age_unit: str | None = None
 
 
 class CreatePatientUseCase:
@@ -76,6 +78,7 @@ class CreatePatientUseCase:
         if command.species_id not in known_species_ids:
             raise NotFoundError("Espécie não encontrada.")
 
+        age = PatientAge.from_optional(command.age_value, command.age_unit)
         now = self._clock.now()
         patient = Patient(
             id=uuid4(),
@@ -84,7 +87,9 @@ class CreatePatientUseCase:
             species_id=command.species_id,
             sex=PatientSex(command.sex),
             breed=command.breed,
-            age_description=command.age_description,
+            age_description=age.describe() if age else command.age_description,
+            age=age,
+            age_recorded_on=now.date() if age else None,
             owner_name=command.owner_name,
             owner_phone=command.owner_phone,
             owner_document=command.owner_document,

@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { http, HttpResponse } from 'msw'
 import { setupServer } from 'msw/node'
@@ -115,6 +115,7 @@ function veterinarianBruno() {
 function patient() {
   return {
     id: 'p1',
+    clinic_id: 'c1',
     name: 'Bidu',
     species_id: 's1',
     sex: 'MALE',
@@ -184,20 +185,6 @@ function headerDetailsHandlers() {
   ]
 }
 
-function examSearchHandler(matches: Record<string, unknown>[]) {
-  return http.get('/api/v1/exams', ({ request }) => {
-    const url = new URL(request.url)
-    const search = url.searchParams.get('search')
-    const items = search ? matches : []
-    return HttpResponse.json({
-      items,
-      total: items.length,
-      page: 1,
-      page_size: 10,
-    })
-  })
-}
-
 function hemograma() {
   return {
     id: 'e1',
@@ -229,24 +216,6 @@ function timelineEntry(overrides: Record<string, unknown> = {}) {
 function timelineHandler(items: Record<string, unknown>[]) {
   return http.get('/api/v1/attendances/a1/timeline', () =>
     HttpResponse.json({ items, total: items.length, page: 1, page_size: 20 }),
-  )
-}
-
-function previewHandler(items: Record<string, unknown>[]) {
-  return http.post('/api/v1/attendances/a1/preview', async () =>
-    HttpResponse.json({
-      attendance_id: 'a1',
-      clinic_id: 'c1',
-      veterinarian_id: 'v1',
-      patient_id: 'p1',
-      service_date: '2026-01-05',
-      items,
-      subtotal: '200.00',
-      discount_total: '0.00',
-      surcharge_total: '0.00',
-      on_call_fee: '0.00',
-      grand_total: '200.00',
-    }),
   )
 }
 
@@ -286,6 +255,7 @@ const confirmedItem = {
   surcharge_amount: '0.00',
   total_amount: '100.00',
   override_reason: null,
+  components: [],
   status: 'ACTIVE',
 }
 
@@ -312,7 +282,7 @@ test('gates the page by permission, handles not-found and renders non-draft atte
 
   // Confirmado: visão somente leitura com protocolo, exame, categoria e total.
   view = renderPage(
-    ['attendances.read'],
+    ['attendances.read', 'pricing.read'],
     [
       attendanceHandler(
         draftAttendance({
@@ -338,10 +308,20 @@ test('gates the page by permission, handles not-found and renders non-draft atte
   expect(await screen.findByText('P000001/26')).toBeInTheDocument()
   expect(screen.getAllByText('Hemograma').length).toBeGreaterThan(0)
   expect(await screen.findByText('Hematológico')).toBeInTheDocument()
-  expect(document.querySelector('.attendance-readonly-detail__total-value')).toHaveTextContent(
+  expect(document.querySelector('.attendance-readonly-detail__grand:last-child')).toHaveTextContent(
     'R$ 100,00',
   )
   expect(screen.queryByRole('button', { name: 'Confirmar atendimento' })).not.toBeInTheDocument()
+  restart(view)
+
+  // Sem pricing.read nenhum valor aparece na tela.
+  view = renderPage(
+    ['attendances.read'],
+    [attendanceHandler(draftAttendance({ status: 'CONFIRMED', items: [confirmedItem] })), timelineHandler([])],
+  )
+  expect(await screen.findByText('Hemograma')).toBeInTheDocument()
+  expect(screen.queryByText(/R\$/)).not.toBeInTheDocument()
+  expect(screen.queryByRole('heading', { name: 'Valor' })).not.toBeInTheDocument()
   restart(view)
 
   // Sem attendances.update não há edição de observações.
@@ -350,7 +330,7 @@ test('gates the page by permission, handles not-found and renders non-draft atte
     [attendanceHandler(draftAttendance({ status: 'CONFIRMED' })), timelineHandler([])],
   )
   await screen.findByText('Nenhuma observação registrada.')
-  expect(screen.queryByRole('button', { name: 'Editar' })).not.toBeInTheDocument()
+  expect(screen.queryByRole('button', { name: /^Editar/ })).not.toBeInTheDocument()
   restart(view)
 
   // Cancelado não oferece cancelar de novo.
@@ -365,104 +345,53 @@ test('gates the page by permission, handles not-found and renders non-draft atte
   expect(screen.queryByRole('button', { name: 'Cancelar atendimento' })).not.toBeInTheDocument()
 })
 
-test('a DRAFT adds an exam, shows the backend-computed total and confirms with an idempotency key', async () => {
+test('a DRAFT opens in Novo Protocolo already filled and can be discarded with a reason', async () => {
   const user = userEvent.setup()
-  let confirmedBody: Record<string, unknown> | null = null
-  let currentAttendance = draftAttendance()
-  const confirmedAttendance = draftAttendance({
-    status: 'CONFIRMED',
-    protocol_number: 'P000001/26',
-    items: [{ ...confirmedItem, quantity: 2, total_amount: '200.00' }],
-    subtotal: '200.00',
-    grand_total: '200.00',
-  })
-  server.use(
-    http.get('/api/v1/attendances/a1', () => HttpResponse.json(currentAttendance)),
-    examSearchHandler([hemograma()]),
-    previewHandler([
-      {
-        ...confirmedItem,
-        id: 'preview-1',
-        quantity: 2,
-        total_amount: '200.00',
-      },
-    ]),
-    http.post('/api/v1/attendances/a1/confirm', async ({ request }) => {
-      confirmedBody = (await request.json()) as Record<string, unknown>
-      expect(request.headers.get('Idempotency-Key')).toBeTruthy()
-      currentAttendance = confirmedAttendance
-      return HttpResponse.json(confirmedAttendance)
-    }),
-  )
-  renderPage(['attendances.read', 'attendances.update'])
-
-  // Sem exame não há o que confirmar.
-  expect(await screen.findByRole('button', { name: 'Confirmar atendimento' })).toBeDisabled()
-
-  await user.type(await screen.findByLabelText('Adicionar exame'), 'Hemo')
-  await user.click(await screen.findByRole('option', { name: /Hemograma/ }))
-
-  // Sem attendances.override_price o desconto fica oculto.
-  fireEvent.change(await screen.findByLabelText('Quantidade'), {
-    target: { value: '2' },
-  })
-  expect(screen.queryByLabelText('Desconto (R$)')).not.toBeInTheDocument()
-
-  await waitFor(
-    () =>
-      expect(document.querySelector('.attendance-summary-panel__total-value')).toHaveTextContent(
-        'R$ 200,00',
-      ),
-    { timeout: 3000 },
-  )
-
-  await user.click(screen.getByRole('button', { name: 'Confirmar atendimento' }))
-
-  await waitFor(() => expect(confirmedBody).not.toBeNull())
-  expect(confirmedBody).toMatchObject({
-    items: [{ exam_id: 'e1', quantity: 2 }],
-  })
-  expect(await screen.findByText('P000001/26')).toBeInTheDocument()
-})
-
-test('cancelling a DRAFT requires a permission and a non-empty reason', async () => {
-  const user = userEvent.setup()
-  // Sem attendances.cancel o botão não aparece.
-  let view = renderPage(
-    ['attendances.read', 'attendances.update'],
-    [attendanceHandler(draftAttendance()), timelineHandler([])],
-  )
-  await screen.findByLabelText('Adicionar exame')
-  expect(screen.queryByRole('button', { name: 'Cancelar atendimento' })).not.toBeInTheDocument()
-  restart(view)
-
+  let createdDraft = false
   let cancelledBody: Record<string, unknown> | null = null
-  let currentAttendance = draftAttendance()
-  const cancelledAttendance = draftAttendance({
-    status: 'CANCELLED',
-    cancel_reason: 'Pedido do tutor',
+  const draft = draftAttendance({
+    collection_method: 'UBER',
+    service_level: 'PLANTAO_NORMAL',
+    notes: 'Coleta urgente',
   })
-  view = renderPage(
-    ['attendances.read', 'attendances.update', 'attendances.cancel'],
+  renderPage(
+    ['attendances.read', 'attendances.create', 'attendances.update', 'attendances.cancel'],
     [
-      http.get('/api/v1/attendances/a1', () => HttpResponse.json(currentAttendance)),
+      attendanceHandler(draft),
       timelineHandler([]),
+      ...headerDetailsHandlers(),
+      http.get('/api/v1/species', () =>
+        HttpResponse.json({
+          items: [{ id: 's1', name: 'Canino', created_at: '2026-01-01T00:00:00Z' }],
+        }),
+      ),
+      http.get('/api/v1/exams', () =>
+        HttpResponse.json({ items: [], total: 0, page: 1, page_size: 100 }),
+      ),
+      http.get('/api/v1/exam-categories/active', () => HttpResponse.json({ items: [] })),
+      http.post('/api/v1/attendances/drafts', () => {
+        createdDraft = true
+        return HttpResponse.json(draft, { status: 201 })
+      }),
       http.post('/api/v1/attendances/a1/cancel', async ({ request }) => {
         cancelledBody = (await request.json()) as Record<string, unknown>
-        currentAttendance = cancelledAttendance
-        return HttpResponse.json(cancelledAttendance)
+        return HttpResponse.json({ ...draft, status: 'CANCELLED', cancel_reason: 'Pedido do tutor' })
       }),
     ],
   )
 
-  await user.click(await screen.findByRole('button', { name: 'Cancelar atendimento' }))
+  expect(await screen.findByText('Rascunho de protocolo')).toBeInTheDocument()
+  expect(await screen.findByDisplayValue('Coleta urgente')).toBeInTheDocument()
+  expect(await screen.findByText('Bidu')).toBeInTheDocument()
+  // Retomar não cria outro rascunho.
+  expect(createdDraft).toBe(false)
+
+  await user.click(screen.getByRole('button', { name: 'Descartar rascunho' }))
   expect(screen.getByRole('button', { name: 'Confirmar cancelamento' })).toBeDisabled()
   await user.type(await screen.findByLabelText('Motivo do cancelamento'), 'Pedido do tutor')
   await user.click(screen.getByRole('button', { name: 'Confirmar cancelamento' }))
-
   await waitFor(() => expect(cancelledBody).not.toBeNull())
   expect(cancelledBody).toMatchObject({ reason: 'Pedido do tutor' })
-  expect(await screen.findByText('Motivo do cancelamento: Pedido do tutor')).toBeInTheDocument()
 })
 
 test('edits the notes of a CONFIRMED attendance and offers a reload on a version conflict', async () => {
@@ -493,16 +422,18 @@ test('edits the notes of a CONFIRMED attendance and offers a reload on a version
   )
 
   expect(await screen.findByText('Observação original')).toBeInTheDocument()
-  await user.click(screen.getByRole('button', { name: 'Editar' }))
-  const notesInput = screen.getByLabelText('Observações')
+  await user.click(screen.getByRole('button', { name: 'Editar observações' }))
+  const notesInput = screen.getByRole('textbox', { name: 'Observações' })
   await user.clear(notesInput)
   await user.type(notesInput, 'Nova observação')
+  await user.type(screen.getByLabelText('Motivo da alteração'), 'Texto corrigido')
   await user.click(screen.getByRole('button', { name: 'Salvar' }))
 
   await waitFor(() => expect(updatedBody).not.toBeNull())
   expect(updatedBody).toMatchObject({
     row_version: 2,
     notes: 'Nova observação',
+    reason: 'Texto corrigido',
   })
   expect(await screen.findByText('Nova observação')).toBeInTheDocument()
   restart(view)
@@ -533,7 +464,9 @@ test('edits the notes of a CONFIRMED attendance and offers a reload on a version
     ],
   )
   await screen.findByText('Original')
-  await user.click(screen.getByRole('button', { name: 'Editar' }))
+  await user.click(screen.getByRole('button', { name: 'Editar observações' }))
+  await user.type(screen.getByRole('textbox', { name: 'Observações' }), ' (revisada)')
+  await user.type(screen.getByLabelText('Motivo da alteração'), 'Correção')
   await user.click(screen.getByRole('button', { name: 'Salvar' }))
   expect(await screen.findByText('O registro foi alterado por outra operação.')).toBeInTheDocument()
   expect(screen.getByRole('button', { name: 'Recarregar atendimento' })).toBeInTheDocument()
@@ -576,108 +509,192 @@ test('the timeline expands, paginates and shows an empty state', async () => {
   expect(await screen.findByText('Nenhum evento registrado.')).toBeInTheDocument()
 })
 
-test('the header of a DRAFT shows clinic, veterinarian and patient and can be edited only with permission', async () => {
+test('every block of a confirmed attendance can be corrected with a reason', async () => {
   const user = userEvent.setup()
-  const baseHandlers = [timelineHandler([]), ...headerDetailsHandlers()]
-
-  // Leitura: mostra os dados e, sem attendances.update, não oferece edição.
-  let view = renderPage(
-    ['attendances.read'],
-    [attendanceHandler(draftAttendance()), ...baseHandlers],
-  )
-  expect(await screen.findByText('Clínica Central')).toBeInTheDocument()
-  expect(screen.queryByRole('button', { name: 'Editar dados' })).not.toBeInTheDocument()
-  restart(view)
-
-  // Fora de DRAFT nunca há edição de cabeçalho.
-  view = renderPage(
+  let patchBody: Record<string, unknown> | null = null
+  const confirmed = draftAttendance({
+    status: 'CONFIRMED',
+    protocol_number: 'P000001/26',
+    service_level: 'NORMAL',
+    collection_method: 'INTERNAL',
+    row_version: 2,
+  })
+  renderPage(
     ['attendances.read', 'attendances.update'],
     [
-      attendanceHandler(draftAttendance({ status: 'CONFIRMED', protocol_number: 'P000001/26' })),
-      ...baseHandlers,
-    ],
-  )
-  expect(await screen.findByText('Clínica Central')).toBeInTheDocument()
-  expect(screen.queryByRole('button', { name: 'Editar dados' })).not.toBeInTheDocument()
-  restart(view)
-
-  // Com permissão: exibe, edita e salva.
-  let updatedBody: Record<string, unknown> | null = null
-  let currentAttendance = draftAttendance()
-  view = renderPage(
-    ['attendances.read', 'attendances.update'],
-    [
-      http.get('/api/v1/attendances/a1', () => HttpResponse.json(currentAttendance)),
-      ...baseHandlers,
+      attendanceHandler(confirmed),
+      timelineHandler([]),
+      ...headerDetailsHandlers(),
       http.patch('/api/v1/attendances/a1', async ({ request }) => {
-        updatedBody = (await request.json()) as Record<string, unknown>
-        currentAttendance = draftAttendance({
-          clinic_id: 'c2',
-          veterinarian_id: 'v1',
-          patient_id: 'p2',
-          service_date: '2026-02-10',
-          notes: 'Trocado durante edição',
-          row_version: 2,
-        })
-        return HttpResponse.json(currentAttendance)
+        patchBody = (await request.json()) as Record<string, unknown>
+        return HttpResponse.json({ ...confirmed, service_level: 'PLANTAO_NORMAL', row_version: 3 })
       }),
     ],
   )
-  expect(await screen.findByText('Clínica Central')).toBeInTheDocument()
-  expect(screen.getByText('Dra. Ana')).toBeInTheDocument()
-  expect(await screen.findByText('Bidu · Tutor: Maria Souza')).toBeInTheDocument()
-  expect(screen.getByText('05 de jan. de 2026')).toBeInTheDocument()
-  await user.click(screen.getByRole('button', { name: 'Editar dados' }))
 
-  await user.selectOptions(screen.getByLabelText('Clínica solicitante'), 'Clínica Norte')
-  await user.selectOptions(screen.getByLabelText('Veterinário responsável'), 'Dra. Ana')
-  await user.click(screen.getByRole('button', { name: 'Trocar' }))
-  await user.type(screen.getByLabelText('Paciente'), 'Thor')
-  await user.click(await screen.findByRole('option', { name: /Thor/ }))
-  fireEvent.change(screen.getByLabelText('Data do atendimento'), {
-    target: { value: '2026-02-10' },
-  })
+  await screen.findByText('P000001/26')
+  for (const block of ['solicitante', 'paciente', 'atendimento', 'exames', 'observações']) {
+    expect(screen.getByRole('button', { name: `Editar ${block}` })).toBeInTheDocument()
+  }
+
+  await user.click(screen.getByRole('button', { name: 'Editar atendimento' }))
+  await user.selectOptions(screen.getByLabelText('Tipo de atendimento'), 'PLANTAO_NORMAL')
+  // Sem motivo não salva.
+  expect(screen.getByRole('button', { name: 'Salvar' })).toBeDisabled()
+  await user.type(screen.getByLabelText('Motivo da alteração'), 'Era plantão')
   await user.click(screen.getByRole('button', { name: 'Salvar' }))
 
-  await waitFor(() => expect(updatedBody).not.toBeNull())
-  expect(updatedBody).toMatchObject({
-    row_version: 1,
-    clinic_id: 'c2',
-    veterinarian_id: 'v1',
-    patient_id: 'p2',
-    service_date: '2026-02-10',
+  await waitFor(() => expect(patchBody).not.toBeNull())
+  expect(patchBody).toEqual({
+    row_version: 2,
+    service_level: 'PLANTAO_NORMAL',
+    reason: 'Era plantão',
   })
-  expect(await screen.findByText('Clínica Norte')).toBeInTheDocument()
-  expect(screen.getByText('Thor · Tutor: Marcelo Andrade')).toBeInTheDocument()
-  restart(view)
+})
 
-  // Conflito de versão no cabeçalho oferece recarregar.
-  view = renderPage(
-    ['attendances.read', 'attendances.update'],
+test('editing the exams of a confirmed attendance sends the whole desired set with a reason', async () => {
+  const user = userEvent.setup()
+  let putBody: Record<string, unknown> | null = null
+  const confirmed = draftAttendance({
+    status: 'CONFIRMED',
+    protocol_number: 'P000001/26',
+    row_version: 2,
+    items: [
+      {
+        id: 'i1',
+        exam_id: 'e1',
+        exam_code: 'HEMO',
+        exam_name: 'Hemograma',
+        price_base: '100.00',
+        components: [],
+        quantity: 1,
+        discount_amount: '0.00',
+        surcharge_amount: '0.00',
+        total_amount: '100.00',
+        override_reason: null,
+        status: 'ACTIVE',
+      },
+    ],
+    subtotal: '100.00',
+    grand_total: '100.00',
+  })
+  const ureia = { ...hemograma(), id: 'e2', code: 'UREIA', name: 'Ureia', species_ids: ['s1'] }
+  renderPage(
+    ['attendances.read', 'attendances.update', 'pricing.read'],
     [
-      attendanceHandler(draftAttendance()),
-      ...baseHandlers,
-      http.patch('/api/v1/attendances/a1', () =>
-        HttpResponse.json(
-          {
-            error: {
-              code: 'CONFLICT',
-              message: 'O atendimento foi alterado por outra operação.',
-            },
-          },
-          { status: 409 },
-        ),
+      attendanceHandler(confirmed),
+      timelineHandler([]),
+      ...headerDetailsHandlers(),
+      http.get('/api/v1/exams', () =>
+        HttpResponse.json({
+          items: [{ ...hemograma(), species_ids: ['s1'] }, ureia],
+          total: 2,
+          page: 1,
+          page_size: 100,
+        }),
+      ),
+      http.get('/api/v1/exam-categories/active', () =>
+        HttpResponse.json({
+          items: [{ id: 'cat1', name: 'Hematologia', status: 'ACTIVE', row_version: 1 }],
+        }),
+      ),
+      http.put('/api/v1/attendances/a1/items', async ({ request }) => {
+        putBody = (await request.json()) as Record<string, unknown>
+        return HttpResponse.json({ ...confirmed, row_version: 3 })
+      }),
+    ],
+  )
+
+  await screen.findByText('P000001/26')
+  await user.click(screen.getByRole('button', { name: 'Editar exames' }))
+  // O exame já lançado vem marcado; marcar outro o inclui.
+  const hemogramaBox = await screen.findByRole('checkbox', { name: /Hemograma/ })
+  expect(hemogramaBox).toBeChecked()
+  await user.click(await screen.findByRole('checkbox', { name: /Ureia/ }))
+  await user.type(screen.getByLabelText('Motivo da alteração'), 'Solicitante pediu mais um')
+  await user.click(screen.getByRole('button', { name: 'Salvar' }))
+
+  await waitFor(() => expect(putBody).not.toBeNull())
+  expect(putBody).toEqual({
+    row_version: 2,
+    reason: 'Solicitante pediu mais um',
+    items: [
+      { item_id: 'i1', quantity: 1 },
+      { exam_id: 'e2', quantity: 1 },
+    ],
+  })
+})
+
+test('the exam grid shows the snapshot price of a launched exam, not the catalog price', async () => {
+  const user = userEvent.setup()
+  const confirmed = draftAttendance({
+    status: 'CONFIRMED',
+    protocol_number: 'P000001/26',
+    row_version: 2,
+    items: [{ ...confirmedItem, price_base: '90.00', total_amount: '90.00' }],
+  })
+  renderPage(
+    ['attendances.read', 'attendances.update', 'pricing.read'],
+    [
+      attendanceHandler(confirmed),
+      timelineHandler([]),
+      ...headerDetailsHandlers(),
+      http.get('/api/v1/exams', () =>
+        HttpResponse.json({
+          items: [{ ...hemograma(), species_ids: ['s1'], price_base: '100.00' }],
+          total: 1,
+          page: 1,
+          page_size: 100,
+        }),
+      ),
+      http.get('/api/v1/exam-categories/active', () =>
+        HttpResponse.json({
+          items: [{ id: 'cat1', name: 'Hematologia', status: 'ACTIVE', row_version: 1 }],
+        }),
       ),
     ],
   )
-  await screen.findByText('Clínica Central')
-  await screen.findByText('Bidu · Tutor: Maria Souza')
-  await user.click(screen.getByRole('button', { name: 'Editar dados' }))
-  await user.click(screen.getByRole('button', { name: 'Salvar' }))
-  expect(
-    await screen.findByText('O atendimento foi alterado por outra operação.'),
-  ).toBeInTheDocument()
-  expect(screen.getAllByRole('button', { name: 'Recarregar atendimento' }).length).toBeGreaterThan(
-    0,
-  )
+
+  await screen.findByText('P000001/26')
+  await user.click(screen.getByRole('button', { name: 'Editar exames' }))
+  const row = await screen.findByRole('checkbox', { name: /Hemograma/ })
+  expect(row).toBeChecked()
+  expect(row.closest('li, div')?.textContent ?? '').toContain('90,00')
+  expect(screen.queryByText(/100,00/)).not.toBeInTheDocument()
+})
+
+test('the patient record can be corrected from the attendance only with patients.manage', async () => {
+  const user = userEvent.setup()
+  let patchBody: Record<string, unknown> | null = null
+  const confirmed = draftAttendance({ status: 'CONFIRMED', protocol_number: 'P000001/26' })
+  const handlers = [
+    attendanceHandler(confirmed),
+    timelineHandler([]),
+    ...headerDetailsHandlers(),
+    http.get('/api/v1/species', () =>
+      HttpResponse.json({
+        items: [{ id: 's1', name: 'Canino', created_at: '2026-01-01T00:00:00Z' }],
+      }),
+    ),
+    http.patch('/api/v1/patients/p1', async ({ request }) => {
+      patchBody = (await request.json()) as Record<string, unknown>
+      return HttpResponse.json({ ...patient(), name: 'Bidu Júnior', row_version: 2 })
+    }),
+  ]
+
+  const view = renderPage(['attendances.read', 'attendances.update'], handlers)
+  await screen.findByText('P000001/26')
+  expect(screen.queryByRole('button', { name: 'Corrigir cadastro' })).not.toBeInTheDocument()
+  restart(view)
+
+  renderPage(['attendances.read', 'attendances.update', 'patients.manage'], handlers)
+  await user.click(await screen.findByRole('button', { name: 'Corrigir cadastro' }))
+  const dialog = await screen.findByRole('dialog')
+  const name = await within(dialog).findByLabelText('Nome do paciente')
+  await user.clear(name)
+  await user.type(name, 'Bidu Júnior')
+  await user.click(within(dialog).getByRole('button', { name: /Salvar/ }))
+
+  await waitFor(() => expect(patchBody).not.toBeNull())
+  expect(patchBody).toMatchObject({ name: 'Bidu Júnior', expected_row_version: 1 })
 })

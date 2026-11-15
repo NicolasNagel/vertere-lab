@@ -15,7 +15,7 @@
 }
 
 .attendance-patient-form__row--details {
-  grid-template-columns: minmax(0, 1.2fr) minmax(0, 1.2fr) minmax(0, 0.8fr) minmax(0, 1.2fr);
+  grid-template-columns: minmax(0, 1.1fr) minmax(0, 1.1fr) minmax(0, 1.2fr) minmax(0, 1.1fr);
 }
 
 @media (max-width: 40rem) {

@@ -1,5 +1,5 @@
 import { zodResolver } from '@hookform/resolvers/zod'
-import { useForm } from 'react-hook-form'
+import { Controller, useForm } from 'react-hook-form'
 import { z } from 'zod'
 
 import { ApiError } from '../../../shared/api/errors'
@@ -8,6 +8,12 @@ import { Dropdown } from '../../../shared/ui/dropdown'
 import { TextField } from '../../../shared/ui/text-field'
 import { useSpeciesQuery } from '../../patients/api/use-species-query'
 import type { PatientFormValues, PatientSex } from '../../patients/api/patients-api'
+import { PatientAgeField } from '../../patients/components/patient-age-field'
+import {
+  ageFieldsShape,
+  ageToApi,
+  validateAge,
+} from '../../patients/components/patient-age-schema'
 import './attendance-patient-form.css'
 
 const attendancePatientSchema = z.object({
@@ -15,9 +21,9 @@ const attendancePatientSchema = z.object({
   speciesId: z.string().trim().min(1, 'Selecione a espécie.'),
   sex: z.enum(['MALE', 'FEMALE']),
   breed: z.string().trim(),
-  ageDescription: z.string().trim(),
+  ...ageFieldsShape,
   ownerName: z.string().trim().min(1, 'Informe o nome do tutor.'),
-})
+}).superRefine(validateAge)
 
 type AttendancePatientFields = z.infer<typeof attendancePatientSchema>
 
@@ -28,7 +34,7 @@ function toApiValues(fields: AttendancePatientFields, clinicId: string): Patient
     speciesId: fields.speciesId,
     sex: fields.sex,
     breed: fields.breed || null,
-    ageDescription: fields.ageDescription || null,
+    ...ageToApi(fields),
     ownerName: fields.ownerName,
     ownerPhone: null,
     ownerDocument: null,
@@ -65,6 +71,7 @@ export function AttendancePatientForm({
 }: AttendancePatientFormProps) {
   const {
     register,
+    control,
     handleSubmit,
     watch,
     setValue,
@@ -76,7 +83,8 @@ export function AttendancePatientForm({
       speciesId: '',
       sex: 'MALE',
       breed: '',
-      ageDescription: '',
+      ageValue: '',
+      ageUnit: 'YEARS',
       ownerName: '',
     },
   })
@@ -132,11 +140,26 @@ export function AttendancePatientForm({
           disabled={submitting}
           {...register('breed')}
         />
-        <TextField
-          id="attendance-patient-age"
-          label="Idade"
-          disabled={submitting}
-          {...register('ageDescription')}
+        <Controller
+          control={control}
+          name="ageValue"
+          render={({ field: valueField }) => (
+            <Controller
+              control={control}
+              name="ageUnit"
+              render={({ field: unitField }) => (
+                <PatientAgeField
+                  idPrefix="attendance-patient"
+                  value={valueField.value}
+                  unit={unitField.value}
+                  disabled={submitting}
+                  errorMessage={errors.ageValue?.message}
+                  onValueChange={valueField.onChange}
+                  onUnitChange={unitField.onChange}
+                />
+              )}
+            />
+          )}
         />
         <div className="attendance-patient-form__field">
           <span className="attendance-patient-form__label">Sexo</span>
@@ -172,7 +195,7 @@ export function AttendancePatientForm({
       )}
 
       <div className="attendance-patient-form__actions">
-        <Button type="button" variant="ghost" onClick={onCancel} disabled={submitting}>
+        <Button type="button" variant="cancel" onClick={onCancel} disabled={submitting}>
           Cancelar
         </Button>
         <Button type="submit" disabled={submitting}>

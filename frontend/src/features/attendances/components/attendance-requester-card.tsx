@@ -6,35 +6,22 @@ interface AttendanceRequesterCardProps {
   veterinarian: Veterinarian | undefined
 }
 
-/** Read-only "Solicitante" card — clínica + veterinário do atendimento. Sem
- * edição própria: troca de clínica/veterinário só é permitida em `DRAFT`,
- * pela tela de confirmação (`AttendanceHeaderDetails`), nunca aqui. */
+function display(value: string | null | undefined): string {
+  return value && value.trim() ? value : '—'
+}
+
+/** Conteúdo do bloco "Solicitante": clínica + veterinário do atendimento. */
 export function AttendanceRequesterCard({ clinic, veterinarian }: AttendanceRequesterCardProps) {
   return (
-    <section className="attendance-readonly-detail__section">
-      <h2 className="attendance-readonly-detail__section-title">Solicitante</h2>
-      <div className="attendance-readonly-detail__field-list">
-        <div className="attendance-readonly-detail__field-row">
-          <span className="attendance-readonly-detail__label">Clínica</span>
-          <span className="attendance-readonly-detail__value">{clinic?.name ?? '—'}</span>
-        </div>
-        <div className="attendance-readonly-detail__field-row">
-          <span className="attendance-readonly-detail__label">Veterinário</span>
-          <span className="attendance-readonly-detail__value">{veterinarian?.name ?? '—'}</span>
-        </div>
-        <div className="attendance-readonly-detail__field-row">
-          <span className="attendance-readonly-detail__label">CRMV</span>
-          <span className="attendance-readonly-detail__value attendance-readonly-detail__mono">
-            {veterinarian?.crmv ?? '—'}
-          </span>
-        </div>
-        <div className="attendance-readonly-detail__field-row">
-          <span className="attendance-readonly-detail__label">Contato</span>
-          <span className="attendance-readonly-detail__value attendance-readonly-detail__mono">
-            {veterinarian?.phone ?? '—'}
-          </span>
-        </div>
-      </div>
-    </section>
+    <dl className="attendance-readonly-detail__fields">
+        <dt>Clínica</dt>
+        <dd>{display(clinic?.name)}</dd>
+        <dt>Veterinário</dt>
+        <dd>{display(veterinarian?.name)}</dd>
+        <dt>CRMV</dt>
+        <dd className="attendance-readonly-detail__mono">{display(veterinarian?.crmv)}</dd>
+        <dt>Contato</dt>
+        <dd className="attendance-readonly-detail__mono">{display(veterinarian?.phone)}</dd>
+    </dl>
   )
 }

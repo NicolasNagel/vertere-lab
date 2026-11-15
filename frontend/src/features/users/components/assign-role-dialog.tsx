@@ -86,7 +86,7 @@ export function AssignRoleDialog({
       )}
 
       <div className="assign-role-dialog__actions">
-        <Button type="button" variant="ghost" onClick={onCancel} disabled={submitting}>
+        <Button type="button" variant="cancel" onClick={onCancel} disabled={submitting}>
           Cancelar
         </Button>
         <Button

@@ -102,7 +102,7 @@ export function ClosureCloseModal({
         )}
 
         <div className="closure-close-modal__actions">
-          <Button type="button" variant="ghost" disabled={closeMutation.isPending} onClick={onClose}>
+          <Button type="button" variant="secondary" disabled={closeMutation.isPending} onClick={onClose}>
             Voltar
           </Button>
           <Button type="button" disabled={!confirmed || closeMutation.isPending} onClick={handleConfirm}>

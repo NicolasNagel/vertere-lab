@@ -657,7 +657,7 @@ async def test_update_uses_optimistic_locking_and_respects_the_attendance_state(
     assert (second.status_code, second.json()["row_version"]) == (200, 3)
     assert second.json()["notes"] == "Segunda edição"
 
-    # Confirmado: a observação muda, a clínica não.
+    # Confirmado: tudo pode ser corrigido, com motivo obrigatório e diff na auditoria.
     confirmed_id, confirmed_exam = await _create_confirmable_draft(client, session_factory)
     confirm = await client.post(
         f"/api/v1/attendances/{confirmed_id}/confirm",
@@ -666,29 +666,50 @@ async def test_update_uses_optimistic_locking_and_respects_the_attendance_state(
     )
     confirmed_url = f"/api/v1/attendances/{confirmed_id}"
     row_version = confirm.json()["row_version"]
-    new_clinic = await client.patch(
-        confirmed_url, json={"row_version": row_version, "clinic_id": str(uuid4())}
+    no_reason = await client.patch(
+        confirmed_url, json={"row_version": row_version, "notes": "Sem motivo"}
     )
-    assert new_clinic.status_code == 422
+    assert no_reason.status_code == 422
+    unknown_clinic = await client.patch(
+        confirmed_url,
+        json={"row_version": row_version, "clinic_id": str(uuid4()), "reason": "Clínica errada"},
+    )
+    assert unknown_clinic.status_code == 404
     noted = await client.patch(
-        confirmed_url, json={"row_version": row_version, "notes": "Retorno em 7 dias"}
+        confirmed_url,
+        json={
+            "row_version": row_version,
+            "notes": "Retorno em 7 dias",
+            "service_level": "PLANTAO_ESPECIAL",
+            "reason": "Era plantão especial",
+        },
     )
     assert (noted.status_code, noted.json()["notes"], noted.json()["status"]) == (
         200,
         "Retorno em 7 dias",
         "CONFIRMED",
     )
+    assert noted.json()["service_level"] == "PLANTAO_ESPECIAL"
+    assert Decimal(noted.json()["on_call_fee"]) > 0
+    assert Decimal(noted.json()["grand_total"]) == Decimal(confirm.json()["grand_total"]) + Decimal(
+        noted.json()["on_call_fee"]
+    )
+    assert _audit_row(session_factory, "attendances.updated").reason == "Era plantão especial"
 
-    # Cancelado: não aceita edição.
+    # Cancelado: também pode ser corrigido (dado cadastral), com motivo.
     cancelled_id, _ = await _create_confirmable_draft(client, session_factory)
     cancelled = await client.post(
         f"/api/v1/attendances/{cancelled_id}/cancel", json={"reason": "Motivo do cancelamento"}
     )
     after_cancel = await client.patch(
         f"/api/v1/attendances/{cancelled_id}",
-        json={"row_version": cancelled.json()["row_version"], "notes": "Não deveria passar"},
+        json={
+            "row_version": cancelled.json()["row_version"],
+            "notes": "Correção cadastral",
+            "reason": "Observação errada",
+        },
     )
-    assert after_cancel.status_code == 409
+    assert (after_cancel.status_code, after_cancel.json()["status"]) == (200, "CANCELLED")
 
     await _switch_user(
         client, session_factory, email="finance-update@vertere.local", role_id=ROLE_FINANCE
@@ -711,7 +732,11 @@ async def test_timeline_lists_this_attendance_most_recent_first_and_paginates(
     )
     update = await client.patch(
         f"/api/v1/attendances/{attendance_id}",
-        json={"row_version": confirm.json()["row_version"], "notes": "Retorno agendado"},
+        json={
+            "row_version": confirm.json()["row_version"],
+            "notes": "Retorno agendado",
+            "reason": "Combinado por telefone",
+        },
     )
     assert (confirm.status_code, update.status_code) == (200, 200)
 
@@ -725,7 +750,7 @@ async def test_timeline_lists_this_attendance_most_recent_first_and_paginates(
         "attendances.draft_created",
     ]
     assert body["items"][0]["after_state"] == {"notes": "Retorno agendado"}
-    assert body["items"][0]["reason"] is None
+    assert body["items"][0]["reason"] == "Combinado por telefone"
 
     row_version = 1
     for index in range(3):
@@ -865,3 +890,151 @@ async def test_panel_item_freezes_its_composition_on_the_attendance(
     frozen = {item["exam_name"]: item for item in reread.json()["items"]}["BÁSICO 1"]
     assert [c["name"] for c in frozen["components"]] == ["Hemograma", "ALT"]
     assert Decimal(frozen["price_base"]) == Decimal("110.00")
+
+
+async def test_exams_can_be_added_removed_and_corrected_after_confirmation(
+    client: httpx.AsyncClient, session_factory: sessionmaker[Session]
+) -> None:
+    await _login_admin(client, session_factory)
+    attendance_id, first_exam = await _create_confirmable_draft(
+        client, session_factory, service_level="PLANTAO_NORMAL"
+    )
+    unique = uuid4().hex[:8]
+    second_exam = await _create_exam(
+        client,
+        code=f"UREIA-{unique}",
+        category_id=await _create_exam_category(client, f"Bioquímica {unique}"),
+        price_base="50.00",
+        species_ids=[_get_species_id(session_factory, name="Canino")],
+    )
+    confirm = await client.post(
+        f"/api/v1/attendances/{attendance_id}/confirm",
+        json=_items(first_exam, 2),
+        headers=_idempotency_header("items-edit-confirm"),
+    )
+    assert confirm.status_code == 200
+    first_item = confirm.json()["items"][0]["id"]
+    assert Decimal(confirm.json()["grand_total"]) == Decimal("300.00")  # 2 x 100 + plantão 100
+    url = f"/api/v1/attendances/{attendance_id}/items"
+
+    # Motivo é obrigatório e a versão precisa ser a atual.
+    assert (await client.put(url, json={"row_version": 2, "items": []})).status_code == 422
+    stale = await client.put(
+        url,
+        json={"row_version": 1, "reason": "x", "items": [{"item_id": first_item}]},
+    )
+    assert stale.status_code == 409
+
+    # Corrige a quantidade, dá desconto e inclui um exame depois do fato.
+    edited = await client.put(
+        url,
+        json={
+            "row_version": confirm.json()["row_version"],
+            "reason": "Solicitante pediu mais um exame e combinou cortesia",
+            "items": [
+                {
+                    "item_id": first_item,
+                    "quantity": 1,
+                    "discount_amount": "20.00",
+                    "override_reason": "Cortesia",
+                },
+                {"exam_id": second_exam, "quantity": 3},
+            ],
+        },
+    )
+    assert edited.status_code == 200, edited.text
+    body = edited.json()
+    assert (body["status"], len(body["items"])) == ("CONFIRMED", 2)
+    assert Decimal(body["subtotal"]) == Decimal("250.00")  # 100 + 3 x 50
+    assert Decimal(body["discount_total"]) == Decimal("20.00")
+    assert Decimal(body["grand_total"]) == Decimal("330.00")  # 80 + 150 + plantão 100
+    assert sum(Decimal(item["total_amount"]) for item in body["items"]) + Decimal(
+        body["on_call_fee"]
+    ) == Decimal(body["grand_total"])
+    assert body["row_version"] > confirm.json()["row_version"]
+    audit = _audit_row(session_factory, "attendances.items_updated")
+    assert audit.entity_id == attendance_id
+    assert audit.reason == "Solicitante pediu mais um exame e combinou cortesia"
+
+    # Remover não apaga: o item fica no histórico como CANCELLED e sai do total.
+    second_item = next(i["id"] for i in body["items"] if i["exam_id"] == second_exam)
+    removed = await client.put(
+        url,
+        json={
+            "row_version": body["row_version"],
+            "reason": "Primeiro exame lançado por engano",
+            "items": [{"item_id": second_item, "quantity": 3}],
+        },
+    )
+    assert removed.status_code == 200
+    statuses = {i["exam_id"]: i["status"] for i in removed.json()["items"]}
+    assert statuses == {first_exam: "CANCELLED", second_exam: "ACTIVE"}
+    assert Decimal(removed.json()["grand_total"]) == Decimal("250.00")  # 150 + plantão 100
+
+    # Nunca fica sem exame; item de outro atendimento é recusado.
+    version = removed.json()["row_version"]
+    empty = await client.put(url, json={"row_version": version, "reason": "Limpar", "items": []})
+    assert empty.status_code == 422
+    foreign = await client.put(
+        url,
+        json={"row_version": version, "reason": "Teste", "items": [{"item_id": str(uuid4())}]},
+    )
+    assert foreign.status_code == 422
+
+    # Reativar o item removido (continua com o preço do snapshot) e corrigir cancelado.
+    cancelled = await client.post(
+        f"/api/v1/attendances/{attendance_id}/cancel",
+        json={"reason": "Lançado errado"},
+    )
+    assert cancelled.status_code == 200, cancelled.text
+    restored = await client.put(
+        url,
+        json={
+            "row_version": cancelled.json()["row_version"],
+            "reason": "Era o primeiro exame mesmo",
+            "items": [{"item_id": first_item, "quantity": 1}],
+        },
+    )
+    assert restored.status_code == 200
+    assert restored.json()["status"] == "CANCELLED"
+    assert Decimal(restored.json()["grand_total"]) == Decimal("200.00")  # 100 + plantão 100
+
+
+async def test_item_discount_needs_override_permission_but_other_edits_do_not(
+    client: httpx.AsyncClient, session_factory: sessionmaker[Session]
+) -> None:
+    await _login_admin(client, session_factory)
+    attendance_id, exam_id = await _create_confirmable_draft(client, session_factory)
+    confirm = await client.post(
+        f"/api/v1/attendances/{attendance_id}/confirm",
+        json=_items(exam_id, 1),
+        headers=_idempotency_header("items-perm-confirm"),
+    )
+    item_id = confirm.json()["items"][0]["id"]
+    url = f"/api/v1/attendances/{attendance_id}/items"
+    version = confirm.json()["row_version"]
+
+    await _switch_user(
+        client, session_factory, email="reception2@vertere.local", role_id=ROLE_RECEPTION
+    )
+    discount = await client.put(
+        url,
+        json={
+            "row_version": version,
+            "reason": "Desconto",
+            "items": [{"item_id": item_id, "discount_amount": "10.00", "override_reason": "x"}],
+        },
+    )
+    assert discount.status_code == 403
+
+    # Quantidade (sem mexer no desconto) a recepção pode corrigir.
+    quantity = await client.put(
+        url,
+        json={
+            "row_version": version,
+            "reason": "Eram dois",
+            "items": [{"item_id": item_id, "quantity": 2}],
+        },
+    )
+    assert quantity.status_code == 200
+    assert Decimal(quantity.json()["grand_total"]) == Decimal("200.00")

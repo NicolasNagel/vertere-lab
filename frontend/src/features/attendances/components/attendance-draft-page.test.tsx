@@ -421,7 +421,7 @@ test('finding an existing patient from the history keeps the already-filled clin
   await chooseOption(user, 'Veterinário responsável', 'Dr. Bruno (vinculado c1)')
 
   await user.click(screen.getByRole('button', { name: '+ buscar do histórico' }))
-  await user.type(screen.getByLabelText('Paciente'), 'Bidu')
+  await user.type(screen.getByRole('textbox', { name: 'Paciente' }), 'Bidu')
   await user.click(await screen.findByRole('option', { name: /Bidu/ }))
 
   await waitFor(() => expect(onDraftCreated).toHaveBeenCalledTimes(1))

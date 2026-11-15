@@ -13,6 +13,7 @@ from __future__ import annotations
 import asyncio
 from datetime import UTC, datetime
 from decimal import Decimal
+from typing import Any
 from uuid import UUID, uuid4
 
 import httpx
@@ -594,3 +595,118 @@ async def test_adjustment_is_append_only_visible_in_detail_and_export_and_valida
         ).scalar_one()
     assert count == 1
     assert str(stored_total) == original_total
+
+
+def _closure_link(session_factory: sessionmaker[Session], attendance_id: str) -> str | None:
+    with session_factory() as session:
+        value = session.execute(
+            text("SELECT monthly_closure_id FROM attendances WHERE id = :id"),
+            {"id": attendance_id},
+        ).scalar_one()
+    return None if value is None else str(value)
+
+
+def _net_adjustment(closure: dict[str, Any]) -> Decimal:
+    return sum(
+        (
+            Decimal(a["amount"]) * (1 if a["kind"] == "DEBIT" else -1)
+            for a in closure["adjustments"]
+        ),
+        Decimal("0"),
+    )
+
+
+async def test_correcting_a_closed_attendance_settles_the_difference_as_adjustments(
+    client: httpx.AsyncClient, session_factory: sessionmaker[Session]
+) -> None:
+    await _login_admin(client, session_factory)
+    clinic_id = await _create_clinic(client, f"Clinica {uuid4()}")
+    vet_id = await _create_veterinarian(client, name="Dra. Ana", crmv=f"CRMV-{uuid4()}")
+    patient_id = await _create_patient(client, session_factory, clinic_id=clinic_id)
+    exam_id = await _create_exam(
+        client, session_factory, code=f"HEMO-{uuid4().hex[:6]}", price="100.00"
+    )
+    january = await _confirm_attendance(
+        client,
+        clinic_id=clinic_id,
+        veterinarian_id=vet_id,
+        patient_id=patient_id,
+        exam_id=exam_id,
+        service_date="2026-01-10",
+    )
+    february = await _confirm_attendance(
+        client,
+        clinic_id=clinic_id,
+        veterinarian_id=vet_id,
+        patient_id=patient_id,
+        exam_id=exam_id,
+        service_date="2026-02-10",
+    )
+    jan_closure = (await _close(client, clinic_id, "c-jan")).json()
+    feb_closure = (
+        await _close(client, clinic_id, "c-feb", period=("2026-02-01", "2026-02-28"))
+    ).json()
+    jan_id = str(january["id"])
+    assert _closure_link(session_factory, jan_id) == jan_closure["id"]
+
+    # Exame a mais num atendimento fechado: o fechamento não muda, o ajuste cobre a diferença.
+    items_url = f"/api/v1/attendances/{jan_id}/items"
+    item_id = january["items"][0]["id"]  # type: ignore[index]
+    more = await client.put(
+        items_url,
+        json={
+            "row_version": january["row_version"],
+            "reason": "Solicitante pediu a segunda unidade",
+            "items": [{"item_id": item_id, "quantity": 2}],
+        },
+    )
+    assert more.status_code == 200, more.text
+    assert Decimal(more.json()["grand_total"]) == Decimal("200.00")
+    detail = (await client.get(f"/api/v1/closures/{jan_closure['id']}")).json()
+    assert detail["grand_total"] == jan_closure["grand_total"]
+    assert [(a["kind"], Decimal(a["amount"])) for a in detail["adjustments"]] == [
+        ("DEBIT", Decimal("100.00"))
+    ]
+    assert "Solicitante pediu a segunda unidade" in detail["adjustments"][0]["reason"]
+
+    # Só observação: nenhum ajuste novo.
+    noted = await client.patch(
+        f"/api/v1/attendances/{jan_id}",
+        json={"row_version": more.json()["row_version"], "notes": "ok", "reason": "Anotação"},
+    )
+    assert noted.status_code == 200
+    assert (
+        len((await client.get(f"/api/v1/closures/{jan_closure['id']}")).json()["adjustments"]) == 1
+    )
+
+    # Mudar a data para fora do fechamento (mês sem fechamento): reverte tudo e solta o vínculo.
+    moved_open = await client.patch(
+        f"/api/v1/attendances/{jan_id}",
+        json={
+            "row_version": noted.json()["row_version"],
+            "service_date": "2026-03-05",
+            "reason": "Data digitada errada",
+        },
+    )
+    assert moved_open.status_code == 200
+    detail = (await client.get(f"/api/v1/closures/{jan_closure['id']}")).json()
+    assert Decimal(detail["grand_total"]) + _net_adjustment(detail) == Decimal("0.00")
+    assert _closure_link(session_factory, jan_id) is None
+
+    # De volta para um mês já fechado: entra nesse fechamento como débito.
+    moved_closed = await client.patch(
+        f"/api/v1/attendances/{jan_id}",
+        json={
+            "row_version": moved_open.json()["row_version"],
+            "service_date": "2026-02-12",
+            "reason": "Era fevereiro",
+        },
+    )
+    assert moved_closed.status_code == 200
+    assert _closure_link(session_factory, jan_id) == feb_closure["id"]
+    detail = (await client.get(f"/api/v1/closures/{feb_closure['id']}")).json()
+    assert _net_adjustment(detail) == Decimal("200.00")
+    assert Decimal(detail["grand_total"]) + _net_adjustment(detail) == Decimal(
+        "300.00"
+    )  # 100 + 200
+    assert str(february["id"]) != jan_id

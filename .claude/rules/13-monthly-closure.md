@@ -36,8 +36,9 @@ soma dos snapshots com o cabeçalho **antes do commit** → grava auditoria e ou
 Nenhuma exportação ou envio externo acontece dentro dessa transação.
 
 ## Imutabilidade
-Fechamento `CLOSED` não é editado. Atendimento associado a um fechamento fechado não muda
-financeiramente por nenhum caminho de código. Ajuste é entidade **append-only**. Reabertura é
+Fechamento `CLOSED` não é editado. Atendimento associado a um fechamento fechado só muda
+financeiramente pelo caso de uso de correção (`attendances.application.closure_settlement`), que
+grava o ajuste correspondente no próprio fechamento. Ajuste é entidade **append-only**. Reabertura é
 excepcional e preserva a versão anterior (nunca sobrescreve). Motivo e autor são obrigatórios em
 qualquer uma dessas exceções. Exportação sempre parte do snapshot + ajustes, nunca recalcula do
 atendimento vivo.

@@ -133,6 +133,9 @@ class AttendanceExam:
     status: AttendanceExamStatus = AttendanceExamStatus.ACTIVE
 
     def __post_init__(self) -> None:
+        self._recalculate()
+
+    def _recalculate(self) -> None:
         if self.quantity <= 0:
             raise ValidationError("Quantidade do item deve ser maior que zero.")
         if self.discount_amount < 0 or self.surcharge_amount < 0:
@@ -142,6 +145,25 @@ class AttendanceExam:
         )
         if self.total_amount < 0:
             raise ValidationError("Total do item não pode ser negativo.")
+
+    def revise(
+        self,
+        *,
+        quantity: int,
+        discount_amount: Decimal,
+        override_reason: str | None,
+        override_by: UUID | None,
+        status: AttendanceExamStatus,
+    ) -> None:
+        """Correct quantity/discount/status of a snapshotted item. The price snapshot
+        (`price_base`, name, composition) is never touched — only what the lab
+        decided for this attendance can change."""
+        self.quantity = quantity
+        self.discount_amount = discount_amount
+        self.override_reason = override_reason
+        self.override_by = override_by
+        self.status = status
+        self._recalculate()
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -337,6 +359,34 @@ class AttendanceRecord:
         self.updated_by = cancelled_by
         self.updated_at = now
 
+    def apply_item_changes(
+        self,
+        *,
+        items: list[AttendanceExam],
+        now: datetime,
+        updated_by: UUID | None,
+        closed_correction: bool = False,
+    ) -> None:
+        """Replace the item set (removed items stay as `CANCELLED`) and recompute every
+        total from the ACTIVE ones. Allowed in `CONFIRMED` and `CANCELLED`; an attendance
+        inside a closure only with `closed_correction=True`, and then the caller settles the
+        difference as a financial adjustment on that closure."""
+        if self.status not in (AttendanceStatus.CONFIRMED, AttendanceStatus.CANCELLED):
+            raise InvalidStateTransitionError("Exames não podem ser editados neste estado.")
+        if self.monthly_closure_id is not None and not closed_correction:
+            raise AttendanceAlreadyClosedError(
+                "Atendimento pertence a um fechamento e não pode ser editado diretamente."
+            )
+        active = [item for item in items if item.status == AttendanceExamStatus.ACTIVE]
+        totals = compute_attendance_totals(active, on_call_fee=self.on_call_fee)
+        self.items = items
+        self.subtotal = totals.subtotal
+        self.discount_total = totals.discount_total
+        self.surcharge_total = totals.surcharge_total
+        self.grand_total = totals.grand_total
+        self.updated_by = updated_by
+        self.updated_at = now
+
     def update_fields(
         self,
         *,
@@ -347,43 +397,42 @@ class AttendanceRecord:
         service_level: ServiceLevel | None = None,
         service_date: date | None,
         notes: str | None,
+        on_call_fee: Decimal | None = None,
+        closed_correction: bool = False,
         now: datetime,
         updated_by: UUID | None,
     ) -> dict[str, tuple[str | None, str | None]]:
-        """Controlled edit (`.claude/rules/12-attendance.md`): `DRAFT` allows
-        clinic/veterinarian/patient/service_date/notes; `CONFIRMED` (still
-        financially open) allows only `notes` — `service_date` in
-        particular is excluded there because it drives
-        `billing_competence`, and "competência de um atendimento não muda
-        sem um caso de uso específico e auditado"
-        (`.claude/rules/13-monthly-closure.md`). A `None` argument means "not
-        provided" for every field here, `notes` included — this slice has
-        no way to clear notes back to empty via PATCH, only to overwrite
-        with a new non-null string; a deliberate simplification, not an
-        oversight.
+        """Controlled edit (`.claude/rules/12-attendance.md`). Any header field can be
+        corrected in `DRAFT`, `CONFIRMED` and `CANCELLED` — a wrong clinic, veterinarian,
+        date or service level is a correction, not a new fact. What stays blocked is an
+        attendance already inside a closure (`monthly_closure_id`): correcting it needs a
+        financial adjustment on that closure, a separate use case. Legacy-imported
+        (`COMPLETED`) records are never edited here.
 
-        Returns only the fields that actually changed, as
-        `{field: (before, after)}`, for the audit diff — a caller that gets
-        an empty dict back made a no-op call and should skip persisting.
+        After the draft stage the money fields that depend on the header follow it:
+        changing `service_level` recomputes the on-call fee and the grand total (the caller
+        resolves `on_call_fee` from the settings, because the domain does no I/O), and
+        changing `service_date` moves `billing_competence`. Item prices are snapshots and do
+        not change with the date. A `None` argument means "not provided" for every field,
+        `notes` included — there is no way to clear notes back to empty via PATCH, only to
+        overwrite them.
+
+        Returns only the fields that actually changed, as `{field: (before, after)}`, for
+        the audit diff — a caller that gets an empty dict back made a no-op call and should
+        skip persisting.
         """
-        if self.status not in (AttendanceStatus.DRAFT, AttendanceStatus.CONFIRMED):
+        if self.status not in (
+            AttendanceStatus.DRAFT,
+            AttendanceStatus.CONFIRMED,
+            AttendanceStatus.CANCELLED,
+        ):
             raise InvalidStateTransitionError("Atendimento não pode ser editado neste estado.")
-        if self.monthly_closure_id is not None:
+        if self.monthly_closure_id is not None and not closed_correction:
             raise AttendanceAlreadyClosedError(
                 "Atendimento pertence a um fechamento e não pode ser editado diretamente."
             )
 
         is_draft = self.status == AttendanceStatus.DRAFT
-        if not is_draft and (
-            clinic_id is not None
-            or veterinarian_id is not None
-            or patient_id is not None
-            or collection_method is not None
-            or service_level is not None
-            or service_date is not None
-        ):
-            raise ValidationError("Após a confirmação, apenas observações podem ser editadas.")
-
         changes: dict[str, tuple[str | None, str | None]] = {}
         if clinic_id is not None and clinic_id != self.clinic_id:
             changes["clinic_id"] = (str(self.clinic_id), str(clinic_id))
@@ -400,9 +449,34 @@ class AttendanceRecord:
         if service_level is not None and service_level != self.service_level:
             changes["service_level"] = (self.service_level.value, service_level.value)
             self.service_level = service_level
+            if not is_draft:
+                if on_call_fee is None:
+                    raise ValidationError("Taxa de plantão não informada para o novo tipo.")
+                changes["on_call_fee"] = (str(self.on_call_fee), str(on_call_fee))
+                previous_total = self.grand_total
+                self.on_call_fee = on_call_fee
+                self.grand_total = round_currency(
+                    sum(
+                        (
+                            item.total_amount
+                            for item in self.items
+                            if item.status == AttendanceExamStatus.ACTIVE
+                        ),
+                        Decimal("0"),
+                    )
+                    + on_call_fee
+                )
+                changes["grand_total"] = (str(previous_total), str(self.grand_total))
         if service_date is not None and service_date != self.service_date:
             changes["service_date"] = (str(self.service_date), str(service_date))
             self.service_date = service_date
+            if not is_draft:
+                new_competence = service_date.replace(day=1)
+                changes["billing_competence"] = (
+                    str(self.billing_competence),
+                    str(new_competence),
+                )
+                self.billing_competence = new_competence
         if notes is not None and notes != self.notes:
             changes["notes"] = (self.notes, notes)
             self.notes = notes

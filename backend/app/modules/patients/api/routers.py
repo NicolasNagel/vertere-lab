@@ -16,6 +16,7 @@ from sqlalchemy.orm import Session as SqlAlchemySession
 from app.api.dependencies import get_session, get_unit_of_work
 from app.modules.identity.api.dependencies import get_current_user, require_permission
 from app.modules.patients.api.schemas import (
+    AgeUnitLiteral,
     PatientCreateRequest,
     PatientListResponse,
     PatientRead,
@@ -88,6 +89,9 @@ def _patient_read(dto: PatientDTO) -> PatientRead:
         created_at=dto.created_at,
         updated_at=dto.updated_at,
         row_version=dto.row_version,
+        age_value=dto.age_value,
+        age_unit=cast(AgeUnitLiteral | None, dto.age_unit),
+        age_recorded_on=dto.age_recorded_on,
     )
 
 
@@ -151,6 +155,8 @@ def create_patient(
             owner_phone=payload.owner_phone,
             owner_document=payload.owner_document,
             notes=payload.notes,
+            age_value=payload.age_value,
+            age_unit=payload.age_unit,
         ),
         clock=SystemClock(),
     )
@@ -181,6 +187,8 @@ def update_patient(
             status=payload.status,
             notes=payload.notes,
             expected_row_version=payload.expected_row_version,
+            age_value=payload.age_value,
+            age_unit=payload.age_unit,
         ),
         clock=SystemClock(),
     )

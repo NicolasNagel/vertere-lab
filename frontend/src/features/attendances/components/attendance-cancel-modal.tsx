@@ -67,11 +67,12 @@ export function AttendanceCancelModal({
         )}
 
         <div className="attendance-cancel-modal__actions">
-          <Button type="button" variant="ghost" disabled={cancelMutation.isPending} onClick={onClose}>
+          <Button type="button" variant="secondary" disabled={cancelMutation.isPending} onClick={onClose}>
             Voltar
           </Button>
           <Button
             type="button"
+            variant="danger"
             disabled={!trimmedReason || cancelMutation.isPending}
             onClick={handleConfirm}
           >

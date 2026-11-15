@@ -3024,6 +3024,64 @@
         }
       }
     },
+    "/api/v1/attendances/{attendance_id}/items": {
+      "put": {
+        "tags": [
+          "attendances"
+        ],
+        "summary": "Update Attendance Items",
+        "operationId": "update_attendance_items_api_v1_attendances__attendance_id__items_put",
+        "security": [
+          {
+            "SessionCookie": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "attendance_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Attendance Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AttendanceItemsUpdateRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AttendanceRead"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/attendances/drafts": {
       "post": {
         "tags": [
@@ -4850,6 +4908,103 @@
         ],
         "title": "AttendanceHistoryImportResponse"
       },
+      "AttendanceItemEditRequest": {
+        "properties": {
+          "item_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Item Id"
+          },
+          "exam_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Exam Id"
+          },
+          "quantity": {
+            "type": "integer",
+            "minimum": 1.0,
+            "title": "Quantity",
+            "default": 1
+          },
+          "discount_amount": {
+            "anyOf": [
+              {
+                "type": "number",
+                "minimum": 0.0
+              },
+              {
+                "type": "string",
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Discount Amount"
+          },
+          "override_reason": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 500
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Override Reason"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "title": "AttendanceItemEditRequest",
+        "description": "One line of the desired item set. `item_id` keeps an existing line (its price\nsnapshot stays); `exam_id` adds a new one, priced on the attendance's service date."
+      },
+      "AttendanceItemsUpdateRequest": {
+        "properties": {
+          "row_version": {
+            "type": "integer",
+            "minimum": 1.0,
+            "title": "Row Version"
+          },
+          "reason": {
+            "type": "string",
+            "maxLength": 500,
+            "minLength": 1,
+            "title": "Reason"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/AttendanceItemEditRequest"
+            },
+            "type": "array",
+            "title": "Items"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "row_version",
+          "reason",
+          "items"
+        ],
+        "title": "AttendanceItemsUpdateRequest",
+        "description": "The complete desired set: existing lines left out are removed (kept as\n`CANCELLED` in history). `reason` is mandatory — it goes to the audit trail."
+      },
       "AttendanceListResponse": {
         "properties": {
           "items": {
@@ -5411,6 +5566,18 @@
               }
             ],
             "title": "Notes"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 500
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason"
           }
         },
         "additionalProperties": false,
@@ -8053,6 +8220,33 @@
               }
             ],
             "title": "Notes"
+          },
+          "age_value": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Age Value"
+          },
+          "age_unit": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "YEARS",
+                  "MONTHS"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Age Unit"
           }
         },
         "additionalProperties": false,
@@ -8213,6 +8407,44 @@
           "row_version": {
             "type": "integer",
             "title": "Row Version"
+          },
+          "age_value": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Age Value"
+          },
+          "age_unit": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "YEARS",
+                  "MONTHS"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Age Unit"
+          },
+          "age_recorded_on": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Age Recorded On"
           }
         },
         "type": "object",
@@ -8231,7 +8463,10 @@
           "notes",
           "created_at",
           "updated_at",
-          "row_version"
+          "row_version",
+          "age_value",
+          "age_unit",
+          "age_recorded_on"
         ],
         "title": "PatientRead"
       },
@@ -8346,6 +8581,33 @@
               }
             ],
             "title": "Clinic Id"
+          },
+          "age_value": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Age Value"
+          },
+          "age_unit": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "YEARS",
+                  "MONTHS"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Age Unit"
           }
         },
         "additionalProperties": false,

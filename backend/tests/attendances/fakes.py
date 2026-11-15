@@ -10,6 +10,7 @@ from decimal import Decimal
 from typing import Any
 from uuid import UUID
 
+from app.modules.attendances.application.closure_settlement import FinancialPosition
 from app.modules.attendances.domain.entities import (
     AttendanceRecord,
     AttendanceStatus,
@@ -480,3 +481,20 @@ def make_on_call_fee_setting(
         updated_at=_SEED_AT,
         row_version=row_version,
     )
+
+
+class FakeClosureSettlement:
+    """Records settlements instead of touching a closure (billing has its own tests)."""
+
+    def __init__(self) -> None:
+        self.calls: list[tuple[UUID | None, Decimal, Decimal]] = []
+
+    def settle(
+        self,
+        *,
+        actor: object,
+        attendance: AttendanceRecord,
+        before: FinancialPosition,
+        reason: str,
+    ) -> None:
+        self.calls.append((before.closure_id, before.grand_total, attendance.grand_total))

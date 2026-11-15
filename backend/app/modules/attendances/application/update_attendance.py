@@ -1,5 +1,6 @@
-"""Controlled edit of a DRAFT or CONFIRMED attendance — Fatia 4 of the
-attendance plan checkpoint (`PATCH /attendances/{id}`).
+"""Controlled edit of a DRAFT, CONFIRMED or CANCELLED attendance
+(`PATCH /attendances/{id}`). Everything can be corrected; after the draft stage a
+reason is mandatory and the audit entry carries the before/after diff.
 
 Two independent version checks exist on purpose:
 1. `expected_row_version` here — compares what the *client* last saw
@@ -20,13 +21,21 @@ from dataclasses import dataclass
 from datetime import date
 from uuid import UUID
 
+from app.modules.attendances.application.attendance_items import resolve_on_call_fee
+from app.modules.attendances.application.closure_settlement import (
+    ClosureSettlement,
+    FinancialPosition,
+)
 from app.modules.attendances.application.dtos import AttendanceDTO
 from app.modules.attendances.application.mappers import attendance_to_dto
 from app.modules.attendances.application.party_validation import (
     validate_clinic_veterinarian_patient,
 )
 from app.modules.attendances.domain.entities import AttendanceStatus, CollectionMethod, ServiceLevel
-from app.modules.attendances.domain.repositories import AttendanceRepository
+from app.modules.attendances.domain.repositories import (
+    AttendanceRepository,
+    OnCallFeeSettingRepository,
+)
 from app.modules.audit.domain.entities import ActorScope, AuditEntry
 from app.modules.audit.domain.repositories import AuditLogWriter
 from app.modules.clinics.domain.repositories import ClinicRepository
@@ -35,7 +44,7 @@ from app.modules.veterinarian_clinics.domain.repositories import VeterinarianCli
 from app.modules.veterinarians.domain.repositories import VeterinarianRepository
 from app.shared.application.authorization import ActorContext
 from app.shared.application.clock import Clock
-from app.shared.domain.errors import ConflictError, ForbiddenError, NotFoundError
+from app.shared.domain.errors import ConflictError, ForbiddenError, NotFoundError, ValidationError
 
 _REQUIRED_PERMISSION = "attendances.update"
 
@@ -52,6 +61,7 @@ class UpdateAttendanceCommand:
     service_level: ServiceLevel | None = None
     service_date: date | None = None
     notes: str | None = None
+    reason: str | None = None
 
 
 class UpdateAttendanceUseCase:
@@ -63,6 +73,8 @@ class UpdateAttendanceUseCase:
         veterinarians: VeterinarianRepository,
         veterinarian_clinics: VeterinarianClinicLinkRepository,
         patients: PatientRepository,
+        on_call_fees: OnCallFeeSettingRepository,
+        closure_settlement: ClosureSettlement,
         audit: AuditLogWriter,
         clock: Clock,
     ) -> None:
@@ -71,6 +83,8 @@ class UpdateAttendanceUseCase:
         self._veterinarians = veterinarians
         self._veterinarian_clinics = veterinarian_clinics
         self._patients = patients
+        self._on_call_fees = on_call_fees
+        self._closure_settlement = closure_settlement
         self._audit = audit
         self._clock = clock
 
@@ -90,7 +104,11 @@ class UpdateAttendanceUseCase:
                 "O atendimento foi alterado por outra operação. Recarregue e tente novamente."
             )
 
-        if attendance.status == AttendanceStatus.DRAFT and (
+        reason = (command.reason or "").strip()
+        if attendance.status != AttendanceStatus.DRAFT and not reason and _has_edits(command):
+            raise ValidationError("Informe o motivo da alteração.")
+
+        if (
             command.clinic_id is not None
             or command.veterinarian_id is not None
             or command.patient_id is not None
@@ -105,6 +123,17 @@ class UpdateAttendanceUseCase:
                 patients=self._patients,
             )
 
+        on_call_fee = None
+        if (
+            attendance.status != AttendanceStatus.DRAFT
+            and command.service_level is not None
+            and command.service_level != attendance.service_level
+        ):
+            on_call_fee = resolve_on_call_fee(
+                service_level=command.service_level, on_call_fees=self._on_call_fees
+            )
+
+        position = FinancialPosition.of(attendance)
         changes = attendance.update_fields(
             clinic_id=command.clinic_id,
             veterinarian_id=command.veterinarian_id,
@@ -113,6 +142,8 @@ class UpdateAttendanceUseCase:
             service_level=command.service_level,
             service_date=command.service_date,
             notes=command.notes,
+            on_call_fee=on_call_fee,
+            closed_correction=True,
             now=self._clock.now(),
             updated_by=command.actor.id,
         )
@@ -120,6 +151,10 @@ class UpdateAttendanceUseCase:
         if not changes:
             return attendance_to_dto(attendance)
 
+        if position.needs_settlement(attendance):
+            self._closure_settlement.settle(
+                actor=command.actor, attendance=attendance, before=position, reason=reason
+            )
         self._attendances.update(attendance)
 
         self._audit.record(
@@ -131,7 +166,23 @@ class UpdateAttendanceUseCase:
                 entity_id=str(attendance.id),
                 before_state={field: before for field, (before, _after) in changes.items()},
                 after_state={field: after for field, (_before, after) in changes.items()},
+                reason=reason or None,
             )
         )
 
         return attendance_to_dto(attendance)
+
+
+def _has_edits(command: UpdateAttendanceCommand) -> bool:
+    return any(
+        value is not None
+        for value in (
+            command.clinic_id,
+            command.veterinarian_id,
+            command.patient_id,
+            command.collection_method,
+            command.service_level,
+            command.service_date,
+            command.notes,
+        )
+    )

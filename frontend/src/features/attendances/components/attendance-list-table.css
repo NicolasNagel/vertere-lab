@@ -241,3 +241,17 @@ td.attendance-list-table__muted {
     transition: none;
   }
 }
+
+/* Linha clicável: abre o resumo (popover). */
+.attendance-list-table__table tbody tr {
+  cursor: pointer;
+}
+
+.attendance-list-table__table tbody tr[data-selected] td {
+  background: var(--color-info-bg);
+}
+
+.attendance-list-table__table tbody tr:focus-visible {
+  outline: 2px solid var(--color-brand-ink-deep);
+  outline-offset: -2px;
+}

@@ -65,7 +65,7 @@ export function ExamFormPage({ newPanel = false }: ExamFormPageProps = {}) {
           </h1>
         </div>
         <div className="exam-form-page__actions">
-          <Button type="button" variant="ghost" onClick={goToList} disabled={submitting}>
+          <Button type="button" variant="cancel" onClick={goToList} disabled={submitting}>
             Cancelar
           </Button>
           <Button type="submit" form={FORM_ID} disabled={submitting}>

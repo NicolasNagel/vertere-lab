@@ -5,6 +5,7 @@ from __future__ import annotations
 from types import TracebackType
 from typing import Protocol, Self
 
+from app.modules.attendances.application.closure_settlement import ClosureSettlement
 from app.modules.attendances.domain.repositories import (
     AttendanceRepository,
     AttendanceSequenceRepository,
@@ -36,6 +37,8 @@ class AttendanceUnitOfWork(Protocol):
     def exams(self) -> ExamRepository: ...
     @property
     def on_call_fees(self) -> OnCallFeeSettingRepository: ...
+    @property
+    def closure_settlement(self) -> ClosureSettlement: ...
     @property
     def audit(self) -> AuditLogWriter: ...
     @property

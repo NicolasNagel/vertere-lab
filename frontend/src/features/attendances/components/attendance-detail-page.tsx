@@ -4,16 +4,17 @@ import { Link, useParams } from 'react-router'
 import { ApiError } from '../../../shared/api/errors'
 import { Button } from '../../../shared/ui/button'
 import { ArrowLeftIcon } from '../../../shared/ui/icons'
+import { PageHeader } from '../../../shared/ui/page-header'
 import { useAuth } from '../../auth/auth-context'
+import { CANCELLABLE_STATUSES } from '../api/attendances-api'
 import { useAttendanceQuery } from '../api/use-attendance-query'
 import { AttendanceCancelModal } from './attendance-cancel-modal'
-import { AttendanceConfirmationForm } from './attendance-confirmation-form'
+import { AttendanceDraftPage } from './attendance-draft-page'
 import { AttendanceReadonlyDetail } from './attendance-readonly-detail'
 import { AttendanceStatusBadge } from './attendance-status-badge'
 import { AttendanceTimeline } from './attendance-timeline'
+import '../../../shared/ui/button.css'
 import './attendance-detail-page.css'
-
-const CANCELLABLE_STATUSES = new Set(['DRAFT', 'CONFIRMED'])
 
 export function AttendanceDetailPage() {
   const { attendanceId } = useParams<{ attendanceId: string }>()
@@ -29,35 +30,39 @@ export function AttendanceDetailPage() {
   const isNotFound = attendanceQuery.error instanceof ApiError && attendanceQuery.error.status === 404
   const isGenericError = attendanceQuery.isError && !isForbidden && !isNotFound
 
+  // Rascunho abre no próprio Novo Protocolo, já preenchido — não há tela paralela de confirmação.
+  if (canRead && attendanceQuery.data?.status === 'DRAFT') {
+    return <AttendanceDraftPage resumeAttendance={attendanceQuery.data} />
+  }
+
   const canCancelThisAttendance =
     canCancel && !!attendanceQuery.data && CANCELLABLE_STATUSES.has(attendanceQuery.data.status)
 
   return (
     <div className="attendance-detail-page">
-      <div className="attendance-detail-page__header">
-        <div>
-          <div className="attendance-detail-page__eyebrow">
-            Operação · {attendanceQuery.data?.protocolNumber ?? 'Atendimento'}
-          </div>
-          <h1 className="attendance-detail-page__title">
-            {attendanceQuery.data?.status === 'DRAFT' ? 'Confirmação de atendimento' : 'Atendimento'}
-          </h1>
-        </div>
-        {attendanceQuery.data && (
-          <div className="attendance-detail-page__actions">
-            <Link to="/operacao" className="attendance-detail-page__back-link">
+      <PageHeader
+        title={attendanceQuery.data?.protocolNumber ?? 'Atendimento'}
+        subtitle={
+          attendanceQuery.data ? (
+            <span className="attendance-detail-page__sub">
+              <AttendanceStatusBadge status={attendanceQuery.data.status} />
+            </span>
+          ) : undefined
+        }
+        actions={
+          <>
+            <Link to="/operacao" className="button button--secondary">
               <ArrowLeftIcon />
               Voltar
             </Link>
-            <AttendanceStatusBadge status={attendanceQuery.data.status} />
             {canCancelThisAttendance && (
-              <Button type="button" variant="ghost" onClick={() => setShowCancelModal(true)}>
+              <Button type="button" variant="cancel" onClick={() => setShowCancelModal(true)}>
                 Cancelar atendimento
               </Button>
             )}
-          </div>
-        )}
-      </div>
+          </>
+        }
+      />
 
       <div className="attendance-detail-page__body">
         {!canRead && (
@@ -88,14 +93,7 @@ export function AttendanceDetailPage() {
 
         {canRead &&
           attendanceQuery.data &&
-          (attendanceQuery.data.status === 'DRAFT' ? (
-            <AttendanceConfirmationForm
-              attendance={attendanceQuery.data}
-              onConfirmed={() => void attendanceQuery.refetch()}
-            />
-          ) : (
-            <AttendanceReadonlyDetail attendance={attendanceQuery.data} />
-          ))}
+          <AttendanceReadonlyDetail attendance={attendanceQuery.data} />}
 
         {canRead && attendanceQuery.data && attendanceId && (
           <AttendanceTimeline attendanceId={attendanceId} />

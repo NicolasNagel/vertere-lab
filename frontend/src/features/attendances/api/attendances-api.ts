@@ -14,12 +14,23 @@ export type AttendanceStatus =
   | 'CANCELLED'
   | 'ON_HOLD'
 
+/** Status em que o atendimento ainda pode ser cancelado (mesma regra da lista e do detalhe). */
+export const CANCELLABLE_STATUSES: ReadonlySet<AttendanceStatus> = new Set(['DRAFT', 'CONFIRMED'])
+
 export type CollectionMethod = 'HELITO_NICOLAS' | 'INTERNAL' | 'MARLI' | 'COURIER' | 'UBER'
 export type ServiceLevel = 'NORMAL' | 'PLANTAO_NORMAL' | 'PLANTAO_ESPECIAL'
 
 /** Rótulo de exibição único por `ServiceLevel` — evita 5 lugares reimplementando
  * o mesmo `=== 'PLANTAO_NORMAL' ? ... : ...` cada um com um pedaço diferente da
  * regra (ver `docs/adr` — taxa fixa por atendimento substituiu o antigo +30%). */
+export const COLLECTION_METHOD_LABELS: Record<CollectionMethod, string> = {
+  INTERNAL: 'Internos',
+  HELITO_NICOLAS: 'Helito/Nicolas',
+  MARLI: 'Marli',
+  COURIER: 'Motoboy',
+  UBER: 'Uber',
+}
+
 export const SERVICE_LEVEL_LABELS: Record<ServiceLevel, string> = {
   NORMAL: 'Normal',
   PLANTAO_NORMAL: 'Plantão Normal',
@@ -400,6 +411,8 @@ export interface AttendanceUpdateInput {
   serviceLevel?: ServiceLevel
   serviceDate?: string | null
   notes?: string
+  /** Obrigatório fora do rascunho; vai para a auditoria. */
+  reason?: string
 }
 
 /** `DRAFT` accepts every field here; `CONFIRMED` accepts only `notes` — the
@@ -419,10 +432,45 @@ export async function updateAttendance(
   if (input.serviceLevel !== undefined) body.service_level = input.serviceLevel
   if (input.serviceDate !== undefined) body.service_date = input.serviceDate
   if (input.notes !== undefined) body.notes = input.notes
+  if (input.reason !== undefined) body.reason = input.reason
 
   const responseBody = await apiRequest<ApiAttendance>(`/attendances/${id}`, {
     method: 'PATCH',
     body,
+  })
+  return fromApiAttendance(responseBody)
+}
+
+/** One line of the desired exam set: `itemId` keeps an existing line (price snapshot stays),
+ * `examId` adds a new one priced on the attendance's service date. Lines left out are removed
+ * (the backend keeps them in history as cancelled). */
+export interface AttendanceItemEditInput {
+  itemId?: string
+  examId?: string
+  quantity: number
+  discountAmount?: string | null
+  overrideReason?: string | null
+}
+
+export async function updateAttendanceItems(
+  id: string,
+  rowVersion: number,
+  reason: string,
+  items: AttendanceItemEditInput[],
+): Promise<Attendance> {
+  const responseBody = await apiRequest<ApiAttendance>(`/attendances/${id}/items`, {
+    method: 'PUT',
+    body: {
+      row_version: rowVersion,
+      reason,
+      items: items.map((item) => ({
+        item_id: item.itemId,
+        exam_id: item.examId,
+        quantity: item.quantity,
+        discount_amount: item.discountAmount || undefined,
+        override_reason: item.overrideReason || undefined,
+      })),
+    },
   })
   return fromApiAttendance(responseBody)
 }

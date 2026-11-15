@@ -343,7 +343,7 @@ export function ExamForm({
 
       {!hideActions && (
         <div className="exam-form__actions">
-          <Button type="button" variant="ghost" onClick={onCancel} disabled={submitting}>
+          <Button type="button" variant="cancel" onClick={onCancel} disabled={submitting}>
             Cancelar
           </Button>
           <Button type="submit" className="exam-form__submit" disabled={submitting}>

@@ -157,7 +157,7 @@ export function RoleCreateForm({
       )}
 
       <div className="role-create-form__actions">
-        <Button type="button" variant="ghost" onClick={onCancel} disabled={submitting}>
+        <Button type="button" variant="cancel" onClick={onCancel} disabled={submitting}>
           Cancelar
         </Button>
         <Button type="submit" className="role-create-form__submit" disabled={submitting}>

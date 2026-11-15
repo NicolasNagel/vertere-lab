@@ -192,3 +192,78 @@ async def test_patient_crud_permissions_validation_versions_deactivation_and_sea
     await client.post("/api/v1/patients", json=payload("Mel", "Ana 100%_Pet"))
     literal_match = await client.get("/api/v1/patients", params={"search": "100%_pet"})
     assert [item["name"] for item in literal_match.json()["items"]] == ["Mel"]
+
+
+async def test_patient_structured_age_round_trips_validates_pair_and_tracks_recorded_date(
+    client: httpx.AsyncClient, session_factory: sessionmaker[Session]
+) -> None:
+    dog_id = _get_species_id(session_factory, name="Canino")
+    clinic_id = _clinic_id(session_factory)
+    await _login_as(client, session_factory, email="admin@vertere.local", role_id=ROLE_LAB_ADMIN)
+    base = {
+        "clinic_id": clinic_id,
+        "name": "Thor",
+        "species_id": dog_id,
+        "sex": "MALE",
+        "owner_name": "Carla Dias",
+    }
+
+    created = await client.post(
+        "/api/v1/patients", json={**base, "age_value": 8, "age_unit": "MONTHS"}
+    )
+    assert created.status_code == 201
+    thor = created.json()
+    assert (thor["age_value"], thor["age_unit"]) == (8, "MONTHS")
+    assert thor["age_description"] == "8 meses"
+    assert thor["age_recorded_on"] == datetime.now(UTC).date().isoformat()
+
+    # Só valor ou só unidade, unidade desconhecida e valor fora do intervalo: 422, nunca 500.
+    for bad in (
+        {"age_value": 3},
+        {"age_unit": "YEARS"},
+        {"age_value": 3, "age_unit": "WEEKS"},
+        {"age_value": 121, "age_unit": "YEARS"},
+        {"age_value": -1, "age_unit": "YEARS"},
+    ):
+        response = await client.post("/api/v1/patients", json={**base, **bad})
+        assert response.status_code == 422, bad
+
+    # Edição troca a idade e devolve a versão nova; sem idade, limpa e mantém o texto legado.
+    url = f"/api/v1/patients/{thor['id']}"
+    update_base = {
+        "name": "Thor",
+        "species_id": dog_id,
+        "sex": "MALE",
+        "owner_name": "Carla Dias",
+        "status": "ACTIVE",
+    }
+    older = await client.patch(
+        url,
+        json={
+            **update_base,
+            "age_value": 2,
+            "age_unit": "YEARS",
+            "expected_row_version": thor["row_version"],
+        },
+    )
+    assert older.status_code == 200
+    assert (older.json()["age_value"], older.json()["age_unit"]) == (2, "YEARS")
+    assert older.json()["age_description"] == "2 anos"
+
+    cleared = await client.patch(
+        url,
+        json={
+            **update_base,
+            "age_description": "adulto",
+            "expected_row_version": older.json()["row_version"],
+        },
+    )
+    assert cleared.status_code == 200
+    body = cleared.json()
+    assert (body["age_value"], body["age_unit"], body["age_recorded_on"]) == (None, None, None)
+    assert body["age_description"] == "adulto"
+
+    # A lista devolve os mesmos campos estruturados.
+    listed = await client.get("/api/v1/patients", params={"search": "Thor"})
+    assert listed.status_code == 200
+    assert "age_value" in listed.json()["items"][0]

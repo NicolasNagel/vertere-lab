@@ -312,7 +312,7 @@ export function ClinicForm({
       </div>
 
       <div className="clinic-form__actions">
-        <Button type="button" variant="secondary" onClick={onCancel} disabled={submitting}>
+        <Button type="button" variant="cancel" onClick={onCancel} disabled={submitting}>
           Cancelar
         </Button>
         <Button type="submit" className="clinic-form__submit" disabled={submitting}>

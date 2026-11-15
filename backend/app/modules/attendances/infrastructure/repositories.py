@@ -217,9 +217,17 @@ class SqlAlchemyAttendanceRepository:
         # was already loaded from the DB). Only append ids not already
         # persisted, or a cancel would re-insert the same rows and collide
         # on the primary key.
-        existing_item_ids = {item.id for item in model.items}
+        existing_models = {item.id: item for item in model.items}
         for item in attendance.items:
-            if item.id in existing_item_ids:
+            persisted = existing_models.get(item.id)
+            if persisted is not None:
+                # Corrected after confirmation: price/name snapshot stays, the rest follows.
+                persisted.quantity = item.quantity
+                persisted.discount_amount = item.discount_amount
+                persisted.total_amount = item.total_amount
+                persisted.override_reason = item.override_reason
+                persisted.override_by = item.override_by
+                persisted.status = item.status.value
                 continue
             model.items.append(
                 AttendanceExamModel(

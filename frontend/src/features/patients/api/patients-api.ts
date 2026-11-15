@@ -2,6 +2,12 @@ import { apiRequest } from '../../../shared/api/http-client'
 
 export type PatientSex = 'MALE' | 'FEMALE'
 export type PatientStatus = 'ACTIVE' | 'INACTIVE'
+export type PatientAgeUnit = 'YEARS' | 'MONTHS'
+
+export const AGE_UNIT_LABELS: Record<PatientAgeUnit, string> = {
+  YEARS: 'anos',
+  MONTHS: 'meses',
+}
 
 export interface Patient {
   id: string
@@ -11,6 +17,9 @@ export interface Patient {
   sex: PatientSex
   breed: string | null
   ageDescription: string | null
+  ageValue: number | null
+  ageUnit: PatientAgeUnit | null
+  ageRecordedOn: string | null
   ownerName: string
   ownerPhone: string | null
   ownerDocument: string | null
@@ -42,7 +51,8 @@ export interface PatientFormValues {
   speciesId: string
   sex: PatientSex
   breed: string | null
-  ageDescription: string | null
+  ageValue: number | null
+  ageUnit: PatientAgeUnit | null
   ownerName: string
   ownerPhone: string | null
   ownerDocument: string | null
@@ -62,6 +72,9 @@ interface ApiPatient {
   sex: PatientSex
   breed: string | null
   age_description: string | null
+  age_value: number | null
+  age_unit: PatientAgeUnit | null
+  age_recorded_on: string | null
   owner_name: string
   owner_phone: string | null
   owner_document: string | null
@@ -94,6 +107,9 @@ function fromApiPatient(patient: ApiPatient): Patient {
     sex: patient.sex,
     breed: patient.breed,
     ageDescription: patient.age_description,
+    ageValue: patient.age_value,
+    ageUnit: patient.age_unit,
+    ageRecordedOn: patient.age_recorded_on,
     ownerName: patient.owner_name,
     ownerPhone: patient.owner_phone,
     ownerDocument: patient.owner_document,
@@ -112,7 +128,8 @@ function toApiPayload(values: PatientFormValues): Record<string, unknown> {
     species_id: values.speciesId,
     sex: values.sex,
     breed: values.breed || null,
-    age_description: values.ageDescription || null,
+    age_value: values.ageValue,
+    age_unit: values.ageValue === null ? null : values.ageUnit,
     owner_name: values.ownerName,
     owner_phone: values.ownerPhone || null,
     owner_document: values.ownerDocument || null,

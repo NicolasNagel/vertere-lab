@@ -17,6 +17,7 @@ from app.modules.attendances.api.schemas import (
     AttendanceDraftCreateRequest,
     AttendanceExamRead,
     AttendanceExamStatusLiteral,
+    AttendanceItemsUpdateRequest,
     AttendanceListResponse,
     AttendancePreviewResponse,
     AttendanceRead,
@@ -73,6 +74,7 @@ from app.modules.attendances.application.mutation_handlers import (
     handle_cancel_attendance,
     handle_create_attendance_draft,
     handle_update_attendance,
+    handle_update_attendance_items,
     handle_update_on_call_fee_setting,
 )
 from app.modules.attendances.application.preview_attendance import (
@@ -81,6 +83,10 @@ from app.modules.attendances.application.preview_attendance import (
 )
 from app.modules.attendances.application.update_attendance import (
     UpdateAttendanceCommand,
+)
+from app.modules.attendances.application.update_attendance_items import (
+    AttendanceItemEdit,
+    UpdateAttendanceItemsCommand,
 )
 from app.modules.attendances.application.update_on_call_fee_setting import (
     UpdateOnCallFeeSettingCommand,
@@ -321,6 +327,37 @@ def update_attendance(
             ),
             service_date=payload.service_date,
             notes=payload.notes,
+            reason=payload.reason,
+        ),
+        clock=SystemClock(),
+    )
+    return _attendance_read(result)
+
+
+@router.put("/{attendance_id}/items", response_model=AttendanceRead)
+def update_attendance_items(
+    attendance_id: UUID,
+    payload: AttendanceItemsUpdateRequest,
+    uow: SqlAlchemyUnitOfWork = Depends(get_unit_of_work),
+    current_user: ActorContext = Depends(require_permission("attendances.update")),
+) -> AttendanceRead:
+    result = handle_update_attendance_items(
+        uow=SqlAlchemyAttendanceUnitOfWork(uow),
+        command=UpdateAttendanceItemsCommand(
+            actor=current_user,
+            attendance_id=attendance_id,
+            expected_row_version=payload.row_version,
+            reason=payload.reason,
+            items=[
+                AttendanceItemEdit(
+                    item_id=line.item_id,
+                    exam_id=line.exam_id,
+                    quantity=line.quantity,
+                    discount_amount=line.discount_amount,
+                    override_reason=line.override_reason,
+                )
+                for line in payload.items
+            ],
         ),
         clock=SystemClock(),
     )

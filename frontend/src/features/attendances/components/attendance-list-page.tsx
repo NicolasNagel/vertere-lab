@@ -3,6 +3,7 @@ import { Link } from 'react-router'
 
 import { ApiError } from '../../../shared/api/errors'
 import { useDebouncedValue } from '../../../shared/lib/use-debounced-value'
+import { Modal } from '../../../shared/ui/modal'
 import { PageHeader } from '../../../shared/ui/page-header'
 import { PlusIcon, SearchIcon } from '../../../shared/ui/icons'
 import type { SelectOption } from '../../../shared/ui/select'
@@ -11,12 +12,14 @@ import { useAllClinicsQuery } from '../../clinics/api/use-clinics-query'
 import { useAllPatientsQuery } from '../../patients/api/use-patients-query'
 import { useSpeciesQuery } from '../../patients/api/use-species-query'
 import { useAllVeterinariansQuery } from '../../veterinarians/api/use-veterinarians-query'
-import type { AttendanceStatus, ServiceLevel } from '../api/attendances-api'
+import type { Attendance, AttendanceStatus, ServiceLevel } from '../api/attendances-api'
 import { useAttendanceStatusCountsQuery } from '../api/use-attendance-status-counts-query'
 import { useAttendancesQuery } from '../api/use-attendances-query'
+import { AttendanceCancelModal } from './attendance-cancel-modal'
 import { AttendanceListFilters } from './attendance-list-filters'
 import { AttendanceListPagination } from './attendance-list-pagination'
 import { AttendanceListTable, type PatientDisplay } from './attendance-list-table'
+import { ATTENDANCE_POPOVER_TITLE_ID, AttendanceRowPopover } from './attendance-row-popover'
 import { AttendanceStatusTabs } from './attendance-status-tabs'
 import { AttendanceSummaryCards } from './attendance-summary-cards'
 import '../../../shared/ui/button.css'
@@ -28,6 +31,8 @@ export function AttendanceListPage() {
   const { user } = useAuth()
   const canRead = user?.permissions.includes('attendances.read') ?? false
   const canCreate = user?.permissions.includes('attendances.create') ?? false
+  const canCancel = user?.permissions.includes('attendances.cancel') ?? false
+  const showMoney = user?.permissions.includes('pricing.read') ?? false
 
   const [page, setPage] = useState(1)
   const [status, setStatus] = useState<AttendanceStatus | ''>('')
@@ -36,6 +41,8 @@ export function AttendanceListPage() {
   const [protocolNumber, setProtocolNumber] = useState('')
   const [serviceDateFrom, setServiceDateFrom] = useState('')
   const [serviceDateTo, setServiceDateTo] = useState('')
+  const [selected, setSelected] = useState<string | null>(null)
+  const [cancelTarget, setCancelTarget] = useState<Attendance | null>(null)
 
   const debouncedProtocolNumber = useDebouncedValue(protocolNumber.trim(), 300)
 
@@ -92,7 +99,7 @@ export function AttendanceListPage() {
       const detail = [speciesNameById[patient.speciesId], sexLabel, patient.ageDescription]
         .filter((part): part is string => Boolean(part))
         .join(' · ')
-      return [patient.id, { name: patient.name, detail, sex: patient.sex }]
+      return [patient.id, { name: patient.name, detail, ownerName: patient.ownerName, sex: patient.sex }]
     }),
   )
 
@@ -109,7 +116,21 @@ export function AttendanceListPage() {
   function handleFilterChange(update: () => void) {
     update()
     setPage(1)
+    setSelected(null)
   }
+
+  function handlePageChange(nextPage: number) {
+    setPage(nextPage)
+    setSelected(null)
+  }
+
+  function handleSelect(attendance: Attendance) {
+    setSelected(attendance.id)
+  }
+
+  const selectedAttendance = selected
+    ? attendancesQuery.data?.items.find((item) => item.id === selected)
+    : undefined
 
   return (
     <div className="attendance-list-page">
@@ -197,18 +218,52 @@ export function AttendanceListPage() {
                     clinicNameById={clinicNameById}
                     veterinarianNameById={veterinarianNameById}
                     patientDisplayById={patientDisplayById}
+                    selectedId={selectedAttendance?.id ?? null}
+                    onSelect={handleSelect}
                   />
                   <AttendanceListPagination
                     page={attendancesQuery.data.page}
                     pageSize={attendancesQuery.data.pageSize}
                     total={attendancesQuery.data.total}
-                    onPageChange={setPage}
+                    onPageChange={handlePageChange}
                   />
                 </>
               )}
             </div>
           </div>
         </>
+      )}
+
+      {selectedAttendance && (
+        <Modal
+          size="md"
+          dismissOnBackdrop
+          className="attendance-popover"
+          titleId={ATTENDANCE_POPOVER_TITLE_ID}
+          onClose={() => setSelected(null)}
+        >
+          <AttendanceRowPopover
+            attendance={selectedAttendance}
+            clinicName={clinicNameById[selectedAttendance.clinicId] ?? '—'}
+            veterinarianName={veterinarianNameById[selectedAttendance.veterinarianId] ?? '—'}
+            patient={patientDisplayById[selectedAttendance.patientId]}
+            showMoney={showMoney}
+            canCancel={canCancel}
+            onClose={() => setSelected(null)}
+            onCancel={(attendance) => {
+              setSelected(null)
+              setCancelTarget(attendance)
+            }}
+          />
+        </Modal>
+      )}
+
+      {cancelTarget && (
+        <AttendanceCancelModal
+          attendance={cancelTarget}
+          onCancelled={() => setCancelTarget(null)}
+          onClose={() => setCancelTarget(null)}
+        />
       )}
     </div>
   )

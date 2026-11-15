@@ -107,46 +107,62 @@ def validate_and_snapshot_items(
         patients=patients,
     )
 
-    built: list[AttendanceExam] = []
-    for item_input in items:
-        exam = exams.get_by_id(item_input.exam_id)
-        if exam is None:
-            raise NotFoundError("Exame não encontrado.")
-        if exam.status != ExamStatus.ACTIVE:
-            raise ValidationError("Exame não está ativo.")
-        if not exam.has_price_on(attendance.service_date):
-            raise PriceNotAvailableError("Exame sem preço vigente na data do atendimento.")
+    return [
+        snapshot_item(attendance=attendance, item_input=item_input, actor=actor, exams=exams)
+        for item_input in items
+    ]
 
-        discount_amount = item_input.discount_amount or Decimal("0")
-        override_reason: str | None = None
-        override_by: UUID | None = None
-        if discount_amount > 0:
-            if _OVERRIDE_PERMISSION not in actor.permissions:
-                raise ForbiddenError(f"Permissão ausente: {_OVERRIDE_PERMISSION}")
-            if not item_input.override_reason:
-                raise ValidationError("Override de preço exige motivo.")
-            override_reason = item_input.override_reason
-            override_by = actor.id
 
-        built.append(
-            AttendanceExam(
-                id=uuid4(),
-                attendance_id=attendance.id,
-                exam_id=exam.id,
-                exam_code=str(exam.code),
-                exam_name=exam.name,
-                price_base=exam.price_base,
-                components=_component_snapshot(exam, exams),
-                quantity=item_input.quantity,
-                discount_amount=discount_amount,
-                # O adicional de plantão não é mais por item — é uma taxa
-                # fixa por atendimento inteiro (resolvida via
-                # `OnCallFeeSettingRepository` pelo caller e somada em
-                # `compute_attendance_totals`), então nenhum item carrega
-                # mais adicional próprio.
-                surcharge_amount=Decimal("0"),
-                override_reason=override_reason,
-                override_by=override_by,
-            )
+def require_discount_authority(*, actor: ActorContext, override_reason: str | None) -> str:
+    """A discount needs `attendances.override_price` and a stated reason."""
+    if _OVERRIDE_PERMISSION not in actor.permissions:
+        raise ForbiddenError(f"Permissão ausente: {_OVERRIDE_PERMISSION}")
+    if not override_reason or not override_reason.strip():
+        raise ValidationError("Override de preço exige motivo.")
+    return override_reason.strip()
+
+
+def snapshot_item(
+    *,
+    attendance: AttendanceRecord,
+    item_input: AttendanceItemInput,
+    actor: ActorContext,
+    exams: ExamRepository,
+) -> AttendanceExam:
+    """Price one exam on the attendance's service date and freeze it as a snapshot.
+    Also used when an exam is added after confirmation — the price is the one valid
+    on the service date, not today's."""
+    assert attendance.service_date is not None
+    exam = exams.get_by_id(item_input.exam_id)
+    if exam is None:
+        raise NotFoundError("Exame não encontrado.")
+    if exam.status != ExamStatus.ACTIVE:
+        raise ValidationError("Exame não está ativo.")
+    if not exam.has_price_on(attendance.service_date):
+        raise PriceNotAvailableError("Exame sem preço vigente na data do atendimento.")
+
+    discount_amount = item_input.discount_amount or Decimal("0")
+    override_reason: str | None = None
+    override_by: UUID | None = None
+    if discount_amount > 0:
+        override_reason = require_discount_authority(
+            actor=actor, override_reason=item_input.override_reason
         )
-    return built
+        override_by = actor.id
+
+    return AttendanceExam(
+        id=uuid4(),
+        attendance_id=attendance.id,
+        exam_id=exam.id,
+        exam_code=str(exam.code),
+        exam_name=exam.name,
+        price_base=exam.price_base,
+        components=_component_snapshot(exam, exams),
+        quantity=item_input.quantity,
+        discount_amount=discount_amount,
+        # O adicional de plantão não é mais por item — é uma taxa fixa por
+        # atendimento inteiro, somada em `compute_attendance_totals`.
+        surcharge_amount=Decimal("0"),
+        override_reason=override_reason,
+        override_by=override_by,
+    )

@@ -84,7 +84,7 @@
   gap: 0.625rem; /* 10px */
 }
 
-.role-detail-panel__actions .button--ghost {
+.role-detail-panel__actions .button--cancel {
   flex: 1;
   text-align: center;
   text-decoration: none;

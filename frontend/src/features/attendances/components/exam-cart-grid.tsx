@@ -4,6 +4,7 @@ import { formatCurrencyBRL } from '../../../shared/lib/formatters'
 import { Checkbox } from '../../../shared/ui/checkbox'
 import { SearchIcon } from '../../../shared/ui/icons'
 import type { Exam, ExamCategory } from '../../catalog/api/catalog-api'
+import type { DraftExamSelection } from '../api/use-attendance-exam-selections'
 import './exam-cart-grid.css'
 
 const PANEL_CATEGORY_NAME = 'perfis'
@@ -11,7 +12,11 @@ const PANEL_CATEGORY_NAME = 'perfis'
 interface ExamCartGridProps {
   exams: Exam[]
   categories: ExamCategory[]
-  selectedIds: string[]
+  selections: DraftExamSelection[]
+  /** `pricing.read`: sem ele a grade não mostra preço nem desconto. */
+  showMoney: boolean
+  /** `attendances.override_price`: só quem pode aplica desconto por exame. */
+  canDiscount: boolean
   /** Quando há paciente, só aparecem exames da espécie dele. */
   patientSpeciesId: string | null
   isLoading: boolean
@@ -19,6 +24,7 @@ interface ExamCartGridProps {
   disabled: boolean
   onAdd: (exam: Exam) => void
   onRemove: (examId: string) => void
+  onUpdate: (examId: string, patch: Partial<DraftExamSelection>) => void
 }
 
 function normalize(text: string): string {
@@ -29,34 +35,30 @@ function normalize(text: string): string {
 }
 
 /** Grade de exames por categoria, como no formulário em papel: marcar um exame o põe no carrinho,
- * desmarcar o tira. Pacotes (perfis) e exames avulsos convivem; um exame avulso que já faz parte
- * de um pacote marcado ganha o aviso "incluso em …" (sem bloquear — repetir pode ser proposital). */
+ * desmarcar o tira. Exame marcado mostra, na própria linha, quantidade e (com permissão) desconto
+ * em valor livre, limitado ao valor da linha. Repetir exame que já está num pacote é livre. */
 export function ExamCartGrid({
   exams,
   categories,
-  selectedIds,
+  selections,
+  showMoney,
+  canDiscount,
   patientSpeciesId,
   isLoading,
   isError,
   disabled,
   onAdd,
   onRemove,
+  onUpdate,
 }: ExamCartGridProps) {
   const [filter, setFilter] = useState('')
 
   const examById = useMemo(() => new Map(exams.map((exam) => [exam.id, exam])), [exams])
 
-  const coveredBy = useMemo(() => {
-    const map = new Map<string, string[]>()
-    for (const id of selectedIds) {
-      const panel = examById.get(id)
-      if (!panel?.isPanel) continue
-      for (const componentId of panel.componentExamIds) {
-        map.set(componentId, [...(map.get(componentId) ?? []), panel.name])
-      }
-    }
-    return map
-  }, [selectedIds, examById])
+  const selectionById = useMemo(
+    () => new Map(selections.map((selection) => [selection.exam.id, selection])),
+    [selections],
+  )
 
   const groups = useMemo(() => {
     const needle = normalize(filter.trim())
@@ -113,8 +115,8 @@ export function ExamCartGrid({
             <h3 className="exam-cart-grid__group-title">{category.name}</h3>
             <ul className="exam-cart-grid__list" data-panels={isPanelGroup}>
               {items.map((exam) => {
-                const checked = selectedIds.includes(exam.id)
-                const includedIn = coveredBy.get(exam.id) ?? []
+                const selection = selectionById.get(exam.id)
+                const checked = selection !== undefined
                 const composition = exam.isPanel
                   ? exam.componentExamIds
                       .map((id) => examById.get(id)?.name)
@@ -127,7 +129,7 @@ export function ExamCartGrid({
                       label={
                         <span className="exam-cart-grid__label">
                           <span className="exam-cart-grid__name">{exam.name}</span>
-                          {exam.priceBase && (
+                          {showMoney && exam.priceBase && (
                             <span className="exam-cart-grid__price">
                               {formatCurrencyBRL(exam.priceBase)}
                             </span>
@@ -139,15 +141,14 @@ export function ExamCartGrid({
                       onChange={() => (checked ? onRemove(exam.id) : onAdd(exam))}
                     />
                     {composition && <p className="exam-cart-grid__composition">{composition}</p>}
-                    {includedIn.length > 0 && (
-                      <p
-                        className="exam-cart-grid__covered"
-                        data-duplicate={checked}
-                        role={checked ? 'status' : undefined}
-                      >
-                        {checked ? 'Já incluso em ' : 'Incluso em '}
-                        {includedIn.join(', ')}
-                      </p>
+                    {selection && (
+                      <ExamLineFields
+                        selection={selection}
+                        showMoney={showMoney}
+                        canDiscount={canDiscount}
+                        disabled={disabled}
+                        onUpdate={onUpdate}
+                      />
                     )}
                   </li>
                 )
@@ -156,6 +157,81 @@ export function ExamCartGrid({
           </section>
         )
       })}
+    </div>
+  )
+}
+
+interface ExamLineFieldsProps {
+  selection: DraftExamSelection
+  showMoney: boolean
+  canDiscount: boolean
+  disabled: boolean
+  onUpdate: (examId: string, patch: Partial<DraftExamSelection>) => void
+}
+
+/** Quantidade e desconto do exame marcado. O desconto nunca passa do valor da linha. */
+function ExamLineFields({ selection, showMoney, canDiscount, disabled, onUpdate }: ExamLineFieldsProps) {
+  const { exam } = selection
+  const lineTotal = exam.priceBase ? Number(exam.priceBase) * selection.quantity : null
+  const discount = Number(selection.discountAmount || 0)
+  const showDiscount = showMoney && canDiscount
+
+  function handleDiscountChange(raw: string) {
+    const value = Number(raw)
+    if (raw !== '' && lineTotal !== null && value > lineTotal) {
+      onUpdate(exam.id, { discountAmount: lineTotal.toFixed(2) })
+      return
+    }
+    onUpdate(exam.id, { discountAmount: raw })
+  }
+
+  return (
+    <div className="exam-cart-grid__line-fields">
+      <label className="exam-cart-grid__mini-field">
+        <span>Qtd.</span>
+        <input
+          type="number"
+          min={1}
+          inputMode="numeric"
+          disabled={disabled}
+          value={selection.quantity}
+          aria-label={`Quantidade de ${exam.name}`}
+          onChange={(event) =>
+            onUpdate(exam.id, { quantity: Math.max(1, Math.floor(Number(event.target.value)) || 1) })
+          }
+        />
+      </label>
+      {showDiscount && (
+        <>
+          <label className="exam-cart-grid__mini-field">
+            <span>Desconto (R$)</span>
+            <input
+              type="number"
+              min={0}
+              max={lineTotal ?? undefined}
+              step="0.01"
+              inputMode="decimal"
+              disabled={disabled}
+              value={selection.discountAmount}
+              aria-label={`Desconto de ${exam.name}`}
+              onChange={(event) => handleDiscountChange(event.target.value)}
+            />
+          </label>
+          {discount > 0 && (
+            <label className="exam-cart-grid__mini-field exam-cart-grid__mini-field--wide">
+              <span>Motivo</span>
+              <input
+                type="text"
+                disabled={disabled}
+                value={selection.overrideReason}
+                aria-label={`Motivo do desconto de ${exam.name}`}
+                aria-invalid={!selection.overrideReason.trim()}
+                onChange={(event) => onUpdate(exam.id, { overrideReason: event.target.value })}
+              />
+            </label>
+          )}
+        </>
+      )}
     </div>
   )
 }

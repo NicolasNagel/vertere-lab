@@ -1,9 +1,11 @@
 import { useState } from 'react'
 
 import { useDebouncedValue } from '../../../shared/lib/use-debounced-value'
+import { Button } from '../../../shared/ui/button'
 import { SearchIcon } from '../../../shared/ui/icons'
 import { TextField } from '../../../shared/ui/text-field'
 import { usePatientsQuery } from '../../patients/api/use-patients-query'
+import { useSpeciesQuery } from '../../patients/api/use-species-query'
 import type { Patient } from '../../patients/api/patients-api'
 import './patient-picker.css'
 
@@ -25,6 +27,7 @@ export function PatientPicker({
   onRequestCreate,
 }: PatientPickerProps) {
   const [query, setQuery] = useState('')
+  const speciesQuery = useSpeciesQuery()
   const [page, setPage] = useState(1)
   const debouncedQuery = useDebouncedValue(query, 300)
 
@@ -41,16 +44,21 @@ export function PatientPicker({
         <div className="patient-picker__selected">
           <div>
             <div className="patient-picker__selected-name">{selectedPatient.name}</div>
+            <div className="patient-picker__selected-owner">
+              {[
+                speciesQuery.data?.find((species) => species.id === selectedPatient.speciesId)?.name,
+                selectedPatient.sex === 'MALE' ? 'Macho' : 'Fêmea',
+                selectedPatient.breed,
+                selectedPatient.ageDescription,
+              ]
+                .filter(Boolean)
+                .join(' · ')}
+            </div>
             <div className="patient-picker__selected-owner">Tutor: {selectedPatient.ownerName}</div>
           </div>
-          <button
-            type="button"
-            className="patient-picker__change-button"
-            disabled={disabled}
-            onClick={onClear}
-          >
+          <Button type="button" variant="secondary" size="sm" disabled={disabled} onClick={onClear}>
             Trocar
-          </button>
+          </Button>
         </div>
       </div>
     )

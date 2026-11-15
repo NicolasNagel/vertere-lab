@@ -102,6 +102,30 @@ class AttendanceConfirmRequest(BaseModel):
     items: list[AttendanceConfirmItemRequest]
 
 
+class AttendanceItemEditRequest(BaseModel):
+    """One line of the desired item set. `item_id` keeps an existing line (its price
+    snapshot stays); `exam_id` adds a new one, priced on the attendance's service date."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    item_id: UUID | None = None
+    exam_id: UUID | None = None
+    quantity: int = Field(default=1, ge=1)
+    discount_amount: Decimal | None = Field(default=None, ge=0)
+    override_reason: str | None = Field(default=None, max_length=500)
+
+
+class AttendanceItemsUpdateRequest(BaseModel):
+    """The complete desired set: existing lines left out are removed (kept as
+    `CANCELLED` in history). `reason` is mandatory — it goes to the audit trail."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    row_version: int = Field(ge=1)
+    reason: str = Field(min_length=1, max_length=500)
+    items: list[AttendanceItemEditRequest]
+
+
 class AttendanceCancelRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -130,6 +154,8 @@ class AttendanceUpdateRequest(BaseModel):
     service_level: ServiceLevelLiteral | None = None
     service_date: date | None = None
     notes: str | None = Field(default=None, max_length=2000)
+    # Obrigatório fora do rascunho (validado no caso de uso): vai para a auditoria.
+    reason: str | None = Field(default=None, max_length=500)
 
 
 class AttendanceTimelineEntryRead(BaseModel):

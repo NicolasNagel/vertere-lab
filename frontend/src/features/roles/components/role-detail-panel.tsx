@@ -138,7 +138,7 @@ export function RoleDetailPanel({
         <div className="role-detail-panel__actions">
           <Button
             type="button"
-            variant="ghost"
+            variant="cancel"
             onClick={() => setSelected(new Set(role.permissions))}
             disabled={submitting || !isDirty}
           >

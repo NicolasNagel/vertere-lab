@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime
 from uuid import uuid4
 
 import pytest
@@ -25,7 +25,12 @@ from app.modules.patients.application.update_patient import (
     UpdatePatientUseCase,
 )
 from app.modules.patients.domain.entities import PatientStatus, Species
-from app.shared.domain.errors import ConflictError, ForbiddenError, NotFoundError
+from app.shared.domain.errors import (
+    ConflictError,
+    ForbiddenError,
+    NotFoundError,
+    ValidationError,
+)
 from tests.patients.fakes import (
     FakeAuditLogWriter,
     FakeClock,
@@ -192,3 +197,54 @@ def test_list_and_get_patients_check_permission_search_missing_and_tenant_scope(
     )
     with pytest.raises(NotFoundError):
         get_use_case.execute(GetPatientQuery(actor=clinic_actor, patient_id=bidu.id))
+
+
+def test_structured_age_is_stored_with_recorded_date_and_derives_the_description() -> None:
+    patients = FakePatientRepository()
+    audit = FakeAuditLogWriter()
+    use_case = _create_use_case(patients, audit)
+
+    created = use_case.execute(
+        _create_command(age_value=8, age_unit="MONTHS", age_description="texto antigo")
+    )
+    assert (created.age_value, created.age_unit) == (8, "MONTHS")
+    assert created.age_recorded_on == _NOW.date()
+    assert created.age_description == "8 meses"
+
+    # Só o valor, ou só a unidade, é erro de validação (nunca grava meia idade).
+    with pytest.raises(ValidationError):
+        use_case.execute(_create_command(age_value=3, age_unit=None))
+    with pytest.raises(ValidationError):
+        use_case.execute(_create_command(age_value=3, age_unit="WEEKS"))
+
+    # Sem idade estruturada, o texto livre legado continua valendo.
+    legacy = use_case.execute(_create_command())
+    assert (legacy.age_value, legacy.age_unit, legacy.age_recorded_on) == (None, None, None)
+    assert legacy.age_description == "2 anos"
+
+
+def test_update_keeps_the_recorded_date_unless_the_age_changes() -> None:
+    patients = FakePatientRepository()
+    audit = FakeAuditLogWriter()
+    created = _create_use_case(patients, audit).execute(
+        _create_command(age_value=2, age_unit="YEARS")
+    )
+    later = FakeClock(datetime(2026, 6, 1, tzinfo=UTC))
+    update = UpdatePatientUseCase(
+        patients=patients, species=_species_repo(), audit=audit, clock=later
+    )
+
+    same_age = update.execute(
+        _update_command(created, age_value=2, age_unit="YEARS", age_description=None)
+    )
+    assert same_age.age_recorded_on == _NOW.date()
+
+    older = update.execute(
+        _update_command(same_age, age_value=3, age_unit="YEARS", age_description=None)
+    )
+    assert (older.age_value, older.age_recorded_on) == (3, date(2026, 6, 1))
+    assert older.age_description == "3 anos"
+
+    cleared = update.execute(_update_command(older, age_description="adulto"))
+    assert (cleared.age_value, cleared.age_unit, cleared.age_recorded_on) == (None, None, None)
+    assert cleared.age_description == "adulto"

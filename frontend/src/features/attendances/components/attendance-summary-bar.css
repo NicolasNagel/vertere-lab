@@ -1,0 +1,63 @@
+.attendance-summary-bar {
+  position: sticky;
+  bottom: 0;
+  z-index: 5;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem 1.5rem;
+  padding: 0.75rem 1.25rem;
+  background: var(--color-surface);
+  border-top: 1px solid var(--color-border);
+  box-shadow: 0 -4px 16px rgb(20 35 55 / 8%);
+}
+
+.attendance-summary-bar__figures {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem 1.5rem;
+  margin: 0;
+}
+
+.attendance-summary-bar__figures div {
+  display: grid;
+  gap: 0.125rem;
+}
+
+.attendance-summary-bar__figures dt {
+  font-size: 0.6875rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--color-text-secondary);
+}
+
+.attendance-summary-bar__figures dd {
+  margin: 0;
+  font-size: 0.9375rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: var(--color-text-primary);
+}
+
+.attendance-summary-bar__total dd {
+  font-size: 1.125rem;
+  font-weight: 700;
+}
+
+.attendance-summary-bar__actions {
+  display: flex;
+  gap: 0.625rem;
+}
+
+.attendance-summary-bar__actions .button {
+  width: auto;
+}
+
+.attendance-summary-bar__error {
+  flex-basis: 100%;
+  margin: 0;
+  font-size: 0.8125rem;
+  color: var(--color-warning-ink);
+}

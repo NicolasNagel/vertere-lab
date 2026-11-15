@@ -16,6 +16,10 @@ from app.modules.attendances.application.update_attendance import (
     UpdateAttendanceCommand,
     UpdateAttendanceUseCase,
 )
+from app.modules.attendances.application.update_attendance_items import (
+    UpdateAttendanceItemsCommand,
+    UpdateAttendanceItemsUseCase,
+)
 from app.modules.attendances.application.update_on_call_fee_setting import (
     UpdateOnCallFeeSettingCommand,
     UpdateOnCallFeeSettingUseCase,
@@ -57,6 +61,26 @@ def handle_update_attendance(
             veterinarians=uow.veterinarians,
             veterinarian_clinics=uow.veterinarian_clinics,
             patients=uow.patients,
+            on_call_fees=uow.on_call_fees,
+            closure_settlement=uow.closure_settlement,
+            audit=uow.audit,
+            clock=clock,
+        ).execute(command)
+        uow.commit()
+        return result
+
+
+def handle_update_attendance_items(
+    *,
+    uow: AttendanceUnitOfWork,
+    command: UpdateAttendanceItemsCommand,
+    clock: Clock,
+) -> AttendanceDTO:
+    with uow:
+        result = UpdateAttendanceItemsUseCase(
+            attendances=uow.attendances,
+            exams=uow.exams,
+            closure_settlement=uow.closure_settlement,
             audit=uow.audit,
             clock=clock,
         ).execute(command)

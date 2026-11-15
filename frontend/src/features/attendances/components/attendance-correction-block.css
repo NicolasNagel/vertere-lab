@@ -1,0 +1,53 @@
+.attendance-correction-block__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.attendance-correction-block__edit {
+  width: auto;
+  padding: 0.3125rem 0.75rem;
+  font-size: 0.75rem;
+}
+
+.attendance-correction-block__form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.attendance-correction-block__row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr));
+  gap: 0.75rem;
+}
+
+.attendance-correction-block__footer {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.attendance-correction-block__error {
+  margin: 0;
+  font-size: 0.8125rem;
+  color: var(--color-warning-ink);
+}
+
+.attendance-correction-block__actions {
+  display: flex;
+  gap: 0.75rem;
+}
+
+.attendance-correction-block__buttons {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.attendance-correction-block__modal-title {
+  margin: 0 0 0.5rem;
+  font-size: 1.0625rem;
+  font-weight: 650;
+}

@@ -19,36 +19,23 @@
   margin: 0;
 }
 
-.attendance-draft-page__columns {
-  display: grid;
-  grid-template-columns: 1.6fr 1fr;
-  gap: 1.25rem;
-  align-items: start;
-  max-width: 74rem;
-}
-
-@media (max-width: 60rem) {
-  .attendance-draft-page__columns {
-    grid-template-columns: 1fr;
-  }
-}
-
-.attendance-draft-page__column {
+.attendance-draft-page__stack {
   display: flex;
   flex-direction: column;
-  gap: 1.25rem;
+  gap: 1rem;
+  max-width: 60rem;
   min-width: 0;
 }
 
+/* Todos os blocos seguem o mesmo padrão: caixa com borda fina e título à esquerda. */
 .attendance-draft-page__section {
-  background: var(--color-surface);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-md);
-  padding: 0 1rem 1rem;
   display: flex;
   flex-direction: column;
   gap: 0.875rem;
-  overflow: hidden;
+  padding: 1rem;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
 }
 
 .attendance-draft-page__section-header {
@@ -56,37 +43,13 @@
   align-items: center;
   justify-content: space-between;
   gap: 0.625rem;
-  margin: 0 -1rem;
-  padding-right: 1rem;
-  background: var(--color-brand-ink-deep);
 }
 
-/* Faixa de seção no estilo do formulário em papel: barra azul-escura com filete claro. */
 .attendance-draft-page__section-title {
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-  margin: 0 -1rem;
-  padding: 0.4375rem 1rem;
-  background: var(--color-brand-ink-deep);
-  font-size: 0.6875rem;
-  font-weight: 700;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
-  color: #ffffff;
-}
-
-.attendance-draft-page__section-header .attendance-draft-page__section-title {
   margin: 0;
-  flex: 1;
-}
-
-.attendance-draft-page__section-title::after {
-  content: '';
-  flex: 1;
-  height: 2px;
-  border-radius: 2px;
-  background: #8fb3d9;
+  font-size: 0.9375rem;
+  font-weight: 650;
+  color: var(--color-text-primary);
 }
 
 .attendance-draft-page__count {
@@ -215,8 +178,4 @@
   padding: 0;
 }
 
-.attendance-draft-page__actions {
-  display: flex;
-  justify-content: flex-end;
-  gap: 0.625rem;
-}
+

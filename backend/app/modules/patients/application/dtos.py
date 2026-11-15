@@ -4,7 +4,7 @@ raw across the module boundary (rule: .claude/rules/02-backend.md)."""
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import date, datetime
 from uuid import UUID
 
 
@@ -32,3 +32,6 @@ class PatientDTO:
     created_at: datetime
     updated_at: datetime
     row_version: int
+    age_value: int | None = None
+    age_unit: str | None = None
+    age_recorded_on: date | None = None

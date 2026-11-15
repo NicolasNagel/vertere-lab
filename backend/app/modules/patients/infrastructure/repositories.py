@@ -11,7 +11,14 @@ from uuid import UUID
 from sqlalchemy import ColumnElement, func, or_, select
 from sqlalchemy.orm import Session as SqlAlchemySession
 
-from app.modules.patients.domain.entities import Patient, PatientSex, PatientStatus, Species
+from app.modules.patients.domain.entities import (
+    AgeUnit,
+    Patient,
+    PatientAge,
+    PatientSex,
+    PatientStatus,
+    Species,
+)
 from app.modules.patients.infrastructure.models import PatientModel, SpeciesModel
 from app.shared.infrastructure.sql import LIKE_ESCAPE, contains_pattern
 
@@ -40,6 +47,12 @@ def _patient_to_domain(model: PatientModel) -> Patient:
         sex=PatientSex(model.sex),
         breed=model.breed,
         age_description=model.age_description,
+        age=(
+            PatientAge(value=model.age_value, unit=AgeUnit(model.age_unit))
+            if model.age_value is not None and model.age_unit is not None
+            else None
+        ),
+        age_recorded_on=model.age_recorded_on,
         owner_name=model.owner_name,
         owner_phone=model.owner_phone,
         owner_document=model.owner_document,
@@ -84,6 +97,9 @@ class SqlAlchemyPatientRepository:
                 sex=patient.sex.value,
                 breed=patient.breed,
                 age_description=patient.age_description,
+                age_value=patient.age.value if patient.age else None,
+                age_unit=patient.age.unit.value if patient.age else None,
+                age_recorded_on=patient.age_recorded_on,
                 owner_name=patient.owner_name,
                 owner_phone=patient.owner_phone,
                 owner_document=patient.owner_document,
@@ -107,6 +123,9 @@ class SqlAlchemyPatientRepository:
         model.sex = patient.sex.value
         model.breed = patient.breed
         model.age_description = patient.age_description
+        model.age_value = patient.age.value if patient.age else None
+        model.age_unit = patient.age.unit.value if patient.age else None
+        model.age_recorded_on = patient.age_recorded_on
         model.owner_name = patient.owner_name
         model.owner_phone = patient.owner_phone
         model.owner_document = patient.owner_document

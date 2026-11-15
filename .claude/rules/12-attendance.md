@@ -45,8 +45,8 @@ arredondamento centralizados em um único ponto do domínio.
 - `CONFIRMED` (ainda financeiramente aberto): edição controlada.
 - Toda edição usa row version; campo crítico gera diff explícito no audit log.
 - Cancelamento exige motivo.
-- Item já em fechamento é imutável financeiramente — sem exceção via atalho de código.
-- Correção pós-fechamento usa ajuste ou reabertura (`13-monthly-closure.md`), nunca edição direta.
+- Tudo é corrigível (cabeçalho e exames, em `CONFIRMED` e `CANCELLED`), sempre com motivo e diff no audit log; exame removido fica `CANCELLED` no histórico, exame incluído depois usa o preço vigente na data do atendimento. Desconto exige `attendances.override_price`.
+- Atendimento já em fechamento é editável, mas o snapshot do fechamento nunca muda: a diferença do `grand_total` vira `FinancialAdjustment` automático no próprio fechamento (`DEBIT` aumenta, `CREDIT` reduz o que a clínica deve). Mudar clínica ou data para fora do período reverte o valor inteiro no fechamento antigo e lança no fechamento fechado que cobrir o novo destino (ou solta o vínculo se não houver). Mesmo caso de uso, mesma auditoria — não existe atalho paralelo.
 
 ## Consultas
 Sempre paginadas; filtro por protocolo, clínica, veterinário, proprietário, paciente, status e

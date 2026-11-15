@@ -41,7 +41,11 @@ from app.modules.attendances.application.update_attendance import (
     UpdateAttendanceCommand,
     UpdateAttendanceUseCase,
 )
-from app.modules.attendances.domain.entities import AttendanceStatus, ServiceLevel
+from app.modules.attendances.domain.entities import (
+    AttendanceStatus,
+    CollectionMethod,
+    ServiceLevel,
+)
 from app.modules.catalog.domain.entities import ExamStatus
 from app.modules.clinics.domain.entities import ClinicStatus
 from app.modules.identity.application.dtos import AuthenticatedUserDTO
@@ -61,6 +65,7 @@ from tests.attendances.fakes import (
     FakeAuditLogWriter,
     FakeClinicRepository,
     FakeClock,
+    FakeClosureSettlement,
     FakeExamRepository,
     FakeOnCallFeeSettingRepository,
     FakePatientRepository,
@@ -134,6 +139,8 @@ class _Fixture:
             [make_patient(patient_id=_PATIENT_ID, status=patient_status)]
         )
         self.audit = FakeAuditLogWriter()
+        self.on_call_fees = FakeOnCallFeeSettingRepository()
+        self.closure_settlement = FakeClosureSettlement()
 
     def cancel_use_case(self) -> CancelAttendanceUseCase:
         return CancelAttendanceUseCase(
@@ -149,6 +156,8 @@ class _Fixture:
             veterinarians=self.veterinarians,
             veterinarian_clinics=self.veterinarian_clinics,
             patients=self.patients,
+            on_call_fees=self.on_call_fees,
+            closure_settlement=self.closure_settlement,
             audit=self.audit,
             clock=FakeClock(_NOW),
         )
@@ -292,7 +301,6 @@ class _ConfirmFixture(_Fixture):
         )
         self.exams = FakeExamRepository([make_exam(exam_id=_EXAM_ID, price_base=exam_price)])
         self.attendance_sequences = FakeAttendanceSequenceRepository()
-        self.on_call_fees = FakeOnCallFeeSettingRepository()
 
     def confirm_use_case(self) -> ConfirmAttendanceUseCase:
         return ConfirmAttendanceUseCase(
@@ -621,6 +629,8 @@ def test_update_draft_attendance_changes_notes_and_clinic_and_audits() -> None:
         veterinarians=fixture.veterinarians,
         veterinarian_clinics=fixture.veterinarian_clinics,
         patients=fixture.patients,
+        on_call_fees=fixture.on_call_fees,
+        closure_settlement=fixture.closure_settlement,
         audit=fixture.audit,
         clock=FakeClock(_NOW),
     )
@@ -665,44 +675,72 @@ def test_update_attendance_rejects_invalid_requests_and_frozen_states() -> None:
             _update_command(attendance_id=draft.id, expected_row_version=999, notes="Falha")
         )
 
-    # Confirmado: observação pode mudar, a clínica não.
+    # Confirmado: qualquer correção exige motivo.
     confirmed = fixture.confirm_use_case().execute(_confirm_command(attendance_id=draft.id))
+    with pytest.raises(ValidationError):
+        update.execute(
+            _update_command(
+                attendance_id=confirmed.id,
+                expected_row_version=confirmed.row_version,
+                notes="Sem motivo",
+            )
+        )
     noted = update.execute(
         _update_command(
             attendance_id=confirmed.id,
             expected_row_version=confirmed.row_version,
             notes="Retorno em 7 dias",
+            reason="Orientação do veterinário",
         )
     )
     assert (noted.notes, noted.status) == ("Retorno em 7 dias", AttendanceStatus.CONFIRMED.value)
-    with pytest.raises(ValidationError):
+    with pytest.raises(NotFoundError):  # clínica inexistente continua sendo revalidada
         update.execute(
             _update_command(
                 attendance_id=confirmed.id,
                 expected_row_version=noted.row_version,
                 clinic_id=uuid4(),
+                reason="Clínica errada",
             )
         )
 
-    # Incluído em fechamento: bloqueado.
+    # Incluído em fechamento: continua editável, mas o ajuste passa pelo fechamento.
     stored = fixture.attendances.get_by_id(confirmed.id)
     assert stored is not None
-    stored.monthly_closure_id = uuid4()
+    closure_id = uuid4()
+    stored.monthly_closure_id = closure_id
     fixture.attendances.update(stored)
-    with pytest.raises(AttendanceAlreadyClosedError):
+    closed_edit = update.execute(
+        _update_command(
+            attendance_id=confirmed.id,
+            expected_row_version=stored.row_version,
+            service_level=ServiceLevel.PLANTAO_NORMAL,
+            reason="Era plantão",
+        )
+    )
+    ((settled_closure, total_before, total_after),) = fixture.closure_settlement.calls
+    assert settled_closure == closure_id
+    assert total_after == total_before + Decimal("100.00") == closed_edit.grand_total
+    stored = fixture.attendances.get_by_id(confirmed.id)
+    assert stored is not None
+    stored.monthly_closure_id = None
+    fixture.attendances.update(stored)
+
+    # Importado da planilha (COMPLETED): nunca editável por aqui.
+    legacy = fixture.attendances.get_by_id(noted.id)
+    assert legacy is not None
+    legacy.monthly_closure_id = None
+    legacy.status = AttendanceStatus.COMPLETED
+    fixture.attendances.update(legacy)
+    with pytest.raises(InvalidStateTransitionError):
         update.execute(
             _update_command(
-                attendance_id=confirmed.id,
-                expected_row_version=stored.row_version,
-                notes="Não deveria passar",
+                attendance_id=noted.id,
+                expected_row_version=legacy.row_version,
+                notes="Legado",
+                reason="Tentativa",
             )
         )
-
-    # Cancelado: transição inválida.
-    cancelled = fixture.use_case().execute(_command())
-    fixture.cancel_use_case().execute(_cancel_command(attendance_id=cancelled.id))
-    with pytest.raises(InvalidStateTransitionError):
-        update.execute(_update_command(attendance_id=cancelled.id))
 
 
 def test_get_attendance_timeline_is_scoped_ordered_and_permission_checked() -> None:
@@ -750,3 +788,73 @@ def test_get_attendance_timeline_is_scoped_ordered_and_permission_checked() -> N
         timeline(draft.id, permissions=frozenset())
     with pytest.raises(NotFoundError):
         timeline(uuid4(), permissions=reader)
+
+
+def test_confirmed_and_cancelled_attendances_can_be_corrected_with_a_reason_and_audit_the_diff() -> (
+    None
+):
+    fixture = _ConfirmFixture()
+    draft = fixture.use_case().execute(_command())
+    confirmed = fixture.confirm_use_case().execute(_confirm_command(attendance_id=draft.id))
+    update = fixture.update_use_case()
+    assert confirmed.on_call_fee == Decimal("0.00")
+
+    # Plantão: a taxa fixa entra no total e a data move a competência; tudo vai para o diff.
+    corrected = update.execute(
+        _update_command(
+            attendance_id=confirmed.id,
+            expected_row_version=confirmed.row_version,
+            service_level=ServiceLevel.PLANTAO_NORMAL,
+            service_date=date(2026, 3, 5),
+            collection_method=CollectionMethod.UBER,
+            reason="Registrado como normal por engano; coleta foi por Uber",
+        )
+    )
+    assert corrected.on_call_fee == Decimal("100.00")
+    assert corrected.grand_total == confirmed.grand_total + Decimal("100.00")
+    assert corrected.billing_competence == date(2026, 3, 1)
+    assert corrected.collection_method == CollectionMethod.UBER.value
+    entry = fixture.audit.entries[-1]
+    assert entry.action == "attendances.updated"
+    assert entry.reason == "Registrado como normal por engano; coleta foi por Uber"
+    assert entry.before_state is not None and entry.after_state is not None
+    assert entry.before_state["service_level"] == "NORMAL"
+    assert entry.after_state["service_level"] == "PLANTAO_NORMAL"
+    assert entry.after_state["on_call_fee"] == "100.00"
+    assert entry.after_state["billing_competence"] == "2026-03-01"
+
+    # Voltar para normal zera a taxa: o total volta ao valor original dos itens.
+    back = update.execute(
+        _update_command(
+            attendance_id=confirmed.id,
+            expected_row_version=corrected.row_version,
+            service_level=ServiceLevel.NORMAL,
+            reason="Era atendimento normal",
+        )
+    )
+    assert (back.on_call_fee, back.grand_total) == (Decimal("0.00"), confirmed.grand_total)
+
+    # Motivo em branco não vale.
+    with pytest.raises(ValidationError):
+        update.execute(
+            _update_command(
+                attendance_id=confirmed.id,
+                expected_row_version=back.row_version,
+                notes="x",
+                reason="   ",
+            )
+        )
+
+    # Cancelado também pode ser corrigido (dados cadastrais), com motivo.
+    cancelled_draft = fixture.use_case().execute(_command())
+    cancelled = fixture.cancel_use_case().execute(_cancel_command(attendance_id=cancelled_draft.id))
+    fixed = update.execute(
+        _update_command(
+            attendance_id=cancelled.id,
+            expected_row_version=cancelled.row_version,
+            notes="Cancelado por engano de cadastro",
+            reason="Ajuste de observação",
+        )
+    )
+    assert fixed.notes == "Cancelado por engano de cadastro"
+    assert fixed.status == AttendanceStatus.CANCELLED.value

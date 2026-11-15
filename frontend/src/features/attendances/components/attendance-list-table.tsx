@@ -9,6 +9,7 @@ import './attendance-list-table.css'
 export interface PatientDisplay {
   name: string
   detail: string
+  ownerName?: string
   sex?: 'MALE' | 'FEMALE'
 }
 
@@ -17,6 +18,10 @@ interface AttendanceListTableProps {
   clinicNameById: Record<string, string>
   veterinarianNameById: Record<string, string>
   patientDisplayById: Record<string, PatientDisplay>
+  /** Linha com o resumo aberto (popover). */
+  selectedId?: string | null
+  /** Clique ou Enter na linha abre o resumo. */
+  onSelect: (attendance: Attendance) => void
 }
 
 function ExamChips({ attendance }: { attendance: Attendance }) {
@@ -42,6 +47,8 @@ export function AttendanceListTable({
   clinicNameById,
   veterinarianNameById,
   patientDisplayById,
+  selectedId = null,
+  onSelect,
 }: AttendanceListTableProps) {
   if (attendances.length === 0) {
     return (
@@ -81,7 +88,19 @@ export function AttendanceListTable({
             return (
               <tr
                 key={attendance.id}
+                tabIndex={0}
+                aria-haspopup="dialog"
+                aria-expanded={attendance.id === selectedId}
+                data-selected={attendance.id === selectedId || undefined}
                 data-cancelled={attendance.status === 'CANCELLED' || undefined}
+                onClick={() => onSelect(attendance)}
+                onKeyDown={(event) => {
+                  if (event.target !== event.currentTarget) return
+                  if (event.key === 'Enter' || event.key === ' ') {
+                    event.preventDefault()
+                    onSelect(attendance)
+                  }
+                }}
               >
                 <td className="attendance-list-table__protocol">
                   {attendance.protocolNumber ?? 'Rascunho'}
@@ -143,7 +162,10 @@ export function AttendanceListTable({
                       mostra o total de verdade. */}
                   {attendance.items.length === 0 ? '—' : formatCurrencyBRL(attendance.grandTotal)}
                 </td>
-                <td className="attendance-list-table__actions">
+                <td
+                  className="attendance-list-table__actions"
+                  onClick={(event) => event.stopPropagation()}
+                >
                   <Link
                     to={`/operacao/${attendance.id}`}
                     className="attendance-list-table__view-button"
