@@ -88,7 +88,16 @@ test('exams table with filters is accessible and keeps long names inside the vie
   await page.goto('/cadastros/exames')
   await expect(page.getByRole('heading', { name: 'Exames & Preços' })).toBeVisible()
   await expect(page.getByText(/Hemograma completo com contagem/)).toBeVisible()
-  await expect(page.getByLabel('Categoria')).toBeVisible()
+  await expect(page.getByRole('button', { name: /Categoria/ })).toBeVisible()
+  await expectAccessible(page)
+})
+
+test('exam summary popover is accessible', async ({ page }) => {
+  await mockApi(page, MANAGER)
+  await page.goto('/cadastros/exames')
+  await page.getByRole('button', { name: /Hemograma completo com contagem/, exact: false }).first().click()
+  await expect(page.getByRole('dialog')).toBeVisible()
+  await expect(page.getByRole('link', { name: 'Editar exame' })).toBeVisible()
   await expectAccessible(page)
 })
 

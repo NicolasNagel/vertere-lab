@@ -67,6 +67,8 @@ function examsListHandler() {
           species_ids: ['s1'],
           status: 'ACTIVE',
           row_version: 1,
+          is_panel: false,
+          component_exam_ids: [],
           price_base: '85.00',
           updated_at: '2026-06-01T00:00:00Z',
         },
@@ -79,6 +81,8 @@ function examsListHandler() {
           species_ids: ['s1', 's2'],
           status: 'ACTIVE',
           row_version: 1,
+          is_panel: false,
+          component_exam_ids: [],
           price_base: '120.00',
           updated_at: '2026-06-02T00:00:00Z',
         },
@@ -133,6 +137,8 @@ const hemogramaExam = {
   species_ids: ['s1'],
   status: 'ACTIVE',
   row_version: 1,
+  is_panel: false,
+  component_exam_ids: [],
   price_base: '85.00',
   updated_at: '2026-06-01T00:00:00Z',
 }
@@ -147,7 +153,7 @@ test('lists exams, filters by category and gates actions and prices by permissio
   expect(await screen.findByText('Hemograma completo')).toBeInTheDocument()
   expect(screen.getByText('HEM001')).toBeInTheDocument()
   expect(screen.getByText('Bioquímico renal')).toBeInTheDocument()
-  expect(screen.queryByRole('button', { name: /Novo exame/i })).not.toBeInTheDocument()
+  expect(screen.queryByText(/Novo exame/i)).not.toBeInTheDocument()
   expect(screen.queryByText('R$ 85,00')).not.toBeInTheDocument()
   const requested: string[] = []
   server.use(
@@ -156,15 +162,23 @@ test('lists exams, filters by category and gates actions and prices by permissio
       return HttpResponse.json({ items: [], total: 0, page: 1, page_size: 25 })
     }),
   )
-  await user.selectOptions(await screen.findByLabelText('Categoria'), 'cat2')
+  await user.click(await screen.findByRole('button', { name: /Categoria/ }))
+  await user.click(await screen.findByRole('option', { name: 'Bioquímica' }))
   await waitFor(() => expect(requested.some((query) => query.includes('category_id=cat2'))).toBe(true))
-  expect(await screen.findByText('Nenhum exame encontrado.')).toBeInTheDocument()
+  expect(await screen.findByText(/Nenhum exame encontrado/)).toBeInTheDocument()
   restart(view)
 
   // catalog.manage libera "Novo exame".
   server.use(meHandler(['catalog.read', 'catalog.manage']), ...common)
   view = renderApp()
-  expect(await screen.findByRole('button', { name: /Novo exame/i })).toBeInTheDocument()
+  expect(await screen.findByText(/Novo pacote/i)).toBeInTheDocument()
+  expect(screen.queryByText(/Novo exame/i)).not.toBeInTheDocument()
+  restart(view)
+
+  // Criar exame também exige pricing.manage (define o preço).
+  server.use(meHandler(['catalog.read', 'catalog.manage', 'pricing.manage']), ...common)
+  view = renderApp()
+  expect(await screen.findByText(/Novo exame/i)).toBeInTheDocument()
   restart(view)
 
   // pricing.read mostra os preços.
@@ -200,7 +214,28 @@ test('a manager imports exams from CSV with per-row errors and opens a row in th
   expect(screen.getByText(/Linha 3: Categoria 'Inexistente' não encontrada\./)).toBeInTheDocument()
 
   await user.click(screen.getByText('Hemograma completo'))
+  const summary = within(await screen.findByRole('dialog', { name: 'Hemograma completo' }))
+  expect(summary.getByText('Hematologia')).toBeInTheDocument()
+  await user.click(summary.getByRole('link', { name: 'Editar exame' }))
   expect(await screen.findByText('Detalhe do exame')).toBeInTheDocument()
+})
+
+test('the summary popover is read-only for users without catalog.manage and closes with Escape', async () => {
+  server.use(
+    meHandler(['catalog.read']),
+    speciesHandler(),
+    categoriesHandler(),
+    examsListHandler(),
+  )
+  const user = userEvent.setup()
+  renderApp()
+
+  await user.click(await screen.findByText('Hemograma completo'))
+  const summary = within(await screen.findByRole('dialog', { name: 'Hemograma completo' }))
+  expect(summary.getByRole('link', { name: 'Abrir exame' })).toBeInTheDocument()
+  expect(summary.queryByRole('link', { name: 'Editar exame' })).not.toBeInTheDocument()
+  await user.keyboard('{Escape}')
+  await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
 })
 
 test('the fees tab shows the on-call fee settings instead of the exam table', async () => {
@@ -238,7 +273,7 @@ test('deactivating an exam from the row menu calls the API', async () => {
   renderApp()
 
   await screen.findByText('Hemograma completo')
-  const row = screen.getByText('Hemograma completo').closest('.exam-table__row')
+  const row = screen.getByText('Hemograma completo').closest('tr')
   expect(row).not.toBeNull()
   await user.click(within(row as HTMLElement).getByRole('button', { name: /Ações para/i }))
   await user.click(await screen.findByRole('menuitem', { name: 'Inativar' }))

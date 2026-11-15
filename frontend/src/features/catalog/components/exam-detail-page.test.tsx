@@ -159,5 +159,5 @@ test('shows an error state when the exam cannot be loaded and a 403 message with
   )
   renderPage()
 
-  expect(await screen.findByRole('alert')).toHaveTextContent('Sem permissão para ver este exame.')
+  expect(await screen.findByRole('alert')).toHaveTextContent('Você não tem permissão para visualizar este exame.')
 })

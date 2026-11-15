@@ -1,110 +1,99 @@
 .exams-page {
   display: flex;
   flex-direction: column;
-  height: 100%;
+  min-height: 100%;
   background: var(--color-surface-cream);
 }
 
-.exams-page__header {
-  background: var(--color-surface);
-  padding: 1.375rem 2rem; /* 22px 32px */
-  border-bottom: 1px solid var(--color-border);
+.exams-page__search {
   display: flex;
-  justify-content: space-between;
   align-items: center;
-}
-
-.exams-page__eyebrow {
-  font-family: var(--font-mono);
-  font-size: 0.625rem; /* 10px */
-  letter-spacing: 0.16em;
-  color: var(--color-text-secondary);
-  text-transform: uppercase;
-}
-
-.exams-page__title {
-  font-family: var(--font-display);
-  text-transform: uppercase;
-  letter-spacing: 0.02em;
-  font-size: 1.75rem; /* 28px */
-  font-weight: 600;
-  color: var(--color-brand-ink-deep);
-  margin: 0.125rem 0 0;
-}
-
-.exams-page__header-actions {
-  display: flex;
-  align-items: flex-start;
-  gap: 0.625rem; /* 10px */
-}
-
-.exams-page__new-button {
-  width: auto;
-  display: inline-flex;
-  align-items: center;
-  gap: 0.5rem; /* 8px */
-  padding: 0.6875rem 1.125rem; /* 11px 18px */
-}
-
-.exams-page__body {
-  flex: 1;
-  display: flex;
-  min-height: 0;
-}
-
-.exams-page__main {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  min-height: 0;
-  min-width: 0;
-  /* One scroll container for the whole column (stat cards + Taxas de
-     plantão + table) — mirrors the mockup's single `overflow-y:auto`
-     wrapper (6-cadastro-de-exames(1).html:133). The table used to carry
-     its own independent scroll (.exam-table-panel), which squeezed
-     everything above it into a fixed height instead of letting the page
-     scroll as a whole — that's what produced the broken vertical spacing. */
-  overflow-y: auto;
-}
-
-.exams-page__tabs {
-  display: flex;
-  gap: 0.25rem;
-  padding: 0 2rem;
-  background: var(--color-surface);
-  border-bottom: 1px solid var(--color-border);
-}
-
-.exams-page__tabs [role='tab'] {
-  border: none;
-  background: transparent;
-  padding: 0.75rem 1rem;
-  font: inherit;
+  gap: 0.5rem;
+  padding: 0.4375rem 0.75rem;
+  background: var(--color-surface-form);
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
   font-size: 0.8125rem;
   color: var(--color-text-secondary);
-  cursor: pointer;
-  border-bottom: 2px solid transparent;
 }
 
-.exams-page__tabs [role='tab'][aria-selected='true'] {
-  color: var(--color-brand-ink-deep);
-  border-bottom-color: var(--color-brand-ink-deep);
+.exams-page__search:focus-within {
+  border-color: var(--color-brand-ink-deep);
+}
+
+.exams-page__search input {
+  border: none;
+  outline: none;
+  background: transparent;
+  font: inherit;
+  color: var(--color-text-primary);
+  width: 14rem;
+  min-width: 0;
+}
+
+.exams-page__panel {
+  margin: 1rem 1.25rem 1.25rem;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  overflow: hidden;
+  box-shadow: 0 1px 2px rgb(20 35 55 / 4%);
+}
+
+.exams-page__filter-row {
+  display: grid;
+  gap: 0.625rem;
+  padding: 0.625rem 0.875rem 0.75rem;
+  border-bottom: 1px solid var(--color-border);
 }
 
 .exams-page__filters {
-  display: grid;
-  grid-template-columns: minmax(0, 2fr) repeat(3, minmax(0, 1fr));
-  gap: 0.75rem;
-  padding: 1.25rem 1.75rem 0;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  min-width: 0;
 }
 
-@media (max-width: 760px) {
-  .exams-page__tabs {
-    padding: 0 1rem;
+.exams-page__filters .dropdown__trigger {
+  flex: 0 1 12rem;
+}
+
+.exams-page__clear {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  padding: 0.3125rem 0.625rem;
+  border: none;
+  border-radius: 6px;
+  background: none;
+  font: inherit;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--color-brand-ink-deep);
+  cursor: pointer;
+}
+
+.exams-page__clear svg {
+  width: 0.75rem;
+  height: 0.75rem;
+}
+
+.exams-page__clear:hover {
+  background: var(--color-info-bg);
+}
+
+@media (max-width: 767px) {
+  .exams-page__search {
+    flex: 1;
+    min-width: 0;
   }
 
-  .exams-page__filters {
-    grid-template-columns: minmax(0, 1fr);
-    padding: 1rem;
+  .exams-page__search input {
+    width: 100%;
+  }
+
+  .exams-page__filters .dropdown__trigger {
+    flex: 1 1 100%;
   }
 }
