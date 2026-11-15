@@ -5,7 +5,8 @@ import { z } from 'zod'
 
 import { describeError } from '../../../shared/api/describe-error'
 import { Button } from '../../../shared/ui/button'
-import { SelectField } from '../../../shared/ui/select'
+import { Dropdown } from '../../../shared/ui/dropdown'
+import { UsersIcon } from '../../../shared/ui/icons'
 import { TextField } from '../../../shared/ui/text-field'
 import { ToggleSwitch } from '../../../shared/ui/toggle-switch'
 import type { CreateRoleValues, Permission, Role } from '../api/roles-api'
@@ -113,13 +114,14 @@ export function RoleCreateForm({
         disabled={submitting}
         {...register('description')}
       />
-      <SelectField
-        id="role-base"
+      <Dropdown
+        variant="field"
+        icon={<UsersIcon />}
         label="Baseado em"
         disabled={submitting}
         options={baseRoleOptions}
         value={baseRoleId}
-        onChange={(event) => handleBaseRoleChange(event.target.value)}
+        onChange={handleBaseRoleChange}
       />
 
       {groups.map((group) => (

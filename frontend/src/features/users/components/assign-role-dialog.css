@@ -29,3 +29,8 @@
 .assign-role-dialog__submit {
   width: auto;
 }
+
+/* Menu suspenso de formulário tem o mesmo respiro dos campos de texto. */
+.assign-role-dialog .dropdown-field {
+  margin-bottom: 0.75rem;
+}

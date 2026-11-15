@@ -44,3 +44,8 @@
 .role-create-form__submit {
   width: auto;
 }
+
+/* Menu suspenso de formulário tem o mesmo respiro dos campos de texto. */
+.role-create-form .dropdown-field {
+  margin-bottom: 0.75rem;
+}

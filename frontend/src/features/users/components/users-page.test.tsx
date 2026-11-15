@@ -8,6 +8,7 @@ import { afterAll, afterEach, beforeAll, expect, test } from 'vitest'
 
 import { AuthProvider } from '../../auth/auth-provider'
 import { UsersPage } from './users-page'
+import { pickOption } from '../../../test/dropdown'
 
 const server = setupServer(clinicsHandler())
 
@@ -295,11 +296,11 @@ test('saves permission changes and creates a profile, optionally cloned from ano
 
   // "Baseado em" clona as permissões do perfil base; "Começar do zero" limpa.
   expect(screen.getByLabelText('Editar clínicas')).not.toBeChecked()
-  await user.selectOptions(screen.getByLabelText('Baseado em'), 'r2')
+  await pickOption(user, 'Baseado em', 'RECEPTION')
   expect(screen.getByLabelText('Ver clínicas')).toBeChecked()
   expect(screen.getByLabelText('Ver pacientes')).toBeChecked()
   expect(screen.getByLabelText('Editar clínicas')).not.toBeChecked()
-  await user.selectOptions(screen.getByLabelText('Baseado em'), 'Começar do zero')
+  await pickOption(user, 'Baseado em', 'Começar do zero')
   expect(screen.getByLabelText('Ver clínicas')).not.toBeChecked()
   expect(screen.getByLabelText('Ver pacientes')).not.toBeChecked()
 
@@ -337,7 +338,7 @@ test('creates users and shows the one-time temporary password, sending clinic me
   await user.click(await screen.findByRole('button', { name: /Novo usuário/i }))
   await user.type(screen.getByLabelText('Nome completo'), 'Nova Pessoa')
   await user.type(screen.getByLabelText('E-mail'), 'nova@vertere.local')
-  await user.selectOptions(screen.getByLabelText('Perfil'), 'r2')
+  await pickOption(user, 'Perfil', 'RECEPTION')
   await user.click(screen.getByRole('button', { name: 'Criar usuário' }))
   expect(await screen.findByText('sEnh4Temp0rar1a!')).toBeInTheDocument()
   expect(screen.getByText(/Nova Pessoa/)).toBeInTheDocument()
@@ -389,7 +390,7 @@ test('creates users and shows the one-time temporary password, sending clinic me
   await user.click(await screen.findByRole('button', { name: /Novo usuário/i }))
   await user.type(screen.getByLabelText('Nome completo'), 'Pessoa Clínica')
   await user.type(screen.getByLabelText('E-mail'), 'clinic@vertere.local')
-  await user.selectOptions(screen.getByLabelText('Perfil'), 'r-clinic')
+  await pickOption(user, 'Perfil', 'CLINIC_STAFF')
   await user.click(screen.getByLabelText('Clínica Central'))
   await user.click(screen.getByRole('button', { name: 'Criar usuário' }))
   await screen.findByText('Temp1234!')
