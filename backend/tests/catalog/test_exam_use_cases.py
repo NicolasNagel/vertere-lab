@@ -3,7 +3,7 @@ from __future__ import annotations
 from collections.abc import Callable
 from datetime import UTC, datetime
 from decimal import Decimal
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 import pytest
 
@@ -63,14 +63,17 @@ def _seed_category(categories: FakeExamCategoryRepository) -> ExamCategoryDTO:
         categories=categories, audit=audit, clock=FakeClock(_NOW)
     ).execute(
         CreateExamCategoryCommand(
-            actor=_actor(permissions=frozenset({"catalog.manage"})), name="Hematologia"
+            actor=_actor(permissions=frozenset({"catalog.manage", "pricing.manage"})),
+            name="Hematologia",
         )
     )
 
 
 def _create_command(category_id: object, **overrides: object) -> CreateExamCommand:
     defaults: dict[str, object] = {
-        "actor": _actor(permissions=frozenset({"catalog.manage", "pricing.read"})),
+        "actor": _actor(
+            permissions=frozenset({"catalog.manage", "pricing.manage", "pricing.read"})
+        ),
         "name": "Hemograma completo",
         "category_id": category_id,
         "price_base": Decimal("85.00"),
@@ -166,7 +169,7 @@ def test_exam_update_is_versioned_and_deactivation_preserves_the_record() -> Non
     with pytest.raises(ConflictError):
         update.execute(
             UpdateExamCommand(
-                actor=_actor(permissions=frozenset({"catalog.manage"})),
+                actor=_actor(permissions=frozenset({"catalog.manage", "pricing.manage"})),
                 exam_id=created.id,
                 name="Hemograma completo renomeado",
                 category_id=category.id,
@@ -180,7 +183,9 @@ def test_exam_update_is_versioned_and_deactivation_preserves_the_record() -> Non
 
     result = DeactivateExamUseCase(exams=exams, audit=audit, clock=FakeClock(_NOW)).execute(
         DeactivateExamCommand(
-            actor=_actor(permissions=frozenset({"catalog.manage", "pricing.read"})),
+            actor=_actor(
+                permissions=frozenset({"catalog.manage", "pricing.manage", "pricing.read"})
+            ),
             exam_id=created.id,
         )
     )
@@ -188,3 +193,66 @@ def test_exam_update_is_versioned_and_deactivation_preserves_the_record() -> Non
     stored = exams.get_by_id(created.id)
     assert stored is not None
     assert stored.name == created.name
+
+
+def test_price_change_needs_pricing_manage_and_a_reason_and_is_audited() -> None:
+    categories = FakeExamCategoryRepository()
+    category = _seed_category(categories)
+    exams = FakeExamRepository()
+    audit = FakeAuditLogWriter()
+    create, update = _exam_use_cases(categories, exams, audit)
+    created = create.execute(_create_command(category.id))
+
+    def _version(exam_id: UUID) -> int:
+        stored_exam = exams.get_by_id(exam_id)
+        assert stored_exam is not None
+        return stored_exam.row_version
+
+    def command(
+        permissions: frozenset[str], *, price: Decimal | None, name: str, reason: str | None
+    ) -> UpdateExamCommand:
+        return UpdateExamCommand(
+            actor=_actor(permissions=permissions),
+            exam_id=created.id,
+            name=name,
+            category_id=category.id,
+            price_base=price,
+            description=None,
+            species_ids=frozenset({_DOG_SPECIES_ID}),
+            status=ExamStatus.ACTIVE.value,
+            expected_row_version=_version(created.id),
+            reason=reason,
+        )
+
+    catalog_only = frozenset({"catalog.manage"})
+    # Sem pricing.manage: renomear (sem enviar preço) passa; mudar o preço não.
+    renamed = update.execute(command(catalog_only, price=None, name="Renomeado", reason=None))
+    assert renamed.name == "Renomeado"
+    with pytest.raises(ForbiddenError):
+        update.execute(
+            command(catalog_only, price=Decimal("1.00"), name="Renomeado", reason="Ajuste")
+        )
+
+    manager = frozenset({"catalog.manage", "pricing.manage"})
+    with pytest.raises(ValidationError):
+        update.execute(command(manager, price=Decimal("1.00"), name="Renomeado", reason=None))
+
+    stored = exams.get_by_id(created.id)
+    assert stored is not None
+    current = UpdateExamCommand(
+        actor=_actor(permissions=manager),
+        exam_id=created.id,
+        name="Renomeado",
+        category_id=category.id,
+        price_base=Decimal("1.00"),
+        description=None,
+        species_ids=frozenset({_DOG_SPECIES_ID}),
+        status=ExamStatus.ACTIVE.value,
+        expected_row_version=stored.row_version,
+        reason="Reajuste anual",
+    )
+    update.execute(current)
+    last = audit.entries[-1]
+    assert last.reason == "Reajuste anual"
+    assert last.before_state is not None and last.after_state is not None
+    assert last.before_state["price_base"] != last.after_state["price_base"]

@@ -92,12 +92,14 @@ class ExamUpdateRequest(BaseModel):
 
     name: str = Field(min_length=1)
     category_id: UUID
-    price_base: Decimal = Field(gt=0)
+    # Omitido = manter o preço; alterar exige `pricing.manage` e motivo.
+    price_base: Decimal | None = Field(default=None, gt=0)
     description: str | None = None
     species_ids: list[UUID] = Field(min_length=1)
     component_exam_ids: list[UUID] = Field(default_factory=list)
     status: ExamStatusLiteral
     expected_row_version: int
+    reason: str | None = Field(default=None, max_length=500)
 
 
 class ExamImportRowErrorRead(BaseModel):

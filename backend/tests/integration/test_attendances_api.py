@@ -890,6 +890,7 @@ async def test_panel_item_freezes_its_composition_on_the_attendance(
             "component_exam_ids": [alt_response.json()["id"]],
             "status": "ACTIVE",
             "expected_row_version": panel["row_version"],
+            "reason": "Reajuste do pacote",
         },
     )
     assert edited.status_code == 200

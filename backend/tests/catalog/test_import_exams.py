@@ -61,7 +61,7 @@ def _seed_category(
         categories=categories, audit=audit, clock=FakeClock(_NOW)
     ).execute(
         CreateExamCategoryCommand(
-            actor=_actor(permissions=frozenset({"catalog.manage"})), name=name
+            actor=_actor(permissions=frozenset({"catalog.manage", "pricing.manage"})), name=name
         )
     )
 
@@ -103,7 +103,7 @@ def test_import_requires_permission_and_reports_each_invalid_row_without_stoppin
     category = _seed_category(categories)
     exams = FakeExamRepository()
     audit = FakeAuditLogWriter()
-    manager = _actor(permissions=frozenset({"catalog.manage"}))
+    manager = _actor(permissions=frozenset({"catalog.manage", "pricing.manage"}))
     CreateExamUseCase(
         exams=exams,
         categories=categories,

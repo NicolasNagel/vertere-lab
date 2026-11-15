@@ -296,6 +296,7 @@ def update_exam(
             component_exam_ids=tuple(payload.component_exam_ids),
             status=payload.status,
             expected_row_version=payload.expected_row_version,
+            reason=payload.reason,
         ),
         clock=SystemClock(),
     )

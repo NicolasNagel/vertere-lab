@@ -32,6 +32,7 @@ from app.shared.application.clock import Clock
 from app.shared.domain.errors import ForbiddenError, NotFoundError, ValidationError
 
 _REQUIRED_PERMISSION = "catalog.manage"
+_PRICE_MANAGE_PERMISSION = "pricing.manage"
 _PRICE_PERMISSION = "pricing.read"
 
 
@@ -67,6 +68,8 @@ class CreateExamUseCase:
     def execute(self, command: CreateExamCommand) -> ExamDTO:
         if _REQUIRED_PERMISSION not in command.actor.permissions:
             raise ForbiddenError(f"Permissão ausente: {_REQUIRED_PERMISSION}")
+        if _PRICE_MANAGE_PERMISSION not in command.actor.permissions:
+            raise ForbiddenError(f"Permissão ausente: {_PRICE_MANAGE_PERMISSION}")
 
         if self._categories.get_by_id(command.category_id) is None:
             raise NotFoundError("Categoria de exame não encontrada.")

@@ -29,6 +29,7 @@ from app.shared.application.clock import Clock
 from app.shared.domain.errors import ForbiddenError
 
 _REQUIRED_PERMISSION = "catalog.manage"
+_PRICE_MANAGE_PERMISSION = "pricing.manage"
 
 
 class _RowValidationError(Exception):
@@ -84,6 +85,8 @@ class ImportExamsUseCase:
     def execute(self, command: ImportExamsCommand) -> ImportExamsResult:
         if _REQUIRED_PERMISSION not in command.actor.permissions:
             raise ForbiddenError(f"Permissão ausente: {_REQUIRED_PERMISSION}")
+        if _PRICE_MANAGE_PERMISSION not in command.actor.permissions:
+            raise ForbiddenError(f"Permissão ausente: {_PRICE_MANAGE_PERMISSION}")
 
         species_by_name = {species.name.lower(): species.id for species in self._species.list_all()}
         now = self._clock.now()

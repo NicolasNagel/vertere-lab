@@ -353,6 +353,7 @@ async def test_exam_panels_compose_validate_snapshot_and_block_unsafe_changes(
             "species_ids": [dog_id],
             "status": "INACTIVE",
             "expected_row_version": alt["row_version"],
+            "reason": "Teste de bloqueio",
         },
     )
     assert blocked_patch.status_code == 409
