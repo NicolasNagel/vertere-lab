@@ -1,5 +1,5 @@
 import { KebabMenu, type KebabMenuItem } from '../../../shared/ui/kebab-menu'
-import { SearchIcon } from '../../../shared/ui/icons'
+import { formatCurrencyBRL } from '../../../shared/lib/formatters'
 import type { Species } from '../../patients/api/patients-api'
 import type { Exam, ExamCategory } from '../api/catalog-api'
 import './exam-table.css'
@@ -14,10 +14,9 @@ interface ExamTableProps {
   categories: ExamCategory[]
   species: Species[]
   isLoading: boolean
+  isError: boolean
   canManage: boolean
   priceVisible: boolean
-  search: string
-  onSearchChange: (value: string) => void
   onRowClick: (examId: string) => void
   onDeactivate: (examId: string) => void
 }
@@ -27,10 +26,9 @@ export function ExamTable({
   categories,
   species,
   isLoading,
+  isError,
   canManage,
   priceVisible,
-  search,
-  onSearchChange,
   onRowClick,
   onDeactivate,
 }: ExamTableProps) {
@@ -39,18 +37,6 @@ export function ExamTable({
 
   return (
     <div className="exam-table-panel">
-      <div className="exam-table-panel__search">
-        <SearchIcon className="exam-table-panel__search-icon" />
-        <input
-          type="search"
-          className="exam-table-panel__search-input"
-          placeholder="Buscar por nome ou código..."
-          aria-label="Buscar exame"
-          value={search}
-          onChange={(event) => onSearchChange(event.target.value)}
-        />
-      </div>
-
       <div className="exam-table">
         <div className="exam-table__header" data-price-visible={priceVisible}>
           <div>Cód.</div>
@@ -62,7 +48,12 @@ export function ExamTable({
         </div>
 
         {isLoading && <p className="exam-table__empty">Carregando…</p>}
-        {!isLoading && exams.length === 0 && (
+        {isError && (
+          <p role="alert" className="exam-table__empty">
+            Não foi possível carregar os exames.
+          </p>
+        )}
+        {!isLoading && !isError && exams.length === 0 && (
           <p className="exam-table__empty">Nenhum exame encontrado.</p>
         )}
 
@@ -82,20 +73,16 @@ export function ExamTable({
                 key={exam.id}
                 className="exam-table__row"
                 data-price-visible={priceVisible}
-                data-clickable={canManage}
-                role={canManage ? 'button' : undefined}
-                tabIndex={canManage ? 0 : undefined}
-                onClick={canManage ? () => onRowClick(exam.id) : undefined}
-                onKeyDown={
-                  canManage
-                    ? (event) => {
-                        if (event.key === 'Enter' || event.key === ' ') {
-                          event.preventDefault()
-                          onRowClick(exam.id)
-                        }
-                      }
-                    : undefined
-                }
+                data-clickable
+                role="button"
+                tabIndex={0}
+                onClick={() => onRowClick(exam.id)}
+                onKeyDown={(event) => {
+                  if (event.key === 'Enter' || event.key === ' ') {
+                    event.preventDefault()
+                    onRowClick(exam.id)
+                  }
+                }}
               >
                 <div className="exam-table__code" title={exam.code}>
                   {exam.code}
@@ -125,7 +112,7 @@ export function ExamTable({
                 </div>
                 {priceVisible && (
                   <div className="exam-table__price">
-                    {exam.priceBase ? `R$ ${exam.priceBase}` : '—'}
+                    {exam.priceBase ? formatCurrencyBRL(exam.priceBase) : '—'}
                   </div>
                 )}
                 <div className="exam-table__species">{speciesLabel || '—'}</div>

@@ -66,3 +66,45 @@
      scroll as a whole — that's what produced the broken vertical spacing. */
   overflow-y: auto;
 }
+
+.exams-page__tabs {
+  display: flex;
+  gap: 0.25rem;
+  padding: 0 2rem;
+  background: var(--color-surface);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.exams-page__tabs [role='tab'] {
+  border: none;
+  background: transparent;
+  padding: 0.75rem 1rem;
+  font: inherit;
+  font-size: 0.8125rem;
+  color: var(--color-text-secondary);
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+}
+
+.exams-page__tabs [role='tab'][aria-selected='true'] {
+  color: var(--color-brand-ink-deep);
+  border-bottom-color: var(--color-brand-ink-deep);
+}
+
+.exams-page__filters {
+  display: grid;
+  grid-template-columns: minmax(0, 2fr) repeat(3, minmax(0, 1fr));
+  gap: 0.75rem;
+  padding: 1.25rem 1.75rem 0;
+}
+
+@media (max-width: 760px) {
+  .exams-page__tabs {
+    padding: 0 1rem;
+  }
+
+  .exams-page__filters {
+    grid-template-columns: minmax(0, 1fr);
+    padding: 1rem;
+  }
+}
