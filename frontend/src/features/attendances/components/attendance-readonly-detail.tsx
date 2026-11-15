@@ -1,7 +1,8 @@
-import { useState } from 'react'
+import { Fragment, useState } from 'react'
 
 import { formatCurrencyBRL, formatDate, formatServiceDateTime } from '../../../shared/lib/formatters'
 import { useAuth } from '../../auth/auth-context'
+import { feeRows } from '../lib/attendance-fees'
 import { useClinicQuery } from '../../clinics/api/use-clinic-query'
 import { usePatientQuery } from '../../patients/api/use-patient-query'
 import { useSpeciesQuery } from '../../patients/api/use-species-query'
@@ -208,12 +209,12 @@ export function AttendanceReadonlyDetail({ attendance }: AttendanceReadonlyDetai
                     <dd>+ {formatCurrencyBRL(attendance.surchargeTotal)}</dd>
                   </>
                 )}
-                {isPositive(attendance.onCallFee) && (
-                  <>
-                    <dt>Taxa de plantão</dt>
-                    <dd>+ {formatCurrencyBRL(attendance.onCallFee)}</dd>
-                  </>
-                )}
+                {feeRows(attendance).map((row) => (
+                  <Fragment key={row.label}>
+                    <dt>{row.label}</dt>
+                    <dd>+ {formatCurrencyBRL(row.amount)}</dd>
+                  </Fragment>
+                ))}
                 <dt className="attendance-readonly-detail__grand">Total</dt>
                 <dd className="attendance-readonly-detail__grand">
                   {formatCurrencyBRL(attendance.grandTotal)}

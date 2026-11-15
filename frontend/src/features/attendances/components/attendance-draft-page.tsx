@@ -5,6 +5,7 @@ import { useQueryClient } from '@tanstack/react-query'
 import { ApiError } from '../../../shared/api/errors'
 import { formatCurrencyBRL } from '../../../shared/lib/formatters'
 import { Button } from '../../../shared/ui/button'
+import { Checkbox } from '../../../shared/ui/checkbox'
 import { Dropdown, type DropdownOption } from '../../../shared/ui/dropdown'
 import { ArrowLeftIcon } from '../../../shared/ui/icons'
 import { PageHeader } from '../../../shared/ui/page-header'
@@ -17,6 +18,8 @@ import { useAllVeterinariansQuery } from '../../veterinarians/api/use-veterinari
 import { attendanceQueryKey, useAttendanceQuery } from '../api/use-attendance-query'
 import { useAttendanceExamSelections } from '../api/use-attendance-exam-selections'
 import { useOnCallFeeSettingsQuery } from '../api/use-on-call-fee-settings-query'
+import { useUrgencyFeeQuery } from '../api/use-urgency-fee-query'
+import { feeRows } from '../lib/attendance-fees'
 import { useCreateAttendanceDraftMutation } from '../api/use-create-attendance-draft-mutation'
 import { useUpdateAttendanceMutation } from '../api/use-update-attendance-mutation'
 import {
@@ -87,6 +90,7 @@ export function AttendanceDraftPage({ resumeAttendance }: AttendanceDraftPagePro
   const [serviceLevel, setServiceLevel] = useState<ServiceLevel>(
     resumeAttendance?.serviceLevel ?? 'NORMAL',
   )
+  const [isUrgent, setIsUrgent] = useState(resumeAttendance?.isUrgent ?? false)
   const [notes, setNotes] = useState(resumeAttendance?.notes ?? '')
   const [showDiscardModal, setShowDiscardModal] = useState(false)
 
@@ -102,6 +106,7 @@ export function AttendanceDraftPage({ resumeAttendance }: AttendanceDraftPagePro
     availableForClinicId: clinicId || undefined,
   })
   const feeSettingsQuery = useOnCallFeeSettingsQuery(showMoney)
+  const urgencyFeeQuery = useUrgencyFeeQuery(showMoney)
   const examsQuery = useAllActiveExamsQuery()
   const examCategoriesQuery = useActiveExamCategoriesQuery()
   const createDraftMutation = useCreateAttendanceDraftMutation()
@@ -129,6 +134,10 @@ export function AttendanceDraftPage({ resumeAttendance }: AttendanceDraftPagePro
     (veterinarian) => veterinarian.id === veterinarianId,
   )
 
+  const urgencyFeeLabel =
+    urgencyFeeQuery.data && Number(urgencyFeeQuery.data.feeAmount) > 0
+      ? `+ ${formatCurrencyBRL(urgencyFeeQuery.data.feeAmount)}`
+      : ''
   const feeByLevel = new Map(
     (feeSettingsQuery.data ?? []).map((setting) => [setting.serviceLevel, setting]),
   )
@@ -153,6 +162,7 @@ export function AttendanceDraftPage({ resumeAttendance }: AttendanceDraftPagePro
         serviceDate: serviceDate || null,
         collectionMethod,
         serviceLevel,
+        isUrgent,
         notes: notes.trim() || null,
       },
       {
@@ -166,7 +176,16 @@ export function AttendanceDraftPage({ resumeAttendance }: AttendanceDraftPagePro
       },
     )
     // eslint-disable-next-line react-hooks/exhaustive-deps -- mutation/queryClient identity churn shouldn't re-trigger the effect below
-  }, [clinicId, veterinarianId, patient, serviceDate, collectionMethod, serviceLevel, notes])
+  }, [
+    clinicId,
+    veterinarianId,
+    patient,
+    serviceDate,
+    collectionMethod,
+    serviceLevel,
+    isUrgent,
+    notes,
+  ])
 
   useEffect(() => {
     attemptCreateDraft()
@@ -211,6 +230,11 @@ export function AttendanceDraftPage({ resumeAttendance }: AttendanceDraftPagePro
   function handleServiceLevelChange(value: ServiceLevel) {
     setServiceLevel(value)
     syncHeaderField({ serviceLevel: value })
+  }
+
+  function handleUrgentChange(value: boolean) {
+    setIsUrgent(value)
+    syncHeaderField({ isUrgent: value })
   }
 
   function handleServiceDateBlur() {
@@ -370,6 +394,16 @@ export function AttendanceDraftPage({ resumeAttendance }: AttendanceDraftPagePro
                 </div>
 
                 <div className="attendance-draft-page__field-group">
+                  <Checkbox
+                    id="draft-urgent"
+                    label={`Atendimento urgente${showMoney && urgencyFeeLabel ? ` · ${urgencyFeeLabel}` : ''}`}
+                    checked={isUrgent}
+                    disabled={fieldsDisabled}
+                    onChange={(event) => handleUrgentChange(event.target.checked)}
+                  />
+                </div>
+
+                <div className="attendance-draft-page__field-group">
                   <span className="attendance-draft-page__label" id="draft-collection-label">
                     Forma de coleta
                   </span>
@@ -493,7 +527,7 @@ export function AttendanceDraftPage({ resumeAttendance }: AttendanceDraftPagePro
             showMoney={showMoney}
             subtotal={preview?.subtotal ?? '0.00'}
             discountTotal={preview?.discountTotal ?? '0.00'}
-            onCallFee={preview?.onCallFee ?? '0.00'}
+            fees={preview ? feeRows(preview) : []}
             grandTotal={preview?.grandTotal ?? '0.00'}
             isCalculating={
               examSelections.selections.length > 0 && examSelections.previewQuery.isLoading

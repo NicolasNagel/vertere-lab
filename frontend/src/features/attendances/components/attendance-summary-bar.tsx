@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react'
 
 import { formatCurrencyBRL } from '../../../shared/lib/formatters'
+import type { FeeRow } from '../lib/attendance-fees'
 import './attendance-summary-bar.css'
 
 interface AttendanceSummaryBarProps {
@@ -9,7 +10,7 @@ interface AttendanceSummaryBarProps {
   showMoney: boolean
   subtotal: string
   discountTotal: string
-  onCallFee: string
+  fees: FeeRow[]
   grandTotal: string
   isCalculating: boolean
   /** Motivo de o valor não ter sido calculado (ex.: falta a data do atendimento). */
@@ -23,7 +24,7 @@ export function AttendanceSummaryBar({
   showMoney,
   subtotal,
   discountTotal,
-  onCallFee,
+  fees,
   grandTotal,
   isCalculating,
   calculationError = null,
@@ -53,12 +54,12 @@ export function AttendanceSummaryBar({
                 <dd>− {formatCurrencyBRL(discountTotal)}</dd>
               </div>
             )}
-            {Number(onCallFee) > 0 && (
-              <div>
-                <dt>Taxa de plantão</dt>
-                <dd>+ {formatCurrencyBRL(onCallFee)}</dd>
+            {fees.map((row) => (
+              <div key={row.label}>
+                <dt>{row.label}</dt>
+                <dd>+ {formatCurrencyBRL(row.amount)}</dd>
               </div>
-            )}
+            ))}
             <div className="attendance-summary-bar__total">
               <dt>Total</dt>
               <dd>{isCalculating ? 'Calculando…' : formatCurrencyBRL(grandTotal)}</dd>

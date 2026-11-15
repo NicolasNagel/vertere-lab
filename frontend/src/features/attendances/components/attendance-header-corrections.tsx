@@ -1,5 +1,6 @@
 import { useState } from 'react'
 
+import { Checkbox } from '../../../shared/ui/checkbox'
 import { SelectField, type SelectOption } from '../../../shared/ui/select'
 import { TextField } from '../../../shared/ui/text-field'
 import { useAllClinicsQuery } from '../../clinics/api/use-clinics-query'
@@ -142,9 +143,11 @@ export function ServiceCorrectionForm({ attendance, onClose }: CorrectionFormPro
     attendance.collectionMethod,
   )
   const [serviceDate, setServiceDate] = useState(attendance.serviceDate ?? '')
+  const [isUrgent, setIsUrgent] = useState(attendance.isUrgent)
   const { reason, setReason, mutation, save } = useHeaderCorrection(attendance, onClose)
 
   const input: AttendanceUpdateInput = {}
+  if (isUrgent !== attendance.isUrgent) input.isUrgent = isUrgent
   if (serviceLevel !== attendance.serviceLevel) input.serviceLevel = serviceLevel
   if (collectionMethod !== attendance.collectionMethod) input.collectionMethod = collectionMethod
   if (serviceDate && serviceDate !== attendance.serviceDate) input.serviceDate = serviceDate
@@ -183,6 +186,13 @@ export function ServiceCorrectionForm({ attendance, onClose }: CorrectionFormPro
           onChange={(event) => setServiceDate(event.target.value)}
         />
       </div>
+      <Checkbox
+        id="correction-urgent"
+        label="Atendimento urgente"
+        checked={isUrgent}
+        disabled={mutation.isPending}
+        onChange={(event) => setIsUrgent(event.target.checked)}
+      />
       <CorrectionFooter
         attendanceId={attendance.id}
         reason={reason}

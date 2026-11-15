@@ -53,6 +53,15 @@ export interface AttendanceExamItem {
   status: 'ACTIVE' | 'CANCELLED'
 }
 
+export type FeeKind = 'PLANTAO' | 'URGENCIA' | 'CLINICA'
+
+/** Uma taxa fixa cobrada no atendimento inteiro (composição congelada na confirmação). */
+export interface AttendanceFeeLine {
+  kind: FeeKind
+  label: string
+  amount: string
+}
+
 export interface Attendance {
   id: string
   clinicId: string
@@ -69,6 +78,10 @@ export interface Attendance {
   discountTotal: string
   surchargeTotal: string
   onCallFee: string
+  isUrgent: boolean
+  urgencyFee: string
+  clinicFee: string
+  feeLines: AttendanceFeeLine[]
   grandTotal: string
   protocolNumber: string | null
   cancelReason: string | null
@@ -111,6 +124,7 @@ export interface AttendanceDraftFormValues {
   patientId: string
   collectionMethod: CollectionMethod
   serviceLevel: ServiceLevel
+  isUrgent?: boolean
   serviceDate: string | null
   notes: string | null
 }
@@ -135,6 +149,10 @@ export interface AttendancePreview {
   discountTotal: string
   surchargeTotal: string
   onCallFee: string
+  isUrgent: boolean
+  urgencyFee: string
+  clinicFee: string
+  feeLines: AttendanceFeeLine[]
   grandTotal: string
 }
 
@@ -190,12 +208,30 @@ interface ApiAttendance extends GeneratedAttendance {
   discount_total: string | null
   surcharge_total: string | null
   on_call_fee: string | null
+  is_urgent: boolean
+  urgency_fee: string | null
+  clinic_fee: string | null
+  fee_lines: ApiFeeLine[]
   grand_total: string | null
   protocol_number: string | null
   cancel_reason: string | null
   created_at: string
   updated_at: string
   row_version: number
+}
+
+interface ApiFeeLine {
+  kind: FeeKind
+  label: string
+  amount: string | null
+}
+
+function fromApiFeeLines(lines: ApiFeeLine[] | undefined): AttendanceFeeLine[] {
+  return (lines ?? []).map((line) => ({
+    kind: line.kind,
+    label: line.label,
+    amount: line.amount ?? ZERO,
+  }))
 }
 
 interface ApiAttendancePage extends GeneratedAttendancePage {
@@ -218,6 +254,10 @@ interface ApiAttendancePreview extends GeneratedAttendancePreview {
   discount_total: string | null
   surcharge_total: string | null
   on_call_fee: string | null
+  is_urgent: boolean
+  urgency_fee: string | null
+  clinic_fee: string | null
+  fee_lines: ApiFeeLine[]
   grand_total: string | null
 }
 
@@ -262,6 +302,10 @@ function fromApiPreview(preview: ApiAttendancePreview): AttendancePreview {
     discountTotal: preview.discount_total ?? ZERO,
     surchargeTotal: preview.surcharge_total ?? ZERO,
     onCallFee: preview.on_call_fee ?? ZERO,
+    isUrgent: preview.is_urgent ?? false,
+    urgencyFee: preview.urgency_fee ?? ZERO,
+    clinicFee: preview.clinic_fee ?? ZERO,
+    feeLines: fromApiFeeLines(preview.fee_lines),
     grandTotal: preview.grand_total ?? ZERO,
   }
 }
@@ -313,6 +357,10 @@ function fromApiAttendance(attendance: ApiAttendance): Attendance {
     discountTotal: attendance.discount_total ?? ZERO,
     surchargeTotal: attendance.surcharge_total ?? ZERO,
     onCallFee: attendance.on_call_fee ?? ZERO,
+    isUrgent: attendance.is_urgent ?? false,
+    urgencyFee: attendance.urgency_fee ?? ZERO,
+    clinicFee: attendance.clinic_fee ?? ZERO,
+    feeLines: fromApiFeeLines(attendance.fee_lines),
     grandTotal: attendance.grand_total ?? ZERO,
     protocolNumber: attendance.protocol_number,
     cancelReason: attendance.cancel_reason,
@@ -415,6 +463,7 @@ export interface AttendanceUpdateInput {
   patientId?: string
   collectionMethod?: CollectionMethod
   serviceLevel?: ServiceLevel
+  isUrgent?: boolean
   serviceDate?: string | null
   notes?: string
   /** Obrigatório fora do rascunho; vai para a auditoria. */
@@ -436,6 +485,7 @@ export async function updateAttendance(
   if (input.patientId !== undefined) body.patient_id = input.patientId
   if (input.collectionMethod !== undefined) body.collection_method = input.collectionMethod
   if (input.serviceLevel !== undefined) body.service_level = input.serviceLevel
+  if (input.isUrgent !== undefined) body.is_urgent = input.isUrgent
   if (input.serviceDate !== undefined) body.service_date = input.serviceDate
   if (input.notes !== undefined) body.notes = input.notes
   if (input.reason !== undefined) body.reason = input.reason
@@ -509,6 +559,7 @@ export async function createAttendanceDraft(
       patient_id: values.patientId,
       collection_method: values.collectionMethod,
       service_level: values.serviceLevel,
+      is_urgent: values.isUrgent ?? false,
       service_date: values.serviceDate,
       notes: values.notes,
     },

@@ -26,6 +26,7 @@ export type AttendanceDraftCreateRequest = {
   "patient_id": string
   "collection_method"?: "HELITO_NICOLAS" | "INTERNAL" | "MARLI" | "COURIER" | "UBER"
   "service_level"?: "NORMAL" | "PLANTAO_NORMAL" | "PLANTAO_ESPECIAL"
+  "is_urgent"?: boolean
   "service_date"?: string | null
   "notes"?: string | null
 }
@@ -89,6 +90,10 @@ export type AttendancePreviewResponse = {
   "discount_total": string | null
   "surcharge_total": string | null
   "on_call_fee": string | null
+  "is_urgent": boolean
+  "urgency_fee": string | null
+  "clinic_fee": string | null
+  "fee_lines": Array<FeeLineRead>
   "grand_total": string | null
 }
 
@@ -108,6 +113,10 @@ export type AttendanceRead = {
   "discount_total": string | null
   "surcharge_total": string | null
   "on_call_fee": string | null
+  "is_urgent": boolean
+  "urgency_fee": string | null
+  "clinic_fee": string | null
+  "fee_lines": Array<FeeLineRead>
   "grand_total": string | null
   "protocol_number": string | null
   "cancel_reason": string | null
@@ -149,6 +158,7 @@ export type AttendanceUpdateRequest = {
   "patient_id"?: string | null
   "collection_method"?: "HELITO_NICOLAS" | "INTERNAL" | "MARLI" | "COURIER" | "UBER" | null
   "service_level"?: "NORMAL" | "PLANTAO_NORMAL" | "PLANTAO_ESPECIAL" | null
+  "is_urgent"?: boolean | null
   "service_date"?: string | null
   "notes"?: string | null
   "reason"?: string | null
@@ -213,6 +223,41 @@ export type ClinicDetailRead = {
   "updated_at": string
   "row_version": number
   "veterinarians": Array<ClinicLinkedVeterinarian>
+}
+
+export type ClinicFeeRuleCreateRequest = {
+  "clinic_id": string
+  "name": string
+  "fee_amount": number | string
+  "valid_from": string
+  "valid_to"?: string | null
+  "reason": string
+}
+
+export type ClinicFeeRuleListResponse = {
+  "items": Array<ClinicFeeRuleRead>
+}
+
+export type ClinicFeeRuleRead = {
+  "id": string
+  "clinic_id": string
+  "name": string
+  "fee_amount": string
+  "valid_from": string
+  "valid_to": string | null
+  "is_active": boolean
+  "updated_at": string
+  "row_version": number
+}
+
+export type ClinicFeeRuleUpdateRequest = {
+  "name": string
+  "fee_amount": number | string
+  "valid_from": string
+  "valid_to"?: string | null
+  "is_active": boolean
+  "reason": string
+  "expected_row_version": number
 }
 
 export type ClinicLinkedVeterinarian = {
@@ -409,6 +454,13 @@ export type ExamUpdateRequest = {
   "reason"?: string | null
 }
 
+export type FeeLineRead = {
+  "kind": "PLANTAO" | "URGENCIA" | "CLINICA"
+  "label": string
+  "amount": string | null
+  "rule_id"?: string | null
+}
+
 export type FinancialAdjustmentCreateRequest = {
   "monthly_closure_item_id"?: string | null
   "kind": string
@@ -586,6 +638,7 @@ export type OnCallFeeSettingRead = {
 export type OnCallFeeSettingUpdateRequest = {
   "fee_amount": number | string
   "schedule_label"?: string
+  "reason": string
   "expected_row_version": number
 }
 
@@ -735,6 +788,21 @@ export type SpreadsheetStageResponse = {
 export type UpdateUserAccessRequest = {
   "role_id": string
   "clinic_ids"?: Array<string>
+  "expected_row_version": number
+}
+
+export type UrgencyFeeSettingRead = {
+  "id": string
+  "fee_amount": string
+  "schedule_label": string
+  "updated_at": string
+  "row_version": number
+}
+
+export type UrgencyFeeSettingUpdateRequest = {
+  "fee_amount": number | string
+  "schedule_label"?: string
+  "reason": string
   "expected_row_version": number
 }
 

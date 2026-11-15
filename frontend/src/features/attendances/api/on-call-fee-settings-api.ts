@@ -47,6 +47,7 @@ export async function fetchOnCallFeeSettings(): Promise<OnCallFeeSetting[]> {
 export interface OnCallFeeSettingUpdateInput {
   feeAmount: string
   scheduleLabel: string
+  reason: string
   expectedRowVersion: number
 }
 
@@ -61,6 +62,7 @@ export async function updateOnCallFeeSetting(
     body: JSON.stringify({
       fee_amount: input.feeAmount,
       schedule_label: input.scheduleLabel,
+      reason: input.reason,
       expected_row_version: input.expectedRowVersion,
     }),
   })

@@ -1,3 +1,4 @@
+import { Fragment } from 'react'
 import { Link } from 'react-router'
 
 import {
@@ -8,6 +9,7 @@ import {
 import { KebabMenu, type KebabMenuItem } from '../../../shared/ui/kebab-menu'
 import { SERVICE_LEVEL_LABELS, CANCELLABLE_STATUSES, type Attendance } from '../api/attendances-api'
 import { useAttendanceTimelineQuery } from '../api/use-attendance-timeline-query'
+import { feeRows } from '../lib/attendance-fees'
 import type { PatientDisplay } from './attendance-list-table'
 import { AttendanceStatusBadge } from './attendance-status-badge'
 import { describeTimelineAction } from './attendance-timeline-labels'
@@ -155,12 +157,12 @@ export function AttendanceRowPopover({
               <dd>+ {formatCurrencyBRL(attendance.surchargeTotal)}</dd>
             </>
           )}
-          {isPositive(attendance.onCallFee) && (
-            <>
-              <dt>Taxa de plantão</dt>
-              <dd>+ {formatCurrencyBRL(attendance.onCallFee)}</dd>
-            </>
-          )}
+          {feeRows(attendance).map((row) => (
+            <Fragment key={row.label}>
+              <dt>{row.label}</dt>
+              <dd>+ {formatCurrencyBRL(row.amount)}</dd>
+            </Fragment>
+          ))}
           <dt className="attendance-row-popover__grand">Total</dt>
           <dd className="attendance-row-popover__grand">{formatCurrencyBRL(attendance.grandTotal)}</dd>
         </dl>
