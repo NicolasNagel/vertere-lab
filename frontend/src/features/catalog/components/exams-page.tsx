@@ -15,7 +15,7 @@ import { useExamsQuery } from '../api/use-exams-query'
 import { ExamImportButton } from './exam-import-button'
 import { EXAM_POPOVER_TITLE_ID, ExamRowPopover } from './exam-row-popover'
 import { ExamTable } from './exam-table'
-import { OnCallFeeSettingsPanel } from './on-call-fee-settings-panel'
+import { FeesTab } from './fees-tab'
 import '../../../shared/ui/button.css'
 import '../../attendances/components/attendance-status-tabs.css'
 import './exams-page.css'
@@ -132,7 +132,7 @@ export function ExamsPage() {
               data-active={tab === 'fees'}
               onClick={() => setTab('fees')}
             >
-              Taxas de plantão
+              Taxas
             </button>
           </div>
 
@@ -179,7 +179,7 @@ export function ExamsPage() {
           role="tabpanel"
           aria-labelledby={tab === 'exams' ? 'exams-tab-exams' : 'exams-tab-fees'}
         >
-          {tab === 'fees' && <OnCallFeeSettingsPanel />}
+          {tab === 'fees' && <FeesTab />}
           {tab === 'exams' && (
             <>
               <ExamTable

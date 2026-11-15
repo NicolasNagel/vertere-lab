@@ -1,6 +1,8 @@
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 
-import { ApiError } from '../../../shared/api/errors'
+import { formatCurrencyBRL } from '../../../shared/lib/formatters'
+import { Button } from '../../../shared/ui/button'
+import { TextField } from '../../../shared/ui/text-field'
 import { useAuth } from '../../auth/auth-context'
 import type {
   OnCallFeeSetting,
@@ -8,185 +10,147 @@ import type {
 } from '../../attendances/api/on-call-fee-settings-api'
 import { useOnCallFeeSettingsQuery } from '../../attendances/api/use-on-call-fee-settings-query'
 import { useUpdateOnCallFeeSettingMutation } from '../../attendances/api/use-update-on-call-fee-setting-mutation'
-import './on-call-fee-settings-panel.css'
-
-interface TierDraft {
-  feeAmount: string
-  scheduleLabel: string
-}
-
-const TIER_ORDER: OnCallServiceLevel[] = ['PLANTAO_NORMAL', 'PLANTAO_ESPECIAL']
+import { FeeDialog } from './fee-dialog'
+import { normalizeMoney } from '../lib/normalize-money'
+import './exam-table.css'
+import './fees.css'
 
 const TIER_LABELS: Record<OnCallServiceLevel, string> = {
   PLANTAO_NORMAL: 'Plantão normal',
   PLANTAO_ESPECIAL: 'Plantão especial / noturno',
 }
 
-function draftOf(setting: OnCallFeeSetting): TierDraft {
-  return { feeAmount: setting.feeAmount, scheduleLabel: setting.scheduleLabel }
+interface EditFormProps {
+  setting: OnCallFeeSetting
+  onClose: () => void
 }
 
-function describeError(error: unknown): string {
-  if (error instanceof ApiError) return error.message
-  return 'Falha de conexão. Verifique sua internet e tente novamente.'
+function EditForm({ setting, onClose }: EditFormProps) {
+  const mutation = useUpdateOnCallFeeSettingMutation()
+  const [amount, setAmount] = useState(setting.feeAmount)
+  const [schedule, setSchedule] = useState(setting.scheduleLabel)
+  const [reason, setReason] = useState('')
+  const normalized = normalizeMoney(amount)
+  const changed = normalized !== setting.feeAmount || schedule.trim() !== setting.scheduleLabel
+
+  return (
+    <FeeDialog
+      titleId="on-call-fee-dialog"
+      title={`Editar ${TIER_LABELS[setting.serviceLevel].toLowerCase()}`}
+      subtitle="Valor fixo por atendimento"
+      canSave={normalized !== null && changed}
+      isPending={mutation.isPending}
+      error={mutation.error}
+      reason={reason}
+      onReasonChange={setReason}
+      reloadKey={['on-call-fee-settings']}
+      onClose={onClose}
+      onSave={() =>
+        normalized &&
+        mutation.mutate(
+          {
+            serviceLevel: setting.serviceLevel,
+            input: {
+              feeAmount: normalized,
+              scheduleLabel: schedule.trim(),
+              reason: reason.trim(),
+              expectedRowVersion: setting.rowVersion,
+            },
+          },
+          { onSuccess: onClose },
+        )
+      }
+    >
+      <div className="fees__row">
+        <TextField
+          id="on-call-fee-amount"
+          label="Valor da taxa (R$)"
+          inputMode="decimal"
+          value={amount}
+          errorMessage={normalized === null ? 'Informe um valor, ex.: 100,00' : undefined}
+          onChange={(event) => setAmount(event.target.value)}
+        />
+        <TextField
+          id="on-call-fee-schedule"
+          label="Horário de aplicação (informativo)"
+          placeholder="Ex.: Seg–Sáb · 19h às 07h"
+          value={schedule}
+          onChange={(event) => setSchedule(event.target.value)}
+        />
+      </div>
+    </FeeDialog>
+  )
 }
 
+/** Cadastro das taxas de plantão: uma linha por tipo, edição sempre possível com motivo. */
 export function OnCallFeeSettingsPanel() {
   const { user } = useAuth()
   const canRead = user?.permissions.includes('pricing.read') ?? false
   const canManage = user?.permissions.includes('pricing.manage') ?? false
+  const query = useOnCallFeeSettingsQuery(canRead)
+  const [editing, setEditing] = useState<OnCallFeeSetting | null>(null)
 
-  const settingsQuery = useOnCallFeeSettingsQuery()
-  const updateMutation = useUpdateOnCallFeeSettingMutation()
-
-  const [drafts, setDrafts] = useState<Partial<Record<OnCallServiceLevel, TierDraft>>>({})
-  const [dirty, setDirty] = useState<Partial<Record<OnCallServiceLevel, boolean>>>({})
-  const [fieldErrors, setFieldErrors] = useState<Partial<Record<OnCallServiceLevel, string>>>({})
-  const [saved, setSaved] = useState(false)
-
-  const settingsByTier = new Map(
-    (settingsQuery.data ?? []).map((setting) => [setting.serviceLevel, setting]),
-  )
-
-  // Only adopt fresh server data for a tier the user hasn't started editing —
-  // a background refetch must never clobber an in-progress edit.
-  useEffect(() => {
-    if (!settingsQuery.data) return
-    setDrafts((current) => {
-      const next = { ...current }
-      for (const setting of settingsQuery.data) {
-        if (!dirty[setting.serviceLevel]) {
-          next[setting.serviceLevel] = draftOf(setting)
-        }
-      }
-      return next
-    })
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [settingsQuery.data])
-
-  if (!canRead) return null
-  if (settingsQuery.isLoading) return null
-
-  function updateDraft(serviceLevel: OnCallServiceLevel, patch: Partial<TierDraft>) {
-    setDrafts((current) => ({
-      ...current,
-      [serviceLevel]: { ...current[serviceLevel], ...patch } as TierDraft,
-    }))
-    setDirty((current) => ({ ...current, [serviceLevel]: true }))
-    setSaved(false)
+  if (!canRead) {
+    return <p className="fees__hint">Você não tem permissão para ver as taxas.</p>
   }
-
-  async function handleSave() {
-    setFieldErrors({})
-    const tiersToSave = TIER_ORDER.filter((tier) => dirty[tier])
-    if (tiersToSave.length === 0) return
-
-    const results = await Promise.allSettled(
-      tiersToSave.map((serviceLevel) => {
-        const setting = settingsByTier.get(serviceLevel)
-        const draft = drafts[serviceLevel]
-        if (!setting || !draft) return Promise.resolve()
-        return updateMutation.mutateAsync({
-          serviceLevel,
-          input: {
-            feeAmount: draft.feeAmount,
-            scheduleLabel: draft.scheduleLabel,
-            expectedRowVersion: setting.rowVersion,
-          },
-        })
-      }),
+  if (query.isLoading) return <p className="fees__hint">Carregando…</p>
+  if (query.isError) {
+    return (
+      <p role="alert" className="fees__hint fees__hint--error">
+        Não foi possível carregar as taxas de plantão. Tente novamente.
+      </p>
     )
-
-    const errors: Partial<Record<OnCallServiceLevel, string>> = {}
-    const succeeded: OnCallServiceLevel[] = []
-    results.forEach((result, index) => {
-      const tier = tiersToSave[index]
-      if (!tier) return
-      if (result.status === 'rejected') {
-        errors[tier] = describeError(result.reason)
-      } else {
-        succeeded.push(tier)
-      }
-    })
-
-    setFieldErrors(errors)
-    setDirty((current) => {
-      const next = { ...current }
-      for (const tier of succeeded) next[tier] = false
-      return next
-    })
-    setSaved(succeeded.length > 0 && Object.keys(errors).length === 0)
   }
-
-  const anyDirty = TIER_ORDER.some((tier) => dirty[tier])
 
   return (
-    <div className="on-call-fee-settings-panel">
-      <div className="on-call-fee-settings-panel__header">
-        <div>
-          <div className="on-call-fee-settings-panel__eyebrow">Configuração</div>
-          <div className="on-call-fee-settings-panel__title">Taxas de plantão</div>
-        </div>
-        {canManage && (
-          <button
-            type="button"
-            className="on-call-fee-settings-panel__save"
-            onClick={() => void handleSave()}
-            disabled={!anyDirty || updateMutation.isPending}
-          >
-            {updateMutation.isPending ? 'salvando…' : 'salvar alterações'}
-          </button>
-        )}
-        {saved && <span className="on-call-fee-settings-panel__saved">Alterações salvas.</span>}
+    <>
+      <p className="fees__intro">
+        Cobrada uma vez por atendimento de plantão. O horário é só informativo: o tipo do
+        atendimento é escolhido na hora do registro.
+      </p>
+      <div className="exam-table">
+        <table className="exam-table__table">
+          <thead>
+            <tr>
+              <th scope="col">Tipo</th>
+              <th scope="col">Horário (informativo)</th>
+              <th scope="col" className="exam-table__num">
+                Valor
+              </th>
+              <th scope="col" className="exam-table__actions-header">
+                Ações
+              </th>
+            </tr>
+          </thead>
+          <tbody>
+            {(query.data ?? []).map((setting) => (
+              <tr key={setting.id}>
+                <td>
+                  <b>{TIER_LABELS[setting.serviceLevel]}</b>
+                </td>
+                <td className="exam-table__muted">{setting.scheduleLabel || '—'}</td>
+                <td className="exam-table__num exam-table__price">
+                  {formatCurrencyBRL(setting.feeAmount)}
+                </td>
+                <td className="exam-table__actions">
+                  {canManage && (
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      size="sm"
+                      aria-label={`Editar ${TIER_LABELS[setting.serviceLevel]}`}
+                      onClick={() => setEditing(setting)}
+                    >
+                      Editar
+                    </Button>
+                  )}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
       </div>
-
-      <div className="on-call-fee-settings-panel__grid">
-        {TIER_ORDER.map((tier) => {
-          const setting = settingsByTier.get(tier)
-          const draft = drafts[tier]
-          if (!setting || !draft) return null
-
-          return (
-            <div key={tier} className="on-call-fee-settings-panel__card">
-              <div className="on-call-fee-settings-panel__tier-label" data-tier={tier}>
-                <span className="on-call-fee-settings-panel__dot" data-tier={tier} />
-                {TIER_LABELS[tier]}
-              </div>
-              <div className="on-call-fee-settings-panel__row">
-                <label className="on-call-fee-settings-panel__field">
-                  <span className="on-call-fee-settings-panel__field-label">Valor da taxa</span>
-                  <input
-                    id={`on-call-fee-${tier}`}
-                    className="on-call-fee-settings-panel__input on-call-fee-settings-panel__input--mono"
-                    value={draft.feeAmount}
-                    disabled={!canManage || updateMutation.isPending}
-                    onChange={(event) => updateDraft(tier, { feeAmount: event.target.value })}
-                  />
-                </label>
-                <div className="on-call-fee-settings-panel__field">
-                  <span className="on-call-fee-settings-panel__field-label">Aplicação</span>
-                  <div className="on-call-fee-settings-panel__static-value">Fixo por protocolo</div>
-                </div>
-              </div>
-              <label className="on-call-fee-settings-panel__schedule">
-                <input
-                  id={`on-call-schedule-${tier}`}
-                  className="on-call-fee-settings-panel__schedule-input"
-                  placeholder="Horário de aplicação (informativo) — ex.: Seg–Sáb · 19h às 07h"
-                  value={draft.scheduleLabel}
-                  disabled={!canManage || updateMutation.isPending}
-                  onChange={(event) => updateDraft(tier, { scheduleLabel: event.target.value })}
-                />
-              </label>
-              {fieldErrors[tier] && (
-                <p role="alert" className="on-call-fee-settings-panel__error">
-                  {fieldErrors[tier]}
-                </p>
-              )}
-            </div>
-          )
-        })}
-      </div>
-    </div>
+      {editing && <EditForm setting={editing} onClose={() => setEditing(null)} />}
+    </>
   )
 }

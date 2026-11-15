@@ -67,6 +67,43 @@ async function mockApi(page: Page, permissions: string[]) {
       return route.fulfill(
         json({ items: [fee('PLANTAO_NORMAL', '50.00'), fee('PLANTAO_ESPECIAL', '90.00')] }),
       )
+    if (path === '/urgency-fee-setting')
+      return route.fulfill(
+        json({
+          id: 'u',
+          fee_amount: '30.00',
+          schedule_label: '',
+          updated_at: '2026-01-01T00:00:00Z',
+          row_version: 1,
+        }),
+      )
+    if (path === '/clinics')
+      return route.fulfill(
+        json({
+          items: [{ id: 'c1', name: 'Clínica Alfa', status: 'ACTIVE', row_version: 1 }],
+          total: 1,
+          page: 1,
+          page_size: 20,
+        }),
+      )
+    if (path === '/clinic-fee-rules')
+      return route.fulfill(
+        json({
+          items: [
+            {
+              id: 'r1',
+              clinic_id: 'c1',
+              name: 'Taxa de coleta',
+              fee_amount: '5.00',
+              valid_from: '2026-01-01',
+              valid_to: null,
+              is_active: true,
+              updated_at: '2026-01-01T00:00:00Z',
+              row_version: 1,
+            },
+          ],
+        }),
+      )
     return route.fulfill({ status: 404, contentType: 'application/json', body: '{}' })
   })
 }
@@ -111,14 +148,31 @@ test('without pricing.read the table shows no price column and stays accessible'
   await expectAccessible(page)
 })
 
-test('on-call fees tab is accessible', async ({ page }) => {
+test('fees tab and its three registers and dialogs are accessible', async ({ page }) => {
   await mockApi(page, MANAGER)
   await page.goto('/cadastros/exames')
-  await page.getByRole('tab', { name: 'Taxas de plantão' }).click()
-  await expect(page.getByRole('tab', { name: 'Taxas de plantão' })).toHaveAttribute(
+  await page.getByRole('tab', { name: 'Taxas', exact: true }).click()
+  await expect(page.getByRole('tab', { name: 'Taxas', exact: true })).toHaveAttribute(
     'aria-selected',
     'true',
   )
+  await expect(page.getByText('R$ 50,00')).toBeVisible()
+  await expectAccessible(page)
+
+  await page.getByRole('button', { name: 'Editar Plantão normal' }).click()
+  await expect(page.getByRole('dialog')).toBeVisible()
+  await expectAccessible(page)
+  await page.keyboard.press('Escape')
+
+  await page.getByRole('tab', { name: 'Urgência' }).click()
+  await expect(page.getByText('R$ 30,00')).toBeVisible()
+  await expectAccessible(page)
+
+  await page.getByRole('tab', { name: 'Por clínica' }).click()
+  await expect(page.getByText('Taxa de coleta')).toBeVisible()
+  await expectAccessible(page)
+  await page.getByRole('button', { name: /nova taxa/i }).click()
+  await expect(page.getByRole('dialog')).toBeVisible()
   await expectAccessible(page)
 })
 

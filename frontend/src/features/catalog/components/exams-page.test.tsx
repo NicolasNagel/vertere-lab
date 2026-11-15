@@ -238,7 +238,7 @@ test('the summary popover is read-only for users without catalog.manage and clos
   await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
 })
 
-test('the fees tab shows the on-call fee settings instead of the exam table', async () => {
+test('the fees tab shows the fee registers (plantão, urgência, por clínica) instead of the exam table', async () => {
   server.use(
     meHandler(['catalog.read', 'pricing.read']),
     speciesHandler(),
@@ -250,9 +250,12 @@ test('the fees tab shows the on-call fee settings instead of the exam table', as
   renderApp()
 
   await screen.findByText('Hemograma completo')
-  await user.click(screen.getByRole('tab', { name: 'Taxas de plantão' }))
+  await user.click(screen.getByRole('tab', { name: 'Taxas' }))
   expect(screen.queryByText('Hemograma completo')).not.toBeInTheDocument()
-  expect(screen.getByRole('tab', { name: 'Taxas de plantão' })).toHaveAttribute('aria-selected', 'true')
+  expect(screen.getByRole('tab', { name: 'Taxas' })).toHaveAttribute('aria-selected', 'true')
+  expect(screen.getByRole('tab', { name: 'Plantão' })).toHaveAttribute('aria-selected', 'true')
+  expect(screen.getByRole('tab', { name: 'Urgência' })).toBeInTheDocument()
+  expect(screen.getByRole('tab', { name: 'Por clínica' })).toBeInTheDocument()
 })
 
 test('deactivating an exam from the row menu calls the API', async () => {

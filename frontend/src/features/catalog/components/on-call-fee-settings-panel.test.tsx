@@ -73,21 +73,20 @@ function renderPanel() {
 test('the panel is gated by pricing.read and read-only without pricing.manage', async () => {
   server.use(meHandler([]), settingsHandler())
   let view = renderPanel()
-  await waitFor(() => expect(screen.queryByText('Taxas de plantão')).not.toBeInTheDocument())
+  expect(await screen.findByText('Você não tem permissão para ver as taxas.')).toBeInTheDocument()
   view.unmount()
   server.resetHandlers()
 
   server.use(meHandler(['pricing.read']), settingsHandler())
   view = renderPanel()
-  expect(await screen.findByText('Taxas de plantão')).toBeInTheDocument()
-  expect(screen.getByText('Plantão normal')).toBeInTheDocument()
+  expect(await screen.findByText('Plantão normal')).toBeInTheDocument()
   expect(screen.getByText('Plantão especial / noturno')).toBeInTheDocument()
-  expect(screen.getByDisplayValue('100.00')).toBeDisabled()
-  expect(screen.getByDisplayValue('150.00')).toBeInTheDocument()
-  expect(screen.queryByRole('button', { name: /salvar alterações/i })).not.toBeInTheDocument()
+  expect(screen.getByText('R$ 100,00')).toBeInTheDocument()
+  expect(screen.getByText('R$ 150,00')).toBeInTheDocument()
+  expect(screen.queryByRole('button', { name: /editar/i })).not.toBeInTheDocument()
 })
 
-test('saving sends the edited value with the current row version and a failure shows a per-tier message', async () => {
+test('editing needs a reason, sends the row version and a conflict offers reload', async () => {
   const user = userEvent.setup()
   let receivedBody: unknown = null
   server.use(
@@ -99,7 +98,7 @@ test('saving sends the edited value with the current row version and a failure s
         id: 's1',
         service_level: 'PLANTAO_NORMAL',
         fee_amount: '120.00',
-        schedule_label: 'Seg-Sáb - 19h às 07h',
+        schedule_label: '',
         updated_at: '2026-01-02T00:00:00Z',
         row_version: 2,
       })
@@ -107,18 +106,21 @@ test('saving sends the edited value with the current row version and a failure s
   )
   const view = renderPanel()
 
-  await screen.findByText('Taxas de plantão')
-  const feeInput = screen.getByDisplayValue('100.00')
-  await user.clear(feeInput)
-  await user.type(feeInput, '120.00')
-  await user.click(screen.getByRole('button', { name: /salvar alterações/i }))
+  await user.click(await screen.findByRole('button', { name: 'Editar Plantão normal' }))
+  const amount = screen.getByLabelText('Valor da taxa (R$)')
+  await user.clear(amount)
+  await user.type(amount, '120,00')
+  expect(screen.getByRole('button', { name: 'Salvar' })).toBeDisabled()
+  await user.type(screen.getByLabelText('Motivo da alteração'), 'Reajuste anual')
+  await user.click(screen.getByRole('button', { name: 'Salvar' }))
   await waitFor(() => expect(receivedBody).not.toBeNull())
   expect(receivedBody).toEqual({
     fee_amount: '120.00',
     schedule_label: '',
+    reason: 'Reajuste anual',
     expected_row_version: 1,
   })
-  expect(await screen.findByText('Alterações salvas.')).toBeInTheDocument()
+  await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
   view.unmount()
   server.resetHandlers()
 
@@ -138,12 +140,14 @@ test('saving sends the edited value with the current row version and a failure s
     ),
   )
   renderPanel()
-  await screen.findByText('Taxas de plantão')
-  const conflictInput = screen.getByDisplayValue('100.00')
-  await user.clear(conflictInput)
-  await user.type(conflictInput, '999.00')
-  await user.click(screen.getByRole('button', { name: /salvar alterações/i }))
+  await user.click(await screen.findByRole('button', { name: 'Editar Plantão normal' }))
+  const conflictAmount = screen.getByLabelText('Valor da taxa (R$)')
+  await user.clear(conflictAmount)
+  await user.type(conflictAmount, '999')
+  await user.type(screen.getByLabelText('Motivo da alteração'), 'Teste')
+  await user.click(screen.getByRole('button', { name: 'Salvar' }))
   expect(
     await screen.findByText('Esta configuração foi alterada por outra pessoa.'),
   ).toBeInTheDocument()
+  expect(screen.getByRole('button', { name: 'Recarregar' })).toBeInTheDocument()
 })
