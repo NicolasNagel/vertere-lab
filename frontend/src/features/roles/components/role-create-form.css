@@ -23,12 +23,12 @@
   display: flex;
   flex-direction: column;
   gap: 1px;
-  background: #f0ede5;
-  border: 1px solid #f0ede5;
+  background: var(--color-surface-muted);
+  border: 1px solid var(--color-surface-muted);
 }
 
 .role-create-form__domain-error {
-  color: #b3261e;
+  color: var(--color-danger);
   font-size: 0.8125rem;
   margin: 0 0 1rem;
 }
@@ -43,4 +43,9 @@
 
 .role-create-form__submit {
   width: auto;
+}
+
+/* Menu suspenso de formulário tem o mesmo respiro dos campos de texto. */
+.role-create-form .dropdown-field {
+  margin-bottom: 0.75rem;
 }

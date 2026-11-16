@@ -2,9 +2,17 @@
 
 from __future__ import annotations
 
+from uuid import UUID
+
 from app.modules.attendances.application.cancel_attendance import (
     CancelAttendanceCommand,
     CancelAttendanceUseCase,
+)
+from app.modules.attendances.application.clinic_fee_rules import (
+    CreateClinicFeeRuleCommand,
+    CreateClinicFeeRuleUseCase,
+    UpdateClinicFeeRuleCommand,
+    UpdateClinicFeeRuleUseCase,
 )
 from app.modules.attendances.application.create_attendance_draft import (
     CreateAttendanceDraftCommand,
@@ -16,12 +24,26 @@ from app.modules.attendances.application.update_attendance import (
     UpdateAttendanceCommand,
     UpdateAttendanceUseCase,
 )
+from app.modules.attendances.application.update_attendance_items import (
+    UpdateAttendanceItemsCommand,
+    UpdateAttendanceItemsUseCase,
+)
 from app.modules.attendances.application.update_on_call_fee_setting import (
     UpdateOnCallFeeSettingCommand,
     UpdateOnCallFeeSettingUseCase,
 )
-from app.modules.attendances.domain.entities import OnCallFeeSetting
+from app.modules.attendances.application.urgency_fee_setting import (
+    UpdateUrgencyFeeSettingCommand,
+    UpdateUrgencyFeeSettingUseCase,
+)
+from app.modules.attendances.domain.entities import (
+    ClinicFeeRule,
+    OnCallFeeSetting,
+    UrgencyFeeSetting,
+)
 from app.shared.application.clock import Clock
+from app.shared.domain.errors import NotFoundError
+from app.shared.idempotency.application.guard import IdempotencyGuard
 
 
 def handle_create_attendance_draft(
@@ -57,6 +79,29 @@ def handle_update_attendance(
             veterinarians=uow.veterinarians,
             veterinarian_clinics=uow.veterinarian_clinics,
             patients=uow.patients,
+            on_call_fees=uow.on_call_fees,
+            urgency_fee=uow.urgency_fee,
+            clinic_fee_rules=uow.clinic_fee_rules,
+            closure_settlement=uow.closure_settlement,
+            audit=uow.audit,
+            clock=clock,
+        ).execute(command)
+        uow.commit()
+        return result
+
+
+def handle_update_attendance_items(
+    *,
+    uow: AttendanceUnitOfWork,
+    command: UpdateAttendanceItemsCommand,
+    clock: Clock,
+) -> AttendanceDTO:
+    with uow:
+        result = UpdateAttendanceItemsUseCase(
+            attendances=uow.attendances,
+            exams=uow.exams,
+            clinic_fee_rules=uow.clinic_fee_rules,
+            closure_settlement=uow.closure_settlement,
             audit=uow.audit,
             clock=clock,
         ).execute(command)
@@ -91,6 +136,84 @@ def handle_update_on_call_fee_setting(
             on_call_fees=uow.on_call_fees,
             audit=uow.audit,
             clock=clock,
+        ).execute(command)
+        uow.commit()
+        return result
+
+
+def handle_update_urgency_fee_setting(
+    *,
+    uow: AttendanceUnitOfWork,
+    command: UpdateUrgencyFeeSettingCommand,
+    clock: Clock,
+) -> UrgencyFeeSetting:
+    with uow:
+        result = UpdateUrgencyFeeSettingUseCase(
+            urgency_fee=uow.urgency_fee, audit=uow.audit, clock=clock
+        ).execute(command)
+        uow.commit()
+        return result
+
+
+def handle_create_clinic_fee_rule(
+    *,
+    uow: AttendanceUnitOfWork,
+    command: CreateClinicFeeRuleCommand,
+    clock: Clock,
+    idempotency_key: str,
+) -> ClinicFeeRule:
+    with uow:
+        guard = IdempotencyGuard(records=uow.idempotency_records)
+        outcome = guard.begin(
+            actor_id=command.actor.id,
+            operation="clinic_fee_rules.create",
+            idempotency_key=idempotency_key,
+            payload={
+                "clinic_id": str(command.clinic_id),
+                "name": command.name.strip(),
+                "fee_amount": str(command.fee_amount),
+                "valid_from": command.valid_from.isoformat(),
+                "valid_to": command.valid_to.isoformat() if command.valid_to else None,
+                "exam_ids": sorted(str(exam_id) for exam_id in command.exam_ids),
+                "attendance_types": sorted(command.attendance_types),
+                "reason": command.reason.strip(),
+            },
+            now=clock.now(),
+        )
+        if outcome.replayed_response is not None:
+            _, body = outcome.replayed_response
+            try:
+                rule_id = UUID(str(body["id"]))
+            except (KeyError, ValueError) as exc:
+                raise NotFoundError("Resultado idempotente da taxa não encontrado.") from exc
+            replayed = uow.clinic_fee_rules.get_by_id(rule_id)
+            if replayed is None:
+                raise NotFoundError("Resultado idempotente da taxa não encontrado.")
+            uow.commit()
+            return replayed
+        result = CreateClinicFeeRuleUseCase(
+            rules=uow.clinic_fee_rules,
+            clinics=uow.clinics,
+            exams=uow.exams,
+            audit=uow.audit,
+            clock=clock,
+        ).execute(command)
+        guard.complete(
+            outcome.record_id, status_code=201, body={"id": str(result.id)}, now=clock.now()
+        )
+        uow.commit()
+        return result
+
+
+def handle_update_clinic_fee_rule(
+    *,
+    uow: AttendanceUnitOfWork,
+    command: UpdateClinicFeeRuleCommand,
+    clock: Clock,
+) -> ClinicFeeRule:
+    with uow:
+        result = UpdateClinicFeeRuleUseCase(
+            rules=uow.clinic_fee_rules, exams=uow.exams, audit=uow.audit, clock=clock
         ).execute(command)
         uow.commit()
         return result

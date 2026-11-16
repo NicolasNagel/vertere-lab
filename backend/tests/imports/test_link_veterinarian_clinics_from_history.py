@@ -9,6 +9,7 @@ from app.modules.clinics.domain.entities import Clinic, ClinicStatus
 from app.modules.imports.application.link_veterinarian_clinics_from_history import (
     SHEET_NAME,
     LinkVeterinarianClinicsFromHistoryCommand,
+    LinkVeterinarianClinicsFromHistoryResult,
     LinkVeterinarianClinicsFromHistoryUseCase,
 )
 from app.modules.veterinarians.domain.entities import Veterinarian, VeterinarianStatus
@@ -80,37 +81,24 @@ def _use_case(
     )
 
 
-def test_link_without_permission_is_forbidden() -> None:
-    batch_id = uuid4()
-    use_case = _use_case(
-        staging_rows=FakeImportStagingRowRepository(),
-        clinics=FakeClinicRepository(),
-        veterinarians=FakeVeterinarianRepository(),
-        links=FakeVeterinarianClinicLinkRepository(),
-    )
-
-    with pytest.raises(ForbiddenError):
-        use_case.execute(
-            LinkVeterinarianClinicsFromHistoryCommand(
-                actor_id=uuid4(), actor_permissions=frozenset(), batch_id=batch_id
-            )
-        )
-
-
-def test_creates_missing_link_case_insensitively_matching_clinic_name() -> None:
+def _run(
+    *rows: tuple[str | None, str | None],
+    permissions: frozenset[str] = frozenset({"imports.execute"}),
+) -> tuple[
+    LinkVeterinarianClinicsFromHistoryResult,
+    FakeVeterinarianClinicLinkRepository,
+    Clinic,
+    Veterinarian,
+]:
+    """Stage `(clinic_name, vet_name)` history rows against one clinic and one veterinarian."""
     batch_id = uuid4()
     clinic = _clinic(name="Bea Pet Center")
     vet = _vet(name="Larissa Tomelin", crmv="123")
     staging_rows = FakeImportStagingRowRepository()
-    # "Bea pet Center" (mixed case) is exactly the kind of typo found in the
-    # real Dados sheet — it must resolve to the master clinic automatically.
-    _stage_history_row(
-        staging_rows,
-        batch_id,
-        row_number=5,
-        clinic_name="Bea pet Center",
-        vet_name="Larissa Tomelin",
-    )
+    for index, (clinic_name, vet_name) in enumerate(rows):
+        _stage_history_row(
+            staging_rows, batch_id, row_number=5 + index, clinic_name=clinic_name, vet_name=vet_name
+        )
     links = FakeVeterinarianClinicLinkRepository()
     use_case = _use_case(
         staging_rows=staging_rows,
@@ -118,93 +106,35 @@ def test_creates_missing_link_case_insensitively_matching_clinic_name() -> None:
         veterinarians=FakeVeterinarianRepository({vet.id: vet}),
         links=links,
     )
-
     result = use_case.execute(
         LinkVeterinarianClinicsFromHistoryCommand(
-            actor_id=uuid4(), actor_permissions=frozenset({"imports.execute"}), batch_id=batch_id
+            actor_id=uuid4(), actor_permissions=permissions, batch_id=batch_id
         )
     )
+    return result, links, clinic, vet
 
-    assert result.links_created_count == 1
-    assert result.exceptions == ()
+
+def test_link_requires_permission() -> None:
+    with pytest.raises(ForbiddenError):
+        _run(permissions=frozenset())
+
+
+def test_link_creates_missing_links_once_and_reports_unknown_veterinarians() -> None:
+    # "Bea pet Center" (caixa mista) é o tipo de erro da planilha real: resolve para a clínica
+    # mestre sem intervenção. Três linhas do mesmo par geram um único vínculo.
+    result, links, clinic, vet = _run(
+        ("Bea pet Center", "Larissa Tomelin"),
+        ("Bea Pet Center", "Larissa Tomelin"),
+        ("BEA PET CENTER", "Larissa Tomelin"),
+    )
+    assert (result.links_created_count, result.exceptions) == (1, ())
     link = links.get(vet.id, clinic.id)
     assert link is not None
     assert link.primary_clinic is False
+    assert len(links.list_by_veterinarian(vet.id)) == 1
 
-
-def test_unknown_veterinarian_becomes_exception_not_link() -> None:
-    batch_id = uuid4()
-    clinic = _clinic(name="Reale")
-    staging_rows = FakeImportStagingRowRepository()
-    _stage_history_row(
-        staging_rows, batch_id, row_number=5, clinic_name="Reale", vet_name="Vet Desconhecido"
-    )
-    links = FakeVeterinarianClinicLinkRepository()
-    use_case = _use_case(
-        staging_rows=staging_rows,
-        clinics=FakeClinicRepository({clinic.id: clinic}),
-        veterinarians=FakeVeterinarianRepository(),
-        links=links,
-    )
-
-    result = use_case.execute(
-        LinkVeterinarianClinicsFromHistoryCommand(
-            actor_id=uuid4(), actor_permissions=frozenset({"imports.execute"}), batch_id=batch_id
-        )
-    )
-
+    # Veterinário desconhecido vira exceção, não vínculo; cabeçalho sem veterinário é ignorado.
+    result, links, _, _ = _run(("Bea Pet Center", "Vet Desconhecido"), ("Clínica", None))
     assert result.links_created_count == 0
     assert len(result.exceptions) == 1
     assert "Vet Desconhecido" in result.exceptions[0].message
-
-
-def test_existing_link_is_not_duplicated() -> None:
-    batch_id = uuid4()
-    clinic = _clinic(name="Amizade")
-    vet = _vet(name="Amanda Pozzi", crmv="11816")
-    staging_rows = FakeImportStagingRowRepository()
-    for row_number in (5, 6, 7):
-        _stage_history_row(
-            staging_rows,
-            batch_id,
-            row_number=row_number,
-            clinic_name="Amizade",
-            vet_name="Amanda Pozzi",
-        )
-    links = FakeVeterinarianClinicLinkRepository()
-    use_case = _use_case(
-        staging_rows=staging_rows,
-        clinics=FakeClinicRepository({clinic.id: clinic}),
-        veterinarians=FakeVeterinarianRepository({vet.id: vet}),
-        links=links,
-    )
-
-    result = use_case.execute(
-        LinkVeterinarianClinicsFromHistoryCommand(
-            actor_id=uuid4(), actor_permissions=frozenset({"imports.execute"}), batch_id=batch_id
-        )
-    )
-
-    assert result.links_created_count == 1
-    assert len(links.list_by_veterinarian(vet.id)) == 1
-
-
-def test_skips_header_rows_with_no_veterinarian_column() -> None:
-    batch_id = uuid4()
-    staging_rows = FakeImportStagingRowRepository()
-    _stage_history_row(staging_rows, batch_id, row_number=4, clinic_name="Clínica", vet_name=None)
-    use_case = _use_case(
-        staging_rows=staging_rows,
-        clinics=FakeClinicRepository(),
-        veterinarians=FakeVeterinarianRepository(),
-        links=FakeVeterinarianClinicLinkRepository(),
-    )
-
-    result = use_case.execute(
-        LinkVeterinarianClinicsFromHistoryCommand(
-            actor_id=uuid4(), actor_permissions=frozenset({"imports.execute"}), batch_id=batch_id
-        )
-    )
-
-    assert result.links_created_count == 0
-    assert result.exceptions == ()

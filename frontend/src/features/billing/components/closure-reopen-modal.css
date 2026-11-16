@@ -1,21 +1,3 @@
-.closure-reopen-modal__backdrop {
-  position: fixed;
-  inset: 0;
-  z-index: 100;
-  display: grid;
-  place-items: center;
-  padding: 1rem;
-  background: rgb(15 23 42 / 55%);
-}
-
-.closure-reopen-modal {
-  width: min(32rem, 100%);
-  padding: 1.5rem;
-  border-radius: 0.75rem;
-  background: white;
-  box-shadow: 0 1.5rem 4rem rgb(15 23 42 / 25%);
-}
-
 .closure-reopen-modal label,
 .closure-reopen-modal textarea,
 .closure-reopen-modal input,
@@ -44,5 +26,10 @@
 
 .closure-reopen-modal__error {
   font-size: 0.8125rem;
-  color: #a0492c;
+  color: var(--color-warning-ink);
+}
+
+/* Menu suspenso de formulário tem o mesmo respiro dos campos de texto. */
+.closure-reopen-modal .dropdown-field {
+  margin-bottom: 0.75rem;
 }

@@ -7,6 +7,7 @@ ORM models never leak past this file (rule: .claude/rules/03-database.md).
 from __future__ import annotations
 
 from datetime import date
+from decimal import Decimal
 from uuid import UUID
 
 from sqlalchemy import ColumnElement, func, select
@@ -18,17 +19,30 @@ from app.modules.attendances.domain.entities import (
     AttendanceExamStatus,
     AttendanceRecord,
     AttendanceStatus,
+    ClinicFeeRule,
     CollectionMethod,
+    ExamComponentSnapshot,
+    FeeKind,
+    FeeLine,
     OnCallFeeSetting,
     ServiceLevel,
+    UrgencyFeeSetting,
 )
+from app.modules.attendances.domain.fee_schedule import FeeSchedule
 from app.modules.attendances.infrastructure.models import (
     AttendanceExamModel,
     AttendanceModel,
     AttendanceSequenceModel,
+    ClinicFeeRuleModel,
     OnCallFeeSettingModel,
+    UrgencyFeeSettingModel,
 )
 from app.modules.patients.infrastructure.models import PatientModel
+from app.shared.infrastructure.sql import LIKE_ESCAPE, contains_pattern
+
+
+def _components_to_json(item: AttendanceExam) -> list[dict[str, str]]:
+    return [{"code": component.code, "name": component.name} for component in item.components]
 
 
 def _item_to_domain(model: AttendanceExamModel) -> AttendanceExam:
@@ -39,12 +53,40 @@ def _item_to_domain(model: AttendanceExamModel) -> AttendanceExam:
         exam_code=model.exam_code,
         exam_name=model.exam_name,
         price_base=model.price_base,
+        components=tuple(
+            ExamComponentSnapshot(code=component["code"], name=component["name"])
+            for component in model.components_snapshot
+        ),
         quantity=model.quantity,
         discount_amount=model.discount_amount,
         surcharge_amount=model.surcharge_amount,
         override_reason=model.override_reason,
         override_by=model.override_by,
         status=AttendanceExamStatus(model.status),
+    )
+
+
+def _fee_lines_to_json(lines: tuple[FeeLine, ...]) -> list[dict[str, str | None]]:
+    return [
+        {
+            "kind": line.kind.value,
+            "label": line.label,
+            "amount": str(line.amount),
+            "rule_id": str(line.rule_id) if line.rule_id else None,
+        }
+        for line in lines
+    ]
+
+
+def _fee_lines_from_json(raw: list[dict[str, str | None]]) -> tuple[FeeLine, ...]:
+    return tuple(
+        FeeLine(
+            kind=FeeKind(str(entry["kind"])),
+            label=entry["label"] or "",
+            amount=Decimal(entry["amount"] or "0"),
+            rule_id=UUID(entry["rule_id"]) if entry.get("rule_id") else None,
+        )
+        for entry in raw
     )
 
 
@@ -65,6 +107,10 @@ def _to_domain(model: AttendanceModel) -> AttendanceRecord:
         discount_total=model.discount_total,
         surcharge_total=model.surcharge_total,
         on_call_fee=model.on_call_fee,
+        is_urgent=model.is_urgent,
+        urgency_fee=model.urgency_fee,
+        clinic_fee=model.clinic_fee,
+        fee_lines=_fee_lines_from_json(model.fee_lines),
         grand_total=model.grand_total,
         protocol_year=model.protocol_year,
         protocol_sequence=model.protocol_sequence,
@@ -124,6 +170,10 @@ class SqlAlchemyAttendanceRepository:
                 discount_total=attendance.discount_total,
                 surcharge_total=attendance.surcharge_total,
                 on_call_fee=attendance.on_call_fee,
+                is_urgent=attendance.is_urgent,
+                urgency_fee=attendance.urgency_fee,
+                clinic_fee=attendance.clinic_fee,
+                fee_lines=_fee_lines_to_json(attendance.fee_lines),
                 grand_total=attendance.grand_total,
                 protocol_year=attendance.protocol_year,
                 protocol_sequence=attendance.protocol_sequence,
@@ -151,6 +201,7 @@ class SqlAlchemyAttendanceRepository:
                         exam_code=item.exam_code,
                         exam_name=item.exam_name,
                         price_base=item.price_base,
+                        components_snapshot=_components_to_json(item),
                         quantity=item.quantity,
                         discount_amount=item.discount_amount,
                         surcharge_amount=item.surcharge_amount,
@@ -186,6 +237,10 @@ class SqlAlchemyAttendanceRepository:
         model.discount_total = attendance.discount_total
         model.surcharge_total = attendance.surcharge_total
         model.on_call_fee = attendance.on_call_fee
+        model.is_urgent = attendance.is_urgent
+        model.urgency_fee = attendance.urgency_fee
+        model.clinic_fee = attendance.clinic_fee
+        model.fee_lines = _fee_lines_to_json(attendance.fee_lines)
         model.grand_total = attendance.grand_total
         model.protocol_year = attendance.protocol_year
         model.protocol_sequence = attendance.protocol_sequence
@@ -205,9 +260,17 @@ class SqlAlchemyAttendanceRepository:
         # was already loaded from the DB). Only append ids not already
         # persisted, or a cancel would re-insert the same rows and collide
         # on the primary key.
-        existing_item_ids = {item.id for item in model.items}
+        existing_models = {item.id: item for item in model.items}
         for item in attendance.items:
-            if item.id in existing_item_ids:
+            persisted = existing_models.get(item.id)
+            if persisted is not None:
+                # Corrected after confirmation: price/name snapshot stays, the rest follows.
+                persisted.quantity = item.quantity
+                persisted.discount_amount = item.discount_amount
+                persisted.total_amount = item.total_amount
+                persisted.override_reason = item.override_reason
+                persisted.override_by = item.override_by
+                persisted.status = item.status.value
                 continue
             model.items.append(
                 AttendanceExamModel(
@@ -217,6 +280,7 @@ class SqlAlchemyAttendanceRepository:
                     exam_code=item.exam_code,
                     exam_name=item.exam_name,
                     price_base=item.price_base,
+                    components_snapshot=_components_to_json(item),
                     quantity=item.quantity,
                     discount_amount=item.discount_amount,
                     surcharge_amount=item.surcharge_amount,
@@ -266,13 +330,21 @@ class SqlAlchemyAttendanceRepository:
         if service_level is not None:
             conditions.append(AttendanceModel.service_level == service_level.value)
         if protocol_number:
-            conditions.append(AttendanceModel.protocol_number.ilike(f"%{protocol_number.strip()}%"))
+            conditions.append(
+                AttendanceModel.protocol_number.ilike(
+                    contains_pattern(protocol_number.strip()), escape=LIKE_ESCAPE
+                )
+            )
         if service_date_from is not None:
             conditions.append(AttendanceModel.service_date >= service_date_from)
         if service_date_to is not None:
             conditions.append(AttendanceModel.service_date <= service_date_to)
         if owner_name:
-            conditions.append(PatientModel.owner_name.ilike(f"%{owner_name.strip()}%"))
+            conditions.append(
+                PatientModel.owner_name.ilike(
+                    contains_pattern(owner_name.strip()), escape=LIKE_ESCAPE
+                )
+            )
         return conditions
 
     def list_page(
@@ -354,6 +426,39 @@ class SqlAlchemyAttendanceRepository:
         rows = self._session.execute(stmt).all()
         return {AttendanceStatus(status): count for status, count in rows}
 
+    def sum_billed_total(
+        self,
+        *,
+        clinic_id: UUID | None,
+        veterinarian_id: UUID | None,
+        service_level: ServiceLevel | None,
+        protocol_number: str | None,
+        owner_name: str | None,
+        service_date_from: date | None,
+        service_date_to: date | None,
+        clinic_ids: frozenset[UUID] | None = None,
+    ) -> Decimal:
+        conditions = self._filter_conditions(
+            clinic_id=clinic_id,
+            veterinarian_id=veterinarian_id,
+            service_level=service_level,
+            protocol_number=protocol_number,
+            owner_name=owner_name,
+            service_date_from=service_date_from,
+            service_date_to=service_date_to,
+            clinic_ids=clinic_ids,
+        )
+        stmt = select(func.coalesce(func.sum(AttendanceModel.grand_total), 0)).where(
+            AttendanceModel.status.not_in(
+                [AttendanceStatus.DRAFT.value, AttendanceStatus.CANCELLED.value]
+            )
+        )
+        if owner_name:
+            stmt = stmt.join(PatientModel, PatientModel.id == AttendanceModel.patient_id)
+        for condition in conditions:
+            stmt = stmt.where(condition)
+        return Decimal(self._session.execute(stmt).scalar_one())
+
 
 class SqlAlchemyAttendanceSequenceRepository:
     """`SELECT ... FOR UPDATE` on the counter row for the year, inside the
@@ -380,12 +485,27 @@ class SqlAlchemyAttendanceSequenceRepository:
         return model.last_sequence
 
 
+def _schedule_of(model: OnCallFeeSettingModel) -> FeeSchedule:
+    return FeeSchedule(
+        weekdays=tuple(model.weekdays),
+        start_time=model.start_time,
+        end_time=model.end_time,
+    )
+
+
+def _store_schedule(model: OnCallFeeSettingModel, schedule: FeeSchedule) -> None:
+    model.weekdays = list(schedule.weekdays)
+    model.start_time = schedule.start_time
+    model.end_time = schedule.end_time
+
+
 def _on_call_fee_setting_to_domain(model: OnCallFeeSettingModel) -> OnCallFeeSetting:
     return OnCallFeeSetting(
         id=model.id,
         service_level=ServiceLevel(model.service_level),
         fee_amount=model.fee_amount,
         schedule_label=model.schedule_label,
+        schedule=_schedule_of(model),
         updated_by=model.updated_by,
         updated_at=model.updated_at,
         row_version=model.row_version,
@@ -407,7 +527,7 @@ class SqlAlchemyOnCallFeeSettingRepository:
     def list_all(self) -> list[OnCallFeeSetting]:
         models = (
             self._session.execute(
-                select(OnCallFeeSettingModel).order_by(OnCallFeeSettingModel.service_level)
+                select(OnCallFeeSettingModel).order_by(OnCallFeeSettingModel.service_level.desc())
             )
             .scalars()
             .all()
@@ -424,6 +544,7 @@ class SqlAlchemyOnCallFeeSettingRepository:
             )
         model.fee_amount = setting.fee_amount
         model.schedule_label = setting.schedule_label
+        _store_schedule(model, setting.schedule)
         model.updated_by = setting.updated_by
 
         # Same reasoning as SqlAlchemyAttendanceRepository.update() above:
@@ -431,3 +552,121 @@ class SqlAlchemyOnCallFeeSettingRepository:
         # onto the domain object the caller will hand to the API response.
         self._session.flush()
         setting.row_version = model.row_version
+
+
+def _urgency_to_domain(model: UrgencyFeeSettingModel) -> UrgencyFeeSetting:
+    return UrgencyFeeSetting(
+        id=model.id,
+        fee_amount=model.fee_amount,
+        updated_by=model.updated_by,
+        updated_at=model.updated_at,
+        row_version=model.row_version,
+    )
+
+
+class SqlAlchemyUrgencyFeeSettingRepository:
+    def __init__(self, session: SqlAlchemySession) -> None:
+        self._session = session
+
+    def get(self) -> UrgencyFeeSetting | None:
+        model = self._session.execute(select(UrgencyFeeSettingModel).limit(1)).scalar_one_or_none()
+        return _urgency_to_domain(model) if model is not None else None
+
+    def update(self, setting: UrgencyFeeSetting) -> None:
+        model = self._session.execute(
+            select(UrgencyFeeSettingModel).where(UrgencyFeeSettingModel.id == setting.id)
+        ).scalar_one_or_none()
+        if model is None:
+            raise LookupError("Taxa de urgência não encontrada para atualização.")
+        model.fee_amount = setting.fee_amount
+        model.updated_by = setting.updated_by
+        self._session.flush()
+        setting.row_version = model.row_version
+
+
+def _clinic_rule_to_domain(model: ClinicFeeRuleModel) -> ClinicFeeRule:
+    return ClinicFeeRule(
+        id=model.id,
+        clinic_id=model.clinic_id,
+        name=model.name,
+        fee_amount=model.fee_amount,
+        valid_from=model.valid_from,
+        valid_to=model.valid_to,
+        is_active=model.is_active,
+        exam_ids=tuple(model.exam_ids),
+        attendance_types=tuple(model.attendance_types),
+        created_by=model.created_by,
+        updated_by=model.updated_by,
+        created_at=model.created_at,
+        updated_at=model.updated_at,
+        row_version=model.row_version,
+    )
+
+
+class SqlAlchemyClinicFeeRuleRepository:
+    def __init__(self, session: SqlAlchemySession) -> None:
+        self._session = session
+
+    def get_by_id(self, rule_id: UUID) -> ClinicFeeRule | None:
+        model = self._session.get(ClinicFeeRuleModel, rule_id)
+        return _clinic_rule_to_domain(model) if model is not None else None
+
+    def list_rules(self, *, clinic_id: UUID | None, include_inactive: bool) -> list[ClinicFeeRule]:
+        stmt = select(ClinicFeeRuleModel).order_by(
+            ClinicFeeRuleModel.clinic_id, ClinicFeeRuleModel.valid_from.desc()
+        )
+        if clinic_id is not None:
+            stmt = stmt.where(ClinicFeeRuleModel.clinic_id == clinic_id)
+        if not include_inactive:
+            stmt = stmt.where(ClinicFeeRuleModel.is_active.is_(True))
+        return [_clinic_rule_to_domain(m) for m in self._session.execute(stmt).scalars().all()]
+
+    def list_applicable(self, *, clinic_id: UUID, service_date: date) -> list[ClinicFeeRule]:
+        stmt = (
+            select(ClinicFeeRuleModel)
+            .where(
+                ClinicFeeRuleModel.clinic_id == clinic_id,
+                ClinicFeeRuleModel.is_active.is_(True),
+                ClinicFeeRuleModel.valid_from <= service_date,
+                (ClinicFeeRuleModel.valid_to.is_(None))
+                | (ClinicFeeRuleModel.valid_to >= service_date),
+            )
+            .order_by(ClinicFeeRuleModel.name, ClinicFeeRuleModel.id)
+        )
+        return [_clinic_rule_to_domain(m) for m in self._session.execute(stmt).scalars().all()]
+
+    def add(self, rule: ClinicFeeRule) -> None:
+        self._session.add(
+            ClinicFeeRuleModel(
+                id=rule.id,
+                clinic_id=rule.clinic_id,
+                name=rule.name,
+                fee_amount=rule.fee_amount,
+                valid_from=rule.valid_from,
+                valid_to=rule.valid_to,
+                is_active=rule.is_active,
+                exam_ids=list(rule.exam_ids),
+                attendance_types=list(rule.attendance_types),
+                created_by=rule.created_by,
+                updated_by=rule.updated_by,
+                created_at=rule.created_at,
+                updated_at=rule.updated_at,
+                row_version=rule.row_version,
+            )
+        )
+        self._session.flush()
+
+    def update(self, rule: ClinicFeeRule) -> None:
+        model = self._session.get(ClinicFeeRuleModel, rule.id)
+        if model is None:
+            raise LookupError(f"Taxa da clínica {rule.id} não encontrada para atualização.")
+        model.name = rule.name
+        model.fee_amount = rule.fee_amount
+        model.valid_from = rule.valid_from
+        model.valid_to = rule.valid_to
+        model.is_active = rule.is_active
+        model.exam_ids = list(rule.exam_ids)
+        model.attendance_types = list(rule.attendance_types)
+        model.updated_by = rule.updated_by
+        self._session.flush()
+        rule.row_version = model.row_version

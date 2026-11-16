@@ -3,14 +3,20 @@ separate; never the SQLAlchemy model (rule: .claude/rules/02-backend.md)."""
 
 from __future__ import annotations
 
-from datetime import datetime
-from typing import Literal
+from datetime import date, datetime
+from typing import Literal, Self
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 PatientSexLiteral = Literal["MALE", "FEMALE"]
 PatientStatusLiteral = Literal["ACTIVE", "INACTIVE"]
+AgeUnitLiteral = Literal["YEARS", "MONTHS"]
+
+
+def _require_age_pair(age_value: int | None, age_unit: str | None) -> None:
+    if (age_value is None) != (age_unit is None):
+        raise ValueError("Informe o valor e a unidade da idade juntos (anos ou meses).")
 
 
 class SpeciesRead(BaseModel):
@@ -39,6 +45,9 @@ class PatientRead(BaseModel):
     created_at: datetime
     updated_at: datetime
     row_version: int
+    age_value: int | None
+    age_unit: AgeUnitLiteral | None
+    age_recorded_on: date | None
 
 
 class PatientListResponse(BaseModel):
@@ -61,6 +70,13 @@ class PatientCreateRequest(BaseModel):
     owner_phone: str | None = None
     owner_document: str | None = None
     notes: str | None = None
+    age_value: int | None = Field(default=None, ge=0)
+    age_unit: AgeUnitLiteral | None = None
+
+    @model_validator(mode="after")
+    def _age_pair(self) -> Self:
+        _require_age_pair(self.age_value, self.age_unit)
+        return self
 
 
 class PatientUpdateRequest(BaseModel):
@@ -78,3 +94,10 @@ class PatientUpdateRequest(BaseModel):
     notes: str | None = None
     expected_row_version: int
     clinic_id: UUID | None = None
+    age_value: int | None = Field(default=None, ge=0)
+    age_unit: AgeUnitLiteral | None = None
+
+    @model_validator(mode="after")
+    def _age_pair(self) -> Self:
+        _require_age_pair(self.age_value, self.age_unit)
+        return self

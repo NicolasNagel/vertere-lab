@@ -1,16 +1,12 @@
-import { Button } from '../../../shared/ui/button'
+import { Link } from 'react-router'
+
 import { KebabMenu, type KebabMenuItem } from '../../../shared/ui/kebab-menu'
 import { formatTaxId, getInitials } from '../../../shared/lib/formatters'
-import type { Clinic, ClinicFormValues, ClinicStatus } from '../api/clinics-api'
-import { ClinicForm } from './clinic-form'
+import type { Clinic } from '../api/clinics-api'
+import { ClinicStatusBadge } from './clinic-status-badge'
+import '../../../shared/ui/button.css'
+import '../../attendances/components/attendance-row-popover.css'
 import './clinic-detail.css'
-
-const STATUS_LABELS: Record<Clinic['status'], string> = {
-  ACTIVE: 'Ativo',
-  INACTIVE: 'Inativo',
-  DELINQUENT: 'Negativado',
-  SPECIAL: 'Especial',
-}
 
 function displayValue(value: string | null): string {
   return value && value.trim().length > 0 ? value : '—'
@@ -19,55 +15,26 @@ function displayValue(value: string | null): string {
 interface ClinicDetailProps {
   clinic: Clinic | null
   isLoading: boolean
-  isEditing: boolean
   canManage: boolean
-  submitting: boolean
-  submitError?: unknown
-  onStartEdit: () => void
-  onCancelEdit: () => void
-  onSubmitUpdate: (values: ClinicFormValues & { status: ClinicStatus }) => void
+  onClose: () => void
   onDeactivate: () => void
 }
 
+/** Conteúdo do popover de consulta (somente leitura) aberto ao clicar numa linha; editar abre a tela de formulário. */
 export function ClinicDetail({
   clinic,
   isLoading,
-  isEditing,
   canManage,
-  submitting,
-  submitError,
-  onStartEdit,
-  onCancelEdit,
-  onSubmitUpdate,
+  onClose,
   onDeactivate,
 }: ClinicDetailProps) {
-  if (isLoading) {
+  if (isLoading || !clinic) {
     return (
-      <div className="clinic-detail">
-        <p className="clinic-detail__empty">Carregando…</p>
-      </div>
-    )
-  }
-
-  if (!clinic) {
-    return (
-      <div className="clinic-detail">
-        <p className="clinic-detail__empty">Selecione uma clínica na lista ao lado.</p>
-      </div>
-    )
-  }
-
-  if (isEditing) {
-    return (
-      <div className="clinic-detail">
-        <ClinicForm
-          clinic={clinic}
-          submitting={submitting}
-          error={submitError}
-          onCancel={onCancelEdit}
-          onSubmitUpdate={onSubmitUpdate}
-        />
-      </div>
+      <aside className="attendance-row-popover" aria-label="Detalhes da clínica">
+        <p id="clinic-detail-title" className="clinic-detail__empty">
+          {isLoading ? 'Carregando…' : 'Clínica não encontrada.'}
+        </p>
+      </aside>
     )
   }
 
@@ -77,84 +44,79 @@ export function ClinicDetail({
       : []
 
   return (
-    <div className="clinic-detail">
-      <div className="clinic-detail__content">
-        <div className="clinic-detail__header">
-          <div>
-            <div className="clinic-detail__title-row">
-              <h2 className="clinic-detail__title">{clinic.name}</h2>
-              <span className="clinic-detail__status" data-status={clinic.status}>
-                {STATUS_LABELS[clinic.status]}
-              </span>
-            </div>
+    <aside className="attendance-row-popover" aria-label="Detalhes da clínica">
+      <header className="attendance-row-popover__header">
+        <div className="attendance-row-popover__heading">
+          <h2 id="clinic-detail-title" className="attendance-row-popover__title">{clinic.name}</h2>
+          <div className="attendance-row-popover__sub">
+            <ClinicStatusBadge status={clinic.status} />
+            <span className="clinic-detail__mono">{displayValue(formatTaxId(clinic.taxId))}</span>
           </div>
+        </div>
+        <div className="attendance-row-popover__actions">
           {canManage && (
-            <div className="clinic-detail__actions">
-              <Button
-                type="button"
-                variant="ghost"
-                className="clinic-detail__edit"
-                onClick={onStartEdit}
+            <>
+              <Link
+                className="button button--secondary attendance-row-popover__open"
+                to={`/cadastros/clinicas/${clinic.id}/editar`}
               >
                 Editar
-              </Button>
+              </Link>
               {menuItems.length > 0 && <KebabMenu label="Mais ações" items={menuItems} />}
-            </div>
+            </>
           )}
+          <button
+            type="button"
+            className="attendance-row-popover__close"
+            aria-label="Fechar detalhes"
+            onClick={onClose}
+          >
+            ×
+          </button>
         </div>
+      </header>
 
-        <div className="clinic-detail__cards">
-          <div className="clinic-detail__card">
-            <div className="clinic-detail__card-title">Dados gerais</div>
-            <dl className="clinic-detail__fields">
-              <dt>CNPJ</dt>
-              <dd className="clinic-detail__mono">{displayValue(formatTaxId(clinic.taxId))}</dd>
-              <dt>Telefone</dt>
-              <dd className="clinic-detail__mono">{displayValue(clinic.phone)}</dd>
-              <dt>E-mail</dt>
-              <dd>{displayValue(clinic.email)}</dd>
-              <dt>Observação</dt>
-              <dd>{displayValue(clinic.notes)}</dd>
-            </dl>
-          </div>
+      <div className="attendance-row-popover__body">
+        <section>
+          <h3 className="attendance-row-popover__section">Contato</h3>
+          <dl className="attendance-row-popover__fields">
+            <dt>Telefone</dt>
+            <dd className="clinic-detail__mono">{displayValue(clinic.phone)}</dd>
+            <dt>E-mail</dt>
+            <dd>{displayValue(clinic.email)}</dd>
+            <dt>Observação</dt>
+            <dd>{displayValue(clinic.notes)}</dd>
+          </dl>
+        </section>
 
-          <div className="clinic-detail__card">
-            <div className="clinic-detail__card-title">Endereço</div>
-            <dl className="clinic-detail__fields">
-              <dt>CEP</dt>
-              <dd className="clinic-detail__mono">{displayValue(clinic.addressZipCode)}</dd>
-              <dt>Rua</dt>
-              <dd>{displayValue(clinic.addressStreet)}</dd>
-              <dt>Número</dt>
-              <dd>{displayValue(clinic.addressNumber)}</dd>
-              <dt>Bairro</dt>
-              <dd>{displayValue(clinic.addressNeighborhood)}</dd>
-              <dt>Cidade / UF</dt>
-              <dd>
-                {clinic.addressCity
-                  ? `${clinic.addressCity} / ${clinic.addressState ?? '—'}`
-                  : '—'}
-              </dd>
-              <dt>Complemento</dt>
-              <dd>{displayValue(clinic.addressComplement)}</dd>
-            </dl>
-          </div>
-        </div>
+        <section>
+          <h3 className="attendance-row-popover__section">Endereço</h3>
+          <dl className="attendance-row-popover__fields">
+            <dt>CEP</dt>
+            <dd className="clinic-detail__mono">{displayValue(clinic.addressZipCode)}</dd>
+            <dt>Rua</dt>
+            <dd>
+              {displayValue(
+                [clinic.addressStreet, clinic.addressNumber].filter(Boolean).join(', ') || null,
+              )}
+            </dd>
+            <dt>Bairro</dt>
+            <dd>{displayValue(clinic.addressNeighborhood)}</dd>
+            <dt>Cidade / UF</dt>
+            <dd>
+              {clinic.addressCity ? `${clinic.addressCity} / ${clinic.addressState ?? '—'}` : '—'}
+            </dd>
+            <dt>Complemento</dt>
+            <dd>{displayValue(clinic.addressComplement)}</dd>
+          </dl>
+        </section>
 
-        <div className="clinic-detail__vets">
-          <div className="clinic-detail__vets-header">
-            <span>Veterinários vinculados</span>
-            <button
-              type="button"
-              className="clinic-detail__link-vet"
-              disabled
-              title="Vínculo é gerenciado a partir do cadastro do veterinário."
-            >
-              vincular novo
-            </button>
-          </div>
+        <section>
+          <h3 className="attendance-row-popover__section">
+            Veterinários vinculados ({clinic.veterinarians.length})
+          </h3>
           {clinic.veterinarians.length === 0 ? (
-            <p className="clinic-detail__vets-empty">Nenhum veterinário vinculado ainda.</p>
+            <p className="clinic-detail__empty">Nenhum veterinário vinculado ainda.</p>
           ) : (
             <ul className="clinic-detail__vets-list">
               {clinic.veterinarians.map((veterinarian) => (
@@ -177,8 +139,8 @@ export function ClinicDetail({
               ))}
             </ul>
           )}
-        </div>
+        </section>
       </div>
-    </div>
+    </aside>
   )
 }

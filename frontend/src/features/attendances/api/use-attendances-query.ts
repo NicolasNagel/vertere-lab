@@ -10,7 +10,9 @@ export function attendancesQueryKey(params: AttendanceListParams, actorScope = '
 export function useAttendancesQuery(params: AttendanceListParams | null) {
   const actorScope = useActorScopeKey()
   return useQuery({
-    queryKey: params ? attendancesQueryKey(params, actorScope) : ['attendances', actorScope, 'idle'],
+    queryKey: params
+      ? attendancesQueryKey(params, actorScope)
+      : ['attendances', actorScope, 'idle'],
     queryFn: () => fetchAttendances(params as AttendanceListParams),
     enabled: params !== null,
   })

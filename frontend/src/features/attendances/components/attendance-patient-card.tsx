@@ -1,5 +1,4 @@
-import type { Patient } from '../../patients/api/patients-api'
-import type { Species } from '../../patients/api/patients-api'
+import type { Patient, Species } from '../../patients/api/patients-api'
 
 const SEX_LABELS: Record<Patient['sex'], string> = {
   MALE: 'Macho',
@@ -11,34 +10,28 @@ interface AttendancePatientCardProps {
   species: Species[] | undefined
 }
 
-/** Read-only "Paciente" card. Troca de paciente só é permitida em `DRAFT`,
- * pela tela de confirmação — esta é só a ficha resumida do atendimento. */
+function display(value: string | null | undefined): string {
+  return value && value.trim() ? value : '—'
+}
+
+/** Conteúdo do bloco "Paciente": a ficha do paciente neste atendimento. */
 export function AttendancePatientCard({ patient, species }: AttendancePatientCardProps) {
-  const speciesName = species?.find((item) => item.id === patient?.speciesId)?.name ?? '—'
+  const speciesName = species?.find((item) => item.id === patient?.speciesId)?.name
 
   return (
-    <section className="attendance-readonly-detail__section">
-      <h2 className="attendance-readonly-detail__section-title">Paciente</h2>
-      <div className="attendance-readonly-detail__field-list">
-        <div className="attendance-readonly-detail__field-row">
-          <span className="attendance-readonly-detail__label">Nome</span>
-          <span className="attendance-readonly-detail__value">{patient?.name ?? '—'}</span>
-        </div>
-        <div className="attendance-readonly-detail__field-row">
-          <span className="attendance-readonly-detail__label">Espécie</span>
-          <span className="attendance-readonly-detail__value">
-            {patient ? [speciesName, patient.breed, SEX_LABELS[patient.sex]].filter(Boolean).join(' · ') : '—'}
-          </span>
-        </div>
-        <div className="attendance-readonly-detail__field-row">
-          <span className="attendance-readonly-detail__label">Idade</span>
-          <span className="attendance-readonly-detail__value">{patient?.ageDescription ?? '—'}</span>
-        </div>
-        <div className="attendance-readonly-detail__field-row">
-          <span className="attendance-readonly-detail__label">Tutor</span>
-          <span className="attendance-readonly-detail__value">{patient?.ownerName ?? '—'}</span>
-        </div>
-      </div>
-    </section>
+    <dl className="attendance-readonly-detail__fields">
+        <dt>Nome</dt>
+        <dd>{display(patient?.name)}</dd>
+        <dt>Espécie</dt>
+        <dd>{display(speciesName)}</dd>
+        <dt>Raça</dt>
+        <dd>{display(patient?.breed)}</dd>
+        <dt>Sexo</dt>
+        <dd>{patient ? SEX_LABELS[patient.sex] : '—'}</dd>
+        <dt>Idade</dt>
+        <dd>{display(patient?.ageDescription)}</dd>
+        <dt>Tutor</dt>
+        <dd>{display(patient?.ownerName)}</dd>
+    </dl>
   )
 }

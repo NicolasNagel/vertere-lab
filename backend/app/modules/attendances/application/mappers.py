@@ -1,7 +1,11 @@
 from __future__ import annotations
 
-from app.modules.attendances.application.dtos import AttendanceDTO, AttendanceExamDTO
-from app.modules.attendances.domain.entities import AttendanceExam, AttendanceRecord
+from app.modules.attendances.application.dtos import (
+    AttendanceDTO,
+    AttendanceExamDTO,
+    FeeLineDTO,
+)
+from app.modules.attendances.domain.entities import AttendanceExam, AttendanceRecord, FeeLine
 from app.shared.domain.protocol_number import present_protocol_number
 
 
@@ -12,12 +16,19 @@ def attendance_exam_to_dto(item: AttendanceExam) -> AttendanceExamDTO:
         exam_code=item.exam_code,
         exam_name=item.exam_name,
         price_base=item.price_base,
+        components=tuple((component.code, component.name) for component in item.components),
         quantity=item.quantity,
         discount_amount=item.discount_amount,
         surcharge_amount=item.surcharge_amount,
         total_amount=item.total_amount,
         override_reason=item.override_reason,
         status=item.status.value,
+    )
+
+
+def fee_line_to_dto(line: FeeLine) -> FeeLineDTO:
+    return FeeLineDTO(
+        kind=line.kind.value, label=line.label, amount=line.amount, rule_id=line.rule_id
     )
 
 
@@ -38,6 +49,10 @@ def attendance_to_dto(attendance: AttendanceRecord) -> AttendanceDTO:
         discount_total=attendance.discount_total,
         surcharge_total=attendance.surcharge_total,
         on_call_fee=attendance.on_call_fee,
+        is_urgent=attendance.is_urgent,
+        urgency_fee=attendance.urgency_fee,
+        clinic_fee=attendance.clinic_fee,
+        fee_lines=tuple(fee_line_to_dto(line) for line in attendance.fee_lines),
         grand_total=attendance.grand_total,
         protocol_number=present_protocol_number(attendance.protocol_number),
         cancel_reason=attendance.cancel_reason,

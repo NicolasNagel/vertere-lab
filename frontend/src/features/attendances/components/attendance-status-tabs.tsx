@@ -36,7 +36,7 @@ export function AttendanceStatusTabs({ counts, value, onChange }: AttendanceStat
         data-active={value === ''}
         onClick={() => onChange('')}
       >
-        Todos{counts ? ` · ${counts.total}` : ''}
+        Todos{counts ? <b>{counts.total}</b> : null}
       </button>
       {STATUS_TAB_ORDER.map((status) => {
         const count = counts?.byStatus[status] ?? 0
@@ -52,7 +52,7 @@ export function AttendanceStatusTabs({ counts, value, onChange }: AttendanceStat
             onClick={() => onChange(status)}
           >
             {STATUS_TAB_LABELS[status]}
-            {counts ? ` · ${count}` : ''}
+            {counts ? <b>{count}</b> : null}
           </button>
         )
       })}

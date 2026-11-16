@@ -37,22 +37,27 @@ function renderProtected() {
   )
 }
 
-test('redirects to /login when the user is not authenticated', async () => {
+test('redirects to /login without a session and renders the content with a valid one', async () => {
   server.use(
     http.get('/api/v1/auth/me', () =>
       HttpResponse.json(
-        { error: { code: 'UNAUTHENTICATED', message: 'Sessão expirada.', request_id: 'r', details: [] } },
+        {
+          error: {
+            code: 'UNAUTHENTICATED',
+            message: 'Sessão expirada.',
+            request_id: 'r',
+            details: [],
+          },
+        },
         { status: 401 },
       ),
     ),
   )
-
-  renderProtected()
-
+  const view = renderProtected()
   expect(await screen.findByText('tela de login')).toBeInTheDocument()
-})
+  view.unmount()
+  server.resetHandlers()
 
-test('renders the protected content when the session is valid', async () => {
   server.use(
     http.get('/api/v1/auth/me', () =>
       HttpResponse.json({
@@ -61,8 +66,6 @@ test('renders the protected content when the session is valid', async () => {
       }),
     ),
   )
-
   renderProtected()
-
   expect(await screen.findByText('conteúdo protegido')).toBeInTheDocument()
 })

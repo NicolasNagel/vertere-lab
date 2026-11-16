@@ -21,6 +21,7 @@ from app.modules.catalog.application.exam_code_generator import (
     generate_exam_code,
 )
 from app.modules.catalog.application.mappers import exam_to_dto
+from app.modules.catalog.application.panel_components import validate_panel_components
 from app.modules.catalog.domain.entities import Exam, ExamStatus
 from app.modules.catalog.domain.errors import DuplicateExamCodeError
 from app.modules.catalog.domain.repositories import ExamCategoryRepository, ExamRepository
@@ -31,6 +32,7 @@ from app.shared.application.clock import Clock
 from app.shared.domain.errors import ForbiddenError, NotFoundError, ValidationError
 
 _REQUIRED_PERMISSION = "catalog.manage"
+_PRICE_MANAGE_PERMISSION = "pricing.manage"
 _PRICE_PERMISSION = "pricing.read"
 
 
@@ -42,6 +44,7 @@ class CreateExamCommand:
     price_base: Decimal
     description: str | None
     species_ids: frozenset[UUID]
+    component_exam_ids: tuple[UUID, ...] = ()
 
 
 class CreateExamUseCase:
@@ -65,6 +68,8 @@ class CreateExamUseCase:
     def execute(self, command: CreateExamCommand) -> ExamDTO:
         if _REQUIRED_PERMISSION not in command.actor.permissions:
             raise ForbiddenError(f"Permissão ausente: {_REQUIRED_PERMISSION}")
+        if _PRICE_MANAGE_PERMISSION not in command.actor.permissions:
+            raise ForbiddenError(f"Permissão ausente: {_PRICE_MANAGE_PERMISSION}")
 
         if self._categories.get_by_id(command.category_id) is None:
             raise NotFoundError("Categoria de exame não encontrada.")
@@ -72,6 +77,10 @@ class CreateExamUseCase:
         known_species_ids = {species.id for species in self._species.list_all()}
         if not command.species_ids <= known_species_ids:
             raise ValidationError("Uma ou mais espécies selecionadas não existem.")
+
+        component_ids = validate_panel_components(
+            exams=self._exams, component_ids=command.component_exam_ids
+        )
 
         code = self._next_available_code()
         now = self._clock.now()
@@ -84,6 +93,7 @@ class CreateExamUseCase:
                 price_base=command.price_base,
                 description=command.description,
                 species_ids=command.species_ids,
+                component_ids=component_ids,
                 status=ExamStatus.ACTIVE,
                 created_by=command.actor.id,
                 updated_by=command.actor.id,
@@ -98,11 +108,15 @@ class CreateExamUseCase:
         self._audit.record(
             AuditEntry(
                 actor_user_id=command.actor.id,
-                actor_scope=ActorScope.LAB,
+                actor_scope=ActorScope(command.actor.role_scope),
                 action="exams.created",
                 entity_type="exam",
                 entity_id=str(exam.id),
-                after_state={"code": str(exam.code), "name": exam.name},
+                after_state={
+                    "code": str(exam.code),
+                    "name": exam.name,
+                    "component_count": len(exam.component_ids),
+                },
             )
         )
 

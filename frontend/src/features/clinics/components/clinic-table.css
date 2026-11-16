@@ -1,0 +1,62 @@
+/* Só o que é próprio da lista de clínicas; tabela, cabeçalho e linhas vêm de attendance-list-table.css. */
+.clinic-table__table {
+  min-width: 46rem;
+}
+
+.attendance-list-table__table tbody tr[data-selectable] {
+  cursor: pointer;
+}
+
+.attendance-list-table__table tbody tr[data-selected] td {
+  background: #f4f8fd;
+}
+
+.clinic-table__name {
+  appearance: none;
+  max-width: 18rem;
+  padding: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  border: none;
+  background: none;
+  font: inherit;
+  font-weight: 600;
+  color: inherit;
+  text-align: left;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.clinic-table__name:hover {
+  color: var(--color-brand-ink-deep);
+  text-decoration: underline;
+}
+
+.clinic-table__name:focus-visible {
+  outline: 2px solid var(--color-brand-ink-deep);
+  outline-offset: 2px;
+}
+
+.clinic-table__actions {
+  width: 3.5rem;
+  text-align: right;
+}
+
+.clinic-table__sr {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+@media (max-width: 48rem) {
+  .clinic-table__optional {
+    display: none;
+  }
+
+  .clinic-table__table {
+    min-width: 0;
+  }
+}

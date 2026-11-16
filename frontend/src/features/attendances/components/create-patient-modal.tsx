@@ -1,3 +1,4 @@
+import { Modal } from '../../../shared/ui/modal'
 import { useCreatePatientMutation } from '../../patients/api/use-create-patient-mutation'
 import { PatientForm } from '../../patients/components/patient-form'
 import type { Patient } from '../../patients/api/patients-api'
@@ -24,13 +25,13 @@ export function CreatePatientModal({ initialName, onCreated, onClose }: CreatePa
   const createMutation = useCreatePatientMutation()
 
   return (
-    <div className="create-patient-modal__backdrop" role="presentation">
-      <div
-        className="create-patient-modal"
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="create-patient-modal-title"
-      >
+    <Modal
+      titleId="create-patient-modal-title"
+      size="lg"
+      className="create-patient-modal"
+      canDismiss={!createMutation.isPending}
+      onClose={onClose}
+    >
         <h2 id="create-patient-modal-title" className="create-patient-modal__title">
           Novo paciente
         </h2>
@@ -46,7 +47,6 @@ export function CreatePatientModal({ initialName, onCreated, onClose }: CreatePa
             createMutation.mutate(values, { onSuccess: onCreated })
           }}
         />
-      </div>
-    </div>
+    </Modal>
   )
 }

@@ -1,0 +1,4 @@
+/* A barra inferior vem de attendance-summary-bar.css; aqui só empurra as ações para a direita. */
+.veterinarian-form-page__actions {
+  margin-left: auto;
+}

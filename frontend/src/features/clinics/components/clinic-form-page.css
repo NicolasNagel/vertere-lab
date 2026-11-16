@@ -1,0 +1,25 @@
+/* Corpo, blocos e barra inferior vêm de attendance-draft-page.css e attendance-summary-bar.css. */
+.clinic-form-page__actions {
+  margin-left: auto;
+}
+
+.clinic-form-page__notice {
+  margin: 0;
+  font-size: 0.875rem;
+  color: var(--color-text-secondary);
+}
+
+.clinic-form-page__conflict {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  margin-bottom: 0.75rem;
+  padding: 0.625rem 0.875rem;
+  font-size: 0.8125rem;
+  color: var(--color-warning);
+  background: #fdf6e6;
+  border: 1px solid #f0d9a8;
+  border-radius: var(--radius-md);
+}

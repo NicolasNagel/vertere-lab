@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from datetime import UTC, datetime
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 import pytest
 
@@ -85,345 +85,176 @@ def _setup() -> tuple[
     )
 
 
-def test_link_veterinarian_to_clinic_succeeds_and_audits() -> None:
-    veterinarians, clinics, links, audit = _setup()
-    veterinarian = _veterinarian()
-    clinic = _clinic()
-    veterinarians.add(veterinarian)
-    clinics.add(clinic)
+_MANAGER = frozenset({"veterinarians.manage"})
 
-    use_case = LinkVeterinarianToClinicUseCase(
+
+def _link_use_case(
+    veterinarians: FakeVeterinarianRepository,
+    clinics: FakeClinicRepository,
+    links: FakeVeterinarianClinicLinkRepository,
+    audit: FakeAuditLogWriter,
+) -> LinkVeterinarianToClinicUseCase:
+    return LinkVeterinarianToClinicUseCase(
         veterinarians=veterinarians,
         clinics=clinics,
         links=links,
         audit=audit,
         clock=FakeClock(_NOW),
     )
-    use_case.execute(
-        LinkVeterinarianToClinicCommand(
-            actor=_actor(permissions=frozenset({"veterinarians.manage"})),
-            veterinarian_id=veterinarian.id,
-            clinic_id=clinic.id,
-            primary_clinic=True,
-        )
+
+
+def _link_command(
+    veterinarian_id: UUID,
+    clinic_id: UUID,
+    *,
+    primary: bool = False,
+    permissions: frozenset[str] = _MANAGER,
+) -> LinkVeterinarianToClinicCommand:
+    return LinkVeterinarianToClinicCommand(
+        actor=_actor(permissions=permissions),
+        veterinarian_id=veterinarian_id,
+        clinic_id=clinic_id,
+        primary_clinic=primary,
     )
 
+
+def _clinic_actor(
+    *, clinic_ids: frozenset[UUID], permissions: frozenset[str]
+) -> AuthenticatedUserDTO:
+    return AuthenticatedUserDTO(
+        user_id=uuid4(),
+        email="clinic@vertere.local",
+        full_name="Clinic User",
+        role_id=uuid4(),
+        role_name="CLINIC_STAFF",
+        role_scope="CLINIC",
+        permissions=permissions,
+        clinic_ids=clinic_ids,
+    )
+
+
+def test_link_veterinarian_to_clinic_enforces_rules_idempotency_and_single_primary() -> None:
+    veterinarians, clinics, links, audit = _setup()
+    veterinarian = _veterinarian()
+    clinic_a = _clinic(name="Schweitzer")
+    clinic_b = _clinic(name="Bicho Urbano")
+    veterinarians.add(veterinarian)
+    clinics.add(clinic_a)
+    clinics.add(clinic_b)
+    link = _link_use_case(veterinarians, clinics, links, audit)
+
+    with pytest.raises(ForbiddenError):
+        link.execute(_link_command(uuid4(), uuid4(), permissions=frozenset()))
+    with pytest.raises(NotFoundError):  # veterinário inexistente
+        link.execute(_link_command(uuid4(), clinic_a.id))
+    with pytest.raises(NotFoundError):  # clínica inexistente
+        link.execute(_link_command(veterinarian.id, uuid4()))
+    assert links.count_by_veterinarian(veterinarian.id) == 0
+
+    link.execute(_link_command(veterinarian.id, clinic_a.id, primary=True))
     assert links.count_by_veterinarian(veterinarian.id) == 1
     assert audit.entries[-1].action == "veterinarian_clinics.linked"
 
-
-def test_link_veterinarian_to_clinic_is_idempotent() -> None:
-    veterinarians, clinics, links, audit = _setup()
-    veterinarian = _veterinarian()
-    clinic = _clinic()
-    veterinarians.add(veterinarian)
-    clinics.add(clinic)
-
-    use_case = LinkVeterinarianToClinicUseCase(
-        veterinarians=veterinarians,
-        clinics=clinics,
-        links=links,
-        audit=audit,
-        clock=FakeClock(_NOW),
-    )
-    command = LinkVeterinarianToClinicCommand(
-        actor=_actor(permissions=frozenset({"veterinarians.manage"})),
-        veterinarian_id=veterinarian.id,
-        clinic_id=clinic.id,
-        primary_clinic=False,
-    )
-    use_case.execute(command)
-    use_case.execute(command)
-
+    # Repetir o mesmo vínculo não duplica nem audita de novo.
+    link.execute(_link_command(veterinarian.id, clinic_a.id, primary=True))
     assert links.count_by_veterinarian(veterinarian.id) == 1
-    assert len([e for e in audit.entries if e.action == "veterinarian_clinics.linked"]) == 1
+    assert [e.action for e in audit.entries] == ["veterinarian_clinics.linked"]
 
-
-def test_link_veterinarian_to_clinic_promotes_existing_link_to_primary() -> None:
-    """Re-linking an already-linked clinic with `primary_clinic=True` must
-    still promote it, not silently no-op — see docstring of
-    LinkVeterinarianToClinicUseCase."""
-    veterinarians, clinics, links, audit = _setup()
-    veterinarian = _veterinarian()
-    clinic_a = _clinic(name="Schweitzer")
-    clinic_b = _clinic(name="Bicho Urbano")
-    veterinarians.add(veterinarian)
-    clinics.add(clinic_a)
-    clinics.add(clinic_b)
-
-    use_case = LinkVeterinarianToClinicUseCase(
-        veterinarians=veterinarians,
-        clinics=clinics,
-        links=links,
-        audit=audit,
-        clock=FakeClock(_NOW),
-    )
-    actor = _actor(permissions=frozenset({"veterinarians.manage"}))
-    use_case.execute(
-        LinkVeterinarianToClinicCommand(
-            actor=actor, veterinarian_id=veterinarian.id, clinic_id=clinic_a.id, primary_clinic=True
-        )
-    )
-    use_case.execute(
-        LinkVeterinarianToClinicCommand(
-            actor=actor,
-            veterinarian_id=veterinarian.id,
-            clinic_id=clinic_b.id,
-            primary_clinic=False,
-        )
-    )
-
-    # clinic_b is already linked (not primary) — asking to link it again as
-    # primary must promote it, not no-op.
-    use_case.execute(
-        LinkVeterinarianToClinicCommand(
-            actor=actor, veterinarian_id=veterinarian.id, clinic_id=clinic_b.id, primary_clinic=True
-        )
-    )
-
+    # Vincular outra clínica como não principal e depois promovê-la: só uma é principal.
+    link.execute(_link_command(veterinarian.id, clinic_b.id))
+    link.execute(_link_command(veterinarian.id, clinic_b.id, primary=True))
     remaining = links.list_by_veterinarian(veterinarian.id)
     assert len(remaining) == 2
-    primaries = [link for link in remaining if link.primary_clinic]
-    assert len(primaries) == 1
-    assert primaries[0].clinic_id == clinic_b.id
+    assert [item.clinic_id for item in remaining if item.primary_clinic] == [clinic_b.id]
     assert audit.entries[-1].action == "veterinarian_clinics.primary_changed"
 
+    # Vincular direto como principal rebaixa a principal anterior.
+    clinic_c = _clinic(name="Terceira")
+    clinics.add(clinic_c)
+    link.execute(_link_command(veterinarian.id, clinic_c.id, primary=True))
+    primaries = [
+        i.clinic_id for i in links.list_by_veterinarian(veterinarian.id) if i.primary_clinic
+    ]
+    assert primaries == [clinic_c.id]
 
-def test_link_veterinarian_to_clinic_clears_previous_primary() -> None:
+
+def test_unlink_veterinarian_from_clinic_is_audited_idempotent_and_keeps_last_link() -> None:
     veterinarians, clinics, links, audit = _setup()
-    veterinarian = _veterinarian()
-    clinic_a = _clinic(name="Schweitzer")
-    clinic_b = _clinic(name="Bicho Urbano")
-    veterinarians.add(veterinarian)
-    clinics.add(clinic_a)
-    clinics.add(clinic_b)
-
-    use_case = LinkVeterinarianToClinicUseCase(
-        veterinarians=veterinarians,
-        clinics=clinics,
-        links=links,
-        audit=audit,
-        clock=FakeClock(_NOW),
-    )
-    actor = _actor(permissions=frozenset({"veterinarians.manage"}))
-    use_case.execute(
-        LinkVeterinarianToClinicCommand(
-            actor=actor, veterinarian_id=veterinarian.id, clinic_id=clinic_a.id, primary_clinic=True
-        )
-    )
-    use_case.execute(
-        LinkVeterinarianToClinicCommand(
-            actor=actor, veterinarian_id=veterinarian.id, clinic_id=clinic_b.id, primary_clinic=True
-        )
-    )
-
-    remaining = links.list_by_veterinarian(veterinarian.id)
-    primaries = [link for link in remaining if link.primary_clinic]
-    assert len(primaries) == 1
-    assert primaries[0].clinic_id == clinic_b.id
-
-
-def test_link_veterinarian_to_clinic_requires_permission() -> None:
-    veterinarians, clinics, links, audit = _setup()
-    use_case = LinkVeterinarianToClinicUseCase(
-        veterinarians=veterinarians,
-        clinics=clinics,
-        links=links,
-        audit=audit,
-        clock=FakeClock(_NOW),
-    )
-
-    with pytest.raises(ForbiddenError):
-        use_case.execute(
-            LinkVeterinarianToClinicCommand(
-                actor=_actor(permissions=frozenset()),
-                veterinarian_id=uuid4(),
-                clinic_id=uuid4(),
-                primary_clinic=False,
-            )
-        )
-
-
-def test_link_veterinarian_to_clinic_veterinarian_not_found() -> None:
-    veterinarians, clinics, links, audit = _setup()
+    autonomous = _veterinarian(is_autonomous=True)
+    dependent = _veterinarian(is_autonomous=False)
     clinic = _clinic()
+    veterinarians.add(autonomous)
+    veterinarians.add(dependent)
     clinics.add(clinic)
-    use_case = LinkVeterinarianToClinicUseCase(
-        veterinarians=veterinarians,
-        clinics=clinics,
-        links=links,
-        audit=audit,
-        clock=FakeClock(_NOW),
-    )
-
-    with pytest.raises(NotFoundError):
-        use_case.execute(
-            LinkVeterinarianToClinicCommand(
-                actor=_actor(permissions=frozenset({"veterinarians.manage"})),
-                veterinarian_id=uuid4(),
-                clinic_id=clinic.id,
-                primary_clinic=False,
-            )
-        )
-
-
-def test_link_veterinarian_to_clinic_clinic_not_found() -> None:
-    veterinarians, clinics, links, audit = _setup()
-    veterinarian = _veterinarian()
-    veterinarians.add(veterinarian)
-    use_case = LinkVeterinarianToClinicUseCase(
-        veterinarians=veterinarians,
-        clinics=clinics,
-        links=links,
-        audit=audit,
-        clock=FakeClock(_NOW),
-    )
-
-    with pytest.raises(NotFoundError):
-        use_case.execute(
-            LinkVeterinarianToClinicCommand(
-                actor=_actor(permissions=frozenset({"veterinarians.manage"})),
-                veterinarian_id=veterinarian.id,
-                clinic_id=uuid4(),
-                primary_clinic=False,
-            )
-        )
-
-
-def test_unlink_veterinarian_from_clinic_succeeds_and_audits() -> None:
-    veterinarians, clinics, links, audit = _setup()
-    veterinarian = _veterinarian(is_autonomous=True)
-    clinic = _clinic()
-    veterinarians.add(veterinarian)
-    clinics.add(clinic)
-    link_use_case = LinkVeterinarianToClinicUseCase(
-        veterinarians=veterinarians,
-        clinics=clinics,
-        links=links,
-        audit=audit,
-        clock=FakeClock(_NOW),
-    )
-    actor = _actor(permissions=frozenset({"veterinarians.manage"}))
-    link_use_case.execute(
-        LinkVeterinarianToClinicCommand(
-            actor=actor, veterinarian_id=veterinarian.id, clinic_id=clinic.id, primary_clinic=False
-        )
-    )
-
-    unlink_use_case = UnlinkVeterinarianFromClinicUseCase(
+    link = _link_use_case(veterinarians, clinics, links, audit)
+    unlink = UnlinkVeterinarianFromClinicUseCase(
         veterinarians=veterinarians, links=links, audit=audit
     )
-    unlink_use_case.execute(
+    actor = _actor(permissions=_MANAGER)
+    link.execute(_link_command(autonomous.id, clinic.id))
+    link.execute(_link_command(dependent.id, clinic.id))
+    audit.entries.clear()
+
+    # Desvincular quem não está vinculado não faz nada e não audita.
+    unlink.execute(
         UnlinkVeterinarianFromClinicCommand(
-            actor=actor, veterinarian_id=veterinarian.id, clinic_id=clinic.id
+            actor=actor, veterinarian_id=autonomous.id, clinic_id=uuid4()
         )
     )
-
-    assert links.count_by_veterinarian(veterinarian.id) == 0
-    assert audit.entries[-1].action == "veterinarian_clinics.unlinked"
-
-
-def test_unlink_veterinarian_from_clinic_is_idempotent_when_not_linked() -> None:
-    veterinarians, _clinics, links, audit = _setup()
-    veterinarian = _veterinarian(is_autonomous=True)
-    veterinarians.add(veterinarian)
-
-    use_case = UnlinkVeterinarianFromClinicUseCase(
-        veterinarians=veterinarians, links=links, audit=audit
-    )
-    use_case.execute(
-        UnlinkVeterinarianFromClinicCommand(
-            actor=_actor(permissions=frozenset({"veterinarians.manage"})),
-            veterinarian_id=veterinarian.id,
-            clinic_id=uuid4(),
-        )
-    )
-
     assert audit.entries == []
 
-
-def test_unlink_veterinarian_from_clinic_blocks_last_link_for_non_autonomous() -> None:
-    veterinarians, clinics, links, audit = _setup()
-    veterinarian = _veterinarian(is_autonomous=False)
-    clinic = _clinic()
-    veterinarians.add(veterinarian)
-    clinics.add(clinic)
-    actor = _actor(permissions=frozenset({"veterinarians.manage"}))
-    LinkVeterinarianToClinicUseCase(
-        veterinarians=veterinarians,
-        clinics=clinics,
-        links=links,
-        audit=audit,
-        clock=FakeClock(_NOW),
-    ).execute(
-        LinkVeterinarianToClinicCommand(
-            actor=actor, veterinarian_id=veterinarian.id, clinic_id=clinic.id, primary_clinic=False
+    unlink.execute(
+        UnlinkVeterinarianFromClinicCommand(
+            actor=actor, veterinarian_id=autonomous.id, clinic_id=clinic.id
         )
     )
+    assert links.count_by_veterinarian(autonomous.id) == 0
+    assert audit.entries[-1].action == "veterinarian_clinics.unlinked"
 
-    unlink_use_case = UnlinkVeterinarianFromClinicUseCase(
-        veterinarians=veterinarians, links=links, audit=audit
-    )
+    # Não autônomo não pode perder a última clínica.
     with pytest.raises(LastClinicLinkRequiredError):
-        unlink_use_case.execute(
+        unlink.execute(
             UnlinkVeterinarianFromClinicCommand(
-                actor=actor, veterinarian_id=veterinarian.id, clinic_id=clinic.id
+                actor=actor, veterinarian_id=dependent.id, clinic_id=clinic.id
             )
         )
+    assert links.count_by_veterinarian(dependent.id) == 1
 
-    assert links.count_by_veterinarian(veterinarian.id) == 1
 
-
-def test_list_clinics_for_veterinarian_resolves_names() -> None:
+def test_link_listings_resolve_names_and_respect_the_actor_clinic_scope() -> None:
     veterinarians, clinics, links, audit = _setup()
     veterinarian = _veterinarian()
-    clinic = _clinic(name="Schweitzer")
+    own_clinic = _clinic(name="Propria")
+    other_clinic = _clinic(name="Outra")
     veterinarians.add(veterinarian)
-    clinics.add(clinic)
-    actor = _actor(permissions=frozenset({"veterinarians.manage", "veterinarians.read"}))
-    LinkVeterinarianToClinicUseCase(
-        veterinarians=veterinarians,
-        clinics=clinics,
-        links=links,
-        audit=audit,
-        clock=FakeClock(_NOW),
-    ).execute(
-        LinkVeterinarianToClinicCommand(
-            actor=actor, veterinarian_id=veterinarian.id, clinic_id=clinic.id, primary_clinic=True
+    clinics.add(own_clinic)
+    clinics.add(other_clinic)
+    link = _link_use_case(veterinarians, clinics, links, audit)
+    link.execute(_link_command(veterinarian.id, own_clinic.id, primary=True))
+    link.execute(_link_command(veterinarian.id, other_clinic.id))
+
+    lab_actor = _actor(permissions=frozenset({"veterinarians.read", "clinics.read"}))
+    by_veterinarian = ListClinicsForVeterinarianUseCase(links=links, clinics=clinics).execute(
+        ListClinicsForVeterinarianQuery(actor=lab_actor, veterinarian_id=veterinarian.id)
+    )
+    assert {(c.clinic_name, c.primary_clinic) for c in by_veterinarian} == {
+        ("Propria", True),
+        ("Outra", False),
+    }
+    by_clinic = ListVeterinariansForClinicUseCase(links=links, veterinarians=veterinarians).execute(
+        ListVeterinariansForClinicQuery(actor=lab_actor, clinic_id=own_clinic.id)
+    )
+    assert [v.veterinarian_name for v in by_clinic] == ["Dra. Fabianna Garcia"]
+
+    clinic_actor = _clinic_actor(
+        clinic_ids=frozenset({own_clinic.id}),
+        permissions=frozenset({"veterinarians.read", "clinics.read"}),
+    )
+    scoped = ListClinicsForVeterinarianUseCase(links=links, clinics=clinics).execute(
+        ListClinicsForVeterinarianQuery(actor=clinic_actor, veterinarian_id=veterinarian.id)
+    )
+    assert [c.clinic_id for c in scoped] == [own_clinic.id]
+    with pytest.raises(NotFoundError):
+        ListVeterinariansForClinicUseCase(links=links, veterinarians=veterinarians).execute(
+            ListVeterinariansForClinicQuery(actor=clinic_actor, clinic_id=other_clinic.id)
         )
-    )
-
-    result = ListClinicsForVeterinarianUseCase(links=links, clinics=clinics).execute(
-        ListClinicsForVeterinarianQuery(actor=actor, veterinarian_id=veterinarian.id)
-    )
-
-    assert len(result) == 1
-    assert result[0].clinic_name == "Schweitzer"
-    assert result[0].primary_clinic is True
-
-
-def test_list_veterinarians_for_clinic_resolves_names() -> None:
-    veterinarians, clinics, links, audit = _setup()
-    veterinarian = _veterinarian()
-    clinic = _clinic(name="Schweitzer")
-    veterinarians.add(veterinarian)
-    clinics.add(clinic)
-    actor = _actor(permissions=frozenset({"veterinarians.manage", "clinics.read"}))
-    LinkVeterinarianToClinicUseCase(
-        veterinarians=veterinarians,
-        clinics=clinics,
-        links=links,
-        audit=audit,
-        clock=FakeClock(_NOW),
-    ).execute(
-        LinkVeterinarianToClinicCommand(
-            actor=actor, veterinarian_id=veterinarian.id, clinic_id=clinic.id, primary_clinic=False
-        )
-    )
-
-    result = ListVeterinariansForClinicUseCase(links=links, veterinarians=veterinarians).execute(
-        ListVeterinariansForClinicQuery(actor=actor, clinic_id=clinic.id)
-    )
-
-    assert len(result) == 1
-    assert result[0].veterinarian_name == "Dra. Fabianna Garcia"

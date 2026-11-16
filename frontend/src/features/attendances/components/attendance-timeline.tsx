@@ -2,18 +2,8 @@ import { useState } from 'react'
 
 import { formatDateTime } from '../../../shared/lib/formatters'
 import { useAttendanceTimelineQuery } from '../api/use-attendance-timeline-query'
+import { describeTimelineAction } from './attendance-timeline-labels'
 import './attendance-timeline.css'
-
-const ACTION_LABELS: Record<string, string> = {
-  'attendances.draft_created': 'Rascunho criado',
-  'attendances.confirmed': 'Atendimento confirmado',
-  'attendances.cancelled': 'Atendimento cancelado',
-  'attendances.updated': 'Atendimento editado',
-}
-
-function describeAction(action: string): string {
-  return ACTION_LABELS[action] ?? action
-}
 
 interface AttendanceTimelineProps {
   attendanceId: string
@@ -54,8 +44,9 @@ export function AttendanceTimeline({ attendanceId }: AttendanceTimelineProps) {
                 {timelineQuery.data.items.map((entry) => (
                   <li key={entry.id} className="attendance-timeline__entry">
                     <div className="attendance-timeline__entry-header">
-                      <span>{describeAction(entry.action)}</span>
+                      <span>{describeTimelineAction(entry.action)}</span>
                       <span className="attendance-timeline__entry-date">
+                        {entry.actorName ? `${entry.actorName} · ` : ''}
                         {formatDateTime(entry.occurredAt)}
                       </span>
                     </div>

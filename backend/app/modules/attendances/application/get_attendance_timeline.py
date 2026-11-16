@@ -10,7 +10,9 @@ out of scope here).
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from collections.abc import Collection
+from dataclasses import dataclass, field, replace
+from typing import Any, Protocol
 from uuid import UUID
 
 from app.modules.attendances.domain.repositories import AttendanceRepository
@@ -21,6 +23,45 @@ from app.shared.domain.errors import ForbiddenError, NotFoundError
 
 _REQUIRED_PERMISSION = "attendances.read"
 _ENTITY_TYPE = "attendance"
+
+
+# Chaves de valor financeiro nos estados antes/depois da auditoria.
+_MONEY_KEYS = frozenset(
+    {
+        "price_base",
+        "discount_amount",
+        "surcharge_amount",
+        "total_amount",
+        "subtotal",
+        "discount_total",
+        "surcharge_total",
+        "on_call_fee",
+        "urgency_fee",
+        "clinic_fee",
+        "fee_amount",
+        "grand_total",
+    }
+)
+
+
+def _without_money(value: Any) -> Any:
+    if isinstance(value, dict):
+        return {k: _without_money(v) for k, v in value.items() if k not in _MONEY_KEYS}
+    if isinstance(value, list):
+        return [_without_money(v) for v in value]
+    return value
+
+
+def _redact(entry: AuditEntry) -> AuditEntry:
+    return replace(
+        entry,
+        before_state=_without_money(entry.before_state),
+        after_state=_without_money(entry.after_state),
+    )
+
+
+class UserNameLookup(Protocol):
+    def names_by_id(self, user_ids: Collection[UUID]) -> dict[UUID, str]: ...
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -37,6 +78,8 @@ class AttendanceTimelineResult:
     total: int
     page: int
     page_size: int
+    # Só preenchido para quem não é de clínica (LAB/GLOBAL): usuário de clínica não vê nome de funcionário.
+    actor_names: dict[UUID, str] = field(default_factory=dict)
 
 
 class GetAttendanceTimelineUseCase:
@@ -45,9 +88,11 @@ class GetAttendanceTimelineUseCase:
         *,
         attendances: AttendanceRepository,
         audit: AuditLogReader,
+        user_names: UserNameLookup | None = None,
     ) -> None:
         self._attendances = attendances
         self._audit = audit
+        self._user_names = user_names
 
     def execute(self, query: GetAttendanceTimelineQuery) -> AttendanceTimelineResult:
         if _REQUIRED_PERMISSION not in query.actor.permissions:
@@ -63,6 +108,16 @@ class GetAttendanceTimelineUseCase:
             page=query.page,
             page_size=query.page_size,
         )
+        if "pricing.read" not in query.actor.permissions:
+            entries = [_redact(entry) for entry in entries]
+        names: dict[UUID, str] = {}
+        if self._user_names is not None and query.actor.role_scope != "CLINIC":
+            ids = {e.actor_user_id for e in entries if e.actor_user_id is not None}
+            names = self._user_names.names_by_id(ids) if ids else {}
         return AttendanceTimelineResult(
-            entries=entries, total=total, page=query.page, page_size=query.page_size
+            entries=entries,
+            total=total,
+            page=query.page,
+            page_size=query.page_size,
+            actor_names=names,
         )

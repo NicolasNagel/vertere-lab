@@ -7,13 +7,17 @@ from __future__ import annotations
 
 from datetime import UTC, date, datetime
 from decimal import Decimal
+from typing import Any
 from uuid import UUID
 
+from app.modules.attendances.application.closure_settlement import FinancialPosition
 from app.modules.attendances.domain.entities import (
     AttendanceRecord,
     AttendanceStatus,
+    ClinicFeeRule,
     OnCallFeeSetting,
     ServiceLevel,
+    UrgencyFeeSetting,
 )
 from app.modules.audit.domain.entities import AuditEntry
 from app.modules.catalog.domain.entities import Exam, ExamStatus
@@ -134,7 +138,7 @@ class FakeAttendanceRepository:
         start = (page - 1) * page_size
         return items[start : start + page_size], total
 
-    def count_by_status(
+    def _filtered(
         self,
         *,
         clinic_id: UUID | None,
@@ -145,7 +149,7 @@ class FakeAttendanceRepository:
         service_date_from: date | None,
         service_date_to: date | None,
         clinic_ids: frozenset[UUID] | None = None,
-    ) -> dict[AttendanceStatus, int]:
+    ) -> list[AttendanceRecord]:
         items = list(self._attendances.values())
         if clinic_ids is not None:
             items = [item for item in items if item.clinic_id in clinic_ids]
@@ -169,10 +173,20 @@ class FakeAttendanceRepository:
             items = [
                 a for a in items if a.service_date is not None and a.service_date <= service_date_to
             ]
+        return items
+
+    def count_by_status(self, **filters: Any) -> dict[AttendanceStatus, int]:
         counts: dict[AttendanceStatus, int] = {}
-        for attendance in items:
+        for attendance in self._filtered(**filters):
             counts[attendance.status] = counts.get(attendance.status, 0) + 1
         return counts
+
+    def sum_billed_total(self, **filters: Any) -> Decimal:
+        unbilled = {AttendanceStatus.DRAFT, AttendanceStatus.CANCELLED}
+        return sum(
+            (a.grand_total for a in self._filtered(**filters) if a.status not in unbilled),
+            Decimal("0"),
+        )
 
 
 class FakeClinicRepository:
@@ -222,6 +236,9 @@ class FakeVeterinarianRepository:
         raise NotImplementedError
 
     def get_by_name(self, name: str) -> Veterinarian | None:
+        raise NotImplementedError
+
+    def is_linked_to_any_clinic(self, veterinarian_id: UUID, clinic_ids: frozenset[UUID]) -> bool:
         raise NotImplementedError
 
     def add(self, veterinarian: Veterinarian) -> None:
@@ -321,6 +338,12 @@ class FakeExamRepository:
     def get_by_code(self, code: str) -> Exam | None:
         raise NotImplementedError
 
+    def get_many_by_ids(self, exam_ids: list[UUID]) -> list[Exam]:
+        return [self._exams[exam_id] for exam_id in exam_ids if exam_id in self._exams]
+
+    def list_active_panels_containing(self, exam_id: UUID) -> list[Exam]:
+        return [e for e in self._exams.values() if exam_id in e.component_ids]
+
     def list_all_names(self) -> dict[str, UUID]:
         return {exam.name.casefold(): exam.id for exam in self._exams.values()}
 
@@ -383,6 +406,48 @@ class FakeOnCallFeeSettingRepository:
 
     def update(self, setting: OnCallFeeSetting) -> None:
         self._settings[setting.service_level] = setting
+
+
+class FakeUrgencyFeeSettingRepository:
+    def __init__(self, fee_amount: Decimal = Decimal("0.00")) -> None:
+        self._setting: UrgencyFeeSetting | None = UrgencyFeeSetting(
+            id=UUID(int=777), fee_amount=fee_amount, updated_at=_SEED_AT
+        )
+
+    def get(self) -> UrgencyFeeSetting | None:
+        return self._setting
+
+    def update(self, setting: UrgencyFeeSetting) -> None:
+        self._setting = setting
+
+
+class FakeClinicFeeRuleRepository:
+    def __init__(self, rules: list[ClinicFeeRule] | None = None) -> None:
+        self.rules: dict[UUID, ClinicFeeRule] = {rule.id: rule for rule in rules or []}
+
+    def get_by_id(self, rule_id: UUID) -> ClinicFeeRule | None:
+        return self.rules.get(rule_id)
+
+    def list_rules(self, *, clinic_id: UUID | None, include_inactive: bool) -> list[ClinicFeeRule]:
+        return [
+            rule
+            for rule in self.rules.values()
+            if (clinic_id is None or rule.clinic_id == clinic_id)
+            and (include_inactive or rule.is_active)
+        ]
+
+    def list_applicable(self, *, clinic_id: UUID, service_date: date) -> list[ClinicFeeRule]:
+        return [
+            rule
+            for rule in self.rules.values()
+            if rule.clinic_id == clinic_id and rule.applies_on(service_date)
+        ]
+
+    def add(self, rule: ClinicFeeRule) -> None:
+        self.rules[rule.id] = rule
+
+    def update(self, rule: ClinicFeeRule) -> None:
+        self.rules[rule.id] = rule
 
 
 def make_clinic(*, clinic_id: UUID, status: ClinicStatus = ClinicStatus.ACTIVE) -> Clinic:
@@ -460,3 +525,20 @@ def make_on_call_fee_setting(
         updated_at=_SEED_AT,
         row_version=row_version,
     )
+
+
+class FakeClosureSettlement:
+    """Records settlements instead of touching a closure (billing has its own tests)."""
+
+    def __init__(self) -> None:
+        self.calls: list[tuple[UUID | None, Decimal, Decimal]] = []
+
+    def settle(
+        self,
+        *,
+        actor: object,
+        attendance: AttendanceRecord,
+        before: FinancialPosition,
+        reason: str,
+    ) -> None:
+        self.calls.append((before.closure_id, before.grand_total, attendance.grand_total))

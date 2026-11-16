@@ -8,7 +8,7 @@ from app.modules.audit.domain.repositories import AuditLogWriter
 from app.modules.clinics.domain.repositories import ClinicRepository
 from app.modules.patients.application.dtos import PatientDTO
 from app.modules.patients.application.mappers import patient_to_dto
-from app.modules.patients.domain.entities import PatientSex, PatientStatus
+from app.modules.patients.domain.entities import PatientAge, PatientSex, PatientStatus
 from app.modules.patients.domain.repositories import PatientRepository, SpeciesRepository
 from app.shared.application.authorization import ActorContext
 from app.shared.application.clock import Clock
@@ -33,6 +33,8 @@ class UpdatePatientCommand:
     status: str
     notes: str | None
     expected_row_version: int
+    age_value: int | None = None
+    age_unit: str | None = None
 
 
 class UpdatePatientUseCase:
@@ -90,6 +92,7 @@ class UpdatePatientUseCase:
             sex=PatientSex(command.sex),
             breed=command.breed,
             age_description=command.age_description,
+            age=PatientAge.from_optional(command.age_value, command.age_unit),
             owner_name=command.owner_name,
             owner_phone=command.owner_phone,
             owner_document=command.owner_document,
@@ -104,7 +107,7 @@ class UpdatePatientUseCase:
         self._audit.record(
             AuditEntry(
                 actor_user_id=command.actor.id,
-                actor_scope=ActorScope.LAB,
+                actor_scope=ActorScope(command.actor.role_scope),
                 action="patients.updated",
                 entity_type="patient",
                 entity_id=str(patient.id),

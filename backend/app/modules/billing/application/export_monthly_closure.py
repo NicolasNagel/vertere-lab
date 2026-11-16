@@ -47,7 +47,7 @@ def monthly_closure_to_csv(closure: MonthlyClosureDTO) -> str:
         )
     if closure.on_call_fee_total > 0:
         writer.writerow(())
-        writer.writerow(("taxa_de_plantao_total", str(closure.on_call_fee_total)))
+        writer.writerow(("taxas_total", str(closure.on_call_fee_total)))
     if closure.adjustments:
         writer.writerow(())
         writer.writerow(("ajustes", "tipo", "valor", "motivo"))

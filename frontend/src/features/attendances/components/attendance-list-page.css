@@ -1,61 +1,24 @@
 .attendance-list-page {
   display: flex;
   flex-direction: column;
-  height: 100%;
+  min-height: 100%;
   background: var(--color-surface-cream);
-}
-
-.attendance-list-page__header {
-  background: #ffffff;
-  padding: 1.375rem 2rem; /* 22px 32px */
-  border-bottom: 1px solid var(--color-border);
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-}
-
-.attendance-list-page__eyebrow {
-  font-family: var(--font-mono);
-  font-size: 0.625rem; /* 10px */
-  letter-spacing: 0.16em;
-  color: var(--color-text-secondary);
-  text-transform: uppercase;
-}
-
-.attendance-list-page__title {
-  font-family: var(--font-display);
-  text-transform: uppercase;
-  letter-spacing: 0.02em;
-  font-size: 1.75rem; /* 28px */
-  font-weight: 600;
-  color: #1f3450;
-  margin: 0.125rem 0 0;
-}
-
-.attendance-list-page__header-actions {
-  display: flex;
-  align-items: stretch;
-  gap: 0.625rem; /* 10px */
-}
-
-.attendance-list-page__header-actions .button--primary {
-  width: auto;
-  display: inline-flex;
-  align-items: center;
-  gap: 0.5rem;
-  padding: 0 1.25rem; /* 0 20px */
-  font-size: 0.6875rem; /* 11px */
 }
 
 .attendance-list-page__search {
   display: flex;
   align-items: center;
-  gap: 0.5rem; /* 8px */
-  padding: 0.625rem 0.875rem; /* 10px 14px */
-  background: var(--color-surface-cream);
+  gap: 0.5rem;
+  padding: 0.4375rem 0.75rem;
+  background: var(--color-surface-form);
   border: 1px solid var(--color-border);
+  border-radius: 6px;
   font-size: 0.8125rem;
   color: var(--color-text-secondary);
+}
+
+.attendance-list-page__search:focus-within {
+  border-color: var(--color-brand-ink-deep);
 }
 
 .attendance-list-page__search input {
@@ -65,26 +28,40 @@
   font: inherit;
   color: var(--color-text-primary);
   width: 14rem;
+  min-width: 0;
 }
 
+@media (max-width: 767px) {
+
+
+  .attendance-list-page__search {
+    flex: 1;
+    min-width: 0;
+  }
+
+  .attendance-list-page__search input {
+    width: 100%;
+  }
+}
+
+.attendance-list-page__panel {
+  margin: 1rem 1.25rem 1.25rem;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  overflow: hidden;
+  box-shadow: 0 1px 2px rgb(20 35 55 / 4%);
+}
+
+/* Abas de status em cima, filtros numa linha própria logo abaixo: cada um com espaço para respirar. */
 .attendance-list-page__filter-row {
-  padding: 0.875rem 2rem; /* 14px 32px */
-  background: #ffffff;
+  display: grid;
+  gap: 0.625rem;
+  padding: 0.625rem 0.875rem 0.75rem;
   border-bottom: 1px solid var(--color-border);
-  display: flex;
-  align-items: center;
-  gap: 1.125rem;
-  flex-wrap: wrap;
-}
-
-.attendance-list-page__filter-row .attendance-list-filters {
-  margin-left: auto;
 }
 
 .attendance-list-page__body {
-  flex: 1;
-  padding: 0;
-  overflow-y: auto;
   min-height: 0;
 }
 
@@ -93,9 +70,14 @@
 .attendance-list-page__forbidden {
   font-size: 0.8125rem;
   color: var(--color-text-secondary);
-  padding: 1rem 2rem;
+  padding: 1rem 1.25rem;
+}
+
+.attendance-list-page__forbidden {
+  margin: 1rem 1.25rem;
+  padding: 0;
 }
 
 .attendance-list-page__error {
-  color: #a0492c;
+  color: var(--color-warning-ink);
 }

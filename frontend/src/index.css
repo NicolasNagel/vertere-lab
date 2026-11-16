@@ -5,19 +5,48 @@
 }
 
 :root {
-  /* Paleta da marca — assets/features/screens/1-login.html */
-  --color-brand-ink: #2c4768;
-  --color-brand-ink-deep: #1f3450;
-  --color-text-primary: #1a2d45;
-  --color-text-secondary: #596979;
-  --color-surface-cream: #eeeae0;
-  --color-surface-form: #fbfaf6;
-  --color-border: #e5e2db;
+  /* Paleta ERP (ADR-012): azul institucional como ação, neutros azul-acinzentados,
+   verde e vermelho só para estado. */
+  --color-brand-ink: #16427a;
+  --color-brand-ink-deep: #1f4f8a;
+  --color-text-primary: #1c2733;
+  --color-text-secondary: #5a6877;
+  --color-surface-cream: #f3f5f8;
+  --color-surface-form: #f7f9fb;
+  --color-border: #dbe1e8;
   --color-accent-mist: #9cbfc2;
 
-  --font-display: 'Big Shoulders Display', system-ui, sans-serif;
-  --font-script: 'Cormorant Garamond', Georgia, serif;
-  --font-body: 'Manrope', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  /* Fundação do redesign ERP (ADR-012, B0). Tokens aditivos: cada um repete o valor de um hex
+   * hoje espalhado pelos CSS, para a troca ser mecânica e a tela não mudar. A paleta nova
+   * só entra num passo separado, editando estes valores. */
+  --color-surface: #ffffff;
+  --color-surface-subtle: #f5f7fa;
+  --color-surface-muted: #eef1f5;
+  --color-border-strong: #c5ced8;
+  --color-info-bg: #e9f0f9;
+  --color-success: #1d6b3a;
+  --color-success-bg: #e4f2e8;
+  --color-warning: #8a5a12;
+  --color-warning-ink: #a0492c;
+  --color-danger: #a8261b;
+  --color-danger-bg: #fbe9e7;
+
+  /* Espaçamento, raio, sombra e densidade (valores já usados nos CSS). */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 24px;
+  --radius-sm: 2px;
+  --radius-md: 4px;
+  --radius-lg: 10px;
+  --shadow-popover: 0 4px 16px rgba(28, 45, 69, 0.12);
+  --shadow-modal: 0 8px 24px rgba(28, 45, 69, 0.12);
+  --row-height: 44px;
+
+  --font-display: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  --font-script: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  --font-body: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
   --font-mono: 'JetBrains Mono', ui-monospace, monospace;
 
   font-family: var(--font-body);

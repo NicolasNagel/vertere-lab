@@ -3,6 +3,8 @@
  * backend total per item is the canonical value; this only re-presents it
  * grouped by attendance. */
 
+import { sumMoney } from '../../../shared/lib/money'
+
 export interface ProtocolGroupableItem {
   attendanceId: string
   protocolNumber: string | null
@@ -29,7 +31,7 @@ export function groupItemsByProtocol<T extends ProtocolGroupableItem>(items: T[]
     if (existing) {
       existing.examNames.push(item.examName)
       existing.isOnCall = existing.isOnCall || isOnCall
-      existing.totalAmount = String(Number(existing.totalAmount) + Number(item.totalAmount))
+      existing.totalAmount = sumMoney([existing.totalAmount, item.totalAmount])
     } else {
       groups.set(item.attendanceId, {
         attendanceId: item.attendanceId,

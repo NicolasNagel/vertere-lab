@@ -22,6 +22,7 @@ class LinkVeterinarianToClinicCommand:
     veterinarian_id: UUID
     clinic_id: UUID
     primary_clinic: bool
+    reason: str | None = None
 
 
 class LinkVeterinarianToClinicUseCase:
@@ -70,12 +71,13 @@ class LinkVeterinarianToClinicUseCase:
                 self._audit.record(
                     AuditEntry(
                         actor_user_id=command.actor.id,
-                        actor_scope=ActorScope.LAB,
+                        actor_scope=ActorScope(command.actor.role_scope),
                         action="veterinarian_clinics.primary_changed",
                         entity_type="veterinarian_clinic_link",
                         entity_id=str(existing.id),
                         before_state={"primary_clinic": "False"},
                         after_state={"primary_clinic": "True"},
+                        reason=command.reason,
                     )
                 )
             return
@@ -96,7 +98,7 @@ class LinkVeterinarianToClinicUseCase:
         self._audit.record(
             AuditEntry(
                 actor_user_id=command.actor.id,
-                actor_scope=ActorScope.LAB,
+                actor_scope=ActorScope(command.actor.role_scope),
                 action="veterinarian_clinics.linked",
                 entity_type="veterinarian_clinic_link",
                 entity_id=str(link.id),
@@ -105,5 +107,6 @@ class LinkVeterinarianToClinicUseCase:
                     "clinic_id": str(command.clinic_id),
                     "primary_clinic": str(command.primary_clinic),
                 },
+                reason=command.reason,
             )
         )

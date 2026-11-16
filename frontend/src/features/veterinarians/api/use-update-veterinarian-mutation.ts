@@ -8,7 +8,11 @@ import {
 
 interface UpdateVeterinarianInput {
   id: string
-  values: VeterinarianFormValues & { status: VeterinarianStatus; expectedRowVersion: number }
+  values: VeterinarianFormValues & {
+    status: VeterinarianStatus
+    expectedRowVersion: number
+    reason: string
+  }
 }
 
 export function useUpdateVeterinarianMutation() {

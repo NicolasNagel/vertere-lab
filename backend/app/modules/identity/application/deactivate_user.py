@@ -75,7 +75,7 @@ class DeactivateUserUseCase:
         self._audit.record(
             AuditEntry(
                 actor_user_id=command.actor.id,
-                actor_scope=ActorScope.LAB,
+                actor_scope=ActorScope(command.actor.role_scope),
                 action="users.deactivated",
                 entity_type="user",
                 entity_id=str(user.id),
@@ -91,5 +91,6 @@ class DeactivateUserUseCase:
             is_active=user.is_active,
             role_id=user.role_id,
             role_name=role_name,
+            row_version=user.row_version,
             created_at=user.created_at,
         )

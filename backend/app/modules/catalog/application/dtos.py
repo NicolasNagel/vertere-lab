@@ -27,6 +27,8 @@ class ExamDTO:
     category_id: UUID
     description: str | None
     species_ids: frozenset[UUID]
+    component_exam_ids: tuple[UUID, ...]
+    is_panel: bool
     status: str
     created_at: datetime
     updated_at: datetime

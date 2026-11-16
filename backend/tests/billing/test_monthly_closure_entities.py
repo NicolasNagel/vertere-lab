@@ -59,32 +59,26 @@ def _closure(*, items: list[MonthlyClosureItem], **overrides: object) -> Monthly
     return MonthlyClosure(**defaults)  # type: ignore[arg-type]
 
 
-def test_builds_a_valid_closure_with_matching_item_count() -> None:
+def test_closure_header_invariants() -> None:
     closure = _closure(items=[_item()])
-    assert closure.status == ClosureStatus.CLOSED
-    assert closure.item_count == 1
+    assert (closure.status, closure.item_count) == (ClosureStatus.CLOSED, 1)
 
-
-def test_rejects_a_closure_whose_item_count_disagrees_with_the_items_list() -> None:
     with pytest.raises(ValidationError, match="Contagem de itens"):
         _closure(items=[_item()], item_count=2)
+    for field in (
+        "subtotal",
+        "discount_total",
+        "surcharge_total",
+        "on_call_fee_total",
+        "grand_total",
+    ):
+        with pytest.raises(ValidationError):
+            _closure(items=[_item()], **{field: Decimal("-1")})
 
 
-@pytest.mark.parametrize(
-    "field",
-    ["subtotal", "discount_total", "surcharge_total", "on_call_fee_total", "grand_total"],
-)
-def test_rejects_negative_header_totals(field: str) -> None:
-    with pytest.raises(ValidationError):
-        _closure(items=[_item()], **{field: Decimal("-1")})
-
-
-def test_rejects_an_item_with_zero_or_negative_quantity() -> None:
+def test_closure_item_invariants() -> None:
     with pytest.raises(ValidationError, match="Quantidade"):
         _item(quantity=0)
-
-
-@pytest.mark.parametrize("field", ["discount_amount", "surcharge_amount", "total_amount"])
-def test_rejects_an_item_with_negative_money_fields(field: str) -> None:
-    with pytest.raises(ValidationError):
-        _item(**{field: Decimal("-1")})
+    for field in ("discount_amount", "surcharge_amount", "total_amount"):
+        with pytest.raises(ValidationError):
+            _item(**{field: Decimal("-1")})

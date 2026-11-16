@@ -106,11 +106,14 @@ def test_alembic_upgrade_head_runs_on_empty_database(
             "patients",
             "exam_categories",
             "exams",
+            "exam_panel_items",
             "exam_species",
             "attendances",
             "attendance_exams",
             "attendance_sequences",
             "on_call_fee_settings",
+            "urgency_fee_settings",
+            "clinic_fee_rules",
             "import_batches",
             "import_staging_rows",
             "import_exceptions",
@@ -218,5 +221,229 @@ def test_additive_migrations_backfill_existing_catalog_and_attendance_rows(
         assert row.collection_method == "INTERNAL"
         assert row.service_level == "NORMAL"
         assert str(price_valid_from) == "1900-01-01"
+    finally:
+        engine.dispose()
+
+
+def test_exam_panels_migration_0039_rolls_back_and_reapplies_with_data(
+    postgres_url: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """0039 is additive: downgrade drops only panel structures and keeps exams/attendances."""
+    monkeypatch.setenv("DATABASE_URL", postgres_url)
+    config = Config()
+    config.set_main_option("script_location", str(REPO_ROOT / "backend" / "alembic"))
+    command.upgrade(config, "head")
+    command.downgrade(config, "0039")
+
+    ids = {name: uuid4() for name in ("category", "panel", "component", "clinic", "vet", "patient")}
+    attendance_id = uuid4()
+    engine = build_engine(postgres_url)
+    try:
+        with engine.begin() as connection:
+            species_id = connection.execute(
+                text("SELECT id FROM species ORDER BY name LIMIT 1")
+            ).scalar_one()
+            connection.execute(
+                text(
+                    "INSERT INTO exam_categories (id, name, status, row_version) "
+                    "VALUES (:id, :name, 'ACTIVE', 1)"
+                ),
+                {"id": ids["category"], "name": f"Panel rollback {ids['category']}"},
+            )
+            for key, name in (("panel", "Panel"), ("component", "Component")):
+                connection.execute(
+                    text(
+                        "INSERT INTO exams "
+                        "(id, code, name, category_id, price_base, status, row_version) "
+                        "VALUES (:id, :code, :name, :category_id, 10.00, 'ACTIVE', 1)"
+                    ),
+                    {
+                        "id": ids[key],
+                        "code": f"RB-{ids[key]}",
+                        "name": name,
+                        "category_id": ids["category"],
+                    },
+                )
+            connection.execute(
+                text(
+                    "INSERT INTO exam_panel_items (id, panel_id, component_id, position) "
+                    "VALUES (:id, :panel_id, :component_id, 0)"
+                ),
+                {"id": uuid4(), "panel_id": ids["panel"], "component_id": ids["component"]},
+            )
+            connection.execute(
+                text(
+                    "INSERT INTO clinics (id, name, status, row_version) "
+                    "VALUES (:id, 'Rollback clinic', 'ACTIVE', 1)"
+                ),
+                {"id": ids["clinic"]},
+            )
+            connection.execute(
+                text(
+                    "INSERT INTO veterinarians "
+                    "(id, name, crmv, is_autonomous, status, row_version) "
+                    "VALUES (:id, 'Rollback vet', :crmv, true, 'ACTIVE', 1)"
+                ),
+                {"id": ids["vet"], "crmv": f"RB-{ids['vet']}"},
+            )
+            connection.execute(
+                text(
+                    "INSERT INTO patients "
+                    "(id, name, species_id, sex, owner_name, status, row_version) "
+                    "VALUES (:id, 'Rollback patient', :species_id, 'MALE', "
+                    "'Synthetic owner', 'ACTIVE', 1)"
+                ),
+                {"id": ids["patient"], "species_id": species_id},
+            )
+            connection.execute(
+                text(
+                    "INSERT INTO attendances "
+                    "(id, clinic_id, veterinarian_id, patient_id, status, row_version) "
+                    "VALUES (:id, :clinic_id, :vet_id, :patient_id, 'DRAFT', 1)"
+                ),
+                {
+                    "id": attendance_id,
+                    "clinic_id": ids["clinic"],
+                    "vet_id": ids["vet"],
+                    "patient_id": ids["patient"],
+                },
+            )
+            connection.execute(
+                text(
+                    "INSERT INTO attendance_exams "
+                    "(id, attendance_id, exam_id, exam_code, exam_name, price_base, "
+                    "quantity, total_amount, components_snapshot) "
+                    "VALUES (:id, :attendance_id, :exam_id, 'P', 'Panel', 10.00, 1, 10.00, "
+                    "CAST(:snapshot AS jsonb))"
+                ),
+                {
+                    "id": uuid4(),
+                    "attendance_id": attendance_id,
+                    "exam_id": ids["panel"],
+                    "snapshot": '[{"code": "C", "name": "Component"}]',
+                },
+            )
+    finally:
+        engine.dispose()
+
+    command.downgrade(config, "0038")
+
+    engine = build_engine(postgres_url)
+    try:
+        with engine.connect() as connection:
+            inspector = inspect(connection)
+            assert "exam_panel_items" not in inspector.get_table_names()
+            columns = {c["name"] for c in inspector.get_columns("attendance_exams")}
+            assert "components_snapshot" not in columns
+            # Core rows survive the rollback; only panel structures are gone.
+            remaining = connection.execute(
+                text("SELECT count(*) FROM attendance_exams WHERE attendance_id = :id"),
+                {"id": attendance_id},
+            ).scalar_one()
+            assert remaining == 1
+            assert (
+                connection.execute(
+                    text("SELECT count(*) FROM exams WHERE id IN (:a, :b)"),
+                    {"a": ids["panel"], "b": ids["component"]},
+                ).scalar_one()
+                == 2
+            )
+    finally:
+        engine.dispose()
+
+    command.upgrade(config, "head")
+
+    engine = build_engine(postgres_url)
+    try:
+        with engine.connect() as connection:
+            inspector = inspect(connection)
+            assert "exam_panel_items" in inspector.get_table_names()
+            snapshot = connection.execute(
+                text("SELECT components_snapshot FROM attendance_exams WHERE attendance_id = :id"),
+                {"id": attendance_id},
+            ).scalar_one()
+            # Re-applied migration backfills the safe default, never invents a composition.
+            assert snapshot == []
+    finally:
+        engine.dispose()
+
+
+def test_patient_age_migration_0040_backfills_clear_texts_and_rolls_back(
+    postgres_url: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """0040 is additive: only unambiguous texts become structured; downgrade keeps patients."""
+    monkeypatch.setenv("DATABASE_URL", postgres_url)
+    config = Config()
+    config.set_main_option("script_location", str(REPO_ROOT / "backend" / "alembic"))
+    command.upgrade(config, "head")
+    command.downgrade(config, "0039")
+
+    cases = {
+        "3 anos": ("YEARS", 3),
+        "1 Ano": ("YEARS", 1),
+        " 2a ": ("YEARS", 2),
+        "8 meses": ("MONTHS", 8),
+        "6m": ("MONTHS", 6),
+        "mais ou menos 3 anos": None,
+        "adulto": None,
+        "150 anos": None,
+    }
+    engine = build_engine(postgres_url)
+    try:
+        with engine.begin() as connection:
+            species_id = connection.execute(
+                text("SELECT id FROM species ORDER BY name LIMIT 1")
+            ).scalar_one()
+            for description in cases:
+                connection.execute(
+                    text(
+                        "INSERT INTO patients "
+                        "(id, name, species_id, sex, owner_name, status, row_version, "
+                        "age_description) "
+                        "VALUES (:id, 'Age backfill', :species_id, 'MALE', 'Synthetic owner', "
+                        "'ACTIVE', 1, :description)"
+                    ),
+                    {"id": uuid4(), "species_id": species_id, "description": description},
+                )
+
+        command.upgrade(config, "0040")
+        with engine.connect() as connection:
+            rows = connection.execute(
+                text(
+                    "SELECT age_description, age_unit, age_value, age_recorded_on "
+                    "FROM patients WHERE name = 'Age backfill'"
+                )
+            ).all()
+        assert len(rows) == len(cases)
+        for description, unit, value, recorded_on in rows:
+            expected = cases[description]
+            if expected is None:
+                assert (unit, value, recorded_on) == (None, None, None), description
+            else:
+                assert (unit, value) == expected, description
+                assert recorded_on is not None, description
+
+        # Constraints: meia idade e valor fora do intervalo são recusados pelo banco.
+        for bad_set in (
+            "age_value = 3",
+            "age_unit = 'YEARS'",
+            "age_value = 121, age_unit = 'YEARS'",
+        ):
+            with pytest.raises(Exception, match="ck_patients_age"), engine.begin() as connection:
+                connection.execute(
+                    text(f"UPDATE patients SET {bad_set} WHERE age_description = 'adulto'")
+                )
+
+        command.downgrade(config, "0039")
+        with engine.connect() as connection:
+            columns = {column["name"] for column in inspect(connection).get_columns("patients")}
+            remaining = connection.execute(
+                text("SELECT count(*) FROM patients WHERE name = 'Age backfill'")
+            ).scalar_one()
+        assert {"age_value", "age_unit", "age_recorded_on"}.isdisjoint(columns)
+        assert "age_description" in columns
+        assert remaining == len(cases)
+
+        command.upgrade(config, "head")
     finally:
         engine.dispose()

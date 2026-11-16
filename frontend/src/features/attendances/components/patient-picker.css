@@ -16,13 +16,13 @@
   align-items: center;
   padding: 0.6875rem 0.875rem; /* 11px 14px */
   border: 1px solid var(--color-brand-ink);
-  background: #ffffff;
+  background: var(--color-surface);
 }
 
 .patient-picker__selected-name {
   font-size: 0.84375rem;
   font-weight: 600;
-  color: #1f3450;
+  color: var(--color-brand-ink-deep);
 }
 
 .patient-picker__selected-owner {
@@ -31,22 +31,10 @@
   margin-top: 0.125rem;
 }
 
-.patient-picker__change-button {
-  border: none;
-  background: none;
-  color: var(--color-brand-ink);
-  font-size: 0.75rem;
-  font-weight: 600;
-  text-decoration: underline;
-  text-underline-offset: 3px;
-  cursor: pointer;
-  padding: 0;
-}
-
 .patient-picker__results {
   margin-top: 0.375rem;
   border: 1px solid var(--color-border);
-  background: #ffffff;
+  background: var(--color-surface);
   max-height: 16rem;
   overflow-y: auto;
 }
@@ -65,7 +53,7 @@
   width: 100%;
   padding: 0.625rem 0.875rem;
   border: none;
-  border-bottom: 1px solid #f0ede5;
+  border-bottom: 1px solid var(--color-surface-muted);
   background: none;
   text-align: left;
   cursor: pointer;
@@ -79,7 +67,7 @@
 .patient-picker__result-name {
   font-size: 0.8125rem;
   font-weight: 600;
-  color: #1f3450;
+  color: var(--color-brand-ink-deep);
 }
 
 .patient-picker__result-owner {
@@ -93,7 +81,7 @@
 
 .patient-picker__duplicate-hint {
   font-size: 0.75rem;
-  color: #a06d2c;
+  color: var(--color-warning);
   margin: 0 0 0.5rem;
 }
 
@@ -119,7 +107,7 @@
   justify-content: space-between;
   gap: 0.75rem;
   padding: 0.625rem 0.875rem;
-  border-top: 1px solid #f0ede5;
+  border-top: 1px solid var(--color-surface-muted);
   font-size: 0.75rem;
   color: var(--color-text-secondary);
 }

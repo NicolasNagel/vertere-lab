@@ -61,7 +61,7 @@ def _seed_category(
         categories=categories, audit=audit, clock=FakeClock(_NOW)
     ).execute(
         CreateExamCategoryCommand(
-            actor=_actor(permissions=frozenset({"catalog.manage"})), name=name
+            actor=_actor(permissions=frozenset({"catalog.manage", "pricing.manage"})), name=name
         )
     )
 
@@ -96,116 +96,24 @@ def _use_case(
     )
 
 
-def test_import_without_permission_is_forbidden() -> None:
-    use_case = _use_case(
-        exams=FakeExamRepository(),
-        categories=FakeExamCategoryRepository(),
-        audit=FakeAuditLogWriter(),
-    )
-
-    with pytest.raises(ForbiddenError):
-        use_case.execute(ImportExamsCommand(actor=_actor(permissions=frozenset()), rows=(_row(),)))
-
-
-def test_import_valid_row_creates_exam_and_audits() -> None:
-    categories = FakeExamCategoryRepository()
-    _seed_category(categories)
-    exams = FakeExamRepository()
-    audit = FakeAuditLogWriter()
-    use_case = _use_case(exams=exams, categories=categories, audit=audit)
-
-    result = use_case.execute(
-        ImportExamsCommand(actor=_actor(permissions=frozenset({"catalog.manage"})), rows=(_row(),))
-    )
-
-    assert result.imported_count == 1
-    assert result.errors == ()
-    stored = exams.get_by_code("HEM001")
-    assert stored is not None
-    assert stored.name == "Hemograma completo"
-    assert audit.entries[0].action == "exams.imported"
-
-
-def test_import_reports_unknown_category_without_stopping_valid_rows() -> None:
-    categories = FakeExamCategoryRepository()
-    _seed_category(categories)
-    exams = FakeExamRepository()
-    audit = FakeAuditLogWriter()
-    use_case = _use_case(exams=exams, categories=categories, audit=audit)
-
-    result = use_case.execute(
-        ImportExamsCommand(
-            actor=_actor(permissions=frozenset({"catalog.manage"})),
-            rows=(
-                _row(line=2, code="HEM001"),
-                _row(line=3, code="HEM002", category_name="Categoria inexistente"),
-            ),
-        )
-    )
-
-    assert result.imported_count == 1
-    assert exams.get_by_code("HEM001") is not None
-    assert exams.get_by_code("HEM002") is None
-    assert len(result.errors) == 1
-    assert result.errors[0].line == 3
-    assert "Categoria inexistente" in result.errors[0].message
-
-
-def test_import_reports_unknown_species() -> None:
-    categories = FakeExamCategoryRepository()
-    _seed_category(categories)
-    exams = FakeExamRepository()
-    audit = FakeAuditLogWriter()
-    use_case = _use_case(exams=exams, categories=categories, audit=audit)
-
-    result = use_case.execute(
-        ImportExamsCommand(
-            actor=_actor(permissions=frozenset({"catalog.manage"})),
-            rows=(_row(species_names=("Espécie inexistente",)),),
-        )
-    )
-
-    assert result.imported_count == 0
-    assert "Espécie inexistente" in result.errors[0].message
-
-
-def test_import_reports_duplicate_code_within_file() -> None:
-    categories = FakeExamCategoryRepository()
-    _seed_category(categories)
-    exams = FakeExamRepository()
-    audit = FakeAuditLogWriter()
-    use_case = _use_case(exams=exams, categories=categories, audit=audit)
-
-    result = use_case.execute(
-        ImportExamsCommand(
-            actor=_actor(permissions=frozenset({"catalog.manage"})),
-            rows=(
-                _row(line=2, code="HEM001"),
-                _row(line=3, code="hem001", name="Duplicado"),
-            ),
-        )
-    )
-
-    assert result.imported_count == 1
-    assert len(result.errors) == 1
-    assert result.errors[0].line == 3
-
-
-def test_import_reports_duplicate_code_already_in_database() -> None:
+def test_import_requires_permission_and_reports_each_invalid_row_without_stopping_the_valid_ones() -> (
+    None
+):
     categories = FakeExamCategoryRepository()
     category = _seed_category(categories)
     exams = FakeExamRepository()
     audit = FakeAuditLogWriter()
+    manager = _actor(permissions=frozenset({"catalog.manage", "pricing.manage"}))
     CreateExamUseCase(
         exams=exams,
         categories=categories,
         species=_species_repo(),
-        audit=audit,
+        audit=FakeAuditLogWriter(),
         clock=FakeClock(_NOW),
-        code_generator=lambda: "HEM001",
+        code_generator=lambda: "HEM900",
     ).execute(
         CreateExamCommand(
-            actor=_actor(permissions=frozenset({"catalog.manage"})),
+            actor=manager,
             name="Já existente",
             category_id=category.id,
             price_base=Decimal("50.00"),
@@ -215,47 +123,36 @@ def test_import_reports_duplicate_code_already_in_database() -> None:
     )
     use_case = _use_case(exams=exams, categories=categories, audit=audit)
 
-    result = use_case.execute(
-        ImportExamsCommand(actor=_actor(permissions=frozenset({"catalog.manage"})), rows=(_row(),))
-    )
-
-    assert result.imported_count == 0
-    assert "HEM001" in result.errors[0].message
-
-
-def test_import_reports_invalid_price() -> None:
-    categories = FakeExamCategoryRepository()
-    _seed_category(categories)
-    exams = FakeExamRepository()
-    audit = FakeAuditLogWriter()
-    use_case = _use_case(exams=exams, categories=categories, audit=audit)
+    with pytest.raises(ForbiddenError):
+        use_case.execute(ImportExamsCommand(actor=_actor(permissions=frozenset()), rows=(_row(),)))
 
     result = use_case.execute(
         ImportExamsCommand(
-            actor=_actor(permissions=frozenset({"catalog.manage"})),
-            rows=(_row(price_base="not-a-number"),),
+            actor=manager,
+            rows=(
+                _row(line=2, code="HEM001"),  # válida
+                _row(line=3, code="HEM002", category_name="Categoria inexistente"),
+                _row(line=4, code="HEM003", species_names=("Espécie inexistente",)),
+                _row(line=5, code="hem001", name="Duplicado no arquivo"),
+                _row(line=6, code="HEM900", name="Duplicado no banco"),
+                _row(line=7, code="HEM004", price_base="not-a-number"),
+                _row(line=8, code="HEM005", active=False),  # válida, entra inativa
+            ),
         )
     )
 
-    assert result.imported_count == 0
-    assert result.errors[0].message == "Preço base inválido."
-
-
-def test_import_inactive_row_creates_inactive_exam() -> None:
-    categories = FakeExamCategoryRepository()
-    _seed_category(categories)
-    exams = FakeExamRepository()
-    audit = FakeAuditLogWriter()
-    use_case = _use_case(exams=exams, categories=categories, audit=audit)
-
-    result = use_case.execute(
-        ImportExamsCommand(
-            actor=_actor(permissions=frozenset({"catalog.manage"})),
-            rows=(_row(active=False),),
-        )
-    )
-
-    assert result.imported_count == 1
+    assert result.imported_count == 2
+    assert [error.line for error in result.errors] == [3, 4, 5, 6, 7]
+    assert result.errors[4].message == "Preço base inválido."
+    assert "Categoria inexistente" in result.errors[0].message
+    assert "Espécie inexistente" in result.errors[1].message
+    assert "HEM900" in result.errors[3].message
     stored = exams.get_by_code("HEM001")
     assert stored is not None
-    assert stored.status.value == "INACTIVE"
+    assert stored.name == "Hemograma completo"
+    inactive = exams.get_by_code("HEM005")
+    assert inactive is not None
+    assert inactive.status.value == "INACTIVE"
+    for rejected in ("HEM002", "HEM003", "HEM004"):
+        assert exams.get_by_code(rejected) is None
+    assert audit.entries[0].action == "exams.imported"

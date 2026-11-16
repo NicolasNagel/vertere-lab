@@ -104,7 +104,7 @@ class CreateVeterinarianUseCase:
         self._audit.record(
             AuditEntry(
                 actor_user_id=command.actor.id,
-                actor_scope=ActorScope.LAB,
+                actor_scope=ActorScope(command.actor.role_scope),
                 action="veterinarians.created",
                 entity_type="veterinarian",
                 entity_id=str(veterinarian.id),
@@ -128,7 +128,7 @@ class CreateVeterinarianUseCase:
             self._audit.record(
                 AuditEntry(
                     actor_user_id=command.actor.id,
-                    actor_scope=ActorScope.LAB,
+                    actor_scope=ActorScope(command.actor.role_scope),
                     action="veterinarian_clinics.linked",
                     entity_type="veterinarian_clinic_link",
                     entity_id=str(link.id),

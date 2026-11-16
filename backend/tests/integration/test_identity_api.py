@@ -5,24 +5,16 @@ autorização e autoexclusão de controle, ponta a ponta via HTTPX/ASGI.
 from __future__ import annotations
 
 import asyncio
-from collections.abc import AsyncIterator, Iterator
 from datetime import UTC, datetime
-from pathlib import Path
 from uuid import UUID, uuid4
 
 import httpx
 import pytest
-from alembic.config import Config
 from fastapi import FastAPI
-from pydantic import SecretStr
 from sqlalchemy import select, text
 from sqlalchemy.orm import Session, sessionmaker
-from testcontainers.postgres import PostgresContainer
 
-from alembic import command
-from app.core.config import Settings
 from app.core.security import hash_password
-from app.main import create_app
 from app.modules.audit.infrastructure.models import AuditLogModel
 from app.modules.identity.infrastructure.models import (
     ClinicMembershipModel,
@@ -37,41 +29,8 @@ from app.modules.identity.infrastructure.seed import (
     ROLE_RECEPTION,
     ROLE_SUPER_ADMIN,
 )
-from app.shared.infrastructure.database import build_engine, build_session_factory
 
 pytestmark = pytest.mark.integration
-
-REPO_ROOT = Path(__file__).resolve().parents[3]
-
-
-@pytest.fixture(scope="module")
-def postgres_url() -> Iterator[str]:
-    with PostgresContainer("postgres:17-alpine", driver="psycopg") as postgres:
-        yield postgres.get_connection_url()
-
-
-@pytest.fixture(scope="module", autouse=True)
-def _migrated_schema(postgres_url: str, monkeypatch_module: pytest.MonkeyPatch) -> None:
-    monkeypatch_module.setenv("DATABASE_URL", postgres_url)
-    config = Config()
-    config.set_main_option("script_location", str(REPO_ROOT / "backend" / "alembic"))
-    command.upgrade(config, "head")
-
-
-@pytest.fixture(scope="module")
-def monkeypatch_module() -> Iterator[pytest.MonkeyPatch]:
-    mp = pytest.MonkeyPatch()
-    yield mp
-    mp.undo()
-
-
-@pytest.fixture
-def session_factory(postgres_url: str) -> Iterator[sessionmaker[Session]]:
-    engine = build_engine(postgres_url)
-    try:
-        yield build_session_factory(engine)
-    finally:
-        engine.dispose()
 
 
 @pytest.fixture(autouse=True)
@@ -86,31 +45,6 @@ def _reset_user_data(session_factory: sessionmaker[Session]) -> None:
         session.execute(text("DELETE FROM audit_log"))
         session.execute(text("DELETE FROM users"))
         session.commit()
-
-
-@pytest.fixture
-def settings(postgres_url: str) -> Settings:
-    return Settings(
-        env="test",
-        log_level="WARNING",
-        database_url=SecretStr(postgres_url),
-        session_cookie_secure=False,
-    )
-
-
-@pytest.fixture
-def app(settings: Settings) -> FastAPI:
-    return create_app(settings)
-
-
-@pytest.fixture
-async def client(app: FastAPI) -> AsyncIterator[httpx.AsyncClient]:
-    transport = httpx.ASGITransport(app=app)
-    async with (
-        httpx.AsyncClient(transport=transport, base_url="http://test") as async_client,
-        app.router.lifespan_context(app),
-    ):
-        yield async_client
 
 
 def _create_user(
@@ -141,551 +75,230 @@ def _create_user(
         return user
 
 
-def test_seed_creates_expected_roles_and_permissions(
-    session_factory: sessionmaker[Session],
-) -> None:
-    with session_factory() as session:
-        role_count = len(session.execute(select(RoleModel)).scalars().all())
-    assert role_count == 9
+_PASSWORD = "s3nhaForte!"
 
 
-async def test_login_active_user_succeeds_and_audits(
-    client: httpx.AsyncClient, session_factory: sessionmaker[Session]
-) -> None:
-    _create_user(
-        session_factory,
-        email="reception@vertere.local",
-        password="s3nhaForte!",
-        role_id=ROLE_RECEPTION,
-    )
-
-    response = await client.post(
+async def _login(
+    client: httpx.AsyncClient, email: str, password: str = _PASSWORD
+) -> httpx.Response:
+    return await client.post(
         "/api/v1/auth/login",
-        json={"login": "reception@vertere.local", "password": "s3nhaForte!", "remember_me": False},
+        json={"login": email, "password": password, "remember_me": False},
     )
 
-    assert response.status_code == 200
-    assert "vertere_session" in response.cookies
-    body = response.json()
-    assert body["user"]["email"] == "reception@vertere.local"
-    assert body["user"]["role_scope"] == "LAB"
-    assert body["user"]["clinic_ids"] == []
-    assert body["user"]["row_version"] == 1
 
+def _audit_entries(session_factory: sessionmaker[Session], action: str) -> list[AuditLogModel]:
     with session_factory() as session:
-        entries = (
-            session.execute(
-                select(AuditLogModel).where(AuditLogModel.action == "auth.login_succeeded")
-            )
+        return list(
+            session.execute(select(AuditLogModel).where(AuditLogModel.action == action))
             .scalars()
             .all()
         )
-    assert len(entries) == 1
 
 
-async def test_login_rejects_clinic_role_until_client_access_exists(
+async def test_login_rejects_invalid_credentials_and_accounts(
     client: httpx.AsyncClient, session_factory: sessionmaker[Session]
 ) -> None:
-    _create_user(
-        session_factory,
-        email="clinic-client@vertere.local",
-        password="s3nhaForte!",
-        role_id=ROLE_CLINIC_ADMIN,
-    )
+    assert (await client.get("/api/v1/auth/me")).status_code == 401
 
-    response = await client.post(
-        "/api/v1/auth/login",
-        json={
-            "login": "clinic-client@vertere.local",
-            "password": "s3nhaForte!",
-            "remember_me": False,
-        },
-    )
-
-    assert response.status_code == 401
-    assert "vertere_session" not in response.cookies
-    assert response.json()["error"]["code"] == "UNAUTHENTICATED"
-
-
-async def test_login_accepts_clinic_role_with_active_clinic_membership(
-    client: httpx.AsyncClient, session_factory: sessionmaker[Session]
-) -> None:
-    _create_user(
-        session_factory,
-        email="admin-clinic-login@vertere.local",
-        password="s3nhaForte!",
-        role_id=ROLE_SUPER_ADMIN,
-    )
-    assert (
-        await client.post(
-            "/api/v1/auth/login",
-            json={
-                "login": "admin-clinic-login@vertere.local",
-                "password": "s3nhaForte!",
-                "remember_me": False,
-            },
-        )
-    ).status_code == 200
-    clinic_response = await client.post("/api/v1/clinics", json={"name": "Clinic Login QA"})
-    assert clinic_response.status_code == 201
-    clinic_id = UUID(clinic_response.json()["id"])
-    user = _create_user(
-        session_factory,
-        email="clinic-active@vertere.local",
-        password="s3nhaForte!",
-        role_id=ROLE_CLINIC_ADMIN,
-    )
-    with session_factory() as session:
-        session.add(
-            ClinicMembershipModel(
-                id=uuid4(),
-                user_id=user.id,
-                clinic_id=clinic_id,
-                is_active=True,
-                granted_at=datetime.now(UTC),
-            )
-        )
-        session.commit()
-
-    response = await client.post(
-        "/api/v1/auth/login",
-        json={"login": user.email, "password": "s3nhaForte!", "remember_me": False},
-    )
-    assert response.status_code == 200
-    assert response.json()["user"]["role_scope"] == "CLINIC"
-    assert response.json()["user"]["clinic_ids"] == [str(clinic_id)]
-
-
-async def test_revoked_lab_membership_invalidates_an_existing_session(
-    client: httpx.AsyncClient, session_factory: sessionmaker[Session]
-) -> None:
-    user = _create_user(
-        session_factory,
-        email="revoked-membership@vertere.local",
-        password="s3nhaForte!",
-        role_id=ROLE_RECEPTION,
-    )
-    login_response = await client.post(
-        "/api/v1/auth/login",
-        json={
-            "login": "revoked-membership@vertere.local",
-            "password": "s3nhaForte!",
-            "remember_me": False,
-        },
-    )
-    assert login_response.status_code == 200
-
-    with session_factory() as session:
-        membership = session.execute(
-            select(LabMembershipModel).where(LabMembershipModel.user_id == user.id)
-        ).scalar_one()
-        membership.is_active = False
-        membership.revoked_at = datetime.now(UTC)
-        session.commit()
-
-    response = await client.get("/api/v1/auth/me")
-
-    assert response.status_code == 401
-    assert response.json()["error"]["code"] == "UNAUTHENTICATED"
-
-
-async def test_login_inactive_user_is_rejected_after_password_matches(
-    client: httpx.AsyncClient, session_factory: sessionmaker[Session]
-) -> None:
     _create_user(
         session_factory,
         email="inactive@vertere.local",
-        password="s3nhaForte!",
+        password=_PASSWORD,
         role_id=ROLE_RECEPTION,
         is_active=False,
     )
-
-    response = await client.post(
-        "/api/v1/auth/login",
-        json={"login": "inactive@vertere.local", "password": "s3nhaForte!", "remember_me": False},
+    _create_user(
+        session_factory,
+        email="clinic-client@vertere.local",
+        password=_PASSWORD,
+        role_id=ROLE_CLINIC_ADMIN,
     )
-
-    assert response.status_code == 401
-    assert "vertere_session" not in response.cookies
-
-
-async def test_login_unknown_user_and_wrong_password_return_identical_response(
-    client: httpx.AsyncClient, session_factory: sessionmaker[Session]
-) -> None:
     _create_user(
         session_factory,
         email="someone@vertere.local",
         password="correct-pass!",
         role_id=ROLE_RECEPTION,
     )
-
-    unknown_response = await client.post(
-        "/api/v1/auth/login",
-        json={"login": "ghost@vertere.local", "password": "whatever", "remember_me": False},
-    )
-    wrong_password_response = await client.post(
-        "/api/v1/auth/login",
-        json={"login": "someone@vertere.local", "password": "wrong-pass!", "remember_me": False},
-    )
-
-    assert unknown_response.status_code == wrong_password_response.status_code == 401
-    unknown_error = unknown_response.json()["error"]
-    wrong_password_error = wrong_password_response.json()["error"]
-    assert unknown_error["code"] == wrong_password_error["code"]
-    assert unknown_error["message"] == wrong_password_error["message"]
-
-
-async def test_me_without_session_is_unauthenticated(client: httpx.AsyncClient) -> None:
-    response = await client.get("/api/v1/auth/me")
-    assert response.status_code == 401
-
-
-async def test_users_list_without_permission_is_forbidden(
-    client: httpx.AsyncClient, session_factory: sessionmaker[Session]
-) -> None:
     _create_user(
         session_factory,
-        email="powerless@vertere.local",
-        password="s3nhaForte!",
-        role_id=ROLE_RECEPTION,
-    )
-    login_response = await client.post(
-        "/api/v1/auth/login",
-        json={"login": "powerless@vertere.local", "password": "s3nhaForte!", "remember_me": False},
-    )
-    assert login_response.status_code == 200
-
-    response = await client.get("/api/v1/users")
-    assert response.status_code == 403
-
-
-async def test_role_change_is_audited(
-    client: httpx.AsyncClient, session_factory: sessionmaker[Session]
-) -> None:
-    _create_user(
-        session_factory,
-        email="lab-admin@vertere.local",
-        password="s3nhaForte!",
-        role_id=ROLE_LAB_ADMIN,
-    )
-    target = _create_user(
-        session_factory,
-        email="target@vertere.local",
-        password="s3nhaForte!",
+        email="brute-force-target@vertere.local",
+        password=_PASSWORD,
         role_id=ROLE_RECEPTION,
     )
 
-    login_response = await client.post(
-        "/api/v1/auth/login",
-        json={"login": "lab-admin@vertere.local", "password": "s3nhaForte!", "remember_me": False},
-    )
-    assert login_response.status_code == 200
+    # Conta inativa é recusada mesmo com a senha certa; papel de clínica sem vínculo ativo
+    # com uma clínica também não entra.
+    inactive = await _login(client, "inactive@vertere.local")
+    assert inactive.status_code == 401
+    assert "vertere_session" not in inactive.cookies
+    clinic_without_membership = await _login(client, "clinic-client@vertere.local")
+    assert clinic_without_membership.status_code == 401
+    assert "vertere_session" not in clinic_without_membership.cookies
+    assert clinic_without_membership.json()["error"]["code"] == "UNAUTHENTICATED"
 
-    response = await client.patch(
-        f"/api/v1/users/{target.id}/role", json={"role_id": str(ROLE_LAB_ADMIN)}
-    )
+    # Usuário inexistente e senha errada são indistinguíveis para quem tenta.
+    unknown = await _login(client, "ghost@vertere.local", "whatever")
+    wrong_password = await _login(client, "someone@vertere.local", "wrong-pass!")
+    assert unknown.status_code == wrong_password.status_code == 401
+    assert unknown.json()["error"]["code"] == wrong_password.json()["error"]["code"]
+    assert unknown.json()["error"]["message"] == wrong_password.json()["error"]["message"]
 
-    assert response.status_code == 200
+    # Payload acima do limite de tamanho é recusado antes de qualquer consulta.
+    oversized = await _login(client, "a" * 100_000 + "@vertere.local", "whatever")
+    assert oversized.status_code == 422
+
+    # Achado de teste adversarial (ADR-007): 15 senhas erradas em paralelo, todas 401, sem
+    # throttling. Agora, após repetidas falhas, até a senha certa recebe 429.
+    attempts = [
+        await _login(client, "brute-force-target@vertere.local", f"wrong-{index}")
+        for index in range(5)
+    ]
+    assert all(attempt.status_code == 401 for attempt in attempts)
+    assert (await _login(client, "brute-force-target@vertere.local")).status_code == 429
+
+
+async def test_login_succeeds_audits_and_the_session_follows_account_changes(
+    client: httpx.AsyncClient, session_factory: sessionmaker[Session]
+) -> None:
     with session_factory() as session:
-        entries = (
-            session.execute(
-                select(AuditLogModel).where(AuditLogModel.action == "users.role_changed")
-            )
-            .scalars()
-            .all()
-        )
-    assert len(entries) == 1
-    assert entries[0].entity_id == str(target.id)
+        assert len(session.execute(select(RoleModel)).scalars().all()) == 9  # seed dos papéis
 
+    reception = _create_user(
+        session_factory, email="reception@vertere.local", password=_PASSWORD, role_id=ROLE_RECEPTION
+    )
+    response = await _login(client, "reception@vertere.local")
+    assert response.status_code == 200
+    assert "vertere_session" in response.cookies
+    user = response.json()["user"]
+    assert (user["email"], user["role_scope"], user["clinic_ids"], user["row_version"]) == (
+        "reception@vertere.local",
+        "LAB",
+        [],
+        1,
+    )
+    assert len(_audit_entries(session_factory, "auth.login_succeeded")) == 1
 
-async def test_concurrent_permission_updates_on_the_same_profile_reject_the_loser(
-    client: httpx.AsyncClient, session_factory: sessionmaker[Session]
-) -> None:
-    # `roles.manage` (editar a regra de um perfil) é exclusivo do SUPER_ADMIN
-    # desde alembic/versions/0032_restrict_roles_manage_to_super_admin.py —
-    # LAB_ADMIN não serve mais de ator aqui.
+    # Revogar o vínculo com o laboratório invalida uma sessão que já existia.
+    with session_factory() as session:
+        membership = session.execute(
+            select(LabMembershipModel).where(LabMembershipModel.user_id == reception.id)
+        ).scalar_one()
+        membership.is_active = False
+        membership.revoked_at = datetime.now(UTC)
+        session.commit()
+    revoked = await client.get("/api/v1/auth/me")
+    assert revoked.status_code == 401
+    assert revoked.json()["error"]["code"] == "UNAUTHENTICATED"
+
+    # Papel de clínica entra quando há vínculo ativo com a clínica.
     _create_user(
         session_factory,
-        email="super-admin3@vertere.local",
-        password="s3nhaForte!",
+        email="admin-clinic-login@vertere.local",
+        password=_PASSWORD,
         role_id=ROLE_SUPER_ADMIN,
     )
-    login_response = await client.post(
-        "/api/v1/auth/login",
-        json={
-            "login": "super-admin3@vertere.local",
-            "password": "s3nhaForte!",
-            "remember_me": False,
-        },
+    assert (await _login(client, "admin-clinic-login@vertere.local")).status_code == 200
+    clinic_response = await client.post("/api/v1/clinics", json={"name": "Clinic Login QA"})
+    assert clinic_response.status_code == 201
+    clinic_id = UUID(clinic_response.json()["id"])
+    clinic_user = _create_user(
+        session_factory,
+        email="clinic-active@vertere.local",
+        password=_PASSWORD,
+        role_id=ROLE_CLINIC_ADMIN,
     )
-    assert login_response.status_code == 200
-
-    profile_response = await client.get("/api/v1/permission-profiles")
-    reception = next(
-        item for item in profile_response.json()["items"] if item["name"] == "RECEPTION"
-    )
-    row_version = reception["row_version"]
-
-    # Duas requisições disparadas de verdade em paralelo (asyncio.gather),
-    # não sequenciais fingindo concorrência (rule: .claude/rules/08-testing.md)
-    # — ambas leem o mesmo `row_version` e tentam gravar por cima uma da
-    # outra. Só uma pode vencer; a perdedora precisa de 409, nunca um
-    # "last write wins" silencioso.
-    responses = await asyncio.gather(
-        client.patch(
-            f"/api/v1/permission-profiles/{reception['id']}",
-            json={
-                "permissions": ["clinics.read", "clinics.manage"],
-                "expected_row_version": row_version,
-            },
-        ),
-        client.patch(
-            f"/api/v1/permission-profiles/{reception['id']}",
-            json={"permissions": ["patients.read"], "expected_row_version": row_version},
-        ),
-    )
-
-    status_codes = sorted(response.status_code for response in responses)
-    assert status_codes == [200, 409]
+    with session_factory() as session:
+        session.add(
+            ClinicMembershipModel(
+                id=uuid4(),
+                user_id=clinic_user.id,
+                clinic_id=clinic_id,
+                is_active=True,
+                granted_at=datetime.now(UTC),
+            )
+        )
+        session.commit()
+    clinic_login = await _login(client, clinic_user.email)
+    assert clinic_login.status_code == 200
+    assert clinic_login.json()["user"]["role_scope"] == "CLINIC"
+    assert clinic_login.json()["user"]["clinic_ids"] == [str(clinic_id)]
 
 
-async def test_deactivating_a_user_revokes_their_active_session(
+async def test_user_lifecycle_revokes_sessions_versions_changes_and_gates_by_permission(
     app: FastAPI, session_factory: sessionmaker[Session]
 ) -> None:
     _create_user(
+        session_factory, email="lab-admin@vertere.local", password=_PASSWORD, role_id=ROLE_LAB_ADMIN
+    )
+    _create_user(
         session_factory,
-        email="lab-admin2@vertere.local",
-        password="s3nhaForte!",
-        role_id=ROLE_LAB_ADMIN,
+        email="powerless@vertere.local",
+        password=_PASSWORD,
+        role_id=ROLE_RECEPTION,
     )
     target = _create_user(
-        session_factory,
-        email="soon-revoked@vertere.local",
-        password="s3nhaForte!",
-        role_id=ROLE_RECEPTION,
+        session_factory, email="target@vertere.local", password=_PASSWORD, role_id=ROLE_RECEPTION
     )
 
     transport = httpx.ASGITransport(app=app)
     async with (
         httpx.AsyncClient(transport=transport, base_url="http://test") as admin_client,
         httpx.AsyncClient(transport=transport, base_url="http://test") as target_client,
+        httpx.AsyncClient(transport=transport, base_url="http://test") as powerless_client,
         app.router.lifespan_context(app),
     ):
-        target_login = await target_client.post(
-            "/api/v1/auth/login",
-            json={
-                "login": "soon-revoked@vertere.local",
-                "password": "s3nhaForte!",
-                "remember_me": False,
-            },
-        )
-        assert target_login.status_code == 200
+        assert (await _login(target_client, target.email)).status_code == 200
+        assert (await target_client.get("/api/v1/auth/me")).status_code == 200
+        assert (await _login(admin_client, "lab-admin@vertere.local")).status_code == 200
+        assert (await _login(powerless_client, "powerless@vertere.local")).status_code == 200
 
-        me_before = await target_client.get("/api/v1/auth/me")
-        assert me_before.status_code == 200
+        # Sem permissão, listar e ativar usuários é negado (autorização só no backend).
+        assert (await powerless_client.get("/api/v1/users")).status_code == 403
+        assert (
+            await powerless_client.patch(f"/api/v1/users/{target.id}/activate")
+        ).status_code == 403
 
-        admin_login = await admin_client.post(
-            "/api/v1/auth/login",
-            json={
-                "login": "lab-admin2@vertere.local",
-                "password": "s3nhaForte!",
-                "remember_me": False,
-            },
-        )
-        assert admin_login.status_code == 200
+        deactivated = await admin_client.patch(f"/api/v1/users/{target.id}/deactivate")
+        assert deactivated.status_code == 200
+        assert deactivated.json()["row_version"] == 2
+        # O mesmo cookie de antes da desativação precisa parar de autenticar de imediato.
+        assert (await target_client.get("/api/v1/auth/me")).status_code == 401
 
-        deactivate_response = await admin_client.patch(f"/api/v1/users/{target.id}/deactivate")
-        assert deactivate_response.status_code == 200
-
-        # Mesmo cookie de sessão de antes da desativação — precisa parar de
-        # autenticar imediatamente, não só no próximo login.
-        me_after = await target_client.get("/api/v1/auth/me")
-        assert me_after.status_code == 401
+        activated = await admin_client.patch(f"/api/v1/users/{target.id}/activate")
+        assert activated.status_code == 200
+        assert activated.json()["is_active"] is True
+        assert activated.json()["row_version"] == 3
+        entries = _audit_entries(session_factory, "users.activated")
+        assert [entry.entity_id for entry in entries] == [str(target.id)]
+        with session_factory() as session:
+            stored = session.get(UserModel, target.id)
+            assert stored is not None
+            assert stored.row_version == 3
 
 
-async def test_activate_user_reactivates_and_audits(
-    client: httpx.AsyncClient, session_factory: sessionmaker[Session]
-) -> None:
-    _create_user(
-        session_factory,
-        email="lab-admin@vertere.local",
-        password="s3nhaForte!",
-        role_id=ROLE_LAB_ADMIN,
-    )
-    target = _create_user(
-        session_factory,
-        email="target@vertere.local",
-        password="s3nhaForte!",
-        role_id=ROLE_RECEPTION,
-        is_active=False,
-    )
-
-    login_response = await client.post(
-        "/api/v1/auth/login",
-        json={"login": "lab-admin@vertere.local", "password": "s3nhaForte!", "remember_me": False},
-    )
-    assert login_response.status_code == 200
-
-    response = await client.patch(f"/api/v1/users/{target.id}/activate")
-
-    assert response.status_code == 200
-    assert response.json()["is_active"] is True
-    with session_factory() as session:
-        entries = (
-            session.execute(select(AuditLogModel).where(AuditLogModel.action == "users.activated"))
-            .scalars()
-            .all()
-        )
-    assert len(entries) == 1
-    assert entries[0].entity_id == str(target.id)
-
-
-async def test_activate_user_without_permission_is_forbidden(
-    client: httpx.AsyncClient, session_factory: sessionmaker[Session]
-) -> None:
-    _create_user(
-        session_factory,
-        email="powerless@vertere.local",
-        password="s3nhaForte!",
-        role_id=ROLE_RECEPTION,
-    )
-    target = _create_user(
-        session_factory,
-        email="target2@vertere.local",
-        password="s3nhaForte!",
-        role_id=ROLE_RECEPTION,
-        is_active=False,
-    )
-
-    login_response = await client.post(
-        "/api/v1/auth/login",
-        json={"login": "powerless@vertere.local", "password": "s3nhaForte!", "remember_me": False},
-    )
-    assert login_response.status_code == 200
-
-    response = await client.patch(f"/api/v1/users/{target.id}/activate")
-    assert response.status_code == 403
-
-
-async def test_only_admin_cannot_demote_themselves(
+async def test_role_changes_are_audited_and_guard_the_last_admin_and_input_size(
     client: httpx.AsyncClient, session_factory: sessionmaker[Session]
 ) -> None:
     _create_user(
         session_factory,
         email="sole-admin@vertere.local",
-        password="s3nhaForte!",
+        password=_PASSWORD,
         role_id=ROLE_LAB_ADMIN,
     )
-
-    login_response = await client.post(
-        "/api/v1/auth/login",
-        json={"login": "sole-admin@vertere.local", "password": "s3nhaForte!", "remember_me": False},
+    target = _create_user(
+        session_factory, email="target@vertere.local", password=_PASSWORD, role_id=ROLE_RECEPTION
     )
-    admin_id = login_response.json()["user"]["id"]
+    login = await _login(client, "sole-admin@vertere.local")
+    admin_id = login.json()["user"]["id"]
 
-    response = await client.patch(
+    # O único admin não pode rebaixar a si mesmo.
+    demote = await client.patch(
         f"/api/v1/users/{admin_id}/role", json={"role_id": str(ROLE_RECEPTION)}
     )
+    assert demote.status_code == 409
 
-    assert response.status_code == 409
-
-
-async def test_editing_own_role_cannot_strip_the_last_roles_manage(
-    client: httpx.AsyncClient, session_factory: sessionmaker[Session]
-) -> None:
-    # Reproduz exatamente o que a verificação manual em Chrome encontrou
-    # (ADR-007): o único SUPER_ADMIN removia `roles.manage` do próprio
-    # perfil via PATCH /permission-profiles e o backend deixava passar —
-    # travando o sistema sem caminho de volta pela UI/API.
-    _create_user(
-        session_factory,
-        email="sole-super-admin@vertere.local",
-        password="s3nhaForte!",
-        role_id=ROLE_SUPER_ADMIN,
-    )
-    login_response = await client.post(
-        "/api/v1/auth/login",
-        json={
-            "login": "sole-super-admin@vertere.local",
-            "password": "s3nhaForte!",
-            "remember_me": False,
-        },
-    )
-    assert login_response.status_code == 200
-
-    profile_response = await client.get(f"/api/v1/permission-profiles/{ROLE_SUPER_ADMIN}")
-    profile = profile_response.json()
-    permissions_without_roles_manage = [p for p in profile["permissions"] if p != "roles.manage"]
-
-    response = await client.patch(
-        f"/api/v1/permission-profiles/{ROLE_SUPER_ADMIN}",
-        json={
-            "permissions": permissions_without_roles_manage,
-            "expected_row_version": profile["row_version"],
-        },
-    )
-
-    assert response.status_code == 409
-    # E o papel continua com `roles.manage` — não é meio-caminho.
-    unchanged = await client.get(f"/api/v1/permission-profiles/{ROLE_SUPER_ADMIN}")
-    assert "roles.manage" in unchanged.json()["permissions"]
-
-
-async def test_master_only_permission_cannot_be_granted_to_a_lab_scope_role(
-    client: httpx.AsyncClient, session_factory: sessionmaker[Session]
-) -> None:
-    # `attendances.view_prices` é exclusivo de um papel GLOBAL (hoje só
-    # SUPER_ADMIN) — nem o próprio SUPER_ADMIN pode conceder essa permissão a
-    # RECEPTION (papel LAB) via PATCH /permission-profiles.
-    _create_user(
-        session_factory,
-        email="super-admin-master-only@vertere.local",
-        password="s3nhaForte!",
-        role_id=ROLE_SUPER_ADMIN,
-    )
-    login_response = await client.post(
-        "/api/v1/auth/login",
-        json={
-            "login": "super-admin-master-only@vertere.local",
-            "password": "s3nhaForte!",
-            "remember_me": False,
-        },
-    )
-    assert login_response.status_code == 200
-
-    profile_response = await client.get(f"/api/v1/permission-profiles/{ROLE_RECEPTION}")
-    profile = profile_response.json()
-
-    response = await client.patch(
-        f"/api/v1/permission-profiles/{ROLE_RECEPTION}",
-        json={
-            "permissions": [*profile["permissions"], "attendances.view_prices"],
-            "expected_row_version": profile["row_version"],
-        },
-    )
-
-    assert response.status_code == 422
-    # E o perfil da Recepção continua sem a permissão — não é meio-caminho.
-    unchanged = await client.get(f"/api/v1/permission-profiles/{ROLE_RECEPTION}")
-    assert "attendances.view_prices" not in unchanged.json()["permissions"]
-
-
-async def test_user_full_name_over_the_length_limit_is_rejected(
-    client: httpx.AsyncClient, session_factory: sessionmaker[Session]
-) -> None:
-    _create_user(
-        session_factory,
-        email="lab-admin4@vertere.local",
-        password="s3nhaForte!",
-        role_id=ROLE_LAB_ADMIN,
-    )
-    login_response = await client.post(
-        "/api/v1/auth/login",
-        json={"login": "lab-admin4@vertere.local", "password": "s3nhaForte!", "remember_me": False},
-    )
-    assert login_response.status_code == 200
-
-    response = await client.post(
+    too_long = await client.post(
         "/api/v1/users",
         json={
             "email": "toolong@vertere.local",
@@ -693,57 +306,77 @@ async def test_user_full_name_over_the_length_limit_is_rejected(
             "role_id": str(ROLE_RECEPTION),
         },
     )
+    assert too_long.status_code == 422
 
-    assert response.status_code == 422
-
-
-async def test_login_payload_over_the_length_limit_is_rejected(client: httpx.AsyncClient) -> None:
-    response = await client.post(
-        "/api/v1/auth/login",
-        json={
-            "login": "a" * 100_000 + "@vertere.local",
-            "password": "whatever",
-            "remember_me": False,
-        },
+    promote = await client.patch(
+        f"/api/v1/users/{target.id}/role", json={"role_id": str(ROLE_LAB_ADMIN)}
     )
+    assert promote.status_code == 200
+    entries = _audit_entries(session_factory, "users.role_changed")
+    assert [entry.entity_id for entry in entries] == [str(target.id)]
 
-    assert response.status_code == 422
 
-
-async def test_login_is_rate_limited_after_repeated_wrong_passwords(
+async def test_permission_profiles_reject_concurrent_edits_and_self_lockout(
     client: httpx.AsyncClient, session_factory: sessionmaker[Session]
 ) -> None:
-    # Achado em teste manual adversarial (ADR-007): 15 tentativas de senha
-    # errada em paralelo, todas 401, sem nenhum throttling.
+    # `roles.manage` (editar a regra de um perfil) é exclusivo do SUPER_ADMIN desde
+    # alembic/versions/0032_restrict_roles_manage_to_super_admin.py.
     _create_user(
         session_factory,
-        email="brute-force-target@vertere.local",
-        password="s3nhaForte!",
-        role_id=ROLE_RECEPTION,
+        email="super-admin@vertere.local",
+        password=_PASSWORD,
+        role_id=ROLE_SUPER_ADMIN,
     )
+    assert (await _login(client, "super-admin@vertere.local")).status_code == 200
 
-    responses = [
-        await client.post(
-            "/api/v1/auth/login",
+    profiles = await client.get("/api/v1/permission-profiles")
+    reception = next(item for item in profiles.json()["items"] if item["name"] == "RECEPTION")
+
+    # Duas requisições realmente paralelas (rules/08-testing.md) leem o mesmo `row_version`:
+    # só uma vence, a outra recebe 409 — nunca "last write wins" silencioso.
+    responses = await asyncio.gather(
+        client.patch(
+            f"/api/v1/permission-profiles/{reception['id']}",
             json={
-                "login": "brute-force-target@vertere.local",
-                "password": f"wrong-{i}",
-                "remember_me": False,
+                "permissions": ["clinics.read", "clinics.manage"],
+                "expected_row_version": reception["row_version"],
             },
-        )
-        for i in range(5)
-    ]
-    assert all(response.status_code == 401 for response in responses)
+        ),
+        client.patch(
+            f"/api/v1/permission-profiles/{reception['id']}",
+            json={
+                "permissions": ["patients.read"],
+                "expected_row_version": reception["row_version"],
+            },
+        ),
+    )
+    assert sorted(response.status_code for response in responses) == [200, 409]
 
-    blocked = await client.post(
-        "/api/v1/auth/login",
+    # ADR-007: o único SUPER_ADMIN não pode remover `roles.manage` do próprio perfil (travaria
+    # o sistema sem volta pela UI/API) e o perfil segue intacto.
+    own = (await client.get(f"/api/v1/permission-profiles/{ROLE_SUPER_ADMIN}")).json()
+    without_roles_manage = [code for code in own["permissions"] if code != "roles.manage"]
+    strip = await client.patch(
+        f"/api/v1/permission-profiles/{ROLE_SUPER_ADMIN}",
+        json={"permissions": without_roles_manage, "expected_row_version": own["row_version"]},
+    )
+    assert strip.status_code == 409
+    unchanged = await client.get(f"/api/v1/permission-profiles/{ROLE_SUPER_ADMIN}")
+    assert "roles.manage" in unchanged.json()["permissions"]
+
+    # `attendances.view_prices` é exclusivo de papel GLOBAL: nem o SUPER_ADMIN a concede à
+    # Recepção (papel LAB), e o perfil segue sem ela.
+    current = (await client.get(f"/api/v1/permission-profiles/{ROLE_RECEPTION}")).json()
+    grant = await client.patch(
+        f"/api/v1/permission-profiles/{ROLE_RECEPTION}",
         json={
-            "login": "brute-force-target@vertere.local",
-            "password": "s3nhaForte!",  # até a senha certa não passa mais
-            "remember_me": False,
+            "permissions": [*current["permissions"], "attendances.view_prices"],
+            "expected_row_version": current["row_version"],
         },
     )
-    assert blocked.status_code == 429
+    assert grant.status_code == 422
+    after = await client.get(f"/api/v1/permission-profiles/{ROLE_RECEPTION}")
+    assert "attendances.view_prices" not in after.json()["permissions"]
 
 
 async def test_update_user_access_is_versioned_atomic_and_revokes_sessions(
@@ -752,30 +385,18 @@ async def test_update_user_access_is_versioned_atomic_and_revokes_sessions(
     _create_user(
         session_factory,
         email="admin-access@vertere.local",
-        password="s3nhaForte!",
+        password=_PASSWORD,
         role_id=ROLE_SUPER_ADMIN,
     )
     target = _create_user(
         session_factory,
         email="target-access@vertere.local",
-        password="s3nhaForte!",
+        password=_PASSWORD,
         role_id=ROLE_RECEPTION,
     )
-    target_login = await client.post(
-        "/api/v1/auth/login",
-        json={"login": target.email, "password": "s3nhaForte!", "remember_me": False},
-    )
-    assert target_login.status_code == 200
+    assert (await _login(client, target.email)).status_code == 200
+    assert (await _login(client, "admin-access@vertere.local")).status_code == 200
 
-    admin_login = await client.post(
-        "/api/v1/auth/login",
-        json={
-            "login": "admin-access@vertere.local",
-            "password": "s3nhaForte!",
-            "remember_me": False,
-        },
-    )
-    assert admin_login.status_code == 200
     response = await client.patch(
         f"/api/v1/users/{target.id}/access",
         json={"role_id": str(ROLE_LAB_ADMIN), "clinic_ids": [], "expected_row_version": 1},
@@ -793,8 +414,7 @@ async def test_update_user_access_is_versioned_atomic_and_revokes_sessions(
     with session_factory() as session:
         stored = session.get(UserModel, target.id)
         assert stored is not None
-        assert stored.role_id == ROLE_LAB_ADMIN
-        assert stored.row_version == 2
+        assert (stored.role_id, stored.row_version) == (ROLE_LAB_ADMIN, 2)
         active_sessions = (
             session.execute(
                 select(SessionModel).where(

@@ -8,7 +8,12 @@ from app.modules.audit.domain.entities import ActorScope, AuditEntry
 from app.modules.audit.domain.repositories import AuditLogWriter
 from app.modules.billing.application.dtos import FinancialAdjustmentDTO
 from app.modules.billing.application.mappers import financial_adjustment_to_dto
-from app.modules.billing.domain.entities import AdjustmentKind, ClosureStatus, FinancialAdjustment
+from app.modules.billing.domain.entities import (
+    AdjustmentKind,
+    ClosureStatus,
+    FinancialAdjustment,
+    MonthlyClosure,
+)
 from app.modules.billing.domain.repositories import MonthlyClosureRepository
 from app.shared.application.authorization import ActorContext
 from app.shared.application.clock import Clock
@@ -65,41 +70,71 @@ class AddFinancialAdjustmentUseCase:
         ):
             raise ValidationError("O item informado não pertence a este fechamento.")
 
-        adjustment = FinancialAdjustment(
-            id=uuid4(),
-            monthly_closure_id=closure.id,
-            monthly_closure_item_id=command.closure_item_id,
+        adjustment = append_adjustment(
+            closures=self._closures,
+            audit=self._audit,
+            outbox=self._outbox,
+            clock=self._clock,
+            actor=command.actor,
+            closure=closure,
+            closure_item_id=command.closure_item_id,
             kind=command.kind,
-            amount=round_currency(command.amount),
+            amount=command.amount,
             reason=command.reason,
-            created_by=command.actor.id,
-            created_at=self._clock.now(),
-        )
-        self._closures.add_adjustment(adjustment)
-        self._audit.record(
-            AuditEntry(
-                actor_user_id=command.actor.id,
-                actor_scope=ActorScope.LAB,
-                action="closures.adjusted",
-                entity_type="financial_adjustment",
-                entity_id=str(adjustment.id),
-                after_state={
-                    "closure_id": str(closure.id),
-                    "kind": adjustment.kind.value,
-                    "amount": str(adjustment.amount),
-                },
-                reason=command.reason,
-            )
-        )
-        self._outbox.add(
-            OutboxEvent(
-                event_type="closures.adjusted",
-                payload={
-                    "adjustment_id": str(adjustment.id),
-                    "closure_id": str(closure.id),
-                    "kind": adjustment.kind.value,
-                    "amount": str(adjustment.amount),
-                },
-            )
         )
         return financial_adjustment_to_dto(adjustment)
+
+
+def append_adjustment(
+    *,
+    closures: MonthlyClosureRepository,
+    audit: AuditLogWriter,
+    outbox: OutboxEventRepository,
+    clock: Clock,
+    actor: ActorContext,
+    closure: MonthlyClosure,
+    closure_item_id: UUID | None,
+    kind: AdjustmentKind,
+    amount: Decimal,
+    reason: str,
+) -> FinancialAdjustment:
+    """Append one adjustment to a `CLOSED` closure with its audit entry and outbox event.
+    Shared by the manual endpoint and by corrections of closed attendances."""
+    adjustment = FinancialAdjustment(
+        id=uuid4(),
+        monthly_closure_id=closure.id,
+        monthly_closure_item_id=closure_item_id,
+        kind=kind,
+        amount=round_currency(amount),
+        reason=reason,
+        created_by=actor.id,
+        created_at=clock.now(),
+    )
+    closures.add_adjustment(adjustment)
+    audit.record(
+        AuditEntry(
+            actor_user_id=actor.id,
+            actor_scope=ActorScope(actor.role_scope),
+            action="closures.adjusted",
+            entity_type="financial_adjustment",
+            entity_id=str(adjustment.id),
+            after_state={
+                "closure_id": str(closure.id),
+                "kind": adjustment.kind.value,
+                "amount": str(adjustment.amount),
+            },
+            reason=reason,
+        )
+    )
+    outbox.add(
+        OutboxEvent(
+            event_type="closures.adjusted",
+            payload={
+                "adjustment_id": str(adjustment.id),
+                "closure_id": str(closure.id),
+                "kind": adjustment.kind.value,
+                "amount": str(adjustment.amount),
+            },
+        )
+    )
+    return adjustment

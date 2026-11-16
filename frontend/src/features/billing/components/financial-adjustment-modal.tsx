@@ -1,11 +1,12 @@
 import { useEffect, useRef, useState } from 'react'
 
 import { ApiError } from '../../../shared/api/errors'
+import { parseMoneyInput } from '../../../shared/lib/money'
 import { Button } from '../../../shared/ui/button'
-import type {
-  AddFinancialAdjustmentParams,
-  FinancialAdjustmentKind,
-} from '../api/closures-api'
+import { Dropdown } from '../../../shared/ui/dropdown'
+import { TagIcon } from '../../../shared/ui/icons'
+import { Modal } from '../../../shared/ui/modal'
+import type { AddFinancialAdjustmentParams, FinancialAdjustmentKind } from '../api/closures-api'
 import './closure-reopen-modal.css'
 
 interface FinancialAdjustmentModalProps {
@@ -26,8 +27,8 @@ export function FinancialAdjustmentModal({
   const [reason, setReason] = useState('')
   const amountRef = useRef<HTMLInputElement>(null)
   const submittedRef = useRef(false)
-  const numericAmount = Number(amount.replace(',', '.'))
-  const isValid = Number.isFinite(numericAmount) && numericAmount > 0 && reason.trim().length >= 10
+  const parsedAmount = parseMoneyInput(amount)
+  const isValid = parsedAmount !== null && reason.trim().length >= 10
 
   useEffect(() => {
     amountRef.current?.focus()
@@ -38,26 +39,27 @@ export function FinancialAdjustmentModal({
   }, [error])
 
   return (
-    <div className="closure-reopen-modal__backdrop" role="presentation" onMouseDown={onCancel}>
-      <section
-        aria-labelledby="adjustment-title"
-        aria-modal="true"
-        className="closure-reopen-modal"
-        role="dialog"
-        onMouseDown={(event) => event.stopPropagation()}
-      >
+    <Modal
+      titleId="adjustment-title"
+      className="closure-reopen-modal"
+      canDismiss={!isPending}
+      dismissOnBackdrop
+      onClose={onCancel}
+    >
         <h2 id="adjustment-title">Adicionar ajuste</h2>
         <p>O ajuste será append-only e não modificará o snapshot original.</p>
-        <label htmlFor="adjustment-kind">Tipo</label>
-        <select
-          id="adjustment-kind"
+        <Dropdown
+          variant="field"
+          icon={<TagIcon />}
+          label="Tipo"
           value={kind}
           disabled={isPending}
-          onChange={(event) => setKind(event.target.value as FinancialAdjustmentKind)}
-        >
-          <option value="DEBIT">Débito</option>
-          <option value="CREDIT">Crédito</option>
-        </select>
+          options={[
+            { value: 'DEBIT', label: 'Débito' },
+            { value: 'CREDIT', label: 'Crédito' },
+          ]}
+          onChange={(value) => setKind(value as FinancialAdjustmentKind)}
+        />
         <label htmlFor="adjustment-amount">Valor</label>
         <input
           ref={amountRef}
@@ -82,19 +84,19 @@ export function FinancialAdjustmentModal({
           </p>
         )}
         <div className="closure-reopen-modal__actions">
-          <Button type="button" variant="ghost" disabled={isPending} onClick={onCancel}>
+          <Button type="button" variant="cancel" disabled={isPending} onClick={onCancel}>
             Cancelar
           </Button>
           <Button
             type="button"
             disabled={!isValid || isPending}
             onClick={() => {
-              if (submittedRef.current) return
+              if (submittedRef.current || parsedAmount === null) return
               submittedRef.current = true
               onConfirm({
                 monthlyClosureItemId: null,
                 kind,
-                amount: numericAmount.toFixed(2),
+                amount: parsedAmount,
                 reason: reason.trim(),
               })
             }}
@@ -102,7 +104,6 @@ export function FinancialAdjustmentModal({
             {isPending ? 'Salvando…' : 'Adicionar ajuste'}
           </Button>
         </div>
-      </section>
-    </div>
+    </Modal>
   )
 }

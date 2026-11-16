@@ -7,7 +7,7 @@ permission-gated setting.
 
 from __future__ import annotations
 
-from datetime import UTC, datetime
+from datetime import UTC, datetime, time
 from decimal import Decimal
 from uuid import uuid4
 
@@ -22,6 +22,7 @@ from app.modules.attendances.application.update_on_call_fee_setting import (
     UpdateOnCallFeeSettingUseCase,
 )
 from app.modules.attendances.domain.entities import ServiceLevel
+from app.modules.attendances.domain.fee_schedule import FeeSchedule
 from app.modules.identity.application.dtos import AuthenticatedUserDTO
 from app.shared.domain.errors import ConflictError, ForbiddenError, NotFoundError, ValidationError
 from tests.attendances.fakes import (
@@ -45,134 +46,93 @@ def _actor(*, permissions: frozenset[str]) -> AuthenticatedUserDTO:
     )
 
 
-def test_get_on_call_fee_settings_returns_both_tiers() -> None:
-    repo = FakeOnCallFeeSettingRepository()
-    use_case = GetOnCallFeeSettingsUseCase(on_call_fees=repo)
+def _update_command(
+    *, permissions: frozenset[str] = frozenset({"pricing.manage"}), **overrides: object
+) -> UpdateOnCallFeeSettingCommand:
+    values: dict[str, object] = {
+        "actor": _actor(permissions=permissions),
+        "service_level": ServiceLevel.PLANTAO_NORMAL,
+        "fee_amount": Decimal("120.00"),
+        "schedule": FeeSchedule(weekdays=(0, 1, 2, 3, 4, 5), start_time=time(19), end_time=time(7)),
+        "reason": "Reajuste",
+        "expected_row_version": 1,
+    }
+    values.update(overrides)
+    return UpdateOnCallFeeSettingCommand(**values)  # type: ignore[arg-type]
+
+
+def test_get_on_call_fee_settings_returns_both_tiers_and_checks_permission() -> None:
+    use_case = GetOnCallFeeSettingsUseCase(on_call_fees=FakeOnCallFeeSettingRepository())
 
     result = use_case.execute(
         GetOnCallFeeSettingsQuery(actor=_actor(permissions=frozenset({"pricing.read"})))
     )
-
-    service_levels = {setting.service_level for setting in result}
-    assert service_levels == {ServiceLevel.PLANTAO_NORMAL, ServiceLevel.PLANTAO_ESPECIAL}
-
-
-def test_get_on_call_fee_settings_without_permission_is_forbidden() -> None:
-    use_case = GetOnCallFeeSettingsUseCase(on_call_fees=FakeOnCallFeeSettingRepository())
-
+    assert {setting.service_level for setting in result} == {
+        ServiceLevel.PLANTAO_NORMAL,
+        ServiceLevel.PLANTAO_ESPECIAL,
+    }
     with pytest.raises(ForbiddenError):
         use_case.execute(GetOnCallFeeSettingsQuery(actor=_actor(permissions=frozenset())))
 
 
-def test_update_on_call_fee_setting_succeeds_and_records_audit() -> None:
+def test_update_on_call_fee_setting_persists_audits_and_rejects_invalid_requests() -> None:
     repo = FakeOnCallFeeSettingRepository()
     audit = FakeAuditLogWriter()
     use_case = UpdateOnCallFeeSettingUseCase(on_call_fees=repo, audit=audit, clock=FakeClock(_NOW))
-    actor = _actor(permissions=frozenset({"pricing.manage"}))
 
-    result = use_case.execute(
-        UpdateOnCallFeeSettingCommand(
-            actor=actor,
-            service_level=ServiceLevel.PLANTAO_NORMAL,
-            fee_amount=Decimal("120.00"),
-            schedule_label="Seg-Sáb - 19h às 07h",
-            expected_row_version=1,
-        )
-    )
+    result = use_case.execute(_update_command())
 
     assert result.fee_amount == Decimal("120.00")
-    assert result.schedule_label == "Seg-Sáb - 19h às 07h"
-    assert result.row_version == 1  # fake repo does not simulate the DB version bump
-
+    assert result.schedule_label == "Seg-Sáb · 19h às 07h"
+    assert result.row_version == 1  # o fake não simula o incremento do banco
     stored = repo.get_by_service_level(ServiceLevel.PLANTAO_NORMAL)
     assert stored is not None
     assert stored.fee_amount == Decimal("120.00")
-
-    assert len(audit.entries) == 1
-    entry = audit.entries[0]
-    assert entry.action == "on_call_fee_settings.updated"
-    assert entry.before_state == {"fee_amount": "100.00", "schedule_label": ""}
-    assert entry.after_state == {"fee_amount": "120.00", "schedule_label": "Seg-Sáb - 19h às 07h"}
-
-
-def test_update_on_call_fee_setting_without_permission_is_forbidden() -> None:
-    use_case = UpdateOnCallFeeSettingUseCase(
-        on_call_fees=FakeOnCallFeeSettingRepository(),
-        audit=FakeAuditLogWriter(),
-        clock=FakeClock(_NOW),
-    )
+    assert [(entry.action, entry.before_state, entry.after_state) for entry in audit.entries] == [
+        (
+            "on_call_fee_settings.updated",
+            {
+                "fee_amount": "100.00",
+                "schedule_label": "",
+                "weekdays": [],
+                "start_time": None,
+                "end_time": None,
+            },
+            {
+                "fee_amount": "120.00",
+                "schedule_label": "Seg-Sáb · 19h às 07h",
+                "weekdays": [0, 1, 2, 3, 4, 5],
+                "start_time": "19:00",
+                "end_time": "07:00",
+            },
+        )
+    ]
 
     with pytest.raises(ForbiddenError):
-        use_case.execute(
-            UpdateOnCallFeeSettingCommand(
-                actor=_actor(permissions=frozenset({"pricing.read"})),
-                service_level=ServiceLevel.PLANTAO_NORMAL,
-                fee_amount=Decimal("120.00"),
-                schedule_label="",
-                expected_row_version=1,
-            )
-        )
+        use_case.execute(_update_command(permissions=frozenset({"pricing.read"})))
+    with pytest.raises(ValidationError):  # atendimento normal não tem taxa de plantão
+        use_case.execute(_update_command(service_level=ServiceLevel.NORMAL))
 
-
-def test_update_on_call_fee_setting_rejects_normal_service_level() -> None:
-    use_case = UpdateOnCallFeeSettingUseCase(
-        on_call_fees=FakeOnCallFeeSettingRepository(),
-        audit=FakeAuditLogWriter(),
-        clock=FakeClock(_NOW),
-    )
-
-    with pytest.raises(ValidationError):
-        use_case.execute(
-            UpdateOnCallFeeSettingCommand(
-                actor=_actor(permissions=frozenset({"pricing.manage"})),
-                service_level=ServiceLevel.NORMAL,
-                fee_amount=Decimal("10.00"),
-                schedule_label="",
-                expected_row_version=1,
-            )
-        )
-
-
-def test_update_on_call_fee_setting_unknown_setting_is_not_found() -> None:
-    use_case = UpdateOnCallFeeSettingUseCase(
+    empty = UpdateOnCallFeeSettingUseCase(
         on_call_fees=FakeOnCallFeeSettingRepository(settings=[]),
         audit=FakeAuditLogWriter(),
         clock=FakeClock(_NOW),
     )
-
     with pytest.raises(NotFoundError):
-        use_case.execute(
-            UpdateOnCallFeeSettingCommand(
-                actor=_actor(permissions=frozenset({"pricing.manage"})),
-                service_level=ServiceLevel.PLANTAO_NORMAL,
-                fee_amount=Decimal("10.00"),
-                schedule_label="",
-                expected_row_version=1,
-            )
-        )
+        empty.execute(_update_command())
 
-
-def test_update_on_call_fee_setting_stale_version_is_conflict() -> None:
-    repo = FakeOnCallFeeSettingRepository(
-        settings=[
-            make_on_call_fee_setting(
-                service_level=ServiceLevel.PLANTAO_NORMAL,
-                fee_amount=Decimal("100.00"),
-                row_version=3,
-            )
-        ]
+    stale = UpdateOnCallFeeSettingUseCase(
+        on_call_fees=FakeOnCallFeeSettingRepository(
+            settings=[
+                make_on_call_fee_setting(
+                    service_level=ServiceLevel.PLANTAO_NORMAL,
+                    fee_amount=Decimal("100.00"),
+                    row_version=3,
+                )
+            ]
+        ),
+        audit=FakeAuditLogWriter(),
+        clock=FakeClock(_NOW),
     )
-    use_case = UpdateOnCallFeeSettingUseCase(
-        on_call_fees=repo, audit=FakeAuditLogWriter(), clock=FakeClock(_NOW)
-    )
-
     with pytest.raises(ConflictError):
-        use_case.execute(
-            UpdateOnCallFeeSettingCommand(
-                actor=_actor(permissions=frozenset({"pricing.manage"})),
-                service_level=ServiceLevel.PLANTAO_NORMAL,
-                fee_amount=Decimal("10.00"),
-                schedule_label="",
-                expected_row_version=1,
-            )
-        )
+        stale.execute(_update_command(expected_row_version=1))

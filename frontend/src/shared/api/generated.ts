@@ -26,6 +26,7 @@ export type AttendanceDraftCreateRequest = {
   "patient_id": string
   "collection_method"?: "HELITO_NICOLAS" | "INTERNAL" | "MARLI" | "COURIER" | "UBER"
   "service_level"?: "NORMAL" | "PLANTAO_NORMAL" | "PLANTAO_ESPECIAL"
+  "is_urgent"?: boolean
   "service_date"?: string | null
   "notes"?: string | null
 }
@@ -35,11 +36,12 @@ export type AttendanceExamRead = {
   "exam_id": string
   "exam_code": string
   "exam_name": string
-  "price_base": string
+  "price_base": string | null
+  "components": Array<ExamComponentRead>
   "quantity": number
-  "discount_amount": string
-  "surcharge_amount": string
-  "total_amount": string
+  "discount_amount": string | null
+  "surcharge_amount": string | null
+  "total_amount": string | null
   "override_reason": string | null
   "status": "ACTIVE" | "CANCELLED"
 }
@@ -52,6 +54,20 @@ export type AttendanceHistoryImportResponse = {
   "rejected_count": number
   "imported_grand_total": string
   "exceptions": Array<ImportRowExceptionRead>
+}
+
+export type AttendanceItemEditRequest = {
+  "item_id"?: string | null
+  "exam_id"?: string | null
+  "quantity"?: number
+  "discount_amount"?: number | string | null
+  "override_reason"?: string | null
+}
+
+export type AttendanceItemsUpdateRequest = {
+  "row_version": number
+  "reason": string
+  "items": Array<AttendanceItemEditRequest>
 }
 
 export type AttendanceListResponse = {
@@ -70,11 +86,15 @@ export type AttendancePreviewResponse = {
   "service_level": "NORMAL" | "PLANTAO_NORMAL" | "PLANTAO_ESPECIAL"
   "service_date": string
   "items": Array<AttendanceExamRead>
-  "subtotal": string
-  "discount_total": string
-  "surcharge_total": string
-  "on_call_fee": string
-  "grand_total": string
+  "subtotal": string | null
+  "discount_total": string | null
+  "surcharge_total": string | null
+  "on_call_fee": string | null
+  "is_urgent": boolean
+  "urgency_fee": string | null
+  "clinic_fee": string | null
+  "fee_lines": Array<FeeLineRead>
+  "grand_total": string | null
 }
 
 export type AttendanceRead = {
@@ -89,11 +109,15 @@ export type AttendanceRead = {
   "status": "DRAFT" | "CONFIRMED" | "IN_PROGRESS" | "COMPLETED" | "CANCELLED" | "ON_HOLD"
   "items": Array<AttendanceExamRead>
   "billing_competence": string | null
-  "subtotal": string
-  "discount_total": string
-  "surcharge_total": string
-  "on_call_fee": string
-  "grand_total": string
+  "subtotal": string | null
+  "discount_total": string | null
+  "surcharge_total": string | null
+  "on_call_fee": string | null
+  "is_urgent": boolean
+  "urgency_fee": string | null
+  "clinic_fee": string | null
+  "fee_lines": Array<FeeLineRead>
+  "grand_total": string | null
   "protocol_number": string | null
   "cancel_reason": string | null
   "created_at": string
@@ -106,12 +130,14 @@ export type AttendanceStatus = "DRAFT" | "CONFIRMED" | "IN_PROGRESS" | "COMPLETE
 export type AttendanceStatusCountsResponse = {
   "total": number
   "by_status": Record<string, unknown>
+  "billed_total": string | null
 }
 
 export type AttendanceTimelineEntryRead = {
   "id": string
   "occurred_at": string
   "actor_user_id": string | null
+  "actor_name"?: string | null
   "action": string
   "before_state": Record<string, unknown> | null
   "after_state": Record<string, unknown> | null
@@ -132,8 +158,10 @@ export type AttendanceUpdateRequest = {
   "patient_id"?: string | null
   "collection_method"?: "HELITO_NICOLAS" | "INTERNAL" | "MARLI" | "COURIER" | "UBER" | null
   "service_level"?: "NORMAL" | "PLANTAO_NORMAL" | "PLANTAO_ESPECIAL" | null
+  "is_urgent"?: boolean | null
   "service_date"?: string | null
   "notes"?: string | null
+  "reason"?: string | null
 }
 
 export type AuthResponse = {
@@ -195,6 +223,47 @@ export type ClinicDetailRead = {
   "updated_at": string
   "row_version": number
   "veterinarians": Array<ClinicLinkedVeterinarian>
+}
+
+export type ClinicFeeRuleCreateRequest = {
+  "clinic_id": string
+  "name": string
+  "fee_amount": number | string
+  "valid_from": string
+  "valid_to"?: string | null
+  "exam_ids"?: Array<string>
+  "attendance_types"?: Array<"ROTINA" | "PLANTAO_NORMAL" | "PLANTAO_ESPECIAL" | "URGENTE">
+  "reason": string
+}
+
+export type ClinicFeeRuleListResponse = {
+  "items": Array<ClinicFeeRuleRead>
+}
+
+export type ClinicFeeRuleRead = {
+  "id": string
+  "clinic_id": string
+  "name": string
+  "fee_amount": string
+  "valid_from": string
+  "valid_to": string | null
+  "is_active": boolean
+  "exam_ids": Array<string>
+  "attendance_types": Array<"ROTINA" | "PLANTAO_NORMAL" | "PLANTAO_ESPECIAL" | "URGENTE">
+  "updated_at": string
+  "row_version": number
+}
+
+export type ClinicFeeRuleUpdateRequest = {
+  "name": string
+  "fee_amount": number | string
+  "valid_from": string
+  "valid_to"?: string | null
+  "is_active": boolean
+  "exam_ids"?: Array<string>
+  "attendance_types"?: Array<"ROTINA" | "PLANTAO_NORMAL" | "PLANTAO_ESPECIAL" | "URGENTE">
+  "reason": string
+  "expected_row_version": number
 }
 
 export type ClinicLinkedVeterinarian = {
@@ -328,12 +397,18 @@ export type ExamCategoryUpdateRequest = {
   "expected_row_version": number
 }
 
+export type ExamComponentRead = {
+  "code": string
+  "name": string
+}
+
 export type ExamCreateRequest = {
   "name": string
   "category_id": string
   "price_base": number | string
   "description"?: string | null
   "species_ids": Array<string>
+  "component_exam_ids"?: Array<string>
 }
 
 export type ExamImportResponse = {
@@ -360,6 +435,8 @@ export type ExamRead = {
   "category_id": string
   "description": string | null
   "species_ids": Array<string>
+  "component_exam_ids": Array<string>
+  "is_panel": boolean
   "status": "ACTIVE" | "INACTIVE"
   "created_at": string
   "updated_at": string
@@ -374,11 +451,20 @@ export type ExamStatus = "ACTIVE" | "INACTIVE"
 export type ExamUpdateRequest = {
   "name": string
   "category_id": string
-  "price_base": number | string
+  "price_base"?: number | string | null
   "description"?: string | null
   "species_ids": Array<string>
+  "component_exam_ids"?: Array<string>
   "status": "ACTIVE" | "INACTIVE"
   "expected_row_version": number
+  "reason"?: string | null
+}
+
+export type FeeLineRead = {
+  "kind": "PLANTAO" | "URGENCIA" | "CLINICA"
+  "label": string
+  "amount": string | null
+  "rule_id"?: string | null
 }
 
 export type FinancialAdjustmentCreateRequest = {
@@ -551,13 +637,19 @@ export type OnCallFeeSettingRead = {
   "service_level": "PLANTAO_NORMAL" | "PLANTAO_ESPECIAL"
   "fee_amount": string
   "schedule_label": string
+  "weekdays": Array<number>
+  "start_time": string | null
+  "end_time": string | null
   "updated_at": string
   "row_version": number
 }
 
 export type OnCallFeeSettingUpdateRequest = {
   "fee_amount": number | string
-  "schedule_label"?: string
+  "weekdays"?: Array<number>
+  "start_time"?: string | null
+  "end_time"?: string | null
+  "reason": string
   "expected_row_version": number
 }
 
@@ -572,6 +664,8 @@ export type PatientCreateRequest = {
   "owner_phone"?: string | null
   "owner_document"?: string | null
   "notes"?: string | null
+  "age_value"?: number | null
+  "age_unit"?: "YEARS" | "MONTHS" | null
 }
 
 export type PatientListResponse = {
@@ -597,6 +691,9 @@ export type PatientRead = {
   "created_at": string
   "updated_at": string
   "row_version": number
+  "age_value": number | null
+  "age_unit": "YEARS" | "MONTHS" | null
+  "age_recorded_on": string | null
 }
 
 export type PatientStatus = "ACTIVE" | "INACTIVE"
@@ -614,6 +711,8 @@ export type PatientUpdateRequest = {
   "notes"?: string | null
   "expected_row_version": number
   "clinic_id"?: string | null
+  "age_value"?: number | null
+  "age_unit"?: "YEARS" | "MONTHS" | null
 }
 
 export type PermissionRead = {
@@ -703,6 +802,19 @@ export type UpdateUserAccessRequest = {
   "expected_row_version": number
 }
 
+export type UrgencyFeeSettingRead = {
+  "id": string
+  "fee_amount": string
+  "updated_at": string
+  "row_version": number
+}
+
+export type UrgencyFeeSettingUpdateRequest = {
+  "fee_amount": number | string
+  "reason": string
+  "expected_row_version": number
+}
+
 export type UserCreateRequest = {
   "email": string
   "full_name": string
@@ -754,6 +866,14 @@ export type ValidationError = {
   "ctx"?: Record<string, unknown>
 }
 
+export type VeterinarianClinicsUpdateRequest = {
+  "add_clinic_ids"?: Array<string>
+  "remove_clinic_ids"?: Array<string>
+  "primary_clinic_id"?: string | null
+  "expected_row_version": number
+  "reason": string
+}
+
 export type VeterinarianCreateRequest = {
   "name": string
   "crmv": string
@@ -783,6 +903,7 @@ export type VeterinarianDetailRead = {
 export type VeterinarianLinkClinicRequest = {
   "clinic_id": string
   "primary"?: boolean
+  "reason": string
 }
 
 export type VeterinarianLinkedClinic = {
@@ -823,4 +944,5 @@ export type VeterinarianUpdateRequest = {
   "status": "ACTIVE" | "INACTIVE"
   "notes"?: string | null
   "expected_row_version": number
+  "reason": string
 }

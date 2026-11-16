@@ -1,9 +1,10 @@
-import { SelectField, type SelectOption } from '../../../shared/ui/select'
+import { Dropdown, type DropdownOption } from '../../../shared/ui/dropdown'
+import { ClinicsIcon } from '../../../shared/ui/icons'
 import { TextField } from '../../../shared/ui/text-field'
 import './closure-preview-filters.css'
 
 interface ClosurePreviewFiltersProps {
-  clinicOptions: SelectOption[]
+  clinicOptions: DropdownOption[]
   clinicId: string
   periodStart: string
   periodEnd: string
@@ -26,14 +27,18 @@ export function ClosurePreviewFilters({
 }: ClosurePreviewFiltersProps) {
   return (
     <div className="closure-preview-filters">
-      <SelectField
-        label="Clínica"
-        id="closure-preview-clinic"
-        className="closure-preview-filters__field"
-        options={[{ value: '', label: 'Selecione uma clínica' }, ...clinicOptions]}
-        value={clinicId}
-        onChange={(event) => onClinicChange(event.target.value)}
-      />
+      <div className="closure-preview-filters__field">
+        <Dropdown
+          variant="field"
+          searchable
+          icon={<ClinicsIcon />}
+          label="Clínica"
+          placeholder="Selecione uma clínica"
+          options={clinicOptions}
+          value={clinicId}
+          onChange={onClinicChange}
+        />
+      </div>
       <TextField
         label="De"
         id="closure-preview-period-start"

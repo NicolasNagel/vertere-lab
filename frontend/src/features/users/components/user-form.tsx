@@ -6,7 +6,8 @@ import { z } from 'zod'
 import { describeError } from '../../../shared/api/describe-error'
 import { Button } from '../../../shared/ui/button'
 import { Checkbox } from '../../../shared/ui/checkbox'
-import { SelectField, type SelectOption } from '../../../shared/ui/select'
+import { Dropdown, type DropdownOption } from '../../../shared/ui/dropdown'
+import { UsersIcon } from '../../../shared/ui/icons'
 import { TextField } from '../../../shared/ui/text-field'
 import type { CreateUserValues } from '../api/users-api'
 import type { Clinic } from '../../clinics/api/clinics-api'
@@ -37,6 +38,7 @@ export function UserForm({ roles, clinics, submitting, error, onCancel, onSubmit
     register,
     handleSubmit,
     watch,
+    setValue,
     formState: { errors },
   } = useForm<UserFormFields>({
     resolver: zodResolver(userSchema),
@@ -44,7 +46,7 @@ export function UserForm({ roles, clinics, submitting, error, onCancel, onSubmit
   })
 
   const selectedRole = roles.find((role) => role.id === watch('roleId'))
-  const roleOptions: SelectOption[] = roles.map((role) => ({ value: role.id, label: role.name }))
+  const roleOptions: DropdownOption[] = roles.map((role) => ({ value: role.id, label: role.name }))
 
   const submit = handleSubmit((fields) => {
     const selectedClinicIds = selectedRole?.scope === 'CLINIC' ? clinicIds : []
@@ -82,13 +84,16 @@ export function UserForm({ roles, clinics, submitting, error, onCancel, onSubmit
         {...register('email')}
       />
 
-      <SelectField
-        id="user-role"
+      <Dropdown
+        variant="field"
+        icon={<UsersIcon />}
         label="Perfil"
+        placeholder="Selecione um perfil"
         disabled={submitting}
         errorMessage={errors.roleId?.message}
-        options={[{ value: '', label: 'Selecione um perfil' }, ...roleOptions]}
-        {...register('roleId')}
+        options={roleOptions}
+        value={watch('roleId')}
+        onChange={(value) => setValue('roleId', value, { shouldDirty: true, shouldValidate: true })}
       />
 
       {selectedRole?.scope === 'CLINIC' && (
@@ -121,7 +126,7 @@ export function UserForm({ roles, clinics, submitting, error, onCancel, onSubmit
       )}
 
       <div className="user-form__actions">
-        <Button type="button" variant="ghost" onClick={onCancel} disabled={submitting}>
+        <Button type="button" variant="cancel" onClick={onCancel} disabled={submitting}>
           Cancelar
         </Button>
         <Button type="submit" className="user-form__submit" disabled={submitting}>

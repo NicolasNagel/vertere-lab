@@ -6,9 +6,11 @@ export interface SidebarNavItemProps {
   label: string
   to: string | null
   badgeCount?: number
+  /** Tooltip used while the sidebar is collapsed to icons only. */
+  title?: string
 }
 
-export function SidebarNavItem({ icon, label, to, badgeCount }: SidebarNavItemProps) {
+export function SidebarNavItem({ icon, label, to, badgeCount, title }: SidebarNavItemProps) {
   const content = (
     <>
       {icon}
@@ -19,7 +21,12 @@ export function SidebarNavItem({ icon, label, to, badgeCount }: SidebarNavItemPr
 
   if (to === null) {
     return (
-      <span className="sidebar-nav-item sidebar-nav-item--disabled" aria-disabled="true" tabIndex={-1}>
+      <span
+        className="sidebar-nav-item sidebar-nav-item--disabled"
+        aria-disabled="true"
+        tabIndex={-1}
+        title={title}
+      >
         {content}
       </span>
     )
@@ -28,6 +35,7 @@ export function SidebarNavItem({ icon, label, to, badgeCount }: SidebarNavItemPr
   return (
     <NavLink
       to={to}
+      title={title}
       end={to === '/'}
       className={({ isActive }) =>
         isActive ? 'sidebar-nav-item sidebar-nav-item--active' : 'sidebar-nav-item'

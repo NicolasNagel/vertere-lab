@@ -1,13 +1,19 @@
 import { zodResolver } from '@hookform/resolvers/zod'
-import { useForm } from 'react-hook-form'
+import { Controller, useForm } from 'react-hook-form'
 import { z } from 'zod'
 
 import { ApiError } from '../../../shared/api/errors'
 import { Button } from '../../../shared/ui/button'
-import { SelectField } from '../../../shared/ui/select'
+import { Dropdown } from '../../../shared/ui/dropdown'
 import { TextField } from '../../../shared/ui/text-field'
 import { useSpeciesQuery } from '../../patients/api/use-species-query'
 import type { PatientFormValues, PatientSex } from '../../patients/api/patients-api'
+import { PatientAgeField } from '../../patients/components/patient-age-field'
+import {
+  ageFieldsShape,
+  ageToApi,
+  validateAge,
+} from '../../patients/components/patient-age-schema'
 import './attendance-patient-form.css'
 
 const attendancePatientSchema = z.object({
@@ -15,9 +21,9 @@ const attendancePatientSchema = z.object({
   speciesId: z.string().trim().min(1, 'Selecione a espécie.'),
   sex: z.enum(['MALE', 'FEMALE']),
   breed: z.string().trim(),
-  ageDescription: z.string().trim(),
+  ...ageFieldsShape,
   ownerName: z.string().trim().min(1, 'Informe o nome do tutor.'),
-})
+}).superRefine(validateAge)
 
 type AttendancePatientFields = z.infer<typeof attendancePatientSchema>
 
@@ -28,7 +34,7 @@ function toApiValues(fields: AttendancePatientFields, clinicId: string): Patient
     speciesId: fields.speciesId,
     sex: fields.sex,
     breed: fields.breed || null,
-    ageDescription: fields.ageDescription || null,
+    ...ageToApi(fields),
     ownerName: fields.ownerName,
     ownerPhone: null,
     ownerDocument: null,
@@ -65,6 +71,7 @@ export function AttendancePatientForm({
 }: AttendancePatientFormProps) {
   const {
     register,
+    control,
     handleSubmit,
     watch,
     setValue,
@@ -76,7 +83,8 @@ export function AttendancePatientForm({
       speciesId: '',
       sex: 'MALE',
       breed: '',
-      ageDescription: '',
+      ageValue: '',
+      ageUnit: 'YEARS',
       ownerName: '',
     },
   })
@@ -84,6 +92,7 @@ export function AttendancePatientForm({
   const speciesQuery = useSpeciesQuery()
   const speciesOptions = speciesQuery.data ?? []
   const sex = watch('sex')
+  const speciesId = watch('speciesId')
 
   const onSubmit = handleSubmit((fields) => {
     onSubmitCreate(toApiValues(fields, clinicId))
@@ -97,7 +106,7 @@ export function AttendancePatientForm({
 
   return (
     <form className="attendance-patient-form" onSubmit={onSubmit} noValidate>
-      <div className="attendance-patient-form__row">
+      <div className="attendance-patient-form__row attendance-patient-form__row--pair">
         <TextField
           id="attendance-patient-name"
           label="Nome do paciente"
@@ -105,24 +114,56 @@ export function AttendancePatientForm({
           errorMessage={errors.name?.message}
           {...register('name')}
         />
-        <SelectField
-          id="attendance-patient-species"
+        <TextField
+          id="attendance-patient-owner-name"
+          label="Tutor / Proprietário"
+          disabled={submitting}
+          errorMessage={errors.ownerName?.message}
+          {...register('ownerName')}
+        />
+      </div>
+
+      <div className="attendance-patient-form__row attendance-patient-form__row--details">
+        <Dropdown
+          variant="field"
           label="Espécie"
-          options={[
-            { value: '', label: speciesQuery.isLoading ? 'Carregando…' : 'Selecione…' },
-            ...speciesOptions.map((species) => ({ value: species.id, label: species.name })),
-          ]}
+          placeholder={speciesQuery.isLoading ? 'Carregando…' : 'Selecione…'}
+          options={speciesOptions.map((species) => ({ value: species.id, label: species.name }))}
           disabled={submitting || speciesQuery.isLoading}
+          value={speciesId}
           errorMessage={errors.speciesId?.message}
-          {...register('speciesId')}
+          onChange={(value) => setValue('speciesId', value, { shouldValidate: true })}
+        />
+        <TextField
+          id="attendance-patient-breed"
+          label="Raça"
+          disabled={submitting}
+          {...register('breed')}
+        />
+        <Controller
+          control={control}
+          name="ageValue"
+          render={({ field: valueField }) => (
+            <Controller
+              control={control}
+              name="ageUnit"
+              render={({ field: unitField }) => (
+                <PatientAgeField
+                  idPrefix="attendance-patient"
+                  value={valueField.value}
+                  unit={unitField.value}
+                  disabled={submitting}
+                  errorMessage={errors.ageValue?.message}
+                  onValueChange={valueField.onChange}
+                  onUnitChange={unitField.onChange}
+                />
+              )}
+            />
+          )}
         />
         <div className="attendance-patient-form__field">
           <span className="attendance-patient-form__label">Sexo</span>
-          <div
-            className="attendance-patient-form__toggle-group"
-            role="group"
-            aria-label="Sexo"
-          >
+          <div className="attendance-patient-form__toggle-group" role="group" aria-label="Sexo">
             <button
               type="button"
               className="attendance-patient-form__toggle"
@@ -147,23 +188,6 @@ export function AttendancePatientForm({
         </div>
       </div>
 
-      <div className="attendance-patient-form__row">
-        <TextField id="attendance-patient-breed" label="Raça" disabled={submitting} {...register('breed')} />
-        <TextField
-          id="attendance-patient-age"
-          label="Idade"
-          disabled={submitting}
-          {...register('ageDescription')}
-        />
-        <TextField
-          id="attendance-patient-owner-name"
-          label="Tutor / Proprietário"
-          disabled={submitting}
-          errorMessage={errors.ownerName?.message}
-          {...register('ownerName')}
-        />
-      </div>
-
       {errorMessage && (
         <p role="alert" className="attendance-patient-form__domain-error">
           {errorMessage}
@@ -171,7 +195,7 @@ export function AttendancePatientForm({
       )}
 
       <div className="attendance-patient-form__actions">
-        <Button type="button" variant="ghost" onClick={onCancel} disabled={submitting}>
+        <Button type="button" variant="cancel" onClick={onCancel} disabled={submitting}>
           Cancelar
         </Button>
         <Button type="submit" disabled={submitting}>

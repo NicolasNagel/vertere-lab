@@ -80,7 +80,11 @@ def _rows_to_candidates(
             discount_amount=exam_item.discount_amount,
             surcharge_amount=exam_item.surcharge_amount,
             total_amount=exam_item.total_amount,
-            attendance_on_call_fee=attendance.on_call_fee,
+            # Todas as taxas fixas do atendimento (plantão + urgência + clínica): o
+            # fechamento soma `grand_total`, então precisa carregar a taxa inteira.
+            attendance_on_call_fee=(
+                attendance.on_call_fee + attendance.urgency_fee + attendance.clinic_fee
+            ),
         )
         for attendance, exam_item, patient_name, exam_category_name in rows
     ]

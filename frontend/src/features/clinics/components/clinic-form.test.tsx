@@ -15,7 +15,9 @@ afterEach(() => server.resetHandlers())
 afterAll(() => server.close())
 
 function renderForm(element: ReactElement) {
-  const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+  const queryClient = new QueryClient({
+    defaultOptions: { queries: { retry: false } },
+  })
   return render(<QueryClientProvider client={queryClient}>{element}</QueryClientProvider>)
 }
 
@@ -26,10 +28,31 @@ function cepHandler(
   return http.get('/api/v1/address-lookup/cep/:cep', () => HttpResponse.json(body, { status }))
 }
 
-test('requires a name before allowing submit', async () => {
+const existingClinic = {
+  id: '1',
+  name: 'Schweitzer',
+  taxId: '78977352000199',
+  phone: null,
+  email: null,
+  status: 'ACTIVE' as const,
+  addressZipCode: null,
+  addressStreet: null,
+  addressNumber: null,
+  addressNeighborhood: null,
+  addressCity: null,
+  addressState: null,
+  addressComplement: null,
+  notes: null,
+  createdAt: '2026-01-01T00:00:00Z',
+  updatedAt: '2026-01-01T00:00:00Z',
+  rowVersion: 1,
+  veterinarians: [],
+}
+
+test('validates the clinic before submit and sends empty optional fields as null', async () => {
   const user = userEvent.setup()
   const onSubmitCreate = vi.fn()
-  renderForm(
+  const view = renderForm(
     <ClinicForm
       clinic={null}
       submitting={false}
@@ -38,41 +61,26 @@ test('requires a name before allowing submit', async () => {
     />,
   )
 
+  // Nome obrigatório.
   await user.click(screen.getByRole('button', { name: 'Salvar' }))
-
   expect(await screen.findByText('Informe o nome da clínica.')).toBeInTheDocument()
   expect(onSubmitCreate).not.toHaveBeenCalled()
-})
 
-test('rejects malformed clinic identifiers and contact fields before submit', async () => {
-  const user = userEvent.setup()
-  const onSubmitCreate = vi.fn()
-  renderForm(
-    <ClinicForm
-      clinic={null}
-      submitting={false}
-      onCancel={() => {}}
-      onSubmitCreate={onSubmitCreate}
-    />,
-  )
-
+  // Identificadores e contatos malformados.
   await user.type(screen.getByLabelText('Nome da clínica'), 'Dados inválidos')
   await user.type(screen.getByLabelText('CNPJ'), 'abc')
   await user.type(screen.getByLabelText('E-mail'), 'sem-arroba')
   await user.type(screen.getByLabelText('CEP'), '123')
   await user.type(screen.getByLabelText('UF'), 'Z')
   await user.click(screen.getByRole('button', { name: 'Salvar' }))
-
   expect(await screen.findByText('Informe um CNPJ com 14 dígitos.')).toBeInTheDocument()
   expect(screen.getByText('Informe um e-mail válido.')).toBeInTheDocument()
   expect(screen.getByText('Informe um CEP com 8 dígitos.')).toBeInTheDocument()
   expect(screen.getByText('Informe uma UF válida.')).toBeInTheDocument()
   expect(onSubmitCreate).not.toHaveBeenCalled()
-})
+  view.unmount()
 
-test('submits create values with empty optional fields as null', async () => {
-  const user = userEvent.setup()
-  const onSubmitCreate = vi.fn()
+  // Só o nome: opcionais vazios viram null.
   renderForm(
     <ClinicForm
       clinic={null}
@@ -81,60 +89,32 @@ test('submits create values with empty optional fields as null', async () => {
       onSubmitCreate={onSubmitCreate}
     />,
   )
-
   await user.type(screen.getByLabelText('Nome da clínica'), 'Bicho Urbano')
   await user.click(screen.getByRole('button', { name: 'Salvar' }))
-
   expect(onSubmitCreate).toHaveBeenCalledWith(
     expect.objectContaining({ name: 'Bicho Urbano', taxId: null, phone: null }),
   )
 })
 
-test('does not show the status field when creating a new clinic', () => {
-  renderForm(<ClinicForm clinic={null} submitting={false} onCancel={() => {}} />)
-
+test('shows the status field only when editing and disables submit while saving', () => {
+  const creating = renderForm(<ClinicForm clinic={null} submitting={false} onCancel={() => {}} />)
   expect(screen.queryByLabelText('Status')).not.toBeInTheDocument()
-})
+  creating.unmount()
 
-test('shows the status field when editing an existing clinic', () => {
-  renderForm(
-    <ClinicForm
-      clinic={{
-        id: '1',
-        name: 'Schweitzer',
-        taxId: '78977352000199',
-        phone: null,
-        email: null,
-        status: 'ACTIVE',
-        addressZipCode: null,
-        addressStreet: null,
-        addressNumber: null,
-        addressNeighborhood: null,
-        addressCity: null,
-        addressState: null,
-        addressComplement: null,
-        notes: null,
-        createdAt: '2026-01-01T00:00:00Z',
-        updatedAt: '2026-01-01T00:00:00Z',
-        rowVersion: 1,
-        veterinarians: [],
-      }}
-      submitting={false}
-      onCancel={() => {}}
-    />,
+  const editing = renderForm(
+    <ClinicForm clinic={existingClinic} submitting={false} onCancel={() => {}} />,
   )
-
   expect(screen.getByLabelText('Status')).toBeInTheDocument()
-})
+  editing.unmount()
 
-test('disables the submit button while submitting', () => {
   renderForm(<ClinicForm clinic={null} submitting={true} onCancel={() => {}} />)
-
   expect(screen.getByRole('button', { name: 'Salvando…' })).toBeDisabled()
 })
 
-test('fills address fields when a valid CEP is found', async () => {
+test('the CEP lookup fills the address, and a miss or provider failure never blocks manual entry', async () => {
   const user = userEvent.setup({ delay: null })
+
+  // CEP encontrado preenche o endereço.
   server.use(
     cepHandler({
       zip_code: '01310100',
@@ -144,40 +124,39 @@ test('fills address fields when a valid CEP is found', async () => {
       state: 'SP',
     }),
   )
-  renderForm(<ClinicForm clinic={null} submitting={false} onCancel={() => {}} />)
-
+  let view = renderForm(<ClinicForm clinic={null} submitting={false} onCancel={() => {}} />)
   await user.type(screen.getByLabelText('CEP'), '01310100')
-
-  await waitFor(
-    () => expect(screen.getByLabelText('Rua')).toHaveValue('Avenida Paulista'),
-    { timeout: 5_000 },
-  )
+  expect(screen.getByLabelText('CEP')).toHaveValue('01310-100')
+  await waitFor(() => expect(screen.getByLabelText('Rua')).toHaveValue('Avenida Paulista'), {
+    timeout: 5_000,
+  })
   expect(screen.getByLabelText('Bairro')).toHaveValue('Bela Vista')
   expect(screen.getByLabelText('Cidade')).toHaveValue('São Paulo')
   expect(screen.getByLabelText('UF')).toHaveValue('SP')
-})
+  view.unmount()
+  server.resetHandlers()
 
-test('shows a message and keeps fields editable when the CEP is not found', async () => {
-  const user = userEvent.setup({ delay: null })
-  server.use(
-    cepHandler({ error: { code: 'NOT_FOUND', message: 'CEP não encontrado.' } }, 404),
-  )
-  renderForm(<ClinicForm clinic={null} submitting={false} onCancel={() => {}} />)
-
+  // CEP inexistente: mensagem e campos continuam editáveis.
+  server.use(cepHandler({ error: { code: 'NOT_FOUND', message: 'CEP não encontrado.' } }, 404))
+  view = renderForm(<ClinicForm clinic={null} submitting={false} onCancel={() => {}} />)
   await user.type(screen.getByLabelText('CEP'), '00000000')
-
   expect(
     await screen.findByText('CEP não encontrado. Preencha o endereço manualmente.'),
   ).toBeInTheDocument()
   expect(screen.getByLabelText('Rua')).not.toBeDisabled()
-})
+  view.unmount()
+  server.resetHandlers()
 
-test('provider failure does not block manual fill or submit', async () => {
-  const user = userEvent.setup({ delay: null })
+  // Falha do provedor: preenche à mão e envia.
   const onSubmitCreate = vi.fn()
   server.use(
     cepHandler(
-      { error: { code: 'EXTERNAL_SERVICE_UNAVAILABLE', message: 'Serviço indisponível.' } },
+      {
+        error: {
+          code: 'EXTERNAL_SERVICE_UNAVAILABLE',
+          message: 'Serviço indisponível.',
+        },
+      },
       503,
     ),
   )
@@ -189,17 +168,13 @@ test('provider failure does not block manual fill or submit', async () => {
       onSubmitCreate={onSubmitCreate}
     />,
   )
-
   await user.type(screen.getByLabelText('Nome da clínica'), 'Bicho Urbano')
   await user.type(screen.getByLabelText('CEP'), '01310100')
-
   expect(
     await screen.findByText('Não foi possível consultar o CEP. Preencha manualmente.'),
   ).toBeInTheDocument()
-
   await user.type(screen.getByLabelText('Rua'), 'Rua Manual')
   await user.click(screen.getByRole('button', { name: 'Salvar' }))
-
   expect(onSubmitCreate).toHaveBeenCalledWith(
     expect.objectContaining({ addressStreet: 'Rua Manual' }),
   )

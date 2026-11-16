@@ -64,34 +64,20 @@ def _candidate(**overrides: object) -> ClosureCandidateItem:
 # ---------------- CompetencePeriod ----------------
 
 
-def test_competence_period_rejects_month_out_of_range() -> None:
+def test_competence_period_bounds_and_validation() -> None:
+    february = CompetencePeriod.for_month(year=2026, month=2)
+    assert (february.period_start, february.period_end) == (date(2026, 2, 1), date(2026, 2, 28))
+    assert CompetencePeriod.for_month(year=2026, month=12).period_end == date(2026, 12, 31)
+
+    # Faixa livre (quinzena) é aceita; fim antes do início, mês inválido e vão enorme não.
+    free = CompetencePeriod(period_start=date(2026, 1, 16), period_end=date(2026, 1, 31))
+    assert (free.period_start, free.period_end) == (date(2026, 1, 16), date(2026, 1, 31))
     with pytest.raises(ValidationError):
         CompetencePeriod.for_month(year=2026, month=13)
     with pytest.raises(ValidationError):
         CompetencePeriod.for_month(year=2026, month=0)
-
-
-def test_competence_period_computes_bounds() -> None:
-    period = CompetencePeriod.for_month(year=2026, month=2)
-    assert period.period_start == date(2026, 2, 1)
-    assert period.period_end == date(2026, 2, 28)
-
-    december = CompetencePeriod.for_month(year=2026, month=12)
-    assert december.period_end == date(2026, 12, 31)
-
-
-def test_competence_period_accepts_a_free_range_not_shaped_like_a_month() -> None:
-    period = CompetencePeriod(period_start=date(2026, 1, 16), period_end=date(2026, 1, 31))
-    assert period.period_start == date(2026, 1, 16)
-    assert period.period_end == date(2026, 1, 31)
-
-
-def test_competence_period_rejects_end_before_start() -> None:
     with pytest.raises(ValidationError):
         CompetencePeriod(period_start=date(2026, 1, 31), period_end=date(2026, 1, 1))
-
-
-def test_competence_period_rejects_span_over_max_days() -> None:
     with pytest.raises(ValidationError):
         CompetencePeriod(period_start=date(2026, 1, 1), period_end=date(2028, 1, 1))
 
@@ -99,49 +85,24 @@ def test_competence_period_rejects_span_over_max_days() -> None:
 # ---------------- is_eligible ----------------
 
 
-def test_is_eligible_happy_path() -> None:
-    eligible, reason = is_eligible(_candidate(), _PERIOD)
-    assert eligible is True
-    assert reason is None
-
-
-def test_is_eligible_rejects_cancelled_attendance() -> None:
-    eligible, reason = is_eligible(_candidate(attendance_status="CANCELLED"), _PERIOD)
-    assert eligible is False
-    assert reason is not None
-
-
-def test_is_eligible_rejects_cancelled_item() -> None:
-    eligible, _reason = is_eligible(_candidate(item_status="CANCELLED"), _PERIOD)
-    assert eligible is False
-
-
-def test_is_eligible_rejects_item_already_in_another_closure() -> None:
-    eligible, _reason = is_eligible(_candidate(monthly_closure_id=uuid4()), _PERIOD)
-    assert eligible is False
-
-
-def test_is_eligible_rejects_service_date_outside_period() -> None:
-    eligible, _reason = is_eligible(_candidate(service_date=date(2026, 2, 1)), _PERIOD)
-    assert eligible is False
-
-
-def test_is_eligible_rejects_missing_service_date() -> None:
-    eligible, _reason = is_eligible(_candidate(service_date=None), _PERIOD)
-    assert eligible is False
-
-
-def test_is_eligible_accepts_service_date_inside_a_free_biweekly_period() -> None:
-    quinzena = CompetencePeriod(period_start=date(2026, 1, 16), period_end=date(2026, 1, 31))
-    eligible, reason = is_eligible(_candidate(service_date=date(2026, 1, 20)), quinzena)
-    assert eligible is True
-    assert reason is None
-
-
-def test_is_eligible_rejects_first_half_item_against_second_half_period() -> None:
+def test_is_eligible_only_for_active_unclosed_items_inside_the_period() -> None:
     second_half = CompetencePeriod(period_start=date(2026, 1, 16), period_end=date(2026, 1, 31))
-    eligible, _reason = is_eligible(_candidate(service_date=date(2026, 1, 10)), second_half)
-    assert eligible is False
+
+    assert is_eligible(_candidate(), _PERIOD) == (True, None)
+    assert is_eligible(_candidate(service_date=date(2026, 1, 20)), second_half) == (True, None)
+
+    blocked: list[tuple[dict[str, object], CompetencePeriod]] = [
+        ({"attendance_status": "CANCELLED"}, _PERIOD),
+        ({"item_status": "CANCELLED"}, _PERIOD),
+        ({"monthly_closure_id": uuid4()}, _PERIOD),
+        ({"service_date": date(2026, 2, 1)}, _PERIOD),
+        ({"service_date": None}, _PERIOD),
+        ({"service_date": date(2026, 1, 10)}, second_half),
+    ]
+    for overrides, period in blocked:
+        eligible, reason = is_eligible(_candidate(**overrides), period)
+        assert eligible is False, overrides
+        assert reason, overrides
 
 
 # ---------------- PreviewClosureUseCase ----------------
@@ -169,21 +130,18 @@ def _query(**overrides: object) -> PreviewClosureQuery:
     return PreviewClosureQuery(**defaults)  # type: ignore[arg-type]
 
 
-def test_preview_without_permission_is_forbidden() -> None:
+def test_preview_rejects_missing_permission_and_unknown_clinic() -> None:
     fixture = _Fixture()
     with pytest.raises(ForbiddenError):
         fixture.use_case().execute(_query(actor=_actor(permissions=frozenset())))
-
-
-def test_preview_unknown_clinic_is_not_found() -> None:
-    fixture = _Fixture()
     with pytest.raises(NotFoundError):
         fixture.use_case().execute(_query(clinic_id=uuid4()))
 
 
-def test_preview_totals_and_counts_from_eligible_items_only() -> None:
+def test_preview_totals_come_from_eligible_items_and_on_call_fee_counts_once_per_attendance() -> (
+    None
+):
     attendance_a = uuid4()
-    attendance_b_cancelled = uuid4()
     candidates = [
         _candidate(attendance_id=attendance_a, total_amount=Decimal("100.00")),
         _candidate(
@@ -191,32 +149,23 @@ def test_preview_totals_and_counts_from_eligible_items_only() -> None:
             total_amount=Decimal("50.00"),
             price_base=Decimal("50.00"),
         ),
-        _candidate(
-            attendance_id=attendance_b_cancelled,
-            attendance_status="CANCELLED",
-            total_amount=Decimal("30.00"),
-        ),
+        _candidate(attendance_status="CANCELLED", total_amount=Decimal("30.00")),
     ]
     fixture = _Fixture(candidates)
-
     result = fixture.use_case().execute(_query())
 
-    assert result.attendance_count == 2
-    assert result.cancelled_attendance_count == 1
-    assert result.item_count == 2
-    assert result.subtotal == Decimal("150.00")
-    assert result.grand_total == Decimal("150.00")
-    assert len(result.eligible_items) == 2
-    assert len(result.blocked_items) == 1
+    assert (result.attendance_count, result.cancelled_attendance_count, result.item_count) == (
+        2,
+        1,
+        2,
+    )
+    assert (result.subtotal, result.grand_total) == (Decimal("150.00"), Decimal("150.00"))
+    assert (len(result.eligible_items), len(result.blocked_items)) == (2, 1)
     assert result.blocked_items[0].reason
 
-
-def test_preview_counts_on_call_fee_once_per_attendance_not_per_item() -> None:
-    """A flat plantão fee lives on the attendance, not the item — an
-    attendance with 2 eligible exam items must contribute the fee once,
-    never twice (`ClosureCandidateItem.attendance_on_call_fee` docstring)."""
-    attendance_a = uuid4()
-    candidates = [
+    # Taxa de plantão vive no atendimento: duas linhas elegíveis somam a taxa uma vez só;
+    # atendimento sem item elegível não contribui. A prévia só lê (repetir dá o mesmo).
+    with_fee = [
         _candidate(
             attendance_id=attendance_a,
             total_amount=Decimal("100.00"),
@@ -229,39 +178,24 @@ def test_preview_counts_on_call_fee_once_per_attendance_not_per_item() -> None:
             attendance_on_call_fee=Decimal("150.00"),
         ),
     ]
-    fixture = _Fixture(candidates)
+    fee_fixture = _Fixture(with_fee)
+    fee_result = fee_fixture.use_case().execute(_query())
+    assert fee_result.on_call_fee_total == Decimal("150.00")
+    assert fee_result.subtotal == Decimal("150.00")
+    assert fee_result.grand_total == Decimal("300.00")
+    assert fee_fixture.use_case().execute(_query()) == fee_result
 
-    result = fixture.use_case().execute(_query())
-
-    assert result.on_call_fee_total == Decimal("150.00")
-    assert result.subtotal == Decimal("150.00")
-    assert result.grand_total == Decimal("300.00")
-
-
-def test_preview_excludes_on_call_fee_for_an_attendance_with_no_eligible_item() -> None:
-    candidates = [
-        _candidate(
-            attendance_status="CANCELLED",
-            total_amount=Decimal("100.00"),
-            attendance_on_call_fee=Decimal("150.00"),
+    cancelled = (
+        _Fixture(
+            [
+                _candidate(
+                    attendance_status="CANCELLED",
+                    total_amount=Decimal("100.00"),
+                    attendance_on_call_fee=Decimal("150.00"),
+                )
+            ]
         )
-    ]
-    fixture = _Fixture(candidates)
-
-    result = fixture.use_case().execute(_query())
-
-    assert result.on_call_fee_total == Decimal("0")
-    assert result.grand_total == Decimal("0")
-
-
-def test_preview_does_not_mutate_or_persist_anything() -> None:
-    """The preview only reads — no repository method beyond
-    `list_candidates` is ever called (rule: "não fecha nem bloqueia
-    nada — é só leitura")."""
-    fixture = _Fixture([_candidate()])
-    fixture.use_case().execute(_query())
-    fixture.use_case().execute(_query())
-    # Calling twice with the same fake (no internal state mutation) must
-    # produce the same result both times.
-    result = fixture.use_case().execute(_query())
-    assert result.item_count == 1
+        .use_case()
+        .execute(_query())
+    )
+    assert (cancelled.on_call_fee_total, cancelled.grand_total) == (Decimal("0"), Decimal("0"))

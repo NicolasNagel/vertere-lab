@@ -45,9 +45,37 @@ export const router = createBrowserRouter([
         }),
       },
       {
+        path: '/cadastros/clinicas/nova',
+        lazy: async () => ({
+          Component: (await import('../features/clinics/components/clinic-form-page'))
+            .ClinicFormPage,
+        }),
+      },
+      {
+        path: '/cadastros/clinicas/:clinicId/editar',
+        lazy: async () => ({
+          Component: (await import('../features/clinics/components/clinic-form-page'))
+            .ClinicFormPage,
+        }),
+      },
+      {
         path: '/cadastros/clinicas',
         lazy: async () => ({
           Component: (await import('../features/clinics/components/clinics-page')).ClinicsPage,
+        }),
+      },
+      {
+        path: '/cadastros/veterinarios/novo',
+        lazy: async () => ({
+          Component: (await import('../features/veterinarians/components/veterinarian-form-page'))
+            .VeterinarianFormPage,
+        }),
+      },
+      {
+        path: '/cadastros/veterinarios/:veterinarianId',
+        lazy: async () => ({
+          Component: (await import('../features/veterinarians/components/veterinarian-detail-page'))
+            .VeterinarianDetailPage,
         }),
       },
       {
@@ -73,6 +101,22 @@ export const router = createBrowserRouter([
         path: '/cadastros/exames/novo',
         lazy: async () => ({
           Component: (await import('../features/catalog/components/exam-form-page')).ExamFormPage,
+        }),
+      },
+      {
+        path: '/cadastros/exames/novo-pacote',
+        lazy: async () => {
+          const { ExamFormPage } = await import(
+            '../features/catalog/components/exam-form-page'
+          )
+          return { Component: () => <ExamFormPage newPanel /> }
+        },
+      },
+      {
+        path: '/cadastros/exames/:examId',
+        lazy: async () => ({
+          Component: (await import('../features/catalog/components/exam-detail-page'))
+            .ExamDetailPage,
         }),
       },
       {

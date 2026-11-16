@@ -6,6 +6,7 @@ ORM models never leak past this file (rule: .claude/rules/03-database.md).
 
 from __future__ import annotations
 
+from collections.abc import Collection
 from datetime import datetime
 from typing import Any
 from uuid import UUID, uuid4
@@ -34,6 +35,7 @@ from app.modules.identity.infrastructure.models import (
     SessionModel,
     UserModel,
 )
+from app.shared.infrastructure.sql import LIKE_ESCAPE, contains_pattern
 
 
 def _user_to_domain(model: UserModel) -> User:
@@ -64,6 +66,21 @@ def _session_to_domain(model: SessionModel) -> Session:
         ip_address=model.ip_address,
         user_agent=model.user_agent,
     )
+
+
+class SqlAlchemyUserNameLookup:
+    """Read-only `id -> full_name` lookup (timeline author names); no domain entity needed."""
+
+    def __init__(self, session: SqlAlchemySession) -> None:
+        self._session = session
+
+    def names_by_id(self, user_ids: Collection[UUID]) -> dict[UUID, str]:
+        if not user_ids:
+            return {}
+        rows = self._session.execute(
+            select(UserModel.id, UserModel.full_name).where(UserModel.id.in_(user_ids))
+        ).all()
+        return {row.id: row.full_name for row in rows}
 
 
 class SqlAlchemyUserRepository:
@@ -111,6 +128,7 @@ class SqlAlchemyUserRepository:
         model.role_id = user.role_id
         model.updated_at = user.updated_at
         model.row_version = user.row_version + 1
+        user.row_version = model.row_version
 
     def change_role_if_version(
         self, user_id: UUID, role_id: UUID, *, expected_row_version: int, now: datetime
@@ -134,11 +152,11 @@ class SqlAlchemyUserRepository:
         if is_active is not None:
             conditions.append(UserModel.is_active.is_(is_active))
         if search:
-            like_pattern = f"%{search.lower()}%"
+            like_pattern = contains_pattern(search.lower())
             conditions.append(
                 or_(
-                    func.lower(UserModel.full_name).like(like_pattern),
-                    func.lower(UserModel.email).like(like_pattern),
+                    func.lower(UserModel.full_name).like(like_pattern, escape=LIKE_ESCAPE),
+                    func.lower(UserModel.email).like(like_pattern, escape=LIKE_ESCAPE),
                 )
             )
 

@@ -18,7 +18,9 @@ export function useUpdateOnCallFeeSettingMutation() {
     mutationFn: ({ serviceLevel, input }: UpdateOnCallFeeSettingVariables) =>
       updateOnCallFeeSetting(serviceLevel, input),
     onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: ['on-call-fee-settings'] })
+      void queryClient.invalidateQueries({
+        queryKey: ['on-call-fee-settings'],
+      })
     },
   })
 }

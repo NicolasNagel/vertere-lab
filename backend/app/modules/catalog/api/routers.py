@@ -200,6 +200,8 @@ def _exam_read(dto: ExamDTO) -> ExamRead:
         category_id=dto.category_id,
         description=dto.description,
         species_ids=list(dto.species_ids),
+        component_exam_ids=list(dto.component_exam_ids),
+        is_panel=dto.is_panel,
         status=cast(ExamStatusLiteral, dto.status),
         created_at=dto.created_at,
         updated_at=dto.updated_at,
@@ -267,6 +269,7 @@ def create_exam(
             price_base=payload.price_base,
             description=payload.description,
             species_ids=frozenset(payload.species_ids),
+            component_exam_ids=tuple(payload.component_exam_ids),
         ),
         clock=SystemClock(),
     )
@@ -290,8 +293,10 @@ def update_exam(
             price_base=payload.price_base,
             description=payload.description,
             species_ids=frozenset(payload.species_ids),
+            component_exam_ids=tuple(payload.component_exam_ids),
             status=payload.status,
             expected_row_version=payload.expected_row_version,
+            reason=payload.reason,
         ),
         clock=SystemClock(),
     )

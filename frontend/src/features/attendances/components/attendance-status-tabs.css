@@ -1,23 +1,52 @@
 .attendance-status-tabs {
   display: flex;
-  gap: 1.125rem; /* 18px */
+  gap: 0.375rem;
   flex-wrap: wrap;
 }
 
 .attendance-status-tabs__tab {
   appearance: none;
-  background: none;
-  border: none;
-  border-bottom: 2px solid transparent;
-  padding: 0.375rem 0; /* 6px 0 */
+  border: 1px solid transparent;
+  border-radius: 99px;
+  background: transparent;
+  padding: 0.3125rem 0.6875rem;
   font: inherit;
   font-size: 0.75rem;
-  color: var(--color-text-secondary);
+  color: #44515f;
   cursor: pointer;
+  transition:
+    background 120ms,
+    color 120ms;
+}
+
+.attendance-status-tabs__tab b {
+  margin-left: 0.375rem;
+  font-weight: 600;
+  color: var(--color-text-secondary);
+  font-variant-numeric: tabular-nums;
+}
+
+.attendance-status-tabs__tab:hover {
+  background: #f1f5fa;
+}
+
+.attendance-status-tabs__tab:focus-visible {
+  outline: 2px solid var(--color-brand-ink-deep);
+  outline-offset: 2px;
 }
 
 .attendance-status-tabs__tab[data-active='true'] {
+  background: var(--color-info-bg);
   color: var(--color-brand-ink);
   font-weight: 600;
-  border-bottom-color: var(--color-brand-ink);
+}
+
+.attendance-status-tabs__tab[data-active='true'] b {
+  color: var(--color-brand-ink-deep);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .attendance-status-tabs__tab {
+    transition: none;
+  }
 }

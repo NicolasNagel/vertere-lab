@@ -6,13 +6,18 @@ from uuid import uuid4
 
 import pytest
 
-from app.modules.attendances.domain.entities import AttendanceStatus, ServiceLevel
+from app.modules.attendances.domain.entities import (
+    AttendanceRecord,
+    AttendanceStatus,
+    ServiceLevel,
+)
 from app.modules.catalog.domain.entities import Exam, ExamStatus
 from app.modules.catalog.domain.value_objects import ExamCode
 from app.modules.clinics.domain.entities import Clinic
 from app.modules.imports.application.import_attendance_history import (
     SHEET_NAME,
     ImportAttendanceHistoryCommand,
+    ImportAttendanceHistoryResult,
     ImportAttendanceHistoryUseCase,
 )
 from app.modules.imports.application.text_normalization import derive_exam_code
@@ -156,282 +161,128 @@ class _Fixture:
         )
 
 
-def test_without_permission_is_forbidden() -> None:
+def _import_one(
+    exams: dict[str, str], **row: str
+) -> tuple[_Fixture, ImportAttendanceHistoryResult]:
+    """Run the import for one staged row against a catalog of `{name: price}` exams."""
     fixture = _Fixture()
-    command = ImportAttendanceHistoryCommand(
-        actor_id=uuid4(), actor_permissions=frozenset(), batch_id=fixture.batch_id
-    )
+    for name, price in exams.items():
+        fixture.add_exam(name=name, price_base=price)
+    fixture.stage_row(5, fixture.base_row(**row))
+    return fixture, fixture.use_case().execute(fixture.command())
+
+
+def _only_attendance(fixture: _Fixture) -> AttendanceRecord:
+    [attendance] = list(fixture.attendances._attendances.values())
+    return attendance
+
+
+def test_import_requires_permission_and_is_idempotent_per_batch() -> None:
+    fixture = _Fixture()
     with pytest.raises(ForbiddenError):
-        fixture.use_case().execute(command)
+        fixture.use_case().execute(
+            ImportAttendanceHistoryCommand(
+                actor_id=uuid4(), actor_permissions=frozenset(), batch_id=fixture.batch_id
+            )
+        )
 
-
-def test_single_exam_row_is_imported_as_completed_with_matching_totals() -> None:
-    fixture = _Fixture()
     fixture.add_exam(name="Hemograma", price_base="75.00")
     fixture.stage_row(5, fixture.base_row(exam="Hemograma", value="75.00", total="75.00"))
+    first = fixture.use_case().execute(fixture.command())
+    second = fixture.use_case().execute(fixture.command())
 
-    result = fixture.use_case().execute(fixture.command())
+    assert (first.imported_count, first.exceptions) == (1, ())
+    assert first.imported_grand_total == Decimal("75.00")
+    assert (second.imported_count, second.skipped_existing_count) == (0, 1)
+    assert len(fixture.attendances._attendances) == 1
 
-    assert result.imported_count == 1
-    assert result.exceptions == ()
-    assert result.imported_grand_total == Decimal("75.00")
-
-    [attendance] = list(fixture.attendances._attendances.values())
+    attendance = _only_attendance(fixture)
     assert attendance.status == AttendanceStatus.COMPLETED
     assert attendance.grand_total == Decimal("75.00")
     assert attendance.legacy_source_row_number == 5
     assert attendance.legacy_protocol_reference == "1/2026"
     assert attendance.protocol_number == "P000001/26"
-    assert len(attendance.items) == 1
-    assert attendance.items[0].exam_name == "Hemograma"
+    assert [item.exam_name for item in attendance.items] == ["Hemograma"]
 
 
-def test_row_with_discount_and_surcharge_reproduces_the_recorded_total() -> None:
-    fixture = _Fixture()
-    fixture.add_exam(name="Check-up 2", price_base="120.00")
-    fixture.stage_row(
-        5,
-        fixture.base_row(
-            exam="Check-up 2", value="120.00", discount="10.00", surcharge="5.00", total="115.00"
-        ),
+def test_import_reproduces_recorded_totals_for_discounts_surcharges_and_combos() -> None:
+    fixture, result = _import_one(
+        {"Check-up 2": "120.00"},
+        exam="Check-up 2",
+        value="120.00",
+        discount="10.00",
+        surcharge="5.00",
+        total="115.00",
     )
-
-    result = fixture.use_case().execute(fixture.command())
-
+    attendance = _only_attendance(fixture)
     assert result.imported_count == 1
-    [attendance] = list(fixture.attendances._attendances.values())
-    assert attendance.grand_total == Decimal("115.00")
-    assert attendance.discount_total == Decimal("10.00")
-    assert attendance.surcharge_total == Decimal("5.00")
+    assert (attendance.grand_total, attendance.discount_total, attendance.surcharge_total) == (
+        Decimal("115.00"),
+        Decimal("10.00"),
+        Decimal("5.00"),
+    )
     assert attendance.on_call_fee == Decimal("0")
 
-
-def test_combined_line_splits_proportionally_by_catalog_price_weight() -> None:
-    fixture = _Fixture()
-    fixture.add_exam(name="Check-up 2", price_base="120.00")
-    fixture.add_exam(name="Urinálise", price_base="60.00")
-    # Real recorded total for the combo is 165.00 (a discount was applied to
-    # the bundle) — weights are 120:60 = 2:1, so the split must be 110/55,
-    # not the raw catalog prices.
-    fixture.stage_row(
-        5,
-        fixture.base_row(exam="Check-up 2 + Urinálise", value="165.00", total="165.00"),
+    # Combo: o total gravado (165) é repartido pelo peso do preço de catálogo (120:60 = 110/55).
+    fixture, result = _import_one(
+        {"Check-up 2": "120.00", "Urinálise": "60.00"},
+        exam="Check-up 2 + Urinálise",
+        value="165.00",
+        total="165.00",
     )
-
-    result = fixture.use_case().execute(fixture.command())
-
-    assert result.imported_count == 1
-    [attendance] = list(fixture.attendances._attendances.values())
+    attendance = _only_attendance(fixture)
     assert attendance.grand_total == Decimal("165.00")
-    assert len(attendance.items) == 2
-    values = sorted(item.price_base for item in attendance.items)
-    assert values == [Decimal("55.00"), Decimal("110.00")]
+    assert sorted(item.price_base for item in attendance.items) == [
+        Decimal("55.00"),
+        Decimal("110.00"),
+    ]
 
-
-def test_plantao_row_tags_service_level_but_never_adds_a_header_on_call_fee() -> None:
-    fixture = _Fixture()
-    fixture.add_exam(name="Hemograma", price_base="75.00")
-    fixture.stage_row(
-        5,
-        fixture.base_row(
-            exam="Hemograma",
-            value="97.50",
-            surcharge="22.50",
-            total="120.00",
-            service_level="Plantão",
-        ),
+    # Plantão marca o nível de serviço, mas nunca cria taxa de plantão no cabeçalho.
+    fixture, _ = _import_one(
+        {"Hemograma": "75.00"},
+        exam="Hemograma",
+        value="97.50",
+        surcharge="22.50",
+        total="120.00",
+        service_level="Plantão",
     )
-
-    result = fixture.use_case().execute(fixture.command())
-
-    assert result.imported_count == 1
-    [attendance] = list(fixture.attendances._attendances.values())
+    attendance = _only_attendance(fixture)
     assert attendance.service_level == ServiceLevel.PLANTAO_NORMAL
-    assert attendance.on_call_fee == Decimal("0")
-    assert attendance.grand_total == Decimal("120.00")
+    assert (attendance.on_call_fee, attendance.grand_total) == (Decimal("0"), Decimal("120.00"))
 
 
-def test_residual_row_with_no_clinic_is_rejected_never_imported() -> None:
-    fixture = _Fixture()
-    fixture.stage_row(
-        2502,
-        {
-            "A": None,
-            "B": None,
-            "P": None,
-            "R": None,
-            "S": None,
-            "T": None,
-            "U": "100.00",
-        },
-    )
-
-    result = fixture.use_case().execute(fixture.command())
-
-    assert result.imported_count == 0
-    assert result.rejected_count == 1
-    assert result.imported_grand_total == Decimal("0")
-
-
-def test_fully_blank_row_is_silently_skipped() -> None:
-    fixture = _Fixture()
-    fixture.stage_row(2600, {"A": None, "P": None, "U": None})
-
-    result = fixture.use_case().execute(fixture.command())
-
-    assert result.imported_count == 0
-    assert result.rejected_count == 0
-    assert result.exceptions == ()
-
-
-def test_footnote_row_with_only_a_label_is_silently_skipped() -> None:
-    """Real spreadsheet has a trailing "Observação:" row with text in
-    column A but nothing else — must not be treated as an unresolved
-    clinic name."""
-    fixture = _Fixture()
-    fixture.stage_row(4006, {"A": "Observação:", "P": None, "U": None})
-
-    result = fixture.use_case().execute(fixture.command())
-
-    assert result.imported_count == 0
-    assert result.rejected_count == 0
-    assert result.exceptions == ()
-
-
-def test_arithmetic_mismatch_becomes_an_exception_never_guessed() -> None:
-    fixture = _Fixture()
-    fixture.add_exam(name="Hemograma", price_base="75.00")
-    fixture.stage_row(
-        5,
-        fixture.base_row(exam="Hemograma", value="113.00", total="135.00"),
-    )
-
-    result = fixture.use_case().execute(fixture.command())
-
-    assert result.imported_count == 0
-    assert len(result.exceptions) == 1
-    assert "Inconsistência aritmética" in result.exceptions[0].message
-
-
-def test_unknown_clinic_becomes_an_exception_never_created_silently() -> None:
-    fixture = _Fixture()
-    fixture.add_exam(name="Hemograma", price_base="75.00")
-    fixture.stage_row(
-        5,
-        fixture.base_row(
-            clinic="Clínica Desconhecida", exam="Hemograma", value="75.00", total="75.00"
+def test_import_resolves_aliases_fee_tokens_and_one_offs_in_exam_names() -> None:
+    # (catálogo, texto da planilha, valor, exames esperados)
+    cases: list[tuple[dict[str, str], str, str, set[str]]] = [
+        (
+            {"Check-up 2": "120.00", "Creatinina": "20.00"},
+            "Check-up 2 + Creat",
+            "140.00",
+            {"Check-up 2", "Creatinina"},
         ),
-    )
+        ({"Check-up 2": "120.00"}, "Check-up 2 + Tx.Urgencia", "120.00", {"Check-up 2"}),
+        (
+            {"Check-up 2": "120.00", "Sedimentoscopia": "15.00"},
+            "Check-up 2+Sedimentoscopia+pH",
+            "135.00",
+            {"Check-up 2", "Sedimentoscopia"},
+        ),
+        (
+            {"Urinálise": "35.00", "Urocultura e Antibiograma": "168.00"},
+            "Urinálise + Urocultura",
+            "203.00",
+            {"Urinálise", "Urocultura e Antibiograma"},
+        ),
+    ]
+    for catalog, sheet_text, value, expected in cases:
+        fixture, result = _import_one(catalog, exam=sheet_text, value=value, total=value)
+        assert result.imported_count == 1, sheet_text
+        attendance = _only_attendance(fixture)
+        assert {item.exam_name for item in attendance.items} == expected, sheet_text
+        assert attendance.grand_total == Decimal(value), sheet_text
 
-    result = fixture.use_case().execute(fixture.command())
-
-    assert result.imported_count == 0
-    assert len(result.exceptions) == 1
-    assert "não encontrada" in result.exceptions[0].message
-    assert fixture.clinics.get_by_name("Clínica Desconhecida") is None
-
-
-def test_unmatched_combo_component_rejects_the_whole_line() -> None:
-    fixture = _Fixture()
-    fixture.add_exam(name="Check-up 2", price_base="120.00")
-    # "Urinálise" never added to the catalog.
-    fixture.stage_row(
-        5, fixture.base_row(exam="Check-up 2 + Urinálise", value="165.00", total="165.00")
-    )
-
-    result = fixture.use_case().execute(fixture.command())
-
-    assert result.imported_count == 0
-    assert len(result.exceptions) == 1
-    assert "não encontrado no catálogo" in result.exceptions[0].message
-
-
-def test_abbreviated_component_resolves_via_alias_to_the_full_catalog_exam() -> None:
-    fixture = _Fixture()
-    fixture.add_exam(name="Check-up 2", price_base="120.00")
-    fixture.add_exam(name="Creatinina", price_base="20.00")
-    # Sheet shorthand "Creat" for "Creatinina" — a confirmed unambiguous
-    # abbreviation, not a guess (`_EXAM_NAME_ALIASES`).
-    fixture.stage_row(
-        5, fixture.base_row(exam="Check-up 2 + Creat", value="140.00", total="140.00")
-    )
-
-    result = fixture.use_case().execute(fixture.command())
-
-    assert result.imported_count == 1
-    [attendance] = list(fixture.attendances._attendances.values())
-    assert {item.exam_name for item in attendance.items} == {"Check-up 2", "Creatinina"}
-
-
-def test_administrative_fee_token_is_excluded_from_the_combo_split() -> None:
-    fixture = _Fixture()
-    fixture.add_exam(name="Check-up 2", price_base="120.00")
-    # "Tx.Urgencia" is not a priced catalog item — the whole recorded value
-    # belongs to the one real exam in the line.
-    fixture.stage_row(
-        5, fixture.base_row(exam="Check-up 2 + Tx.Urgencia", value="120.00", total="120.00")
-    )
-
-    result = fixture.use_case().execute(fixture.command())
-
-    assert result.imported_count == 1
-    [attendance] = list(fixture.attendances._attendances.values())
-    assert len(attendance.items) == 1
-    assert attendance.items[0].exam_name == "Check-up 2"
-    assert attendance.items[0].price_base == Decimal("120.00")
-
-
-def test_line_with_only_fee_tokens_and_no_real_exam_becomes_an_exception() -> None:
-    fixture = _Fixture()
-    fixture.stage_row(5, fixture.base_row(exam="Tx.Urgencia", value="20.00", total="20.00"))
-
-    result = fixture.use_case().execute(fixture.command())
-
-    assert result.imported_count == 0
-    assert len(result.exceptions) == 1
-    assert "taxas administrativas" in result.exceptions[0].message
-
-
-def test_genuinely_ambiguous_abbreviation_still_becomes_an_exception() -> None:
-    fixture = _Fixture()
-    fixture.add_exam(name="Ureia", price_base="23.00")
-    # "CRE" is not covered by any alias — must never be guessed
-    # (`.claude/rules/10-data-migration.md`: "nenhum merge incerto automático").
-    fixture.stage_row(5, fixture.base_row(exam="CRE", value="23.00", total="23.00"))
-
-    result = fixture.use_case().execute(fixture.command())
-
-    assert result.imported_count == 0
-    assert len(result.exceptions) == 1
-    assert "não encontrado no catálogo" in result.exceptions[0].message
-
-
-def test_ph_is_a_one_off_folded_out_of_the_split_but_the_row_still_imports() -> None:
-    fixture = _Fixture()
-    fixture.add_exam(name="Check-up 2", price_base="120.00")
-    fixture.add_exam(name="Sedimentoscopia", price_base="15.00")
-    # Confirmed by the operator as a genuine one-off, not a rule to reuse:
-    # no catalog exam, no alias — "pH" is folded out of the split like a fee
-    # token so the row is still kept for historical continuity.
-    fixture.stage_row(
-        5,
-        fixture.base_row(exam="Check-up 2+Sedimentoscopia+pH", value="135.00", total="135.00"),
-    )
-
-    result = fixture.use_case().execute(fixture.command())
-
-    assert result.imported_count == 1
-    [attendance] = list(fixture.attendances._attendances.values())
-    assert {item.exam_name for item in attendance.items} == {
-        "Check-up 2",
-        "Sedimentoscopia",
-    }
-    assert attendance.grand_total == Decimal("135.00")
-
-
-@pytest.mark.parametrize(
-    ("abbreviation", "canonical_name"),
-    [
+    # Abreviações confirmadas pelo operador resolvem para o exame de catálogo.
+    for abbreviation, canonical in (
         ("CA", "Cálcio"),
         ("Ca", "Cálcio"),
         ("CR", "Creatinina"),
@@ -444,70 +295,14 @@ def test_ph_is_a_one_off_folded_out_of_the_split_but_the_row_still_imports() -> 
         ("Cálcio Total", "Cálcio"),
         ("Centrifug (x2)", "Centrifugação (x2)"),
         ("Taxa Plantão Hematócrito", "Hematócrito"),
-    ],
-)
-def test_operator_confirmed_abbreviations_resolve_via_alias(
-    abbreviation: str, canonical_name: str
-) -> None:
-    fixture = _Fixture()
-    fixture.add_exam(name=canonical_name, price_base="30.00")
-    fixture.stage_row(5, fixture.base_row(exam=abbreviation, value="30.00", total="30.00"))
+    ):
+        fixture, result = _import_one(
+            {canonical: "30.00"}, exam=abbreviation, value="30.00", total="30.00"
+        )
+        assert result.imported_count == 1, abbreviation
+        assert _only_attendance(fixture).items[0].exam_name == canonical, abbreviation
 
-    result = fixture.use_case().execute(fixture.command())
-
-    assert result.imported_count == 1
-    [attendance] = list(fixture.attendances._attendances.values())
-    assert attendance.items[0].exam_name == canonical_name
-
-
-def test_outsourced_urocultura_family_resolves_now_that_a_price_is_confirmed() -> None:
-    fixture = _Fixture()
-    fixture.add_exam(name="Urinálise", price_base="35.00")
-    fixture.add_exam(name="Urocultura e Antibiograma", price_base="168.00")
-    # Confirmed by the lab's operator: R$168,00, now a real catalog exam
-    # under "Terceirizados" — no longer an unresolved exception.
-    fixture.stage_row(
-        5, fixture.base_row(exam="Urinálise + Urocultura", value="203.00", total="203.00")
-    )
-
-    result = fixture.use_case().execute(fixture.command())
-
-    assert result.imported_count == 1
-    [attendance] = list(fixture.attendances._attendances.values())
-    assert {item.exam_name for item in attendance.items} == {
-        "Urinálise",
-        "Urocultura e Antibiograma",
-    }
-
-
-def test_reimporting_the_same_batch_does_not_duplicate() -> None:
-    fixture = _Fixture()
-    fixture.add_exam(name="Hemograma", price_base="75.00")
-    fixture.stage_row(5, fixture.base_row(exam="Hemograma", value="75.00", total="75.00"))
-
-    first = fixture.use_case().execute(fixture.command())
-    second = fixture.use_case().execute(fixture.command())
-
-    assert first.imported_count == 1
-    assert second.imported_count == 0
-    assert second.skipped_existing_count == 1
-    assert len(fixture.attendances._attendances) == 1
-
-
-def test_unknown_veterinarian_becomes_an_exception() -> None:
-    fixture = _Fixture()
-    fixture.add_exam(name="Hemograma", price_base="75.00")
-    fixture.stage_row(
-        5, fixture.base_row(vet="Dr. Desconhecido", exam="Hemograma", value="75.00", total="75.00")
-    )
-
-    result = fixture.use_case().execute(fixture.command())
-
-    assert result.imported_count == 0
-    assert "Veterinário" in result.exceptions[0].message
-
-
-def test_operator_confirmed_veterinarian_name_variant_resolves_via_alias() -> None:
+    # O veterinário também resolve por variante de nome confirmada.
     fixture = _Fixture()
     fixture.add_exam(name="Hemograma", price_base="75.00")
     fuller_vet = Veterinarian(
@@ -524,25 +319,51 @@ def test_operator_confirmed_veterinarian_name_variant_resolves_via_alias() -> No
             vet="Michaela Lopes Leseux", exam="Hemograma", value="75.00", total="75.00"
         ),
     )
-
-    result = fixture.use_case().execute(fixture.command())
-
-    assert result.imported_count == 1
-    [attendance] = list(fixture.attendances._attendances.values())
-    assert attendance.veterinarian_id == fuller_vet.id
+    assert fixture.use_case().execute(fixture.command()).imported_count == 1
+    assert _only_attendance(fixture).veterinarian_id == fuller_vet.id
 
 
-def test_unknown_patient_owner_pair_becomes_an_exception() -> None:
-    fixture = _Fixture()
-    fixture.add_exam(name="Hemograma", price_base="75.00")
-    fixture.stage_row(
-        5,
-        fixture.base_row(
-            patient="Rex", owner="Outra Pessoa", exam="Hemograma", value="75.00", total="75.00"
+def test_import_turns_unresolvable_rows_into_exceptions_and_skips_non_data_rows() -> None:
+    hemograma = {"Hemograma": "75.00"}
+    plain = {"exam": "Hemograma", "value": "75.00", "total": "75.00"}
+    # (catálogo, campos da linha, trecho esperado da mensagem)
+    rejected: list[tuple[dict[str, str], dict[str, str], str]] = [
+        (
+            hemograma,
+            {"exam": "Hemograma", "value": "113.00", "total": "135.00"},
+            "Inconsistência aritmética",
         ),
+        (hemograma, {**plain, "clinic": "Clínica Desconhecida"}, "não encontrada"),
+        (
+            {"Check-up 2": "120.00"},
+            {"exam": "Check-up 2 + Urinálise", "value": "165.00", "total": "165.00"},
+            "não encontrado no catálogo",
+        ),
+        ({}, {"exam": "Tx.Urgencia", "value": "20.00", "total": "20.00"}, "taxas administrativas"),
+        (
+            {"Ureia": "23.00"},
+            {"exam": "CRE", "value": "23.00", "total": "23.00"},  # abreviação ambígua: nunca chuta
+            "não encontrado no catálogo",
+        ),
+        (hemograma, {**plain, "vet": "Dr. Desconhecido"}, "Veterinário"),
+        (hemograma, {**plain, "owner": "Outra Pessoa"}, "Paciente"),
+    ]
+    for catalog, row, message in rejected:
+        fixture, result = _import_one(catalog, **row)
+        assert result.imported_count == 0, message
+        assert len(result.exceptions) == 1, message
+        assert message in result.exceptions[0].message
+        assert not fixture.attendances._attendances
+        assert fixture.clinics.get_by_name("Clínica Desconhecida") is None  # nunca cria em silêncio
+
+    # Linha residual sem clínica é rejeitada; linha em branco e nota de rodapé são ignoradas.
+    fixture = _Fixture()
+    fixture.stage_row(
+        2502, {"A": None, "B": None, "P": None, "R": None, "S": None, "T": None, "U": "100.00"}
     )
-
+    fixture.stage_row(2600, {"A": None, "P": None, "U": None})
+    fixture.stage_row(4006, {"A": "Observação:", "P": None, "U": None})
     result = fixture.use_case().execute(fixture.command())
-
-    assert result.imported_count == 0
-    assert "Paciente" in result.exceptions[0].message
+    assert (result.imported_count, result.rejected_count) == (0, 1)
+    assert result.imported_grand_total == Decimal("0")
+    assert [row.source_row_number for row in result.exceptions] == [2502]  # só a residual

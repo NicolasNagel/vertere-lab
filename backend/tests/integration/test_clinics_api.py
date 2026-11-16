@@ -4,61 +4,19 @@ CNPJ duplicado e soft delete, ponta a ponta via HTTPX/ASGI.
 
 from __future__ import annotations
 
-from collections.abc import AsyncIterator, Iterator
 from datetime import UTC, datetime
-from pathlib import Path
 from uuid import UUID, uuid4
 
 import httpx
 import pytest
-from alembic.config import Config
-from fastapi import FastAPI
-from pydantic import SecretStr
 from sqlalchemy import text
 from sqlalchemy.orm import Session, sessionmaker
-from testcontainers.postgres import PostgresContainer
 
-from alembic import command
-from app.core.config import Settings
 from app.core.security import hash_password
-from app.main import create_app
 from app.modules.identity.infrastructure.models import LabMembershipModel, UserModel
 from app.modules.identity.infrastructure.seed import ROLE_LAB_ADMIN, ROLE_RECEPTION, ROLE_TECHNICAL
-from app.shared.infrastructure.database import build_engine, build_session_factory
 
 pytestmark = pytest.mark.integration
-
-REPO_ROOT = Path(__file__).resolve().parents[3]
-
-
-@pytest.fixture(scope="module")
-def postgres_url() -> Iterator[str]:
-    with PostgresContainer("postgres:17-alpine", driver="psycopg") as postgres:
-        yield postgres.get_connection_url()
-
-
-@pytest.fixture(scope="module")
-def monkeypatch_module() -> Iterator[pytest.MonkeyPatch]:
-    mp = pytest.MonkeyPatch()
-    yield mp
-    mp.undo()
-
-
-@pytest.fixture(scope="module", autouse=True)
-def _migrated_schema(postgres_url: str, monkeypatch_module: pytest.MonkeyPatch) -> None:
-    monkeypatch_module.setenv("DATABASE_URL", postgres_url)
-    config = Config()
-    config.set_main_option("script_location", str(REPO_ROOT / "backend" / "alembic"))
-    command.upgrade(config, "head")
-
-
-@pytest.fixture
-def session_factory(postgres_url: str) -> Iterator[sessionmaker[Session]]:
-    engine = build_engine(postgres_url)
-    try:
-        yield build_session_factory(engine)
-    finally:
-        engine.dispose()
 
 
 @pytest.fixture(autouse=True)
@@ -68,31 +26,6 @@ def _reset_data(session_factory: sessionmaker[Session]) -> None:
         session.execute(text("DELETE FROM clinics"))
         session.execute(text("DELETE FROM users"))
         session.commit()
-
-
-@pytest.fixture
-def settings(postgres_url: str) -> Settings:
-    return Settings(
-        env="test",
-        log_level="WARNING",
-        database_url=SecretStr(postgres_url),
-        session_cookie_secure=False,
-    )
-
-
-@pytest.fixture
-def app(settings: Settings) -> FastAPI:
-    return create_app(settings)
-
-
-@pytest.fixture
-async def client(app: FastAPI) -> AsyncIterator[httpx.AsyncClient]:
-    transport = httpx.ASGITransport(app=app)
-    async with (
-        httpx.AsyncClient(transport=transport, base_url="http://test") as async_client,
-        app.router.lifespan_context(app),
-    ):
-        yield async_client
 
 
 def _create_user(
@@ -118,57 +51,37 @@ def _create_user(
         return user
 
 
-async def _login(client: httpx.AsyncClient, *, email: str, password: str) -> None:
+async def _login_as(
+    client: httpx.AsyncClient, session_factory: sessionmaker[Session], *, email: str, role_id: UUID
+) -> None:
+    _create_user(session_factory, email=email, password="s3nhaForte!", role_id=role_id)
     response = await client.post(
         "/api/v1/auth/login",
-        json={"login": email, "password": password, "remember_me": False},
+        json={"login": email, "password": "s3nhaForte!", "remember_me": False},
     )
     assert response.status_code == 200
 
 
-async def test_create_clinic_without_permission_is_forbidden(
+async def test_clinic_creation_is_permission_gated_unique_and_validates_fields(
     client: httpx.AsyncClient, session_factory: sessionmaker[Session]
 ) -> None:
-    _create_user(
-        session_factory,
-        email="technical@vertere.local",
-        password="s3nhaForte!",
-        role_id=ROLE_TECHNICAL,
+    assert (await client.get("/api/v1/clinics")).status_code == 401
+
+    await _login_as(
+        client, session_factory, email="technical@vertere.local", role_id=ROLE_TECHNICAL
     )
+    denied = await client.post("/api/v1/clinics", json={"name": "Clínica Sem Permissão"})
+    assert denied.status_code == 403
 
-    await _login(client, email="technical@vertere.local", password="s3nhaForte!")
-    response = await client.post("/api/v1/clinics", json={"name": "Clínica Sem Permissão"})
-
-    assert response.status_code == 403
-
-
-async def test_reception_can_create_clinics(
-    client: httpx.AsyncClient, session_factory: sessionmaker[Session]
-) -> None:
-    # Regression check for migration 0004 — RECEPTION only had `clinics.read`
-    # in the original 0002 seed.
-    _create_user(
-        session_factory,
-        email="reception@vertere.local",
-        password="s3nhaForte!",
-        role_id=ROLE_RECEPTION,
+    # Regressão da migration 0004 — RECEPTION só tinha `clinics.read` no seed 0002.
+    await _login_as(
+        client, session_factory, email="reception@vertere.local", role_id=ROLE_RECEPTION
     )
+    by_reception = await client.post("/api/v1/clinics", json={"name": "Bea Pet Center"})
+    assert by_reception.status_code == 201
 
-    await _login(client, email="reception@vertere.local", password="s3nhaForte!")
-    response = await client.post("/api/v1/clinics", json={"name": "Bea Pet Center"})
-
-    assert response.status_code == 201
-
-
-async def test_create_and_get_clinic(
-    client: httpx.AsyncClient, session_factory: sessionmaker[Session]
-) -> None:
-    _create_user(
-        session_factory, email="admin@vertere.local", password="s3nhaForte!", role_id=ROLE_LAB_ADMIN
-    )
-    await _login(client, email="admin@vertere.local", password="s3nhaForte!")
-
-    create_response = await client.post(
+    await _login_as(client, session_factory, email="admin@vertere.local", role_id=ROLE_LAB_ADMIN)
+    created = await client.post(
         "/api/v1/clinics",
         json={
             "name": "Schweitzer",
@@ -177,107 +90,81 @@ async def test_create_and_get_clinic(
             "email": "clinicavetschweitzer@gmail.com",
         },
     )
-    assert create_response.status_code == 201
-    body = create_response.json()
-    assert body["name"] == "Schweitzer"
-    assert body["tax_id"] == "78977352000199"
-    assert body["status"] == "ACTIVE"
-
-    get_response = await client.get(f"/api/v1/clinics/{body['id']}")
-    assert get_response.status_code == 200
-    assert get_response.json()["name"] == "Schweitzer"
-
-
-async def test_create_clinic_with_duplicate_tax_id_conflicts(
-    client: httpx.AsyncClient, session_factory: sessionmaker[Session]
-) -> None:
-    _create_user(
-        session_factory, email="admin@vertere.local", password="s3nhaForte!", role_id=ROLE_LAB_ADMIN
+    assert created.status_code == 201
+    body = created.json()
+    assert (body["name"], body["tax_id"], body["status"]) == (
+        "Schweitzer",
+        "78977352000199",
+        "ACTIVE",
     )
-    await _login(client, email="admin@vertere.local", password="s3nhaForte!")
+    fetched = await client.get(f"/api/v1/clinics/{body['id']}")
+    assert (fetched.status_code, fetched.json()["name"]) == (200, "Schweitzer")
 
-    payload = {"name": "Clínica A", "tax_id": "78977352000199"}
-    first = await client.post("/api/v1/clinics", json=payload)
-    assert first.status_code == 201
-
-    second = await client.post(
+    duplicate = await client.post(
         "/api/v1/clinics", json={"name": "Clínica B", "tax_id": "78977352000199"}
     )
-    assert second.status_code == 409
+    assert duplicate.status_code == 409
+
+    for field, value in (("tax_id", "123"), ("address_state", "Santa Catarina")):
+        invalid = await client.post(
+            "/api/v1/clinics", json={"name": "Clínica Inválida", field: value}
+        )
+        assert invalid.status_code == 422, field
+        assert invalid.json()["error"]["code"] == "VALIDATION_ERROR", field
 
 
-@pytest.mark.parametrize(
-    ("field", "value"),
-    [
-        ("tax_id", "123"),
-        ("address_state", "Santa Catarina"),
-    ],
-)
-async def test_create_clinic_rejects_malformed_fields_without_internal_error(
-    client: httpx.AsyncClient,
-    session_factory: sessionmaker[Session],
-    field: str,
-    value: str,
-) -> None:
-    _create_user(
-        session_factory,
-        email="admin@vertere.local",
-        password="s3nhaForte!",
-        role_id=ROLE_LAB_ADMIN,
-    )
-    await _login(client, email="admin@vertere.local", password="s3nhaForte!")
-
-    response = await client.post(
-        "/api/v1/clinics",
-        json={"name": "Clínica Inválida", field: value},
-    )
-
-    assert response.status_code == 422
-    assert response.json()["error"]["code"] == "VALIDATION_ERROR"
-
-
-async def test_update_clinic_with_stale_row_version_conflicts(
+async def test_clinic_updates_use_row_versions_and_deactivation_preserves_the_record(
     client: httpx.AsyncClient, session_factory: sessionmaker[Session]
 ) -> None:
-    _create_user(
-        session_factory, email="admin@vertere.local", password="s3nhaForte!", role_id=ROLE_LAB_ADMIN
+    await _login_as(client, session_factory, email="admin@vertere.local", role_id=ROLE_LAB_ADMIN)
+    created = (await client.post("/api/v1/clinics", json={"name": "Bicho Urbano"})).json()
+    url = f"/api/v1/clinics/{created['id']}"
+
+    stale = await client.patch(
+        url, json={"name": "Renomeada", "status": "ACTIVE", "expected_row_version": 99}
     )
-    await _login(client, email="admin@vertere.local", password="s3nhaForte!")
+    assert stale.status_code == 409
 
-    create_response = await client.post("/api/v1/clinics", json={"name": "Bicho Urbano"})
-    clinic_id = create_response.json()["id"]
+    # Versões encadeadas usam a devolvida pela edição anterior.
+    versions = [created["row_version"]]
+    for name in ("Versao Um", "Versao Dois"):
+        update = await client.patch(
+            url, json={"name": name, "status": "ACTIVE", "expected_row_version": versions[-1]}
+        )
+        assert update.status_code == 200
+        versions.append(update.json()["row_version"])
+    assert versions == [
+        created["row_version"],
+        created["row_version"] + 1,
+        created["row_version"] + 2,
+    ]
 
-    update_response = await client.patch(
-        f"/api/v1/clinics/{clinic_id}",
-        json={
-            "name": "Bicho Urbano Renomeada",
-            "status": "ACTIVE",
-            "expected_row_version": 99,
-        },
-    )
-    assert update_response.status_code == 409
+    deactivated = await client.post(f"{url}/deactivate")
+    assert (deactivated.status_code, deactivated.json()["status"]) == (200, "INACTIVE")
+    kept = await client.get(url)
+    assert (kept.status_code, kept.json()["name"]) == (200, "Versao Dois")
 
 
-async def test_deactivate_clinic_preserves_record(
+async def test_clinic_payload_is_bounded_and_the_masked_zip_code_is_normalized(
     client: httpx.AsyncClient, session_factory: sessionmaker[Session]
 ) -> None:
-    _create_user(
-        session_factory, email="admin@vertere.local", password="s3nhaForte!", role_id=ROLE_LAB_ADMIN
+    await _login_as(client, session_factory, email="lab@vertere.local", role_id=ROLE_LAB_ADMIN)
+
+    masked = await client.post(
+        "/api/v1/clinics", json={"name": "  Clínica CEP  ", "address_zip_code": "12345-678"}
     )
-    await _login(client, email="admin@vertere.local", password="s3nhaForte!")
+    assert masked.status_code == 201
+    assert masked.json()["address_zip_code"] == "12345678"
+    assert masked.json()["name"] == "Clínica CEP"
 
-    create_response = await client.post("/api/v1/clinics", json={"name": "Reale"})
-    clinic_id = create_response.json()["id"]
-
-    deactivate_response = await client.post(f"/api/v1/clinics/{clinic_id}/deactivate")
-    assert deactivate_response.status_code == 200
-    assert deactivate_response.json()["status"] == "INACTIVE"
-
-    get_response = await client.get(f"/api/v1/clinics/{clinic_id}")
-    assert get_response.status_code == 200
-    assert get_response.json()["name"] == "Reale"
-
-
-async def test_list_clinics_without_session_is_unauthenticated(client: httpx.AsyncClient) -> None:
-    response = await client.get("/api/v1/clinics")
-    assert response.status_code == 401
+    oversized = [
+        {"name": "N" * 1_000_000},
+        {"name": "ok", "notes": "x" * 2_000_000},
+        {"name": "ok", "phone": "9" * 5_000},
+        {"name": "ok", "address_zip_code": "1234567890123"},
+        {"name": "ok", "address_zip_code": "123"},
+        {"name": "ok", "email": "nao-e-email"},
+        {"name": "   "},
+    ]
+    for payload in oversized:
+        assert (await client.post("/api/v1/clinics", json=payload)).status_code == 422

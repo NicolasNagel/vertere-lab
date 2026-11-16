@@ -20,9 +20,15 @@ export interface Exam {
   categoryId: string
   description: string | null
   speciesIds: string[]
+  /** Pacote/perfil: exames que o compõem (vazio para exame avulso). */
+  componentExamIds: string[]
+  isPanel: boolean
   status: ExamStatus
   rowVersion: number
   priceBase: string | null
+  /** Janela de vigência do preço; só vem com `pricing.read`. */
+  priceValidFrom?: string | null
+  priceValidTo?: string | null
   updatedAt: string
 }
 
@@ -45,9 +51,10 @@ export interface ExamListParams {
 export interface ExamFormValues {
   name: string
   categoryId: string
-  priceBase: string
+  priceBase: string | null
   description: string | null
   speciesIds: string[]
+  componentExamIds?: string[]
 }
 
 interface ApiExamCategory {
@@ -68,9 +75,13 @@ interface ApiExam {
   category_id: string
   description: string | null
   species_ids: string[]
+  component_exam_ids: string[]
+  is_panel: boolean
   status: ExamStatus
   row_version: number
   price_base: string | null
+  price_valid_from?: string | null
+  price_valid_to?: string | null
   updated_at: string
 }
 
@@ -98,9 +109,13 @@ function fromApiExam(exam: ApiExam): Exam {
     categoryId: exam.category_id,
     description: exam.description,
     speciesIds: exam.species_ids,
+    componentExamIds: exam.component_exam_ids,
+    isPanel: exam.is_panel,
     status: exam.status,
     rowVersion: exam.row_version,
     priceBase: exam.price_base,
+    priceValidFrom: exam.price_valid_from ?? null,
+    priceValidTo: exam.price_valid_to ?? null,
     updatedAt: exam.updated_at,
   }
 }
@@ -109,9 +124,11 @@ function toApiExamPayload(values: ExamFormValues): Record<string, unknown> {
   return {
     name: values.name,
     category_id: values.categoryId,
-    price_base: values.priceBase,
+    // null = manter o preço atual (quem não gere preço não o envia).
+    price_base: values.priceBase ?? undefined,
     description: values.description || null,
     species_ids: values.speciesIds,
+    component_exam_ids: values.componentExamIds ?? [],
   }
 }
 
@@ -167,7 +184,11 @@ export async function createExam(values: ExamFormValues): Promise<Exam> {
 
 export async function updateExam(
   id: string,
-  values: ExamFormValues & { status: ExamStatus; expectedRowVersion: number },
+  values: ExamFormValues & {
+    status: ExamStatus
+    expectedRowVersion: number
+    reason?: string | null
+  },
 ): Promise<Exam> {
   const exam = await apiRequest<ApiExam>(`/exams/${id}`, {
     method: 'PATCH',
@@ -175,6 +196,7 @@ export async function updateExam(
       ...toApiExamPayload(values),
       status: values.status,
       expected_row_version: values.expectedRowVersion,
+      reason: values.reason || undefined,
     },
   })
   return fromApiExam(exam)
@@ -211,6 +233,9 @@ export async function importExams(file: File): Promise<ExamImportResult> {
   })
   return {
     importedCount: body.imported_count,
-    errors: body.errors.map((error) => ({ line: error.line, message: error.message })),
+    errors: body.errors.map((error) => ({
+      line: error.line,
+      message: error.message,
+    })),
   }
 }

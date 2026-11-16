@@ -3,9 +3,9 @@ separate; never the SQLAlchemy model (rule: .claude/rules/02-backend.md)."""
 
 from __future__ import annotations
 
-from datetime import date, datetime
+from datetime import date, datetime, time
 from decimal import Decimal
-from typing import Any, Literal
+from typing import Annotated, Any, Literal
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -18,18 +18,34 @@ CollectionMethodLiteral = Literal["HELITO_NICOLAS", "INTERNAL", "MARLI", "COURIE
 ServiceLevelLiteral = Literal["NORMAL", "PLANTAO_NORMAL", "PLANTAO_ESPECIAL"]
 
 
+class ExamComponentRead(BaseModel):
+    code: str
+    name: str
+
+
 class AttendanceExamRead(BaseModel):
     id: UUID
     exam_id: UUID
     exam_code: str
     exam_name: str
-    price_base: Decimal
+    price_base: Decimal | None
+    components: list[ExamComponentRead]
     quantity: int
-    discount_amount: Decimal
-    surcharge_amount: Decimal
-    total_amount: Decimal
+    discount_amount: Decimal | None
+    surcharge_amount: Decimal | None
+    total_amount: Decimal | None
     override_reason: str | None
     status: AttendanceExamStatusLiteral
+
+
+FeeKindLiteral = Literal["PLANTAO", "URGENCIA", "CLINICA"]
+
+
+class FeeLineRead(BaseModel):
+    kind: FeeKindLiteral
+    label: str
+    amount: Decimal | None
+    rule_id: UUID | None = None
 
 
 class AttendanceRead(BaseModel):
@@ -44,11 +60,15 @@ class AttendanceRead(BaseModel):
     status: AttendanceStatusLiteral
     items: list[AttendanceExamRead]
     billing_competence: date | None
-    subtotal: Decimal
-    discount_total: Decimal
-    surcharge_total: Decimal
-    on_call_fee: Decimal
-    grand_total: Decimal
+    subtotal: Decimal | None
+    discount_total: Decimal | None
+    surcharge_total: Decimal | None
+    on_call_fee: Decimal | None
+    is_urgent: bool
+    urgency_fee: Decimal | None
+    clinic_fee: Decimal | None
+    fee_lines: list[FeeLineRead]
+    grand_total: Decimal | None
     protocol_number: str | None
     cancel_reason: str | None
     created_at: datetime
@@ -66,6 +86,7 @@ class AttendanceListResponse(BaseModel):
 class AttendanceStatusCountsResponse(BaseModel):
     total: int
     by_status: dict[str, int]
+    billed_total: Decimal | None
 
 
 class AttendanceDraftCreateRequest(BaseModel):
@@ -76,6 +97,7 @@ class AttendanceDraftCreateRequest(BaseModel):
     patient_id: UUID
     collection_method: CollectionMethodLiteral = "INTERNAL"
     service_level: ServiceLevelLiteral = "NORMAL"
+    is_urgent: bool = False
     service_date: date | None = None
     notes: str | None = None
 
@@ -93,6 +115,30 @@ class AttendanceConfirmRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     items: list[AttendanceConfirmItemRequest]
+
+
+class AttendanceItemEditRequest(BaseModel):
+    """One line of the desired item set. `item_id` keeps an existing line (its price
+    snapshot stays); `exam_id` adds a new one, priced on the attendance's service date."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    item_id: UUID | None = None
+    exam_id: UUID | None = None
+    quantity: int = Field(default=1, ge=1)
+    discount_amount: Decimal | None = Field(default=None, ge=0)
+    override_reason: str | None = Field(default=None, max_length=500)
+
+
+class AttendanceItemsUpdateRequest(BaseModel):
+    """The complete desired set: existing lines left out are removed (kept as
+    `CANCELLED` in history). `reason` is mandatory — it goes to the audit trail."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    row_version: int = Field(ge=1)
+    reason: str = Field(min_length=1, max_length=500)
+    items: list[AttendanceItemEditRequest]
 
 
 class AttendanceCancelRequest(BaseModel):
@@ -121,8 +167,11 @@ class AttendanceUpdateRequest(BaseModel):
     patient_id: UUID | None = None
     collection_method: CollectionMethodLiteral | None = None
     service_level: ServiceLevelLiteral | None = None
+    is_urgent: bool | None = None
     service_date: date | None = None
     notes: str | None = Field(default=None, max_length=2000)
+    # Obrigatório fora do rascunho (validado no caso de uso): vai para a auditoria.
+    reason: str | None = Field(default=None, max_length=500)
 
 
 class AttendanceTimelineEntryRead(BaseModel):
@@ -137,6 +186,7 @@ class AttendanceTimelineEntryRead(BaseModel):
     id: UUID
     occurred_at: datetime
     actor_user_id: UUID | None
+    actor_name: str | None = None
     action: str
     before_state: dict[str, Any] | None
     after_state: dict[str, Any] | None
@@ -158,6 +208,9 @@ class OnCallFeeSettingRead(BaseModel):
     service_level: OnCallServiceLevelLiteral
     fee_amount: Decimal
     schedule_label: str
+    weekdays: list[int]
+    start_time: time | None
+    end_time: time | None
     updated_at: datetime
     row_version: int
 
@@ -170,7 +223,73 @@ class OnCallFeeSettingUpdateRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     fee_amount: Decimal = Field(ge=0)
-    schedule_label: str = Field(default="", max_length=200)
+    weekdays: list[Annotated[int, Field(ge=0, le=6)]] = Field(default_factory=list, max_length=7)
+    start_time: time | None = None
+    end_time: time | None = None
+    reason: str = Field(min_length=1, max_length=500)
+    expected_row_version: int = Field(ge=1)
+
+
+class UrgencyFeeSettingRead(BaseModel):
+    id: UUID
+    fee_amount: Decimal
+    updated_at: datetime
+    row_version: int
+
+
+class UrgencyFeeSettingUpdateRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    fee_amount: Decimal = Field(ge=0, max_digits=14, decimal_places=2)
+    reason: str = Field(min_length=1, max_length=500)
+    expected_row_version: int = Field(ge=1)
+
+
+FeeAttendanceTypeLiteral = Literal["ROTINA", "PLANTAO_NORMAL", "PLANTAO_ESPECIAL", "URGENTE"]
+
+
+class ClinicFeeRuleRead(BaseModel):
+    id: UUID
+    clinic_id: UUID
+    name: str
+    fee_amount: Decimal
+    valid_from: date
+    valid_to: date | None
+    is_active: bool
+    exam_ids: list[UUID]
+    attendance_types: list[FeeAttendanceTypeLiteral]
+    updated_at: datetime
+    row_version: int
+
+
+class ClinicFeeRuleListResponse(BaseModel):
+    items: list[ClinicFeeRuleRead]
+
+
+class ClinicFeeRuleCreateRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    clinic_id: UUID
+    name: str = Field(min_length=1, max_length=120)
+    fee_amount: Decimal = Field(ge=0, max_digits=14, decimal_places=2)
+    valid_from: date
+    valid_to: date | None = None
+    exam_ids: list[UUID] = Field(default_factory=list, max_length=50)
+    attendance_types: list[FeeAttendanceTypeLiteral] = Field(default_factory=list, max_length=4)
+    reason: str = Field(min_length=1, max_length=500)
+
+
+class ClinicFeeRuleUpdateRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    name: str = Field(min_length=1, max_length=120)
+    fee_amount: Decimal = Field(ge=0, max_digits=14, decimal_places=2)
+    valid_from: date
+    valid_to: date | None = None
+    is_active: bool
+    exam_ids: list[UUID] = Field(default_factory=list, max_length=50)
+    attendance_types: list[FeeAttendanceTypeLiteral] = Field(default_factory=list, max_length=4)
+    reason: str = Field(min_length=1, max_length=500)
     expected_row_version: int = Field(ge=1)
 
 
@@ -187,8 +306,12 @@ class AttendancePreviewResponse(BaseModel):
     service_level: ServiceLevelLiteral
     service_date: date
     items: list[AttendanceExamRead]
-    subtotal: Decimal
-    discount_total: Decimal
-    surcharge_total: Decimal
-    on_call_fee: Decimal
-    grand_total: Decimal
+    subtotal: Decimal | None
+    discount_total: Decimal | None
+    surcharge_total: Decimal | None
+    on_call_fee: Decimal | None
+    is_urgent: bool
+    urgency_fee: Decimal | None
+    clinic_fee: Decimal | None
+    fee_lines: list[FeeLineRead]
+    grand_total: Decimal | None

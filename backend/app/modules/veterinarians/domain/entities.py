@@ -59,6 +59,11 @@ class Veterinarian:
         self.updated_by = updated_by
         self.updated_at = now
 
+    def touch(self, *, updated_by: UUID | None, now: datetime) -> None:
+        """Registra uma alteração que não muda campos do cadastro (ex.: vínculos)."""
+        self.updated_by = updated_by
+        self.updated_at = now
+
     def deactivate(self, *, updated_by: UUID | None, now: datetime) -> None:
         if self.status == VeterinarianStatus.INACTIVE:
             return

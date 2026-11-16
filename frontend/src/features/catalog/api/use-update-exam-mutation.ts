@@ -4,7 +4,11 @@ import { updateExam, type ExamFormValues, type ExamStatus } from './catalog-api'
 
 interface UpdateExamInput {
   id: string
-  values: ExamFormValues & { status: ExamStatus; expectedRowVersion: number }
+  values: ExamFormValues & {
+    status: ExamStatus
+    expectedRowVersion: number
+    reason?: string | null
+  }
 }
 
 export function useUpdateExamMutation() {

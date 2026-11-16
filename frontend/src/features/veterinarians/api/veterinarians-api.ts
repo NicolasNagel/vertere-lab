@@ -140,6 +140,7 @@ export async function fetchVeterinarian(id: string): Promise<Veterinarian> {
 export async function createVeterinarian(
   values: VeterinarianFormValues,
   clinicIds: string[] = [],
+  primaryClinicId: string | null = null,
 ): Promise<Veterinarian> {
   // The backend now requires clinic_ids in the same request for a
   // non-autonomous veterinarian (it validates "needs >=1 clinic" at
@@ -151,7 +152,7 @@ export async function createVeterinarian(
     body: {
       ...toApiPayload(values),
       clinic_ids: clinicIds,
-      primary_clinic_id: clinicIds[0] ?? null,
+      primary_clinic_id: primaryClinicId ?? clinicIds[0] ?? null,
     },
   })
   return fromApiVeterinarian(veterinarian)
@@ -159,7 +160,11 @@ export async function createVeterinarian(
 
 export async function updateVeterinarian(
   id: string,
-  values: VeterinarianFormValues & { status: VeterinarianStatus; expectedRowVersion: number },
+  values: VeterinarianFormValues & {
+    status: VeterinarianStatus
+    expectedRowVersion: number
+    reason: string
+  },
 ): Promise<Veterinarian> {
   const veterinarian = await apiRequest<ApiVeterinarian>(`/veterinarians/${id}`, {
     method: 'PATCH',
@@ -167,6 +172,7 @@ export async function updateVeterinarian(
       ...toApiPayload(values),
       status: values.status,
       expected_row_version: values.expectedRowVersion,
+      reason: values.reason,
     },
   })
   return fromApiVeterinarian(veterinarian)
@@ -179,22 +185,27 @@ export async function deactivateVeterinarian(id: string): Promise<Veterinarian> 
   return fromApiVeterinarian(veterinarian)
 }
 
-export async function linkVeterinarianClinic(
-  veterinarianId: string,
-  clinicId: string,
-  primary = false,
-): Promise<void> {
-  await apiRequest<void>(`/veterinarians/${veterinarianId}/clinics`, {
-    method: 'POST',
-    body: { clinic_id: clinicId, primary },
-  })
+export interface VeterinarianClinicsChange {
+  addClinicIds: string[]
+  removeClinicIds: string[]
+  primaryClinicId: string | null
+  expectedRowVersion: number
+  reason: string
 }
 
-export async function unlinkVeterinarianClinic(
+/** Vincula e desvincula várias clínicas de uma vez: uma transação, um motivo, uma auditoria. */
+export async function updateVeterinarianClinics(
   veterinarianId: string,
-  clinicId: string,
+  change: VeterinarianClinicsChange,
 ): Promise<void> {
-  await apiRequest<void>(`/veterinarians/${veterinarianId}/clinics/${clinicId}`, {
-    method: 'DELETE',
+  await apiRequest<void>(`/veterinarians/${veterinarianId}/clinics`, {
+    method: 'PATCH',
+    body: {
+      add_clinic_ids: change.addClinicIds,
+      remove_clinic_ids: change.removeClinicIds,
+      primary_clinic_id: change.primaryClinicId,
+      expected_row_version: change.expectedRowVersion,
+      reason: change.reason,
+    },
   })
 }

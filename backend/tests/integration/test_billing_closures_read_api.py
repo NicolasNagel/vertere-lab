@@ -5,7 +5,6 @@ HTTPX/ASGI (Fatia C do Incremento 4.2).
 
 from __future__ import annotations
 
-from collections.abc import AsyncIterator, Iterator
 from datetime import UTC, datetime
 from decimal import Decimal
 from pathlib import Path
@@ -13,54 +12,16 @@ from uuid import uuid4
 
 import httpx
 import pytest
-from alembic.config import Config
-from fastapi import FastAPI
-from pydantic import SecretStr
 from sqlalchemy import text
 from sqlalchemy.orm import Session, sessionmaker
-from testcontainers.postgres import PostgresContainer
 
-from alembic import command
-from app.core.config import Settings
 from app.core.security import hash_password
-from app.main import create_app
 from app.modules.identity.infrastructure.models import LabMembershipModel, UserModel
 from app.modules.identity.infrastructure.seed import ROLE_LAB_ADMIN, ROLE_TECHNICAL
-from app.shared.infrastructure.database import build_engine, build_session_factory
 
 pytestmark = pytest.mark.integration
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
-
-
-@pytest.fixture(scope="module")
-def postgres_url() -> Iterator[str]:
-    with PostgresContainer("postgres:17-alpine", driver="psycopg") as postgres:
-        yield postgres.get_connection_url()
-
-
-@pytest.fixture(scope="module")
-def monkeypatch_module() -> Iterator[pytest.MonkeyPatch]:
-    mp = pytest.MonkeyPatch()
-    yield mp
-    mp.undo()
-
-
-@pytest.fixture(scope="module", autouse=True)
-def _migrated_schema(postgres_url: str, monkeypatch_module: pytest.MonkeyPatch) -> None:
-    monkeypatch_module.setenv("DATABASE_URL", postgres_url)
-    config = Config()
-    config.set_main_option("script_location", str(REPO_ROOT / "backend" / "alembic"))
-    command.upgrade(config, "head")
-
-
-@pytest.fixture
-def session_factory(postgres_url: str) -> Iterator[sessionmaker[Session]]:
-    engine = build_engine(postgres_url)
-    try:
-        yield build_session_factory(engine)
-    finally:
-        engine.dispose()
 
 
 @pytest.fixture(autouse=True)
@@ -75,6 +36,7 @@ def _reset_data(session_factory: sessionmaker[Session]) -> None:
         session.execute(text("DELETE FROM attendance_exams"))
         session.execute(text("DELETE FROM attendances"))
         session.execute(text("DELETE FROM attendance_sequences"))
+        session.execute(text("DELETE FROM exam_panel_items"))
         session.execute(text("DELETE FROM exams"))
         session.execute(text("DELETE FROM exam_categories"))
         session.execute(text("DELETE FROM veterinarian_clinics"))
@@ -83,31 +45,6 @@ def _reset_data(session_factory: sessionmaker[Session]) -> None:
         session.execute(text("DELETE FROM clinics"))
         session.execute(text("DELETE FROM users"))
         session.commit()
-
-
-@pytest.fixture
-def settings(postgres_url: str) -> Settings:
-    return Settings(
-        env="test",
-        log_level="WARNING",
-        database_url=SecretStr(postgres_url),
-        session_cookie_secure=False,
-    )
-
-
-@pytest.fixture
-def app(settings: Settings) -> FastAPI:
-    return create_app(settings)
-
-
-@pytest.fixture
-async def client(app: FastAPI) -> AsyncIterator[httpx.AsyncClient]:
-    transport = httpx.ASGITransport(app=app)
-    async with (
-        httpx.AsyncClient(transport=transport, base_url="http://test") as async_client,
-        app.router.lifespan_context(app),
-    ):
-        yield async_client
 
 
 async def _login(client: httpx.AsyncClient, *, email: str, password: str) -> None:
@@ -265,53 +202,16 @@ async def _close_clinic_period(
     return body
 
 
-async def test_get_closure_returns_the_full_snapshot(
-    client: httpx.AsyncClient, session_factory: sessionmaker[Session]
-) -> None:
-    await _login_admin(client, session_factory)
-    closure = await _close_clinic_period(
-        client,
-        session_factory,
-        service_date="2026-03-10",
-        period_start="2026-03-01",
-        period_end="2026-03-31",
-        idempotency_key="get-closure-1",
-    )
-
-    response = await client.get(f"/api/v1/closures/{closure['id']}")
-
-    assert response.status_code == 200
-    body = response.json()
-    assert body["id"] == closure["id"]
-    assert body["status"] == "CLOSED"
-    assert len(body["items"]) == 1
-    assert Decimal(body["grand_total"]) == Decimal("100.00")
-
-
-async def test_get_unknown_closure_is_not_found(
-    client: httpx.AsyncClient, session_factory: sessionmaker[Session]
-) -> None:
-    await _login_admin(client, session_factory)
-
-    response = await client.get(f"/api/v1/closures/{uuid4()}")
-
-    assert response.status_code == 404
-
-
-async def test_get_closure_without_permission_is_forbidden(
+async def test_closure_reads_are_permission_gated_and_return_snapshot_list_and_csv(
     client: httpx.AsyncClient, session_factory: sessionmaker[Session]
 ) -> None:
     await _login_technical(client, session_factory)
+    assert (await client.get(f"/api/v1/closures/{uuid4()}")).status_code == 403
 
-    response = await client.get(f"/api/v1/closures/{uuid4()}")
-
-    assert response.status_code == 403
-
-
-async def test_list_closures_is_paginated_and_filterable_by_clinic(
-    client: httpx.AsyncClient, session_factory: sessionmaker[Session]
-) -> None:
     await _login_admin(client, session_factory)
+    assert (await client.get(f"/api/v1/closures/{uuid4()}")).status_code == 404
+    assert (await client.get(f"/api/v1/closures/{uuid4()}/export")).status_code == 404
+
     closure_a = await _close_clinic_period(
         client,
         session_factory,
@@ -329,57 +229,36 @@ async def test_list_closures_is_paginated_and_filterable_by_clinic(
         idempotency_key="list-closure-b",
     )
 
-    all_response = await client.get("/api/v1/closures", params={"page": 1, "page_size": 20})
-    assert all_response.status_code == 200
-    all_body = all_response.json()
-    assert all_body["total"] == 2
-    assert {item["id"] for item in all_body["items"]} == {closure_a["id"], closure_b["id"]}
-    # List view omits `items` — it's the summary shape, not the full detail.
-    assert "items" not in all_body["items"][0]
+    # Detalhe devolve o snapshot completo.
+    detail = await client.get(f"/api/v1/closures/{closure_a['id']}")
+    assert detail.status_code == 200
+    body = detail.json()
+    assert (body["id"], body["status"]) == (closure_a["id"], "CLOSED")
+    assert len(body["items"]) == 1
+    assert Decimal(body["grand_total"]) == Decimal("100.00")
 
-    scoped_response = await client.get(
-        "/api/v1/closures", params={"clinic_id": str(closure_a["clinic_id"])}
-    )
-    assert scoped_response.status_code == 200
-    scoped_body = scoped_response.json()
-    assert scoped_body["total"] == 1
-    assert scoped_body["items"][0]["id"] == closure_a["id"]
+    # Lista é paginada, resumida (sem `items`) e filtrável por clínica.
+    listed = await client.get("/api/v1/closures", params={"page": 1, "page_size": 20})
+    assert listed.status_code == 200
+    assert listed.json()["total"] == 2
+    assert {item["id"] for item in listed.json()["items"]} == {closure_a["id"], closure_b["id"]}
+    assert "items" not in listed.json()["items"][0]
+    scoped = await client.get("/api/v1/closures", params={"clinic_id": str(closure_a["clinic_id"])})
+    assert scoped.status_code == 200
+    assert scoped.json()["total"] == 1
+    assert scoped.json()["items"][0]["id"] == closure_a["id"]
 
-
-async def test_export_closure_returns_a_csv_matching_the_snapshot(
-    client: httpx.AsyncClient, session_factory: sessionmaker[Session]
-) -> None:
-    await _login_admin(client, session_factory)
-    closure = await _close_clinic_period(
-        client,
-        session_factory,
-        service_date="2026-05-10",
-        period_start="2026-05-01",
-        period_end="2026-05-31",
-        idempotency_key="export-closure-1",
-    )
-
-    response = await client.get(f"/api/v1/closures/{closure['id']}/export")
-
-    assert response.status_code == 200
-    assert response.headers["content-type"].startswith("text/csv")
-    assert "attachment" in response.headers["content-disposition"]
-    lines = response.text.strip("\r\n").split("\r\n")
+    # Exportação CSV espelha o snapshot.
+    export = await client.get(f"/api/v1/closures/{closure_b['id']}/export")
+    assert export.status_code == 200
+    assert export.headers["content-type"].startswith("text/csv")
+    assert "attachment" in export.headers["content-disposition"]
+    lines = export.text.strip("\r\n").split("\r\n")
     assert lines[0] == "protocolo,paciente,exame,preco_base,quantidade,desconto,adicional,total"
     assert len(lines) == 2
-    item = closure["items"][0]  # type: ignore[index]
+    item = closure_b["items"][0]  # type: ignore[index]
     assert lines[1] == (
         f"{item['protocol_number']},{item['patient_name']},{item['exam_name']},"
         f"{item['price_base']},{item['quantity']},{item['discount_amount']},"
         f"{item['surcharge_amount']},{item['total_amount']}"
     )
-
-
-async def test_export_unknown_closure_is_not_found(
-    client: httpx.AsyncClient, session_factory: sessionmaker[Session]
-) -> None:
-    await _login_admin(client, session_factory)
-
-    response = await client.get(f"/api/v1/closures/{uuid4()}/export")
-
-    assert response.status_code == 404

@@ -5,6 +5,7 @@ from uuid import uuid4
 
 import pytest
 
+from app.modules.identity.application.dtos import SessionIssuedDTO
 from app.modules.identity.application.login import LoginCommand, LoginUseCase
 from app.modules.identity.domain.entities import (
     ClinicMembership,
@@ -71,8 +72,11 @@ def _add_user(
     roles: FakeRoleRepository,
     memberships: FakeLabMembershipRepository,
     *,
+    email: str = "reception@vertere.local",
+    password: str = "correct-password",
     is_active: bool = True,
     scope: RoleScope = RoleScope.LAB,
+    with_lab_membership: bool = True,
 ) -> User:
     role = Role(
         id=uuid4(),
@@ -83,27 +87,27 @@ def _add_user(
     roles.add(role)
     user = User(
         id=uuid4(),
-        email=Email("reception@vertere.local"),
+        email=Email(email),
         full_name="Recepção",
-        password_hash="hashed::correct-password",
+        password_hash=f"hashed::{password}",
         is_active=is_active,
         role_id=role.id,
         created_at=_NOW,
         updated_at=_NOW,
     )
     users.add(user)
-    memberships.add(LabMembership(id=uuid4(), user_id=user.id, granted_at=_NOW))
+    if with_lab_membership:
+        memberships.add(LabMembership(id=uuid4(), user_id=user.id, granted_at=_NOW))
     return user
 
 
-def test_login_succeeds_for_active_user_with_correct_password() -> None:
-    use_case, users, roles, memberships, audit = _make_use_case()
-    _add_user(users, roles, memberships)
-
-    result = use_case.execute(
+def _login(
+    use_case: LoginUseCase, login: str, password: str = "correct-password"
+) -> SessionIssuedDTO:
+    return use_case.execute(
         LoginCommand(
-            login="reception@vertere.local",
-            password="correct-password",
+            login=login,
+            password=password,
             remember_me=False,
             ip_address=None,
             user_agent=None,
@@ -111,192 +115,74 @@ def test_login_succeeds_for_active_user_with_correct_password() -> None:
         )
     )
 
-    assert result.user.email == "reception@vertere.local"
-    assert "attendances.read" in result.user.permissions
-    assert audit.entries[-1].action == "auth.login_succeeded"
 
-
-def test_login_accepts_clinic_role_with_active_clinic_membership() -> None:
+def test_login_only_admits_active_users_with_the_right_membership() -> None:
     use_case, users, roles, memberships, audit = _make_use_case()
-    user = _add_user(users, roles, memberships, scope=RoleScope.CLINIC)
+    _add_user(users, roles, memberships)
+    clinic_user = _add_user(
+        users,
+        roles,
+        memberships,
+        email="clinic@vertere.local",
+        scope=RoleScope.CLINIC,
+        with_lab_membership=False,
+    )
     clinic_id = uuid4()
     use_case._clinic_memberships.add(
-        ClinicMembership(id=uuid4(), user_id=user.id, clinic_id=clinic_id, granted_at=_NOW)
+        ClinicMembership(id=uuid4(), user_id=clinic_user.id, clinic_id=clinic_id, granted_at=_NOW)
     )
+    _add_user(users, roles, memberships, email="nolab@vertere.local", with_lab_membership=False)
+    _add_user(users, roles, memberships, email="inactive@vertere.local", is_active=False)
 
-    result = use_case.execute(
-        LoginCommand(
-            login="reception@vertere.local",
-            password="correct-password",
-            remember_me=False,
-            ip_address=None,
-            user_agent=None,
-            request_id=None,
-        )
-    )
-    assert result.user.role_scope == "CLINIC"
-    assert result.user.clinic_ids == frozenset({clinic_id})
+    lab = _login(use_case, "reception@vertere.local")
+    assert lab.user.email == "reception@vertere.local"
+    assert "attendances.read" in lab.user.permissions
     assert audit.entries[-1].action == "auth.login_succeeded"
 
+    clinic = _login(use_case, "clinic@vertere.local")
+    assert (clinic.user.role_scope, clinic.user.clinic_ids) == ("CLINIC", frozenset({clinic_id}))
 
-def test_login_rejects_internal_user_without_active_lab_membership() -> None:
-    use_case, users, roles, memberships, audit = _make_use_case()
-    _add_user(users, roles, memberships)
-    memberships.memberships.clear()
-
-    with pytest.raises(InvalidCredentialsError):
-        use_case.execute(
-            LoginCommand(
-                login="reception@vertere.local",
-                password="correct-password",
-                remember_me=False,
-                ip_address=None,
-                user_agent=None,
-                request_id=None,
-            )
-        )
-
+    with pytest.raises(InvalidCredentialsError):  # usuário interno sem vínculo ativo com o lab
+        _login(use_case, "nolab@vertere.local")
     assert audit.entries[-1].after_state == {"reason": "internal_access_unavailable"}
 
-
-def test_login_rejects_unknown_user_and_wrong_password_identically() -> None:
-    use_case, users, roles, memberships, _audit = _make_use_case()
-    _add_user(users, roles, memberships)
-
-    with pytest.raises(InvalidCredentialsError) as unknown_exc:
-        use_case.execute(
-            LoginCommand(
-                login="nobody@vertere.local",
-                password="whatever",
-                remember_me=False,
-                ip_address=None,
-                user_agent=None,
-                request_id=None,
-            )
-        )
-
-    with pytest.raises(InvalidCredentialsError) as wrong_password_exc:
-        use_case.execute(
-            LoginCommand(
-                login="reception@vertere.local",
-                password="wrong-password",
-                remember_me=False,
-                ip_address=None,
-                user_agent=None,
-                request_id=None,
-            )
-        )
-
-    assert str(unknown_exc.value) == str(wrong_password_exc.value)
-    assert unknown_exc.value.code == wrong_password_exc.value.code
-
-
-def test_login_rejects_inactive_user_after_password_matches() -> None:
-    use_case, users, roles, memberships, audit = _make_use_case()
-    _add_user(users, roles, memberships, is_active=False)
-
     with pytest.raises(AccountInactiveError):
-        use_case.execute(
-            LoginCommand(
-                login="reception@vertere.local",
-                password="correct-password",
-                remember_me=False,
-                ip_address=None,
-                user_agent=None,
-                request_id=None,
-            )
-        )
-
+        _login(use_case, "inactive@vertere.local")
     assert audit.entries[-1].after_state == {"reason": "inactive"}
 
-
-def _wrong_password_attempt(use_case: LoginUseCase, login: str) -> None:
-    with pytest.raises(InvalidCredentialsError):
-        use_case.execute(
-            LoginCommand(
-                login=login,
-                password="wrong-password",
-                remember_me=False,
-                ip_address=None,
-                user_agent=None,
-                request_id=None,
-            )
-        )
+    # Usuário inexistente e senha errada são indistinguíveis para quem tenta.
+    with pytest.raises(InvalidCredentialsError) as unknown:
+        _login(use_case, "nobody@vertere.local", "whatever")
+    with pytest.raises(InvalidCredentialsError) as wrong_password:
+        _login(use_case, "reception@vertere.local", "wrong-password")
+    assert str(unknown.value) == str(wrong_password.value)
+    assert unknown.value.code == wrong_password.value.code
 
 
-def test_login_is_rate_limited_after_max_attempts() -> None:
+def test_login_rate_limit_is_per_login_and_cleared_by_a_successful_login() -> None:
     use_case, users, roles, memberships, audit = _make_use_case(max_attempts=3)
-    _add_user(users, roles, memberships)
+    _add_user(users, roles, memberships, email="attacked@vertere.local")
+    _add_user(users, roles, memberships, email="other@vertere.local", password="other-password")
+    _add_user(users, roles, memberships, email="typo@vertere.local")
 
     for _ in range(3):
-        _wrong_password_attempt(use_case, "reception@vertere.local")
-
-    with pytest.raises(RateLimitedError):
-        use_case.execute(
-            LoginCommand(
-                login="reception@vertere.local",
-                password="correct-password",  # mesmo a senha certa não passa
-                remember_me=False,
-                ip_address=None,
-                user_agent=None,
-                request_id=None,
-            )
-        )
+        with pytest.raises(InvalidCredentialsError):
+            _login(use_case, "attacked@vertere.local", "wrong-password")
+    with pytest.raises(RateLimitedError):  # nem a senha certa passa depois do limite
+        _login(use_case, "attacked@vertere.local")
     assert audit.entries[-1].action == "auth.login_rate_limited"
 
-
-def test_login_rate_limit_is_keyed_by_login_not_shared_globally() -> None:
-    use_case, users, roles, memberships, _audit = _make_use_case(max_attempts=3)
-    _add_user(users, roles, memberships)
-    role = Role(id=uuid4(), name="FINANCE", scope=RoleScope.LAB, permission_codes=frozenset())
-    roles.add(role)
-    other_user = User(
-        id=uuid4(),
-        email=Email("other@vertere.local"),
-        full_name="Other",
-        password_hash="hashed::other-password",
-        role_id=role.id,
-        created_at=_NOW,
-        updated_at=_NOW,
+    # O bloqueio é por login: outra conta continua entrando.
+    assert _login(use_case, "other@vertere.local", "other-password").user.email == (
+        "other@vertere.local"
     )
-    users.add(other_user)
-    memberships.add(LabMembership(id=uuid4(), user_id=other_user.id, granted_at=_NOW))
 
-    for _ in range(3):
-        _wrong_password_attempt(use_case, "reception@vertere.local")
-
-    # A conta atacada está bloqueada, mas uma conta diferente não é afetada.
-    result = use_case.execute(
-        LoginCommand(
-            login="other@vertere.local",
-            password="other-password",
-            remember_me=False,
-            ip_address=None,
-            user_agent=None,
-            request_id=None,
-        )
-    )
-    assert result.user.email == "other@vertere.local"
-
-
-def test_successful_login_clears_the_failure_count() -> None:
-    use_case, users, roles, memberships, _audit = _make_use_case(max_attempts=3)
-    _add_user(users, roles, memberships)
-
-    _wrong_password_attempt(use_case, "reception@vertere.local")
-    _wrong_password_attempt(use_case, "reception@vertere.local")
-
-    result = use_case.execute(
-        LoginCommand(
-            login="reception@vertere.local",
-            password="correct-password",
-            remember_me=False,
-            ip_address=None,
-            user_agent=None,
-            request_id=None,
-        )
-    )
-    assert result.user.email == "reception@vertere.local"
-
-    # O contador zerou — mais uma tentativa errada não deveria já bloquear.
-    _wrong_password_attempt(use_case, "reception@vertere.local")
+    # Errar abaixo do limite e acertar zera a contagem.
+    for _ in range(2):
+        with pytest.raises(InvalidCredentialsError):
+            _login(use_case, "typo@vertere.local", "wrong-password")
+    assert _login(use_case, "typo@vertere.local").user.email == "typo@vertere.local"
+    for _ in range(2):
+        with pytest.raises(InvalidCredentialsError):
+            _login(use_case, "typo@vertere.local", "wrong-password")
+    assert _login(use_case, "typo@vertere.local").user.email == "typo@vertere.local"

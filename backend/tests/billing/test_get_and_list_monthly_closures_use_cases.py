@@ -93,186 +93,95 @@ def _closure(*, clinic_id: object | None = None) -> MonthlyClosure:
     )
 
 
-# ---------------- GetMonthlyClosureUseCase ----------------
+_READER = frozenset({"closures.read"})
+_CSV_HEADER = "protocolo,paciente,exame,preco_base,quantidade,desconto,adicional,total"
 
 
-def test_get_without_permission_is_forbidden() -> None:
-    use_case = GetMonthlyClosureUseCase(closures=FakeMonthlyClosureRepository())
-    with pytest.raises(ForbiddenError):
-        use_case.execute(
-            GetMonthlyClosureQuery(actor=_actor(permissions=frozenset()), closure_id=uuid4())
-        )
-
-
-def test_get_unknown_closure_is_not_found() -> None:
-    use_case = GetMonthlyClosureUseCase(closures=FakeMonthlyClosureRepository())
-    with pytest.raises(NotFoundError):
-        use_case.execute(
-            GetMonthlyClosureQuery(
-                actor=_actor(permissions=frozenset({"closures.read"})), closure_id=uuid4()
-            )
-        )
-
-
-def test_get_returns_the_closure_with_its_items() -> None:
+def test_get_and_get_by_period_check_permission_and_return_the_closure_with_items() -> None:
     closure = _closure()
     repository = FakeMonthlyClosureRepository()
     repository.add(closure)
+    get = GetMonthlyClosureUseCase(closures=repository)
+    by_period = GetClosureByPeriodUseCase(closures=repository)
+    period = {"period_start": closure.period_start, "period_end": closure.period_end}
 
-    use_case = GetMonthlyClosureUseCase(closures=repository)
-    result = use_case.execute(
-        GetMonthlyClosureQuery(
-            actor=_actor(permissions=frozenset({"closures.read"})), closure_id=closure.id
+    with pytest.raises(ForbiddenError):
+        get.execute(
+            GetMonthlyClosureQuery(actor=_actor(permissions=frozenset()), closure_id=closure.id)
         )
+    with pytest.raises(ForbiddenError):
+        by_period.execute(
+            GetClosureByPeriodQuery(
+                actor=_actor(permissions=frozenset()), clinic_id=closure.clinic_id, **period
+            )
+        )
+    with pytest.raises(NotFoundError):
+        get.execute(GetMonthlyClosureQuery(actor=_actor(permissions=_READER), closure_id=uuid4()))
+    with pytest.raises(NotFoundError):
+        by_period.execute(
+            GetClosureByPeriodQuery(actor=_actor(permissions=_READER), clinic_id=uuid4(), **period)
+        )
+
+    result = get.execute(
+        GetMonthlyClosureQuery(actor=_actor(permissions=_READER), closure_id=closure.id)
     )
-
     assert result.id == closure.id
-    assert len(result.items) == 1
-    assert result.items[0].exam_name == "Hemograma"
-
-
-# ---------------- GetClosureByPeriodUseCase ----------------
-
-
-def test_get_by_period_without_permission_is_forbidden() -> None:
-    use_case = GetClosureByPeriodUseCase(closures=FakeMonthlyClosureRepository())
-    with pytest.raises(ForbiddenError):
-        use_case.execute(
-            GetClosureByPeriodQuery(
-                actor=_actor(permissions=frozenset()),
-                clinic_id=uuid4(),
-                period_start=date(2026, 1, 1),
-                period_end=date(2026, 1, 31),
-            )
-        )
-
-
-def test_get_by_period_with_no_closure_is_not_found() -> None:
-    use_case = GetClosureByPeriodUseCase(closures=FakeMonthlyClosureRepository())
-    with pytest.raises(NotFoundError):
-        use_case.execute(
-            GetClosureByPeriodQuery(
-                actor=_actor(permissions=frozenset({"closures.read"})),
-                clinic_id=uuid4(),
-                period_start=date(2026, 1, 1),
-                period_end=date(2026, 1, 31),
-            )
-        )
-
-
-def test_get_by_period_finds_the_closure_by_clinic_and_competence() -> None:
-    closure = _closure()
-    repository = FakeMonthlyClosureRepository()
-    repository.add(closure)
-
-    use_case = GetClosureByPeriodUseCase(closures=repository)
-    result = use_case.execute(
+    assert [item.exam_name for item in result.items] == ["Hemograma"]
+    found = by_period.execute(
         GetClosureByPeriodQuery(
-            actor=_actor(permissions=frozenset({"closures.read"})),
-            clinic_id=closure.clinic_id,
-            period_start=closure.period_start,
-            period_end=closure.period_end,
+            actor=_actor(permissions=_READER), clinic_id=closure.clinic_id, **period
         )
     )
-
-    assert result.id == closure.id
-
-
-# ---------------- ListMonthlyClosuresUseCase ----------------
+    assert found.id == closure.id
 
 
-def test_list_without_permission_is_forbidden() -> None:
-    use_case = ListMonthlyClosuresUseCase(closures=FakeMonthlyClosureRepository())
-    with pytest.raises(ForbiddenError):
-        use_case.execute(
-            ListMonthlyClosuresQuery(
-                actor=_actor(permissions=frozenset()), clinic_id=None, page=1, page_size=20
-            )
-        )
-
-
-def test_list_returns_every_closure_added() -> None:
-    repository = FakeMonthlyClosureRepository()
-    repository.add(_closure())
-    repository.add(_closure())
-
-    use_case = ListMonthlyClosuresUseCase(closures=repository)
-    result = use_case.execute(
-        ListMonthlyClosuresQuery(
-            actor=_actor(permissions=frozenset({"closures.read"})),
-            clinic_id=None,
-            page=1,
-            page_size=20,
-        )
-    )
-
-    assert result.total == 2
-    assert len(result.items) == 2
-
-
-def test_clinic_actor_only_lists_and_reads_own_closures() -> None:
+def test_list_closures_checks_permission_and_clinic_actor_sees_only_own() -> None:
     own_clinic_id = uuid4()
     foreign_closure = _closure()
     own_closure = _closure(clinic_id=own_clinic_id)
     repository = FakeMonthlyClosureRepository()
     repository.add(foreign_closure)
     repository.add(own_closure)
-    actor = _clinic_actor(clinic_ids=frozenset({own_clinic_id}))
+    list_use_case = ListMonthlyClosuresUseCase(closures=repository)
 
-    result = ListMonthlyClosuresUseCase(closures=repository).execute(
-        ListMonthlyClosuresQuery(actor=actor, clinic_id=None, page=1, page_size=20)
+    with pytest.raises(ForbiddenError):
+        list_use_case.execute(
+            ListMonthlyClosuresQuery(
+                actor=_actor(permissions=frozenset()), clinic_id=None, page=1, page_size=20
+            )
+        )
+    everything = list_use_case.execute(
+        ListMonthlyClosuresQuery(
+            actor=_actor(permissions=_READER), clinic_id=None, page=1, page_size=20
+        )
     )
+    assert (everything.total, len(everything.items)) == (2, 2)
 
-    assert [item.id for item in result.items] == [own_closure.id]
+    clinic_actor = _clinic_actor(clinic_ids=frozenset({own_clinic_id}))
+    own_only = list_use_case.execute(
+        ListMonthlyClosuresQuery(actor=clinic_actor, clinic_id=None, page=1, page_size=20)
+    )
+    assert [item.id for item in own_only.items] == [own_closure.id]
     with pytest.raises(NotFoundError):
         GetMonthlyClosureUseCase(closures=repository).execute(
-            GetMonthlyClosureQuery(actor=actor, closure_id=foreign_closure.id)
+            GetMonthlyClosureQuery(actor=clinic_actor, closure_id=foreign_closure.id)
         )
 
 
-# ---------------- monthly_closure_to_csv ----------------
+def _csv_lines(closure: MonthlyClosure) -> list[str]:
+    return monthly_closure_to_csv(monthly_closure_to_dto(closure)).splitlines()
 
 
-def test_csv_export_has_a_header_and_one_row_per_item() -> None:
+def test_csv_export_lists_items_and_only_shows_on_call_fee_when_present() -> None:
     closure = _closure()
-    dto = monthly_closure_to_dto(closure)
+    lines = _csv_lines(closure)
+    assert lines == [_CSV_HEADER, "P000001/26,Rex,Hemograma,100.00,1,0,0,100.00"]
+    assert "taxas_total" not in "".join(lines)
 
-    csv_content = monthly_closure_to_csv(dto)
-
-    lines = csv_content.strip("\r\n").split("\r\n")
-    assert lines[0] == "protocolo,paciente,exame,preco_base,quantidade,desconto,adicional,total"
-    assert len(lines) == 2
-    assert lines[1] == "P000001/26,Rex,Hemograma,100.00,1,0,0,100.00"
-
-
-def test_csv_export_includes_the_on_call_fee_total_line() -> None:
-    closure = _closure()
     closure.on_call_fee_total = Decimal("150.00")
-    dto = monthly_closure_to_dto(closure)
+    assert "taxas_total,150.00" in _csv_lines(closure)
 
-    csv_content = monthly_closure_to_csv(dto)
-
-    lines = csv_content.strip("\r\n").split("\r\n")
-    assert "taxa_de_plantao_total,150.00" in lines
-
-
-def test_csv_export_omits_the_on_call_fee_line_when_it_is_zero() -> None:
-    closure = _closure()
-    dto = monthly_closure_to_dto(closure)
-
-    csv_content = monthly_closure_to_csv(dto)
-
-    assert "taxa_de_plantao_total" not in csv_content
-
-
-def test_csv_export_of_a_closure_without_items_is_header_only() -> None:
-    closure = _closure()
     closure.items.clear()
     closure.item_count = 0
-    dto = monthly_closure_to_dto(closure)
-
-    csv_content = monthly_closure_to_csv(dto)
-
-    assert csv_content.strip("\r\n").split("\r\n") == [
-        "protocolo,paciente,exame,preco_base,quantidade,desconto,adicional,total"
-    ]
+    closure.on_call_fee_total = Decimal("0")
+    assert _csv_lines(closure) == [_CSV_HEADER]

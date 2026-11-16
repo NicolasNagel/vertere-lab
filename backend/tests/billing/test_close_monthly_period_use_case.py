@@ -102,161 +102,95 @@ def _command(**overrides: object) -> CloseMonthlyPeriodCommand:
     return CloseMonthlyPeriodCommand(**defaults)  # type: ignore[arg-type]
 
 
-def test_without_permission_is_forbidden() -> None:
+def _closure_stub(status: ClosureStatus, *, version: int = 1) -> MonthlyClosure:
+    return MonthlyClosure(
+        id=uuid4(),
+        clinic_id=_CLINIC_ID,
+        competence_year=2026,
+        competence_month=1,
+        period_start=date(2026, 1, 1),
+        period_end=date(2026, 1, 31),
+        status=status,
+        item_count=0,
+        subtotal=Decimal("0"),
+        discount_total=Decimal("0"),
+        surcharge_total=Decimal("0"),
+        grand_total=Decimal("0"),
+        generated_by=None,
+        closed_by=None,
+        generated_at=_NOW,
+        closed_at=_NOW,
+        version=version,
+    )
+
+
+def test_close_rejects_invalid_requests_and_writes_nothing() -> None:
     fixture = _Fixture(candidates=[_candidate()])
     with pytest.raises(ForbiddenError):
         fixture.use_case().execute(_command(actor=_actor(permissions=frozenset())))
-
-
-def test_unknown_clinic_is_not_found() -> None:
-    fixture = _Fixture(candidates=[_candidate()])
     with pytest.raises(NotFoundError):
         fixture.use_case().execute(_command(clinic_id=uuid4()))
 
-
-def test_acquires_the_advisory_lock_before_checking_for_an_existing_closure() -> None:
-    fixture = _Fixture(candidates=[_candidate()])
-    fixture.use_case().execute(_command())
-    assert fixture.closures.lock_calls == [_CLINIC_ID]
-
-
-def test_rejects_when_an_active_closure_already_exists() -> None:
-    existing = MonthlyClosure(
-        id=uuid4(),
-        clinic_id=_CLINIC_ID,
-        competence_year=2026,
-        competence_month=1,
-        period_start=date(2026, 1, 1),
-        period_end=date(2026, 1, 31),
-        status=ClosureStatus.CLOSED,
-        item_count=0,
-        subtotal=Decimal("0"),
-        discount_total=Decimal("0"),
-        surcharge_total=Decimal("0"),
-        grand_total=Decimal("0"),
-        generated_by=None,
-        closed_by=None,
-        generated_at=_NOW,
-        closed_at=_NOW,
+    existing = _Fixture(
+        candidates=[_candidate()], active_closure=_closure_stub(ClosureStatus.CLOSED)
     )
-    fixture = _Fixture(candidates=[_candidate()], active_closure=existing)
     with pytest.raises(ClosureAlreadyExistsError):
-        fixture.use_case().execute(_command())
-    assert fixture.closures.added == []
+        existing.use_case().execute(_command())
+    assert existing.closures.added == []
 
-
-def test_rejects_when_there_is_no_eligible_item() -> None:
-    fixture = _Fixture(candidates=[_candidate(attendance_status="CANCELLED")])
+    nothing_eligible = _Fixture(candidates=[_candidate(attendance_status="CANCELLED")])
     with pytest.raises(ValidationError):
-        fixture.use_case().execute(_command())
+        nothing_eligible.use_case().execute(_command())
+    assert nothing_eligible.closures.added == []
 
 
-def test_closes_with_totals_computed_from_eligible_items_only() -> None:
+def test_close_totals_eligible_items_once_per_on_call_fee_and_records_audit_and_outbox() -> None:
     attendance_a = uuid4()
-    attendance_b_cancelled = uuid4()
-    candidates = [
-        _candidate(attendance_id=attendance_a, total_amount=Decimal("100.00")),
-        _candidate(
-            attendance_id=attendance_a, total_amount=Decimal("50.00"), price_base=Decimal("50.00")
-        ),
-        _candidate(
-            attendance_id=attendance_b_cancelled,
-            attendance_status="CANCELLED",
-            total_amount=Decimal("30.00"),
-        ),
-    ]
-    fixture = _Fixture(candidates=candidates)
+    attendance_cancelled = uuid4()
+    fixture = _Fixture(
+        candidates=[
+            _candidate(
+                attendance_id=attendance_a,
+                total_amount=Decimal("100.00"),
+                attendance_on_call_fee=Decimal("150.00"),
+            ),
+            _candidate(
+                attendance_id=attendance_a,
+                total_amount=Decimal("50.00"),
+                price_base=Decimal("50.00"),
+                attendance_on_call_fee=Decimal("150.00"),
+            ),
+            _candidate(
+                attendance_id=attendance_cancelled,
+                attendance_status="CANCELLED",
+                total_amount=Decimal("30.00"),
+            ),
+        ]
+    )
 
     result = fixture.use_case().execute(_command())
 
-    assert result.status == "CLOSED"
-    assert result.item_count == 2
+    assert (result.status, result.item_count, len(result.items)) == ("CLOSED", 2, 2)
     assert result.subtotal == Decimal("150.00")
-    assert result.grand_total == Decimal("150.00")
-    assert len(result.items) == 2
-    assert len(fixture.closures.added) == 1
-
-
-def test_closes_with_on_call_fee_counted_once_per_attendance_not_per_item() -> None:
-    """Same guarantee as the preview use case, at close time — a flat
-    plantão fee on an attendance with 2 eligible exam items must be added
-    to the closure header once, never once per item."""
-    attendance_a = uuid4()
-    candidates = [
-        _candidate(
-            attendance_id=attendance_a,
-            total_amount=Decimal("100.00"),
-            attendance_on_call_fee=Decimal("150.00"),
-        ),
-        _candidate(
-            attendance_id=attendance_a,
-            total_amount=Decimal("50.00"),
-            price_base=Decimal("50.00"),
-            attendance_on_call_fee=Decimal("150.00"),
-        ),
-    ]
-    fixture = _Fixture(candidates=candidates)
-
-    result = fixture.use_case().execute(_command())
-
+    # A taxa de plantão é do atendimento: entra uma vez, não por item.
     assert result.on_call_fee_total == Decimal("150.00")
     assert result.grand_total == Decimal("300.00")
-    assert len(result.items) == 2
+    assert len(fixture.closures.added) == 1
+    assert fixture.closures.lock_calls == [_CLINIC_ID]
+    assert fixture.candidates.marked_attendance_ids == {attendance_a}  # só quem contribuiu
 
-
-def test_associates_only_attendances_that_contributed_an_eligible_item() -> None:
-    attendance_eligible = uuid4()
-    attendance_blocked = uuid4()
-    candidates = [
-        _candidate(attendance_id=attendance_eligible),
-        _candidate(attendance_id=attendance_blocked, attendance_status="CANCELLED"),
+    assert [(entry.action, entry.entity_id) for entry in fixture.audit.entries] == [
+        ("closures.closed", str(result.id))
     ]
-    fixture = _Fixture(candidates=candidates)
-
-    fixture.use_case().execute(_command())
-
-    assert fixture.candidates.marked_attendance_ids == {attendance_eligible}
-
-
-def test_records_audit_and_outbox_entries() -> None:
-    fixture = _Fixture(candidates=[_candidate()])
-
-    result = fixture.use_case().execute(_command())
-
-    assert len(fixture.audit.entries) == 1
-    audit_entry = fixture.audit.entries[0]
-    assert audit_entry.action == "closures.closed"
-    assert audit_entry.entity_id == str(result.id)
-
-    assert len(fixture.outbox.events) == 1
-    outbox_event = fixture.outbox.events[0]
-    assert outbox_event.event_type == "closures.closed"
-    assert outbox_event.payload["closure_id"] == str(result.id)
+    assert [(event.event_type, event.payload["closure_id"]) for event in fixture.outbox.events] == [
+        ("closures.closed", str(result.id))
+    ]
 
 
 def test_reclose_increments_the_preserved_snapshot_version() -> None:
-    previous = MonthlyClosure(
-        id=uuid4(),
-        clinic_id=_CLINIC_ID,
-        competence_year=2026,
-        competence_month=1,
-        period_start=date(2026, 1, 1),
-        period_end=date(2026, 1, 31),
-        status=ClosureStatus.REOPENED,
-        item_count=0,
-        subtotal=Decimal("0"),
-        discount_total=Decimal("0"),
-        surcharge_total=Decimal("0"),
-        grand_total=Decimal("0"),
-        generated_by=None,
-        closed_by=None,
-        generated_at=_NOW,
-        closed_at=_NOW,
-        version=3,
-    )
     fixture = _Fixture(candidates=[_candidate()])
-    fixture.closures = FakeMonthlyClosureRepository(previous)
+    fixture.closures = FakeMonthlyClosureRepository(
+        _closure_stub(ClosureStatus.REOPENED, version=3)
+    )
 
-    result = fixture.use_case().execute(_command())
-
-    assert result.version == 4
+    assert fixture.use_case().execute(_command()).version == 4

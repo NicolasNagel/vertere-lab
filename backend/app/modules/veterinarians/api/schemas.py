@@ -48,6 +48,19 @@ class VeterinarianLinkClinicRequest(BaseModel):
 
     clinic_id: UUID
     primary: bool = False
+    reason: str = Field(min_length=1, max_length=500)
+
+
+class VeterinarianClinicsUpdateRequest(BaseModel):
+    """Alteração em lote dos vínculos: o que entra, o que sai e a clínica principal."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    add_clinic_ids: list[UUID] = Field(default_factory=list, max_length=500)
+    remove_clinic_ids: list[UUID] = Field(default_factory=list, max_length=500)
+    primary_clinic_id: UUID | None = None
+    expected_row_version: int
+    reason: str = Field(min_length=1, max_length=500)
 
 
 class VeterinarianCreateRequest(BaseModel):
@@ -74,3 +87,4 @@ class VeterinarianUpdateRequest(BaseModel):
     status: VeterinarianStatusLiteral
     notes: str | None = None
     expected_row_version: int
+    reason: str = Field(min_length=1, max_length=500)

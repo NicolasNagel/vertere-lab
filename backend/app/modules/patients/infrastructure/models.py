@@ -5,9 +5,9 @@ Record")."""
 from __future__ import annotations
 
 import uuid
-from datetime import datetime
+from datetime import date, datetime
 
-from sqlalchemy import CheckConstraint, ForeignKey, func
+from sqlalchemy import CheckConstraint, ForeignKey, SmallInteger, func
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.shared.infrastructure.database import Base
@@ -26,6 +26,15 @@ class PatientModel(Base):
     __table_args__ = (
         CheckConstraint("sex IN ('MALE','FEMALE')", name="ck_patients_sex"),
         CheckConstraint("status IN ('ACTIVE','INACTIVE')", name="ck_patients_status"),
+        CheckConstraint("(age_value IS NULL) = (age_unit IS NULL)", name="ck_patients_age_pair"),
+        CheckConstraint(
+            "(age_value IS NULL) = (age_recorded_on IS NULL)", name="ck_patients_age_recorded"
+        ),
+        CheckConstraint(
+            "age_unit IS NULL OR (age_unit = 'YEARS' AND age_value BETWEEN 0 AND 120)"
+            " OR (age_unit = 'MONTHS' AND age_value BETWEEN 0 AND 1440)",
+            name="ck_patients_age_range",
+        ),
     )
 
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
@@ -39,6 +48,9 @@ class PatientModel(Base):
     sex: Mapped[str] = mapped_column(nullable=False)
     breed: Mapped[str | None] = mapped_column(nullable=True)
     age_description: Mapped[str | None] = mapped_column(nullable=True)
+    age_value: Mapped[int | None] = mapped_column(SmallInteger, nullable=True)
+    age_unit: Mapped[str | None] = mapped_column(nullable=True)
+    age_recorded_on: Mapped[date | None] = mapped_column(nullable=True)
     owner_name: Mapped[str] = mapped_column(nullable=False)
     owner_phone: Mapped[str | None] = mapped_column(nullable=True)
     owner_document: Mapped[str | None] = mapped_column(nullable=True)

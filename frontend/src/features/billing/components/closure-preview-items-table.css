@@ -1,5 +1,5 @@
 .closure-preview-items-table {
-  background: #ffffff;
+  background: var(--color-surface);
   border: 1px solid var(--color-border);
 }
 
@@ -23,7 +23,7 @@
 }
 
 .closure-preview-items-table__header {
-  background: #f4f1ea;
+  background: var(--color-surface-subtle);
   font-family: var(--font-mono);
   font-size: 0.625rem; /* 10px */
   letter-spacing: 0.1em;
@@ -33,7 +33,7 @@
 }
 
 .closure-preview-items-table__row {
-  border-top: 1px solid #f0ede5;
+  border-top: 1px solid var(--color-surface-muted);
   font-size: 0.8125rem;
 }
 
@@ -60,13 +60,13 @@
 }
 
 .closure-preview-items-table__badge[data-status='eligible'] {
-  background: #e5ebe2;
-  color: #4f6b3f;
+  background: var(--color-success-bg);
+  color: var(--color-success);
 }
 
 .closure-preview-items-table__badge[data-status='blocked'] {
   background: #f5e2da;
-  color: #a0492c;
+  color: var(--color-warning-ink);
 }
 
 .closure-preview-items-table__protocol {
@@ -76,13 +76,13 @@
 }
 
 .closure-preview-items-table__reason {
-  color: #a0492c;
+  color: var(--color-warning-ink);
   font-size: 0.75rem;
 }
 
 .closure-preview-items-table__total {
   font-family: var(--font-mono);
   font-weight: 600;
-  color: #1f3450;
+  color: var(--color-brand-ink-deep);
   text-align: right;
 }

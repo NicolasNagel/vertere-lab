@@ -3,7 +3,7 @@
 }
 
 .user-form__domain-error {
-  color: #b3261e;
+  color: var(--color-danger);
   font-size: 0.8125rem;
   margin: 0 0 1rem;
 }
@@ -27,4 +27,9 @@
 
 .user-form__submit {
   width: auto;
+}
+
+/* Menu suspenso de formulário tem o mesmo respiro dos campos de texto. */
+.user-form .dropdown-field {
+  margin-bottom: 0.75rem;
 }

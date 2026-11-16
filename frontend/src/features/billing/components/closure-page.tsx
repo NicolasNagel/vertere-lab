@@ -4,7 +4,7 @@ import { useSearchParams } from 'react-router'
 import { ApiError } from '../../../shared/api/errors'
 import { formatCurrencyBRL, formatDate } from '../../../shared/lib/formatters'
 import { Button } from '../../../shared/ui/button'
-import type { SelectOption } from '../../../shared/ui/select'
+import type { DropdownOption } from '../../../shared/ui/dropdown'
 import { useAuth } from '../../auth/auth-context'
 import { useAllClinicsQuery } from '../../clinics/api/use-clinics-query'
 import { useClinicQuery } from '../../clinics/api/use-clinic-query'
@@ -60,7 +60,7 @@ export function ClosurePage() {
   const [justClosed, setJustClosed] = useState<MonthlyClosure | null>(null)
 
   const clinicsQuery = useAllClinicsQuery()
-  const clinicOptions: SelectOption[] = (clinicsQuery.data?.items ?? []).map((clinic) => ({
+  const clinicOptions: DropdownOption[] = (clinicsQuery.data?.items ?? []).map((clinic) => ({
     value: clinic.id,
     label: clinic.name,
   }))

@@ -74,6 +74,28 @@ e axe, mas ainda não há um único teste que percorra toda a jornada contra o m
 clínicas e papéis distintos; cenário único de cadastro, confirmação, fechamento, bloqueio,
 ajuste e tentativa cross-tenant. Não substituir os testes unitários e de integração existentes.
 
+## DT-007 — lista de atendimentos resolve nomes baixando todos os cadastros
+
+**Estado atual:** `AttendanceListPage` carrega todas as páginas de clínicas, veterinários e
+pacientes (`fetchAllPages`) só para mostrar nomes de 20 linhas. Falha nesses carregamentos agora
+é avisada na tela, mas o custo cresce com o cadastro.
+
+**Impacto:** tempo de abertura e tráfego crescem linearmente com pacientes e veterinários.
+
+**Saída:** o backend devolver nome de clínica, veterinário e paciente em cada linha da listagem
+(ou aceitar `ids` em lote nos cadastros) e o frontend deixar de baixar o cadastro inteiro.
+
+## DT-008 — pendências menores do frontend
+
+- `PatientPicker` do editor de cabeçalho do atendimento sem criação rápida (o fluxo do rascunho tem).
+- KPIs "Laudos pendentes" e "Em coleta" da home são placeholders honestos até existir o módulo.
+- Dois `eslint-disable react-hooks/exhaustive-deps` em `attendance-draft-page.tsx` (guarda de
+  criação do rascunho) e `on-call-fee-settings-panel.tsx` (adoção de dado do servidor); mexer
+  neles muda ordem de efeitos e exige teste dedicado.
+- `shared/config/app-info.ts`: versão e e-mail de suporte são placeholders até haver build info.
+- Modais sem Escape/focus trap/restauração de foco e tabelas sem semântica/responsividade (A11, A13)
+  entram no redesign (`Modal` e `DataTable` compartilhados).
+
 ## Priorização
 
 | Item | Risco atual | Gatilho para execução |
@@ -84,3 +106,5 @@ ajuste e tentativa cross-tenant. Não substituir os testes unitários e de integ
 | DT-004 | baixo, compatibilidade | versão maior de domínio/API |
 | DT-005 | médio | telemetria confirmar ausência de clientes antigos |
 | DT-006 | alto para release | antes da liberação do núcleo em produção |
+| DT-007 | médio | cadastro de pacientes acima de ~1.000 ou lista lenta |
+| DT-008 | baixo | junto do redesign (B1) |

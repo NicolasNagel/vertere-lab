@@ -69,6 +69,10 @@ class Exam:
     price_valid_to: date | None = None
     description: str | None = None
     species_ids: frozenset[UUID] = field(default_factory=frozenset)
+    # Non-empty => this exam is a panel (pacote/perfil): a closed bundle of other exams sold at
+    # its own `price_base`, not at the sum of its components. A panel is still an `Exam` row, so
+    # attendances, price snapshots and closures need no special case for it.
+    component_ids: tuple[UUID, ...] = ()
     status: ExamStatus = ExamStatus.ACTIVE
     created_by: UUID | None = None
     updated_by: UUID | None = None
@@ -76,13 +80,24 @@ class Exam:
     updated_at: datetime
     row_version: int = 1
 
+    @property
+    def is_panel(self) -> bool:
+        return len(self.component_ids) > 0
+
     def __post_init__(self) -> None:
+        self._validate_components(self.component_ids)
         if self.price_base <= 0:
             raise ValueError("Preço base do exame deve ser maior que zero.")
         if not self.species_ids:
             raise ValueError("Exame precisa de ao menos uma espécie atendida.")
         if self.price_valid_to is not None and self.price_valid_to < self.price_valid_from:
             raise ValueError("Vigência final do preço não pode anteceder a inicial.")
+
+    def _validate_components(self, component_ids: tuple[UUID, ...]) -> None:
+        if self.id in component_ids:
+            raise ValueError("Um pacote não pode conter ele mesmo.")
+        if len(set(component_ids)) != len(component_ids):
+            raise ValueError("O pacote tem exames repetidos.")
 
     def has_price_on(self, service_date: date) -> bool:
         return self.price_valid_from <= service_date and (
@@ -97,10 +112,14 @@ class Exam:
         price_base: Decimal,
         description: str | None,
         species_ids: frozenset[UUID],
+        component_ids: tuple[UUID, ...] = (),
         status: ExamStatus,
         updated_by: UUID | None,
         now: datetime,
     ) -> None:
+        if (len(component_ids) > 0) != self.is_panel:
+            raise ValueError("Não é possível transformar exame em pacote (ou o contrário).")
+        self._validate_components(component_ids)
         if price_base <= 0:
             raise ValueError("Preço base do exame deve ser maior que zero.")
         if not species_ids:
@@ -113,6 +132,7 @@ class Exam:
         self.price_base = price_base
         self.description = description
         self.species_ids = species_ids
+        self.component_ids = component_ids
         self.status = status
         self.updated_by = updated_by
         self.updated_at = now

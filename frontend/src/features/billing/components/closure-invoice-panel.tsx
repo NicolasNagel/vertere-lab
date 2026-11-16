@@ -71,7 +71,7 @@ export function ClosureInvoicePanel({
             ))}
             {Number(onCallFeeTotal) > 0 && (
               <div className="closure-invoice-panel__meta-row">
-                <dt>Adicional plantão</dt>
+                <dt>Taxas</dt>
                 <dd className="closure-invoice-panel__mono closure-invoice-panel__mono--on-call">
                   {formatCurrencyBRL(onCallFeeTotal)}
                 </dd>

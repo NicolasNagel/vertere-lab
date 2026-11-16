@@ -8,6 +8,7 @@ import { afterAll, afterEach, beforeAll, expect, test } from 'vitest'
 
 import { AuthProvider } from '../../auth/auth-provider'
 import { PatientsPage } from './patients-page'
+import { pickOption } from '../../../test/dropdown'
 
 const server = setupServer(clinicsHandler())
 
@@ -18,7 +19,13 @@ afterAll(() => server.close())
 function meHandler(permissions: string[]) {
   return http.get('/api/v1/auth/me', () =>
     HttpResponse.json({
-      user: { id: 'u1', email: 'a@b.com', full_name: 'A', role_id: 'r1', role_name: 'LAB_ADMIN' },
+      user: {
+        id: 'u1',
+        email: 'a@b.com',
+        full_name: 'A',
+        role_id: 'r1',
+        role_name: 'LAB_ADMIN',
+      },
       permissions,
     }),
   )
@@ -75,7 +82,9 @@ function patientsListHandler() {
 }
 
 function renderWithProviders(children: ReactNode) {
-  const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+  const queryClient = new QueryClient({
+    defaultOptions: { queries: { retry: false } },
+  })
   return render(
     <QueryClientProvider client={queryClient}>
       <AuthProvider>{children}</AuthProvider>
@@ -83,35 +92,59 @@ function renderWithProviders(children: ReactNode) {
   )
 }
 
-test('lists patients returned by the API', async () => {
-  server.use(meHandler(['patients.read']), speciesHandler(), patientsListHandler())
+function apiPatient(overrides: Record<string, unknown> = {}) {
+  return {
+    id: 'p1',
+    name: 'Rex',
+    species_id: 's1',
+    sex: 'MALE',
+    breed: 'SRD',
+    age_description: '2 anos',
+    owner_name: 'Maria Souza',
+    owner_phone: null,
+    owner_document: null,
+    status: 'ACTIVE',
+    notes: null,
+    created_at: '2026-01-01T00:00:00Z',
+    updated_at: '2026-01-01T00:00:00Z',
+    row_version: 1,
+    ...overrides,
+  }
+}
+
+test('lists patients and searches by owner name, without "Novo paciente" for read-only users', async () => {
+  const user = userEvent.setup()
+  server.use(
+    meHandler(['patients.read']),
+    speciesHandler(),
+    http.get('/api/v1/patients', ({ request }) => {
+      const search = new URL(request.url).searchParams.get('search')
+      const items =
+        search === 'joana'
+          ? [
+              apiPatient({
+                id: 'p2',
+                name: 'Bidu',
+                species_id: 's2',
+                owner_name: 'Joana Lima',
+              }),
+            ]
+          : [apiPatient()]
+      return HttpResponse.json({ items, total: 1, page: 1, page_size: 100 })
+    }),
+  )
   renderWithProviders(<PatientsPage />)
 
   expect(await screen.findByText('Rex')).toBeInTheDocument()
   expect(screen.getByText('Maria Souza')).toBeInTheDocument()
-})
-
-test('hides the "Novo paciente" action for a user without patients.manage', async () => {
-  server.use(meHandler(['patients.read']), speciesHandler(), patientsListHandler())
-  renderWithProviders(<PatientsPage />)
-
-  await screen.findByText('Rex')
   expect(screen.queryByRole('button', { name: /Novo paciente/i })).not.toBeInTheDocument()
+
+  await user.type(screen.getByLabelText('Buscar paciente'), 'joana')
+  expect(await screen.findByText('Bidu')).toBeInTheDocument()
+  expect(screen.queryByText('Rex')).not.toBeInTheDocument()
 })
 
-test('shows the "Novo paciente" action for a user with patients.manage', async () => {
-  server.use(
-    meHandler(['patients.read', 'patients.manage']),
-    speciesHandler(),
-    clinicsHandler(),
-    patientsListHandler(),
-  )
-  renderWithProviders(<PatientsPage />)
-
-  expect(await screen.findByRole('button', { name: /Novo paciente/i })).toBeInTheDocument()
-})
-
-test('creates a patient with embedded owner data and returns to the detail view', async () => {
+test('with patients.manage, creates a patient with embedded owner data and returns to the detail view', async () => {
   const user = userEvent.setup()
   server.use(
     meHandler(['patients.read', 'patients.manage']),
@@ -121,50 +154,35 @@ test('creates a patient with embedded owner data and returns to the detail view'
     http.post('/api/v1/patients', async ({ request }) => {
       const body = (await request.json()) as Record<string, unknown>
       return HttpResponse.json(
-        {
+        apiPatient({
           id: 'p2',
           name: body.name,
           species_id: body.species_id,
           sex: body.sex,
-          breed: body.breed,
-          age_description: body.age_description,
           owner_name: body.owner_name,
-          owner_phone: body.owner_phone,
-          owner_document: body.owner_document,
-          status: 'ACTIVE',
-          notes: null,
-          created_at: '2026-01-01T00:00:00Z',
-          updated_at: '2026-01-01T00:00:00Z',
-          row_version: 1,
-        },
+        }),
         { status: 201 },
       )
     }),
     http.get('/api/v1/patients/p2', () =>
-      HttpResponse.json({
-        id: 'p2',
-        name: 'Bidu',
-        species_id: 's2',
-        sex: 'MALE',
-        breed: null,
-        age_description: null,
-        owner_name: 'Joana Lima',
-        owner_phone: null,
-        owner_document: null,
-        status: 'ACTIVE',
-        notes: null,
-        created_at: '2026-01-01T00:00:00Z',
-        updated_at: '2026-01-01T00:00:00Z',
-        row_version: 1,
-      }),
+      HttpResponse.json(
+        apiPatient({
+          id: 'p2',
+          name: 'Bidu',
+          species_id: 's2',
+          breed: null,
+          age_description: null,
+          owner_name: 'Joana Lima',
+        }),
+      ),
     ),
   )
   renderWithProviders(<PatientsPage />)
 
   await user.click(await screen.findByRole('button', { name: /Novo paciente/i }))
   await user.type(screen.getByLabelText('Nome do paciente'), 'Bidu')
-  await user.selectOptions(screen.getByLabelText('Clínica'), 'Clínica Central')
-  await user.selectOptions(await screen.findByLabelText('Espécie'), 'Gato')
+  await pickOption(user, 'Clínica', 'Clínica Central')
+  await pickOption(user, 'Espécie', 'Gato')
   await user.type(screen.getByLabelText('Nome do tutor'), 'Joana Lima')
   await user.click(screen.getByRole('button', { name: 'Salvar' }))
 
@@ -175,95 +193,10 @@ test('creates a patient with embedded owner data and returns to the detail view'
   expect(screen.getByText('Joana Lima')).toBeInTheDocument()
 })
 
-test('searches patients by owner name', async () => {
-  const user = userEvent.setup()
-  server.use(
-    meHandler(['patients.read']),
-    speciesHandler(),
-    http.get('/api/v1/patients', ({ request }) => {
-      const url = new URL(request.url)
-      const search = url.searchParams.get('search')
-      if (search === 'joana') {
-        return HttpResponse.json({
-          items: [
-            {
-              id: 'p2',
-              name: 'Bidu',
-              species_id: 's2',
-              sex: 'MALE',
-              breed: null,
-              age_description: null,
-              owner_name: 'Joana Lima',
-              owner_phone: null,
-              owner_document: null,
-              status: 'ACTIVE',
-              notes: null,
-              created_at: '2026-01-01T00:00:00Z',
-              updated_at: '2026-01-01T00:00:00Z',
-              row_version: 1,
-            },
-          ],
-          total: 1,
-          page: 1,
-          page_size: 100,
-        })
-      }
-      return HttpResponse.json({
-        items: [
-          {
-            id: 'p1',
-            name: 'Rex',
-            species_id: 's1',
-            sex: 'MALE',
-            breed: null,
-            age_description: null,
-            owner_name: 'Maria Souza',
-            owner_phone: null,
-            owner_document: null,
-            status: 'ACTIVE',
-            notes: null,
-            created_at: '2026-01-01T00:00:00Z',
-            updated_at: '2026-01-01T00:00:00Z',
-            row_version: 1,
-          },
-        ],
-        total: 1,
-        page: 1,
-        page_size: 100,
-      })
-    }),
-  )
-  renderWithProviders(<PatientsPage />)
-
-  expect(await screen.findByText('Rex')).toBeInTheDocument()
-
-  await user.type(screen.getByLabelText('Buscar paciente'), 'joana')
-
-  expect(await screen.findByText('Bidu')).toBeInTheDocument()
-  expect(screen.queryByText('Rex')).not.toBeInTheDocument()
-})
-
 test('deactivates a patient and preserves the record', async () => {
   const user = userEvent.setup()
   let status: 'ACTIVE' | 'INACTIVE' = 'ACTIVE'
-  function patientBody() {
-    return {
-      id: 'p1',
-      name: 'Rex',
-      species_id: 's1',
-      sex: 'MALE',
-      breed: 'SRD',
-      age_description: '2 anos',
-      owner_name: 'Maria Souza',
-      owner_phone: null,
-      owner_document: null,
-      status,
-      notes: null,
-      created_at: '2026-01-01T00:00:00Z',
-      updated_at: '2026-01-01T00:00:00Z',
-      row_version: status === 'ACTIVE' ? 1 : 2,
-    }
-  }
+  const patientBody = () => apiPatient({ status, row_version: status === 'ACTIVE' ? 1 : 2 })
   server.use(
     meHandler(['patients.read', 'patients.manage']),
     speciesHandler(),

@@ -4,68 +4,27 @@ exame e de exames (com preço e espécies), ponta a ponta via HTTPX/ASGI.
 
 from __future__ import annotations
 
-from collections.abc import AsyncIterator, Iterator
 from datetime import UTC, datetime
 from decimal import Decimal
-from pathlib import Path
 from uuid import UUID, uuid4
 
 import httpx
 import pytest
-from alembic.config import Config
-from fastapi import FastAPI
-from pydantic import SecretStr
 from sqlalchemy import text
 from sqlalchemy.orm import Session, sessionmaker
-from testcontainers.postgres import PostgresContainer
 
-from alembic import command
-from app.core.config import Settings
 from app.core.security import hash_password
-from app.main import create_app
 from app.modules.identity.infrastructure.models import LabMembershipModel, UserModel
 from app.modules.identity.infrastructure.seed import ROLE_FINANCE, ROLE_LAB_ADMIN, ROLE_TECHNICAL
-from app.shared.infrastructure.database import build_engine, build_session_factory
 
 pytestmark = pytest.mark.integration
-
-REPO_ROOT = Path(__file__).resolve().parents[3]
-
-
-@pytest.fixture(scope="module")
-def postgres_url() -> Iterator[str]:
-    with PostgresContainer("postgres:17-alpine", driver="psycopg") as postgres:
-        yield postgres.get_connection_url()
-
-
-@pytest.fixture(scope="module")
-def monkeypatch_module() -> Iterator[pytest.MonkeyPatch]:
-    mp = pytest.MonkeyPatch()
-    yield mp
-    mp.undo()
-
-
-@pytest.fixture(scope="module", autouse=True)
-def _migrated_schema(postgres_url: str, monkeypatch_module: pytest.MonkeyPatch) -> None:
-    monkeypatch_module.setenv("DATABASE_URL", postgres_url)
-    config = Config()
-    config.set_main_option("script_location", str(REPO_ROOT / "backend" / "alembic"))
-    command.upgrade(config, "head")
-
-
-@pytest.fixture
-def session_factory(postgres_url: str) -> Iterator[sessionmaker[Session]]:
-    engine = build_engine(postgres_url)
-    try:
-        yield build_session_factory(engine)
-    finally:
-        engine.dispose()
 
 
 @pytest.fixture(autouse=True)
 def _reset_data(session_factory: sessionmaker[Session]) -> None:
     with session_factory() as session:
         session.execute(text("DELETE FROM audit_log"))
+        session.execute(text("DELETE FROM exam_panel_items"))
         session.execute(text("DELETE FROM exam_species"))
         session.execute(text("DELETE FROM exams"))
         session.execute(text("DELETE FROM exam_categories"))
@@ -79,31 +38,6 @@ def _get_species_id(session_factory: sessionmaker[Session], *, name: str) -> str
             text("SELECT id FROM species WHERE name = :name"), {"name": name}
         ).one()
         return str(row[0])
-
-
-@pytest.fixture
-def settings(postgres_url: str) -> Settings:
-    return Settings(
-        env="test",
-        log_level="WARNING",
-        database_url=SecretStr(postgres_url),
-        session_cookie_secure=False,
-    )
-
-
-@pytest.fixture
-def app(settings: Settings) -> FastAPI:
-    return create_app(settings)
-
-
-@pytest.fixture
-async def client(app: FastAPI) -> AsyncIterator[httpx.AsyncClient]:
-    transport = httpx.ASGITransport(app=app)
-    async with (
-        httpx.AsyncClient(transport=transport, base_url="http://test") as async_client,
-        app.router.lifespan_context(app),
-    ):
-        yield async_client
 
 
 def _create_user(
@@ -137,377 +71,193 @@ async def _login(client: httpx.AsyncClient, *, email: str, password: str) -> Non
     assert response.status_code == 200
 
 
-async def test_create_exam_category_without_permission_is_forbidden(
-    client: httpx.AsyncClient, session_factory: sessionmaker[Session]
-) -> None:
-    _create_user(
-        session_factory,
-        email="technical@vertere.local",
-        password="s3nhaForte!",
-        role_id=ROLE_TECHNICAL,
-    )
-    await _login(client, email="technical@vertere.local", password="s3nhaForte!")
-
-    response = await client.post("/api/v1/exam-categories", json={"name": "Hematologia"})
-
-    assert response.status_code == 403
-
-
-async def test_finance_can_create_exam_categories(
-    client: httpx.AsyncClient, session_factory: sessionmaker[Session]
-) -> None:
-    _create_user(
-        session_factory, email="finance@vertere.local", password="s3nhaForte!", role_id=ROLE_FINANCE
-    )
-    await _login(client, email="finance@vertere.local", password="s3nhaForte!")
-
-    response = await client.post("/api/v1/exam-categories", json={"name": "Hematologia"})
-
-    assert response.status_code == 201
-
-
-async def test_create_and_get_exam_category(
-    client: httpx.AsyncClient, session_factory: sessionmaker[Session]
-) -> None:
-    _create_user(
-        session_factory, email="admin@vertere.local", password="s3nhaForte!", role_id=ROLE_LAB_ADMIN
-    )
-    await _login(client, email="admin@vertere.local", password="s3nhaForte!")
-
-    create_response = await client.post("/api/v1/exam-categories", json={"name": "Hematologia"})
-    assert create_response.status_code == 201
-    body = create_response.json()
-    assert body["name"] == "Hematologia"
-    assert body["status"] == "ACTIVE"
-
-    get_response = await client.get(f"/api/v1/exam-categories/{body['id']}")
-    assert get_response.status_code == 200
-    assert get_response.json()["name"] == "Hematologia"
-
-
-async def test_create_exam_category_with_duplicate_name_conflicts(
-    client: httpx.AsyncClient, session_factory: sessionmaker[Session]
-) -> None:
-    _create_user(
-        session_factory, email="admin@vertere.local", password="s3nhaForte!", role_id=ROLE_LAB_ADMIN
-    )
-    await _login(client, email="admin@vertere.local", password="s3nhaForte!")
-
-    first = await client.post("/api/v1/exam-categories", json={"name": "Hematologia"})
-    assert first.status_code == 201
-
-    second = await client.post("/api/v1/exam-categories", json={"name": "hematologia"})
-    assert second.status_code == 409
-
-
-async def test_update_exam_category_with_stale_row_version_conflicts(
-    client: httpx.AsyncClient, session_factory: sessionmaker[Session]
-) -> None:
-    _create_user(
-        session_factory, email="admin@vertere.local", password="s3nhaForte!", role_id=ROLE_LAB_ADMIN
-    )
-    await _login(client, email="admin@vertere.local", password="s3nhaForte!")
-
-    create_response = await client.post("/api/v1/exam-categories", json={"name": "Hematologia"})
-    body = create_response.json()
-
-    response = await client.patch(
-        f"/api/v1/exam-categories/{body['id']}",
-        json={
-            "name": "Hematologia Atualizada",
-            "status": "ACTIVE",
-            "expected_row_version": body["row_version"] + 1,
-        },
-    )
-
-    assert response.status_code == 409
-
-
-async def test_deactivate_exam_category_preserves_record(
-    client: httpx.AsyncClient, session_factory: sessionmaker[Session]
-) -> None:
-    _create_user(
-        session_factory, email="admin@vertere.local", password="s3nhaForte!", role_id=ROLE_LAB_ADMIN
-    )
-    await _login(client, email="admin@vertere.local", password="s3nhaForte!")
-
-    create_response = await client.post("/api/v1/exam-categories", json={"name": "Hematologia"})
-    body = create_response.json()
-
-    response = await client.post(f"/api/v1/exam-categories/{body['id']}/deactivate")
-
-    assert response.status_code == 200
-    assert response.json()["status"] == "INACTIVE"
-    assert response.json()["name"] == "Hematologia"
-
-
-async def test_list_active_exam_categories_excludes_inactive(
-    client: httpx.AsyncClient, session_factory: sessionmaker[Session]
-) -> None:
-    _create_user(
-        session_factory, email="admin@vertere.local", password="s3nhaForte!", role_id=ROLE_LAB_ADMIN
-    )
-    await _login(client, email="admin@vertere.local", password="s3nhaForte!")
-
-    active = await client.post("/api/v1/exam-categories", json={"name": "Hematologia"})
-    inactive = await client.post("/api/v1/exam-categories", json={"name": "Descontinuada"})
-    await client.post(f"/api/v1/exam-categories/{inactive.json()['id']}/deactivate")
-
-    response = await client.get("/api/v1/exam-categories/active")
-
-    assert response.status_code == 200
-    names = [item["name"] for item in response.json()["items"]]
-    assert names == ["Hematologia"]
-    assert active.json()["name"] in names
-
-
 async def _create_category(client: httpx.AsyncClient, *, name: str = "Hematologia") -> str:
     response = await client.post("/api/v1/exam-categories", json={"name": name})
     assert response.status_code == 201
     return str(response.json()["id"])
 
 
-async def test_create_exam_without_permission_is_forbidden(
+async def _login_as(
+    client: httpx.AsyncClient, session_factory: sessionmaker[Session], *, email: str, role_id: UUID
+) -> None:
+    _create_user(session_factory, email=email, password="s3nhaForte!", role_id=role_id)
+    await _login(client, email=email, password="s3nhaForte!")
+
+
+async def test_exam_categories_are_permission_gated_unique_versioned_and_deactivated_not_deleted(
     client: httpx.AsyncClient, session_factory: sessionmaker[Session]
 ) -> None:
-    _create_user(
-        session_factory, email="admin@vertere.local", password="s3nhaForte!", role_id=ROLE_LAB_ADMIN
+    await _login_as(
+        client, session_factory, email="technical@vertere.local", role_id=ROLE_TECHNICAL
     )
-    await _login(client, email="admin@vertere.local", password="s3nhaForte!")
-    species_id = _get_species_id(session_factory, name="Canino")
-    category_id = await _create_category(client)
+    forbidden = await client.post("/api/v1/exam-categories", json={"name": "Hematologia"})
+    assert forbidden.status_code == 403
 
-    _create_user(
-        session_factory,
-        email="technical@vertere.local",
-        password="s3nhaForte!",
-        role_id=ROLE_TECHNICAL,
-    )
-    await _login(client, email="technical@vertere.local", password="s3nhaForte!")
+    await _login_as(client, session_factory, email="finance@vertere.local", role_id=ROLE_FINANCE)
+    finance = await client.post("/api/v1/exam-categories", json={"name": "Financeira"})
+    assert finance.status_code == 201
 
-    response = await client.post(
-        "/api/v1/exams",
+    await _login_as(client, session_factory, email="admin@vertere.local", role_id=ROLE_LAB_ADMIN)
+    created = await client.post("/api/v1/exam-categories", json={"name": "Hematologia"})
+    assert created.status_code == 201
+    category = created.json()
+    assert (category["name"], category["status"]) == ("Hematologia", "ACTIVE")
+    fetched = await client.get(f"/api/v1/exam-categories/{category['id']}")
+    assert (fetched.status_code, fetched.json()["name"]) == (200, "Hematologia")
+
+    # Nome duplicado (sem distinguir caixa) conflita.
+    duplicate = await client.post("/api/v1/exam-categories", json={"name": "hematologia"})
+    assert duplicate.status_code == 409
+
+    # Versão errada conflita; versões encadeadas usam a devolvida pela edição anterior.
+    url = f"/api/v1/exam-categories/{category['id']}"
+    stale = await client.patch(
+        url,
         json={
-            "name": "Hemograma completo",
-            "category_id": category_id,
-            "price_base": "85.00",
-            "species_ids": [species_id],
+            "name": "Hematologia Atualizada",
+            "status": "ACTIVE",
+            "expected_row_version": category["row_version"] + 1,
         },
     )
-
-    assert response.status_code == 403
-
-
-async def test_create_and_get_exam_with_price_visible_to_pricing_read(
-    client: httpx.AsyncClient, session_factory: sessionmaker[Session]
-) -> None:
-    _create_user(
-        session_factory, email="admin@vertere.local", password="s3nhaForte!", role_id=ROLE_LAB_ADMIN
-    )
-    await _login(client, email="admin@vertere.local", password="s3nhaForte!")
-    species_id = _get_species_id(session_factory, name="Canino")
-    category_id = await _create_category(client)
-
-    create_response = await client.post(
-        "/api/v1/exams",
+    assert stale.status_code == 409
+    first = await client.patch(
+        url,
         json={
-            "name": "Hemograma completo",
-            "category_id": category_id,
-            "price_base": "85.00",
-            "species_ids": [species_id],
+            "name": "Versao Um",
+            "status": "ACTIVE",
+            "expected_row_version": category["row_version"],
         },
     )
-    assert create_response.status_code == 201
-    body = create_response.json()
-    assert len(body["code"]) == 8
-    assert body["code"].isalnum()
-    assert body["code"] == body["code"].upper()
-    assert Decimal(body["price_base"]) == Decimal("85.00")
-
-    get_response = await client.get(f"/api/v1/exams/{body['id']}")
-    assert get_response.status_code == 200
-    assert Decimal(get_response.json()["price_base"]) == Decimal("85.00")
-
-
-async def test_exam_price_hidden_without_pricing_read(
-    client: httpx.AsyncClient, session_factory: sessionmaker[Session]
-) -> None:
-    _create_user(
-        session_factory, email="admin@vertere.local", password="s3nhaForte!", role_id=ROLE_LAB_ADMIN
-    )
-    await _login(client, email="admin@vertere.local", password="s3nhaForte!")
-    species_id = _get_species_id(session_factory, name="Canino")
-    category_id = await _create_category(client)
-    create_response = await client.post(
-        "/api/v1/exams",
+    assert first.status_code == 200
+    assert first.json()["row_version"] == category["row_version"] + 1
+    second = await client.patch(
+        url,
         json={
-            "name": "Hemograma completo",
-            "category_id": category_id,
-            "price_base": "85.00",
-            "species_ids": [species_id],
+            "name": "Versao Dois",
+            "status": "ACTIVE",
+            "expected_row_version": first.json()["row_version"],
         },
     )
-    exam_id = create_response.json()["id"]
+    assert second.status_code == 200
+    assert second.json()["row_version"] == category["row_version"] + 2
 
-    _create_user(
-        session_factory,
-        email="technical@vertere.local",
-        password="s3nhaForte!",
-        role_id=ROLE_TECHNICAL,
+    # Desativar preserva o registro e a lista de ativas deixa de incluí-lo.
+    retired = await client.post("/api/v1/exam-categories", json={"name": "Descontinuada"})
+    deactivated = await client.post(f"/api/v1/exam-categories/{retired.json()['id']}/deactivate")
+    assert deactivated.status_code == 200
+    assert (deactivated.json()["status"], deactivated.json()["name"]) == (
+        "INACTIVE",
+        "Descontinuada",
     )
-    await _login(client, email="technical@vertere.local", password="s3nhaForte!")
-
-    response = await client.get(f"/api/v1/exams/{exam_id}")
-
-    assert response.status_code == 200
-    body = response.json()
-    assert body["price_base"] is None
+    active = await client.get("/api/v1/exam-categories/active")
+    assert active.status_code == 200
+    assert sorted(item["name"] for item in active.json()["items"]) == ["Financeira", "Versao Dois"]
 
 
-async def test_create_exams_generates_distinct_codes(
+async def test_exams_get_distinct_codes_are_versioned_filterable_and_hide_price_without_permission(
     client: httpx.AsyncClient, session_factory: sessionmaker[Session]
 ) -> None:
-    _create_user(
-        session_factory, email="admin@vertere.local", password="s3nhaForte!", role_id=ROLE_LAB_ADMIN
-    )
-    await _login(client, email="admin@vertere.local", password="s3nhaForte!")
-    species_id = _get_species_id(session_factory, name="Canino")
+    await _login_as(client, session_factory, email="admin@vertere.local", role_id=ROLE_LAB_ADMIN)
+    dog_id = _get_species_id(session_factory, name="Canino")
+    cat_id = _get_species_id(session_factory, name="Felino")
     category_id = await _create_category(client)
-    payload = {
-        "name": "Hemograma completo",
-        "category_id": category_id,
-        "price_base": "85.00",
-        "species_ids": [species_id],
-    }
 
-    first = await client.post("/api/v1/exams", json=payload)
-    assert first.status_code == 201
+    def payload(name: str, price: str, species_id: str) -> dict[str, object]:
+        return {
+            "name": name,
+            "category_id": category_id,
+            "price_base": price,
+            "species_ids": [species_id],
+        }
 
-    second = await client.post("/api/v1/exams", json={**payload, "name": "Outro"})
-    assert second.status_code == 201
-    assert second.json()["code"] != first.json()["code"]
-
-
-async def test_update_exam_returns_version_accepted_by_the_next_update(
-    client: httpx.AsyncClient, session_factory: sessionmaker[Session]
-) -> None:
-    _create_user(
-        session_factory, email="admin@vertere.local", password="s3nhaForte!", role_id=ROLE_LAB_ADMIN
-    )
-    await _login(client, email="admin@vertere.local", password="s3nhaForte!")
-    species_id = _get_species_id(session_factory, name="Canino")
-    category_id = await _create_category(client)
     created = await client.post(
-        "/api/v1/exams",
-        json={
-            "name": "Hemograma completo",
-            "category_id": category_id,
-            "price_base": "85.00",
-            "species_ids": [species_id],
-        },
+        "/api/v1/exams", json=payload("Hemograma completo", "85.00", dog_id)
     )
     assert created.status_code == 201
     exam = created.json()
+    assert len(exam["code"]) == 8
+    assert exam["code"].isalnum()
+    assert exam["code"] == exam["code"].upper()
+    assert Decimal(exam["price_base"]) == Decimal("85.00")
+    fetched = await client.get(f"/api/v1/exams/{exam['id']}")
+    assert (fetched.status_code, Decimal(fetched.json()["price_base"])) == (200, Decimal("85.00"))
 
-    first_update = await client.patch(
-        f"/api/v1/exams/{exam['id']}",
-        json={
-            "name": "Hemograma revisado",
-            "category_id": category_id,
-            "price_base": "85.00",
-            "species_ids": [species_id],
-            "status": "ACTIVE",
-            "expected_row_version": exam["row_version"],
-        },
+    other = await client.post("/api/v1/exams", json=payload("Hemograma felino", "90.00", cat_id))
+    assert other.status_code == 201
+    assert other.json()["code"] != exam["code"]  # códigos gerados são distintos
+
+    by_species = await client.get("/api/v1/exams", params={"species_id": cat_id})
+    assert by_species.status_code == 200
+    assert by_species.json()["total"] == 1
+    assert by_species.json()["items"][0]["name"] == "Hemograma felino"
+
+    # Edições encadeadas usam a versão devolvida pela anterior.
+    url = f"/api/v1/exams/{exam['id']}"
+    versions = [exam["row_version"]]
+    for name in ("Hemograma revisado", "Hemograma revisado novamente"):
+        update = await client.patch(
+            url,
+            json={
+                **payload(name, "85.00", dog_id),
+                "status": "ACTIVE",
+                "expected_row_version": versions[-1],
+            },
+        )
+        assert update.status_code == 200
+        versions.append(update.json()["row_version"])
+    assert versions == [exam["row_version"], exam["row_version"] + 1, exam["row_version"] + 2]
+
+    deactivated = await client.post(f"{url}/deactivate")
+    assert deactivated.status_code == 200
+    assert (deactivated.json()["status"], deactivated.json()["name"]) == (
+        "INACTIVE",
+        "Hemograma revisado novamente",
     )
-    assert first_update.status_code == 200
-    first_body = first_update.json()
-    assert first_body["row_version"] == exam["row_version"] + 1
 
-    second_update = await client.patch(
-        f"/api/v1/exams/{exam['id']}",
-        json={
-            "name": "Hemograma revisado novamente",
-            "category_id": category_id,
-            "price_base": "85.00",
-            "species_ids": [species_id],
-            "status": "ACTIVE",
-            "expected_row_version": first_body["row_version"],
-        },
+    # Sem permissão de preço o valor some da leitura e criar exame é negado.
+    await _login_as(
+        client, session_factory, email="technical@vertere.local", role_id=ROLE_TECHNICAL
     )
+    hidden = await client.get(url)
+    assert (hidden.status_code, hidden.json()["price_base"]) == (200, None)
+    denied = await client.post("/api/v1/exams", json=payload("Hemograma completo", "85.00", dog_id))
+    assert denied.status_code == 403
 
-    assert second_update.status_code == 200
-    assert second_update.json()["row_version"] == first_body["row_version"] + 1
 
-
-async def test_deactivate_exam_preserves_record(
+async def test_import_exams_is_permission_gated_csv_only_and_reports_row_errors(
     client: httpx.AsyncClient, session_factory: sessionmaker[Session]
 ) -> None:
-    _create_user(
-        session_factory, email="admin@vertere.local", password="s3nhaForte!", role_id=ROLE_LAB_ADMIN
+    header = "code,name,category,price_base,species\n"
+    await _login_as(
+        client, session_factory, email="technical@vertere.local", role_id=ROLE_TECHNICAL
     )
-    await _login(client, email="admin@vertere.local", password="s3nhaForte!")
-    species_id = _get_species_id(session_factory, name="Canino")
-    category_id = await _create_category(client)
-    create_response = await client.post(
-        "/api/v1/exams",
-        json={
-            "name": "Hemograma completo",
-            "category_id": category_id,
-            "price_base": "85.00",
-            "species_ids": [species_id],
-        },
-    )
-    exam_id = create_response.json()["id"]
-
-    response = await client.post(f"/api/v1/exams/{exam_id}/deactivate")
-
-    assert response.status_code == 200
-    assert response.json()["status"] == "INACTIVE"
-    assert response.json()["name"] == "Hemograma completo"
-
-
-async def test_import_exams_without_permission_is_forbidden(
-    client: httpx.AsyncClient, session_factory: sessionmaker[Session]
-) -> None:
-    _create_user(
-        session_factory,
-        email="technical@vertere.local",
-        password="s3nhaForte!",
-        role_id=ROLE_TECHNICAL,
-    )
-    await _login(client, email="technical@vertere.local", password="s3nhaForte!")
-
-    csv_content = (
-        "code,name,category,price_base,species\nHEM001,Hemograma,Hematologia,85.00,Canino\n"
-    )
-    response = await client.post(
+    forbidden = await client.post(
         "/api/v1/exams/import",
-        files={"file": ("exams.csv", csv_content, "text/csv")},
+        files={
+            "file": (
+                "exams.csv",
+                header + "HEM001,Hemograma,Hematologia,85.00,Canino\n",
+                "text/csv",
+            )
+        },
     )
+    assert forbidden.status_code == 403
 
-    assert response.status_code == 403
-
-
-async def test_import_exams_partial_success_reports_row_errors(
-    client: httpx.AsyncClient, session_factory: sessionmaker[Session]
-) -> None:
-    _create_user(
-        session_factory, email="admin@vertere.local", password="s3nhaForte!", role_id=ROLE_LAB_ADMIN
-    )
-    await _login(client, email="admin@vertere.local", password="s3nhaForte!")
+    await _login_as(client, session_factory, email="admin@vertere.local", role_id=ROLE_LAB_ADMIN)
     await _create_category(client, name="Hematologia")
+    not_csv = await client.post(
+        "/api/v1/exams/import", files={"file": ("exams.txt", "code,name\n", "text/plain")}
+    )
+    assert not_csv.status_code == 422
 
     csv_content = (
-        "code,name,category,price_base,species\n"
-        "HEM001,Hemograma completo,Hematologia,85.00,Canino\n"
-        "HEM002,Bioquímico,Categoria Inexistente,120.00,Felino\n"
+        header
+        + "HEM001,Hemograma completo,Hematologia,85.00,Canino\n"
+        + "HEM002,Bioquímico,Categoria Inexistente,120.00,Felino\n"
     )
     response = await client.post(
-        "/api/v1/exams/import",
-        files={"file": ("exams.csv", csv_content, "text/csv")},
+        "/api/v1/exams/import", files={"file": ("exams.csv", csv_content, "text/csv")}
     )
-
     assert response.status_code == 200
     body = response.json()
     assert body["imported_count"] == 1
@@ -515,59 +265,141 @@ async def test_import_exams_partial_success_reports_row_errors(
     assert body["errors"][0]["line"] == 3
     assert "Categoria Inexistente" in body["errors"][0]["message"]
 
-    list_response = await client.get("/api/v1/exams", params={"search": "HEM001"})
-    assert list_response.json()["total"] == 1
+    listed = await client.get("/api/v1/exams", params={"search": "HEM001"})
+    assert listed.json()["total"] == 1
 
 
-async def test_import_exams_rejects_non_csv_file(
+async def test_exam_panels_compose_validate_snapshot_and_block_unsafe_changes(
     client: httpx.AsyncClient, session_factory: sessionmaker[Session]
 ) -> None:
-    _create_user(
-        session_factory, email="admin@vertere.local", password="s3nhaForte!", role_id=ROLE_LAB_ADMIN
-    )
-    await _login(client, email="admin@vertere.local", password="s3nhaForte!")
-
-    response = await client.post(
-        "/api/v1/exams/import",
-        files={"file": ("exams.txt", "code,name\n", "text/plain")},
-    )
-
-    assert response.status_code == 422
-
-
-async def test_filter_exams_by_species(
-    client: httpx.AsyncClient, session_factory: sessionmaker[Session]
-) -> None:
-    _create_user(
-        session_factory, email="admin@vertere.local", password="s3nhaForte!", role_id=ROLE_LAB_ADMIN
-    )
-    await _login(client, email="admin@vertere.local", password="s3nhaForte!")
+    await _login_as(client, session_factory, email="admin@vertere.local", role_id=ROLE_LAB_ADMIN)
     dog_id = _get_species_id(session_factory, name="Canino")
-    cat_id = _get_species_id(session_factory, name="Felino")
     category_id = await _create_category(client)
 
-    await client.post(
+    async def create(name: str, price: str, **extra: object) -> dict[str, object]:
+        response = await client.post(
+            "/api/v1/exams",
+            json={
+                "name": name,
+                "category_id": category_id,
+                "price_base": price,
+                "species_ids": [dog_id],
+                **extra,
+            },
+        )
+        assert response.status_code == 201, response.text
+        return dict(response.json())
+
+    hemograma = await create("Hemograma", "40.00")
+    alt = await create("ALT", "20.00")
+    ureia = await create("Ureia", "20.00")
+    assert (hemograma["is_panel"], hemograma["component_exam_ids"]) == (False, [])
+
+    # Pacote tem preço próprio (não é a soma dos componentes) e guarda a ordem escolhida.
+    panel = await create(
+        "CHECK-UP 1", "70.00", component_exam_ids=[alt["id"], hemograma["id"], ureia["id"]]
+    )
+    assert panel["is_panel"] is True
+    assert panel["component_exam_ids"] == [alt["id"], hemograma["id"], ureia["id"]]
+    assert Decimal(str(panel["price_base"])) == Decimal("70.00")
+    refetched = await client.get(f"/api/v1/exams/{panel['id']}")
+    assert refetched.json()["component_exam_ids"] == panel["component_exam_ids"]
+
+    # Regras: sem aninhar pacote, sem repetir, sem componente inexistente ou inativo.
+    nested = await client.post(
         "/api/v1/exams",
         json={
-            "name": "Hemograma canino",
+            "name": "Pacote de pacote",
             "category_id": category_id,
-            "price_base": "85.00",
+            "price_base": "10.00",
             "species_ids": [dog_id],
+            "component_exam_ids": [panel["id"]],
         },
     )
-    await client.post(
+    assert nested.status_code == 422
+    repeated = await client.post(
         "/api/v1/exams",
         json={
-            "name": "Hemograma felino",
+            "name": "Repetido",
             "category_id": category_id,
-            "price_base": "90.00",
-            "species_ids": [cat_id],
+            "price_base": "10.00",
+            "species_ids": [dog_id],
+            "component_exam_ids": [alt["id"], alt["id"]],
         },
     )
+    assert repeated.status_code == 422
+    missing = await client.post(
+        "/api/v1/exams",
+        json={
+            "name": "Fantasma",
+            "category_id": category_id,
+            "price_base": "10.00",
+            "species_ids": [dog_id],
+            "component_exam_ids": [str(uuid4())],
+        },
+    )
+    assert missing.status_code == 422
 
-    response = await client.get("/api/v1/exams", params={"species_id": cat_id})
+    # Componente de pacote ativo não pode ser inativado (nem por PATCH nem por deactivate).
+    blocked = await client.post(f"/api/v1/exams/{alt['id']}/deactivate")
+    assert blocked.status_code == 409
+    assert "CHECK-UP 1" in blocked.json()["error"]["message"]
+    blocked_patch = await client.patch(
+        f"/api/v1/exams/{alt['id']}",
+        json={
+            "name": "ALT",
+            "category_id": category_id,
+            "price_base": "20.00",
+            "species_ids": [dog_id],
+            "status": "INACTIVE",
+            "expected_row_version": alt["row_version"],
+            "reason": "Teste de bloqueio",
+        },
+    )
+    assert blocked_patch.status_code == 409
 
-    assert response.status_code == 200
-    body = response.json()
-    assert body["total"] == 1
-    assert body["items"][0]["name"] == "Hemograma felino"
+    # Exame simples não vira pacote, nem o contrário.
+    to_panel = await client.patch(
+        f"/api/v1/exams/{ureia['id']}",
+        json={
+            "name": "Ureia",
+            "category_id": category_id,
+            "price_base": "20.00",
+            "species_ids": [dog_id],
+            "component_exam_ids": [alt["id"]],
+            "status": "ACTIVE",
+            "expected_row_version": ureia["row_version"],
+        },
+    )
+    assert to_panel.status_code == 422
+    to_plain = await client.patch(
+        f"/api/v1/exams/{panel['id']}",
+        json={
+            "name": "CHECK-UP 1",
+            "category_id": category_id,
+            "price_base": "70.00",
+            "species_ids": [dog_id],
+            "component_exam_ids": [],
+            "status": "ACTIVE",
+            "expected_row_version": panel["row_version"],
+        },
+    )
+    assert to_plain.status_code == 422
+
+    # Editar a composição funciona e muda a versão; pacote inativado libera o componente.
+    edited = await client.patch(
+        f"/api/v1/exams/{panel['id']}",
+        json={
+            "name": "CHECK-UP 1",
+            "category_id": category_id,
+            "price_base": "70.00",
+            "species_ids": [dog_id],
+            "component_exam_ids": [hemograma["id"], alt["id"]],
+            "status": "ACTIVE",
+            "expected_row_version": panel["row_version"],
+        },
+    )
+    assert edited.status_code == 200
+    assert edited.json()["component_exam_ids"] == [hemograma["id"], alt["id"]]
+    assert (await client.post(f"/api/v1/exams/{panel['id']}/deactivate")).status_code == 200
+    assert (await client.post(f"/api/v1/exams/{alt['id']}/deactivate")).status_code == 200

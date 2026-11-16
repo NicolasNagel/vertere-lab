@@ -7,12 +7,10 @@ import type {
 } from '../../../shared/api/generated'
 
 export type AttendanceStatus =
-  | 'DRAFT'
-  | 'CONFIRMED'
-  | 'IN_PROGRESS'
-  | 'COMPLETED'
-  | 'CANCELLED'
-  | 'ON_HOLD'
+  'DRAFT' | 'CONFIRMED' | 'IN_PROGRESS' | 'COMPLETED' | 'CANCELLED' | 'ON_HOLD'
+
+/** Status em que o atendimento ainda pode ser cancelado (mesma regra da lista e do detalhe). */
+export const CANCELLABLE_STATUSES: ReadonlySet<AttendanceStatus> = new Set(['DRAFT', 'CONFIRMED'])
 
 export type CollectionMethod = 'HELITO_NICOLAS' | 'INTERNAL' | 'MARLI' | 'COURIER' | 'UBER'
 export type ServiceLevel = 'NORMAL' | 'PLANTAO_NORMAL' | 'PLANTAO_ESPECIAL'
@@ -20,6 +18,14 @@ export type ServiceLevel = 'NORMAL' | 'PLANTAO_NORMAL' | 'PLANTAO_ESPECIAL'
 /** Rótulo de exibição único por `ServiceLevel` — evita 5 lugares reimplementando
  * o mesmo `=== 'PLANTAO_NORMAL' ? ... : ...` cada um com um pedaço diferente da
  * regra (ver `docs/adr` — taxa fixa por atendimento substituiu o antigo +30%). */
+export const COLLECTION_METHOD_LABELS: Record<CollectionMethod, string> = {
+  INTERNAL: 'Internos',
+  HELITO_NICOLAS: 'Helito/Nicolas',
+  MARLI: 'Marli',
+  COURIER: 'Motoboy',
+  UBER: 'Uber',
+}
+
 export const SERVICE_LEVEL_LABELS: Record<ServiceLevel, string> = {
   NORMAL: 'Normal',
   PLANTAO_NORMAL: 'Plantão Normal',
@@ -32,12 +38,23 @@ export interface AttendanceExamItem {
   examCode: string
   examName: string
   priceBase: string
+  /** Composição congelada quando o item é um pacote; vazio para exame avulso. */
+  components: { code: string; name: string }[]
   quantity: number
   discountAmount: string
   surchargeAmount: string
   totalAmount: string
   overrideReason: string | null
   status: 'ACTIVE' | 'CANCELLED'
+}
+
+export type FeeKind = 'PLANTAO' | 'URGENCIA' | 'CLINICA'
+
+/** Uma taxa fixa cobrada no atendimento inteiro (composição congelada na confirmação). */
+export interface AttendanceFeeLine {
+  kind: FeeKind
+  label: string
+  amount: string
 }
 
 export interface Attendance {
@@ -56,6 +73,10 @@ export interface Attendance {
   discountTotal: string
   surchargeTotal: string
   onCallFee: string
+  isUrgent: boolean
+  urgencyFee: string
+  clinicFee: string
+  feeLines: AttendanceFeeLine[]
   grandTotal: string
   protocolNumber: string | null
   cancelReason: string | null
@@ -88,6 +109,8 @@ export interface AttendanceListParams {
 export interface AttendanceStatusCounts {
   total: number
   byStatus: Partial<Record<AttendanceStatus, number>>
+  /** Server-computed: DRAFT and CANCELLED excluded, whole filter (not one page). */
+  billedTotal: string
 }
 
 export interface AttendanceDraftFormValues {
@@ -96,6 +119,7 @@ export interface AttendanceDraftFormValues {
   patientId: string
   collectionMethod: CollectionMethod
   serviceLevel: ServiceLevel
+  isUrgent?: boolean
   serviceDate: string | null
   notes: string | null
 }
@@ -120,6 +144,10 @@ export interface AttendancePreview {
   discountTotal: string
   surchargeTotal: string
   onCallFee: string
+  isUrgent: boolean
+  urgencyFee: string
+  clinicFee: string
+  feeLines: AttendanceFeeLine[]
   grandTotal: string
 }
 
@@ -127,6 +155,7 @@ export interface AttendanceTimelineEntry {
   id: string
   occurredAt: string
   actorUserId: string | null
+  actorName: string | null
   action: string
   beforeState: Record<string, unknown> | null
   afterState: Record<string, unknown> | null
@@ -140,16 +169,20 @@ export interface AttendanceTimelinePage {
   pageSize: number
 }
 
+// Sem `pricing.read` a API devolve null nos valores; a tela nem os mostra.
+const ZERO = '0.00'
+
 interface ApiAttendanceExamItem {
   id: string
   exam_id: string
   exam_code: string
   exam_name: string
-  price_base: string
+  price_base: string | null
+  components: { code: string; name: string }[]
   quantity: number
-  discount_amount: string
-  surcharge_amount: string
-  total_amount: string
+  discount_amount: string | null
+  surcharge_amount: string | null
+  total_amount: string | null
   override_reason: string | null
   status: 'ACTIVE' | 'CANCELLED'
 }
@@ -166,16 +199,34 @@ interface ApiAttendance extends GeneratedAttendance {
   status: AttendanceStatus
   items: ApiAttendanceExamItem[]
   billing_competence: string | null
-  subtotal: string
-  discount_total: string
-  surcharge_total: string
-  on_call_fee: string
-  grand_total: string
+  subtotal: string | null
+  discount_total: string | null
+  surcharge_total: string | null
+  on_call_fee: string | null
+  is_urgent: boolean
+  urgency_fee: string | null
+  clinic_fee: string | null
+  fee_lines: ApiFeeLine[]
+  grand_total: string | null
   protocol_number: string | null
   cancel_reason: string | null
   created_at: string
   updated_at: string
   row_version: number
+}
+
+interface ApiFeeLine {
+  kind: FeeKind
+  label: string
+  amount: string | null
+}
+
+function fromApiFeeLines(lines: ApiFeeLine[] | undefined): AttendanceFeeLine[] {
+  return (lines ?? []).map((line) => ({
+    kind: line.kind,
+    label: line.label,
+    amount: line.amount ?? ZERO,
+  }))
 }
 
 interface ApiAttendancePage extends GeneratedAttendancePage {
@@ -194,17 +245,22 @@ interface ApiAttendancePreview extends GeneratedAttendancePreview {
   service_level: ServiceLevel
   service_date: string
   items: ApiAttendanceExamItem[]
-  subtotal: string
-  discount_total: string
-  surcharge_total: string
-  on_call_fee: string
-  grand_total: string
+  subtotal: string | null
+  discount_total: string | null
+  surcharge_total: string | null
+  on_call_fee: string | null
+  is_urgent: boolean
+  urgency_fee: string | null
+  clinic_fee: string | null
+  fee_lines: ApiFeeLine[]
+  grand_total: string | null
 }
 
 interface ApiAttendanceTimelineEntry {
   id: string
   occurred_at: string
   actor_user_id: string | null
+  actor_name?: string | null
   action: string
   before_state: Record<string, unknown> | null
   after_state: Record<string, unknown> | null
@@ -237,11 +293,15 @@ function fromApiPreview(preview: ApiAttendancePreview): AttendancePreview {
     serviceLevel: preview.service_level ?? 'NORMAL',
     serviceDate: preview.service_date,
     items: preview.items.map(fromApiItem),
-    subtotal: preview.subtotal,
-    discountTotal: preview.discount_total,
-    surchargeTotal: preview.surcharge_total,
-    onCallFee: preview.on_call_fee,
-    grandTotal: preview.grand_total,
+    subtotal: preview.subtotal ?? ZERO,
+    discountTotal: preview.discount_total ?? ZERO,
+    surchargeTotal: preview.surcharge_total ?? ZERO,
+    onCallFee: preview.on_call_fee ?? ZERO,
+    isUrgent: preview.is_urgent ?? false,
+    urgencyFee: preview.urgency_fee ?? ZERO,
+    clinicFee: preview.clinic_fee ?? ZERO,
+    feeLines: fromApiFeeLines(preview.fee_lines),
+    grandTotal: preview.grand_total ?? ZERO,
   }
 }
 
@@ -251,11 +311,12 @@ function fromApiItem(item: ApiAttendanceExamItem): AttendanceExamItem {
     examId: item.exam_id,
     examCode: item.exam_code,
     examName: item.exam_name,
-    priceBase: item.price_base,
+    priceBase: item.price_base ?? ZERO,
+    components: item.components,
     quantity: item.quantity,
-    discountAmount: item.discount_amount,
-    surchargeAmount: item.surcharge_amount,
-    totalAmount: item.total_amount,
+    discountAmount: item.discount_amount ?? ZERO,
+    surchargeAmount: item.surcharge_amount ?? ZERO,
+    totalAmount: item.total_amount ?? ZERO,
     overrideReason: item.override_reason,
     status: item.status,
   }
@@ -266,6 +327,7 @@ function fromApiTimelineEntry(entry: ApiAttendanceTimelineEntry): AttendanceTime
     id: entry.id,
     occurredAt: entry.occurred_at,
     actorUserId: entry.actor_user_id,
+    actorName: entry.actor_name ?? null,
     action: entry.action,
     beforeState: entry.before_state,
     afterState: entry.after_state,
@@ -286,11 +348,15 @@ function fromApiAttendance(attendance: ApiAttendance): Attendance {
     status: attendance.status,
     items: attendance.items.map(fromApiItem),
     billingCompetence: attendance.billing_competence,
-    subtotal: attendance.subtotal,
-    discountTotal: attendance.discount_total,
-    surchargeTotal: attendance.surcharge_total,
-    onCallFee: attendance.on_call_fee,
-    grandTotal: attendance.grand_total,
+    subtotal: attendance.subtotal ?? ZERO,
+    discountTotal: attendance.discount_total ?? ZERO,
+    surchargeTotal: attendance.surcharge_total ?? ZERO,
+    onCallFee: attendance.on_call_fee ?? ZERO,
+    isUrgent: attendance.is_urgent ?? false,
+    urgencyFee: attendance.urgency_fee ?? ZERO,
+    clinicFee: attendance.clinic_fee ?? ZERO,
+    feeLines: fromApiFeeLines(attendance.fee_lines),
+    grandTotal: attendance.grand_total ?? ZERO,
     protocolNumber: attendance.protocol_number,
     cancelReason: attendance.cancel_reason,
     createdAt: attendance.created_at,
@@ -322,7 +388,10 @@ export async function fetchAttendances(params: AttendanceListParams = {}): Promi
   }
 }
 
-export type AttendanceStatusCountsParams = Omit<AttendanceListParams, 'page' | 'pageSize' | 'status'>
+export type AttendanceStatusCountsParams = Omit<
+  AttendanceListParams,
+  'page' | 'pageSize' | 'status'
+>
 
 export async function fetchAttendanceStatusCounts(
   params: AttendanceStatusCountsParams = {},
@@ -336,10 +405,16 @@ export async function fetchAttendanceStatusCounts(
   if (params.serviceDateFrom) query.set('service_date_from', params.serviceDateFrom)
   if (params.serviceDateTo) query.set('service_date_to', params.serviceDateTo)
 
-  const body = await apiRequest<{ total: number; by_status: Record<string, number> }>(
-    `/attendances/status-counts?${query.toString()}`,
-  )
-  return { total: body.total, byStatus: body.by_status as Partial<Record<AttendanceStatus, number>> }
+  const body = await apiRequest<{
+    total: number
+    by_status: Record<string, number>
+    billed_total: string | null
+  }>(`/attendances/status-counts?${query.toString()}`)
+  return {
+    total: body.total,
+    byStatus: body.by_status as Partial<Record<AttendanceStatus, number>>,
+    billedTotal: body.billed_total ?? ZERO,
+  }
 }
 
 export async function fetchAttendance(id: string): Promise<Attendance> {
@@ -384,8 +459,11 @@ export interface AttendanceUpdateInput {
   patientId?: string
   collectionMethod?: CollectionMethod
   serviceLevel?: ServiceLevel
+  isUrgent?: boolean
   serviceDate?: string | null
   notes?: string
+  /** Obrigatório fora do rascunho; vai para a auditoria. */
+  reason?: string
 }
 
 /** `DRAFT` accepts every field here; `CONFIRMED` accepts only `notes` — the
@@ -403,12 +481,48 @@ export async function updateAttendance(
   if (input.patientId !== undefined) body.patient_id = input.patientId
   if (input.collectionMethod !== undefined) body.collection_method = input.collectionMethod
   if (input.serviceLevel !== undefined) body.service_level = input.serviceLevel
+  if (input.isUrgent !== undefined) body.is_urgent = input.isUrgent
   if (input.serviceDate !== undefined) body.service_date = input.serviceDate
   if (input.notes !== undefined) body.notes = input.notes
+  if (input.reason !== undefined) body.reason = input.reason
 
   const responseBody = await apiRequest<ApiAttendance>(`/attendances/${id}`, {
     method: 'PATCH',
     body,
+  })
+  return fromApiAttendance(responseBody)
+}
+
+/** One line of the desired exam set: `itemId` keeps an existing line (price snapshot stays),
+ * `examId` adds a new one priced on the attendance's service date. Lines left out are removed
+ * (the backend keeps them in history as cancelled). */
+export interface AttendanceItemEditInput {
+  itemId?: string
+  examId?: string
+  quantity: number
+  discountAmount?: string | null
+  overrideReason?: string | null
+}
+
+export async function updateAttendanceItems(
+  id: string,
+  rowVersion: number,
+  reason: string,
+  items: AttendanceItemEditInput[],
+): Promise<Attendance> {
+  const responseBody = await apiRequest<ApiAttendance>(`/attendances/${id}/items`, {
+    method: 'PUT',
+    body: {
+      row_version: rowVersion,
+      reason,
+      items: items.map((item) => ({
+        item_id: item.itemId,
+        exam_id: item.examId,
+        quantity: item.quantity,
+        discount_amount: item.discountAmount || undefined,
+        override_reason: item.overrideReason || undefined,
+      })),
+    },
   })
   return fromApiAttendance(responseBody)
 }
@@ -418,7 +532,10 @@ export async function fetchAttendanceTimeline(
   page: number,
   pageSize: number,
 ): Promise<AttendanceTimelinePage> {
-  const query = new URLSearchParams({ page: String(page), page_size: String(pageSize) })
+  const query = new URLSearchParams({
+    page: String(page),
+    page_size: String(pageSize),
+  })
   const body = await apiRequest<ApiAttendanceTimelinePage>(
     `/attendances/${id}/timeline?${query.toString()}`,
   )
@@ -441,6 +558,7 @@ export async function createAttendanceDraft(
       patient_id: values.patientId,
       collection_method: values.collectionMethod,
       service_level: values.serviceLevel,
+      is_urgent: values.isUrgent ?? false,
       service_date: values.serviceDate,
       notes: values.notes,
     },

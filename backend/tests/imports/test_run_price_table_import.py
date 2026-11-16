@@ -74,26 +74,12 @@ def _setup() -> tuple[
     return batch_id, batches, staging_rows, exams
 
 
-def test_dry_run_raises_not_found_for_unknown_batch() -> None:
-    use_case = DryRunPriceTableImportUseCase(
-        staging_rows=FakeImportStagingRowRepository(),
-        batches=FakeImportBatchRepository(),
-        exams=FakeExamRepository(),
-        audit=FakeAuditLogWriter(),
-        clock=FakeClock(_NOW),
-    )
-
-    with pytest.raises(NotFoundError):
-        use_case.execute(
-            RunPriceTableImportCommand(
-                actor_id=uuid4(), actor_permissions=frozenset({"imports.execute"}), batch_id=uuid4()
-            )
-        )
-
-
-def test_dry_run_updates_price_for_real_but_caller_controls_persistence() -> None:
-    batch_id, batches, staging_rows, exams = _setup()
-    use_case = DryRunPriceTableImportUseCase(
+def _dry_run_use_case(
+    batches: FakeImportBatchRepository,
+    staging_rows: FakeImportStagingRowRepository,
+    exams: FakeExamRepository,
+) -> DryRunPriceTableImportUseCase:
+    return DryRunPriceTableImportUseCase(
         staging_rows=staging_rows,
         batches=batches,
         exams=exams,
@@ -101,23 +87,36 @@ def test_dry_run_updates_price_for_real_but_caller_controls_persistence() -> Non
         clock=FakeClock(_NOW),
     )
 
-    result = use_case.execute(
-        RunPriceTableImportCommand(
-            actor_id=uuid4(), actor_permissions=frozenset({"imports.execute"}), batch_id=batch_id
-        )
+
+def _command(batch_id: UUID) -> RunPriceTableImportCommand:
+    return RunPriceTableImportCommand(
+        actor_id=uuid4(), actor_permissions=frozenset({"imports.execute"}), batch_id=batch_id
     )
+
+
+def test_dry_run_rejects_unknown_batch_and_runs_for_real_leaving_persistence_to_the_caller() -> (
+    None
+):
+    empty = _dry_run_use_case(
+        FakeImportBatchRepository(), FakeImportStagingRowRepository(), FakeExamRepository()
+    )
+    with pytest.raises(NotFoundError):
+        empty.execute(_command(uuid4()))
+
+    batch_id, batches, staging_rows, exams = _setup()
+    result = _dry_run_use_case(batches, staging_rows, exams).execute(_command(batch_id))
 
     assert result.imported_count == 1
     assert len(result.exceptions) == 1
-    # The use case itself has no opinion on commit — it always runs the phase for real against
-    # the fakes, same as the xlsx pipeline's dry-run. The router not calling uow.commit() is
-    # what actually makes this a "dry run" against a real database.
+    # O caso de uso não opina sobre commit: roda a fase de verdade contra os fakes, como o
+    # dry-run do pipeline xlsx. É o router não chamar `uow.commit()` que faz disso um "dry run"
+    # contra um banco real.
     batch = batches.get_by_id(batch_id)
     assert batch is not None
     assert batch.status.value == "STAGED"
 
 
-def test_commit_persists_exceptions_and_marks_batch_committed() -> None:
+def test_commit_persists_exceptions_once_marks_batch_committed_and_is_idempotent() -> None:
     batch_id, batches, staging_rows, exams = _setup()
     exceptions = FakeImportExceptionRepository()
     use_case = CommitPriceTableImportUseCase(
@@ -129,38 +128,13 @@ def test_commit_persists_exceptions_and_marks_batch_committed() -> None:
         clock=FakeClock(_NOW),
     )
 
-    result = use_case.execute(
-        RunPriceTableImportCommand(
-            actor_id=uuid4(), actor_permissions=frozenset({"imports.execute"}), batch_id=batch_id
-        )
-    )
+    first = use_case.execute(_command(batch_id))
+    second = use_case.execute(_command(batch_id))
 
-    assert result.imported_count == 1
+    assert first.imported_count == 1
+    assert second.imported_count == 0  # mesmo preço agora: no-op
     persisted = exceptions.list_by_batch(batch_id)
-    assert len(persisted) == 1
-    assert persisted[0].phase == "price_table"
+    assert [(item.phase) for item in persisted] == ["price_table"]  # não duplica ao reimportar
     batch = batches.get_by_id(batch_id)
     assert batch is not None
     assert batch.status.value == "COMMITTED"
-
-
-def test_reimporting_same_batch_does_not_duplicate_persisted_exceptions() -> None:
-    batch_id, batches, staging_rows, exams = _setup()
-    exceptions = FakeImportExceptionRepository()
-    use_case = CommitPriceTableImportUseCase(
-        staging_rows=staging_rows,
-        batches=batches,
-        exceptions=exceptions,
-        exams=exams,
-        audit=FakeAuditLogWriter(),
-        clock=FakeClock(_NOW),
-    )
-    command = RunPriceTableImportCommand(
-        actor_id=uuid4(), actor_permissions=frozenset({"imports.execute"}), batch_id=batch_id
-    )
-
-    use_case.execute(command)
-    second = use_case.execute(command)
-
-    assert second.imported_count == 0  # same price now, no-op
-    assert len(exceptions.list_by_batch(batch_id)) == 1  # not duplicated

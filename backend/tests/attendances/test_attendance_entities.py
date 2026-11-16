@@ -30,81 +30,47 @@ def _item(*, price_base: str, quantity: int = 1) -> AttendanceExam:
     )
 
 
-def test_create_from_legacy_import_lands_directly_in_completed() -> None:
+def _legacy(
+    *,
+    items: list[AttendanceExam],
+    service_level: ServiceLevel = ServiceLevel.NORMAL,
+    **extra: object,
+) -> AttendanceRecord:
+    values: dict[str, object] = {
+        "id": uuid4(),
+        "clinic_id": uuid4(),
+        "veterinarian_id": uuid4(),
+        "patient_id": uuid4(),
+        "collection_method": CollectionMethod.COURIER,
+        "service_level": service_level,
+        "service_date": date(2026, 1, 3),
+        "items": items,
+        "protocol_year": 2026,
+        "protocol_sequence": 1,
+        "on_call_fee": Decimal("0"),
+        "legacy_source_row_number": 5,
+        "legacy_protocol_reference": "1/2026",
+        "import_batch_id": uuid4(),
+        "now": _NOW,
+        "created_by": None,
+    }
+    values.update(extra)
+    return AttendanceRecord.create_from_legacy_import(**values)  # type: ignore[arg-type]
+
+
+def test_legacy_import_lands_completed_with_totals_and_cannot_be_edited_or_cancelled() -> None:
     batch_id = uuid4()
-    attendance = AttendanceRecord.create_from_legacy_import(
-        id=uuid4(),
-        clinic_id=uuid4(),
-        veterinarian_id=uuid4(),
-        patient_id=uuid4(),
-        collection_method=CollectionMethod.COURIER,
-        service_level=ServiceLevel.NORMAL,
-        service_date=date(2026, 1, 3),
-        items=[_item(price_base="75.00")],
-        protocol_year=2026,
-        protocol_sequence=1,
-        on_call_fee=Decimal("0"),
-        legacy_source_row_number=5,
-        legacy_protocol_reference="1/2026",
-        import_batch_id=batch_id,
-        now=_NOW,
-        created_by=None,
-    )
+    attendance = _legacy(items=[_item(price_base="75.00")], import_batch_id=batch_id)
 
     assert attendance.status == AttendanceStatus.COMPLETED
-    assert attendance.grand_total == Decimal("75.00")
-    assert attendance.subtotal == Decimal("75.00")
+    assert (attendance.subtotal, attendance.grand_total) == (Decimal("75.00"), Decimal("75.00"))
     assert attendance.protocol_number == "P000001/26"
     assert attendance.billing_competence == date(2026, 1, 1)
-    assert attendance.legacy_source_row_number == 5
-    assert attendance.legacy_protocol_reference == "1/2026"
+    assert (attendance.legacy_source_row_number, attendance.legacy_protocol_reference) == (
+        5,
+        "1/2026",
+    )
     assert attendance.import_batch_id == batch_id
-
-
-def test_create_from_legacy_import_sums_multiple_items_and_on_call_fee() -> None:
-    attendance = AttendanceRecord.create_from_legacy_import(
-        id=uuid4(),
-        clinic_id=uuid4(),
-        veterinarian_id=uuid4(),
-        patient_id=uuid4(),
-        collection_method=CollectionMethod.COURIER,
-        service_level=ServiceLevel.PLANTAO_ESPECIAL,
-        service_date=date(2026, 1, 10),
-        items=[_item(price_base="100.00"), _item(price_base="50.00")],
-        protocol_year=2026,
-        protocol_sequence=2,
-        on_call_fee=Decimal("150.00"),
-        legacy_source_row_number=6,
-        legacy_protocol_reference="2/2026",
-        import_batch_id=uuid4(),
-        now=_NOW,
-        created_by=None,
-    )
-
-    assert attendance.subtotal == Decimal("150.00")
-    assert attendance.on_call_fee == Decimal("150.00")
-    assert attendance.grand_total == Decimal("300.00")
-
-
-def test_a_migrated_attendance_cannot_be_edited() -> None:
-    attendance = AttendanceRecord.create_from_legacy_import(
-        id=uuid4(),
-        clinic_id=uuid4(),
-        veterinarian_id=uuid4(),
-        patient_id=uuid4(),
-        collection_method=CollectionMethod.COURIER,
-        service_level=ServiceLevel.NORMAL,
-        service_date=date(2026, 1, 3),
-        items=[_item(price_base="75.00")],
-        protocol_year=2026,
-        protocol_sequence=1,
-        on_call_fee=Decimal("0"),
-        legacy_source_row_number=5,
-        legacy_protocol_reference="1/2026",
-        import_batch_id=uuid4(),
-        now=_NOW,
-        created_by=None,
-    )
 
     with pytest.raises(InvalidStateTransitionError):
         attendance.update_fields(
@@ -116,27 +82,18 @@ def test_a_migrated_attendance_cannot_be_edited() -> None:
             now=_NOW,
             updated_by=None,
         )
-
-
-def test_a_migrated_attendance_cannot_be_cancelled_directly() -> None:
-    attendance = AttendanceRecord.create_from_legacy_import(
-        id=uuid4(),
-        clinic_id=uuid4(),
-        veterinarian_id=uuid4(),
-        patient_id=uuid4(),
-        collection_method=CollectionMethod.COURIER,
-        service_level=ServiceLevel.NORMAL,
-        service_date=date(2026, 1, 3),
-        items=[_item(price_base="75.00")],
-        protocol_year=2026,
-        protocol_sequence=1,
-        on_call_fee=Decimal("0"),
-        legacy_source_row_number=5,
-        legacy_protocol_reference="1/2026",
-        import_batch_id=uuid4(),
-        now=_NOW,
-        created_by=None,
-    )
-
     with pytest.raises((InvalidStateTransitionError, AttendanceAlreadyClosedError)):
         attendance.cancel(reason="teste", now=_NOW, cancelled_by=None)
+
+
+def test_legacy_import_sums_multiple_items_and_on_call_fee() -> None:
+    attendance = _legacy(
+        items=[_item(price_base="100.00"), _item(price_base="50.00")],
+        service_level=ServiceLevel.PLANTAO_ESPECIAL,
+        on_call_fee=Decimal("150.00"),
+        protocol_sequence=2,
+    )
+
+    assert attendance.subtotal == Decimal("150.00")
+    assert attendance.on_call_fee == Decimal("150.00")
+    assert attendance.grand_total == Decimal("300.00")

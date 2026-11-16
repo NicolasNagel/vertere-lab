@@ -29,8 +29,11 @@ class ListClinicsForVeterinarianUseCase:
         if _REQUIRED_PERMISSION not in query.actor.permissions:
             raise ForbiddenError(f"Permissão ausente: {_REQUIRED_PERMISSION}")
 
+        allowed_clinic_ids = query.actor.clinic_filter
         result: list[LinkedClinicDTO] = []
         for link in self._links.list_by_veterinarian(query.veterinarian_id):
+            if allowed_clinic_ids is not None and link.clinic_id not in allowed_clinic_ids:
+                continue
             clinic = self._clinics.get_by_id(link.clinic_id)
             if clinic is None:
                 continue

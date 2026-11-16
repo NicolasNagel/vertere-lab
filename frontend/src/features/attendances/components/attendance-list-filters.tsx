@@ -1,21 +1,34 @@
 import { useState } from 'react'
 
-import { SelectField, type SelectOption } from '../../../shared/ui/select'
-import { CalendarIcon } from '../../../shared/ui/icons'
+import { Dropdown, type DropdownOption } from '../../../shared/ui/dropdown'
+import { CalendarIcon, ClinicsIcon, CloseIcon, TagIcon } from '../../../shared/ui/icons'
 import { SERVICE_LEVEL_LABELS, type ServiceLevel } from '../api/attendances-api'
 import './attendance-list-filters.css'
 
-const SERVICE_LEVEL_FILTER_OPTIONS: SelectOption[] = [
-  { value: '', label: 'Tipo: Todos' },
-  { value: 'NORMAL', label: `Tipo: ${SERVICE_LEVEL_LABELS.NORMAL}` },
-  { value: 'PLANTAO_NORMAL', label: `Tipo: ${SERVICE_LEVEL_LABELS.PLANTAO_NORMAL}` },
-  { value: 'PLANTAO_ESPECIAL', label: `Tipo: ${SERVICE_LEVEL_LABELS.PLANTAO_ESPECIAL}` },
+const SERVICE_LEVEL_FILTER_OPTIONS: DropdownOption[] = [
+  { value: '', label: 'Todos' },
+  { value: 'NORMAL', label: SERVICE_LEVEL_LABELS.NORMAL },
+  { value: 'PLANTAO_NORMAL', label: SERVICE_LEVEL_LABELS.PLANTAO_NORMAL },
+  { value: 'PLANTAO_ESPECIAL', label: SERVICE_LEVEL_LABELS.PLANTAO_ESPECIAL },
 ]
 
-const PERIOD_MONTH_LABELS = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez']
+const PERIOD_MONTH_LABELS = [
+  'Jan',
+  'Fev',
+  'Mar',
+  'Abr',
+  'Mai',
+  'Jun',
+  'Jul',
+  'Ago',
+  'Set',
+  'Out',
+  'Nov',
+  'Dez',
+]
 const currentMonth = new Date()
 const currentMonthIndex = currentMonth.getFullYear() * 12 + currentMonth.getMonth()
-const PERIOD_OPTIONS: SelectOption[] = Array.from({ length: 36 }, (_, index) => {
+const PERIOD_OPTIONS: DropdownOption[] = Array.from({ length: 36 }, (_, index) => {
   const absoluteMonth = currentMonthIndex + 6 - index
   const year = Math.floor(absoluteMonth / 12)
   const monthIndex = ((absoluteMonth % 12) + 12) % 12
@@ -24,7 +37,7 @@ const PERIOD_OPTIONS: SelectOption[] = Array.from({ length: 36 }, (_, index) => 
 })
 
 interface AttendanceListFiltersProps {
-  clinicOptions: SelectOption[]
+  clinicOptions: DropdownOption[]
   clinicId: string
   serviceLevel: ServiceLevel | ''
   disabled: boolean
@@ -60,36 +73,47 @@ export function AttendanceListFilters({
     onServiceDateToChange(`${period}-${String(lastDay).padStart(2, '0')}`)
   }
 
+  const hasActiveFilters = selectedPeriod !== '' || clinicId !== '' || serviceLevel !== ''
+
+  function handleClear() {
+    handlePeriodChange('')
+    onClinicChange('')
+    onServiceLevelChange('')
+  }
+
   return (
-    <div className="attendance-list-filters">
-      <SelectField
+    <div className="attendance-list-filters" role="group" aria-label="Filtros">
+      <Dropdown
         label="Competência"
-        id="attendance-list-period"
-        className="attendance-list-filters__field"
-        leadingIcon={<CalendarIcon />}
-        options={[{ value: '', label: 'Período: Todos' }, ...PERIOD_OPTIONS]}
+        icon={<CalendarIcon />}
+        options={[{ value: '', label: 'Todas' }, ...PERIOD_OPTIONS]}
         value={selectedPeriod}
         disabled={disabled}
-        onChange={(event) => handlePeriodChange(event.target.value)}
+        onChange={handlePeriodChange}
       />
-      <SelectField
+      <Dropdown
         label="Clínica"
-        id="attendance-list-clinic"
-        className="attendance-list-filters__field"
-        options={[{ value: '', label: 'Clínica: Todas' }, ...clinicOptions]}
+        icon={<ClinicsIcon />}
+        className="attendance-list-filters__wide"
+        options={[{ value: '', label: 'Todas' }, ...clinicOptions]}
         value={clinicId}
         disabled={disabled}
-        onChange={(event) => onClinicChange(event.target.value)}
+        searchable
+        onChange={onClinicChange}
       />
-      <SelectField
+      <Dropdown
         label="Tipo"
-        id="attendance-list-service-level"
-        className="attendance-list-filters__field"
+        icon={<TagIcon />}
         options={SERVICE_LEVEL_FILTER_OPTIONS}
         value={serviceLevel}
         disabled={disabled}
-        onChange={(event) => onServiceLevelChange(event.target.value as ServiceLevel | '')}
+        onChange={(value) => onServiceLevelChange(value as ServiceLevel | '')}
       />
+      {hasActiveFilters && (
+        <button type="button" className="attendance-list-filters__clear" onClick={handleClear}>
+          <CloseIcon /> Limpar filtros
+        </button>
+      )}
     </div>
   )
 }

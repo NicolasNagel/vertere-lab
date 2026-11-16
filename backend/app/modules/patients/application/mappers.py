@@ -25,4 +25,7 @@ def patient_to_dto(patient: Patient) -> PatientDTO:
         created_at=patient.created_at,
         updated_at=patient.updated_at,
         row_version=patient.row_version,
+        age_value=patient.age.value if patient.age else None,
+        age_unit=patient.age.unit.value if patient.age else None,
+        age_recorded_on=patient.age_recorded_on,
     )

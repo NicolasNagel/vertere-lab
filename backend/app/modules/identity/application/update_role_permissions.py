@@ -90,7 +90,7 @@ class UpdateRolePermissionsUseCase:
         self._audit.record(
             AuditEntry(
                 actor_user_id=command.actor.id,
-                actor_scope=ActorScope.LAB,
+                actor_scope=ActorScope(command.actor.role_scope),
                 action="roles.permissions_updated",
                 entity_type="role",
                 entity_id=str(role.id),

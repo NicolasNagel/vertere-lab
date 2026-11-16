@@ -16,12 +16,21 @@ class AttendanceExamDTO:
     exam_code: str
     exam_name: str
     price_base: Decimal
+    components: tuple[tuple[str, str], ...]
     quantity: int
     discount_amount: Decimal
     surcharge_amount: Decimal
     total_amount: Decimal
     override_reason: str | None
     status: str
+
+
+@dataclass(frozen=True, kw_only=True)
+class FeeLineDTO:
+    kind: str
+    label: str
+    amount: Decimal
+    rule_id: UUID | None = None
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -43,6 +52,10 @@ class AttendancePreviewDTO:
     surcharge_total: Decimal
     on_call_fee: Decimal
     grand_total: Decimal
+    is_urgent: bool = False
+    urgency_fee: Decimal = Decimal("0")
+    clinic_fee: Decimal = Decimal("0")
+    fee_lines: tuple[FeeLineDTO, ...] = ()
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -62,6 +75,10 @@ class AttendanceDTO:
     discount_total: Decimal = Decimal("0")
     surcharge_total: Decimal = Decimal("0")
     on_call_fee: Decimal = Decimal("0")
+    is_urgent: bool = False
+    urgency_fee: Decimal = Decimal("0")
+    clinic_fee: Decimal = Decimal("0")
+    fee_lines: tuple[FeeLineDTO, ...] = ()
     grand_total: Decimal = Decimal("0")
     protocol_number: str | None = None
     cancel_reason: str | None = None

@@ -167,7 +167,7 @@ export function ClosureExistingView({ closure, canReopen, canAdjust }: ClosureEx
           </div>
           {Number(closure.onCallFeeTotal) > 0 && (
             <div className="closure-existing-view__field">
-              <span className="closure-existing-view__label">Taxa de plantão</span>
+              <span className="closure-existing-view__label">Taxas</span>
               <span className="closure-existing-view__value">
                 {formatCurrencyBRL(closure.onCallFeeTotal)}
               </span>

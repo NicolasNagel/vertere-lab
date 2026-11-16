@@ -10,6 +10,7 @@ from app.modules.catalog.domain.entities import ExamCategory, ExamCategoryStatus
 from app.modules.imports.application.import_exams_from_history import (
     SHEET_NAME,
     ImportExamsFromHistoryCommand,
+    ImportExamsFromHistoryResult,
     ImportExamsFromHistoryUseCase,
 )
 from app.modules.patients.domain.entities import Species
@@ -71,318 +72,95 @@ def _stage_dados_row(
     )
 
 
-def test_import_without_permission_is_forbidden() -> None:
+def _run(
+    *rows: dict[str, str | None],
+    categories: tuple[str, ...] = ("Hematológicos",),
+    permissions: frozenset[str] = frozenset({"imports.execute"}),
+    times: int = 1,
+) -> tuple[list[ImportExamsFromHistoryResult], FakeExamRepository]:
+    """Stage `rows` (defaults: Hemograma, R$ 25, 2026-01-03) and run the import `times`."""
     batch_id = uuid4()
+    category_repository = FakeExamCategoryRepository()
+    for name in categories:
+        category_repository.add(_category(name))
     staging_rows = FakeImportStagingRowRepository()
-    _stage_dados_row(
-        staging_rows,
-        batch_id,
-        row_number=5,
-        date_serial="46025",
-        category="Hematológicos",
-        exam="Hemograma",
-        price="25",
-    )
-    use_case = _use_case(
-        staging_rows=staging_rows,
-        exams=FakeExamRepository(),
-        categories=FakeExamCategoryRepository(),
-    )
-
-    with pytest.raises(ForbiddenError):
-        use_case.execute(
-            ImportExamsFromHistoryCommand(
-                actor_id=uuid4(), actor_permissions=frozenset(), batch_id=batch_id
-            )
-        )
-
-
-def test_import_creates_exam_from_standalone_row() -> None:
-    batch_id = uuid4()
-    categories = FakeExamCategoryRepository()
-    categories.add(_category("Hematológicos"))
-    staging_rows = FakeImportStagingRowRepository()
-    _stage_dados_row(
-        staging_rows,
-        batch_id,
-        row_number=5,
-        date_serial="46025",
-        category="Hematológicos",
-        exam="Hemograma",
-        price="25",
-    )
+    for index, overrides in enumerate(rows):
+        values: dict[str, str | None] = {
+            "date_serial": "46025",
+            "category": categories[0] if categories else None,
+            "exam": "Hemograma",
+            "price": "25",
+            **overrides,
+        }
+        _stage_dados_row(staging_rows, batch_id, row_number=5 + index, **values)  # type: ignore[arg-type]
     exams = FakeExamRepository()
-    use_case = _use_case(staging_rows=staging_rows, exams=exams, categories=categories)
-
-    result = use_case.execute(
-        ImportExamsFromHistoryCommand(
-            actor_id=uuid4(), actor_permissions=frozenset({"imports.execute"}), batch_id=batch_id
-        )
+    use_case = _use_case(staging_rows=staging_rows, exams=exams, categories=category_repository)
+    command = ImportExamsFromHistoryCommand(
+        actor_id=uuid4(), actor_permissions=permissions, batch_id=batch_id
     )
+    return [use_case.execute(command) for _ in range(times)], exams
 
-    assert result.imported_count == 1
-    assert result.exceptions == ()
+
+def test_import_requires_permission_creates_exams_and_is_idempotent() -> None:
+    with pytest.raises(ForbiddenError):
+        _run({}, permissions=frozenset())
+
+    (first, second), exams = _run({}, times=2)
+    assert (first.imported_count, first.exceptions) == (1, ())
+    assert (second.imported_count, second.skipped_existing_count) == (0, 1)
     exam = exams.get_by_code("HEMOGRAMA")
     assert exam is not None
-    assert exam.name == "Hemograma"
-    assert exam.price_base == Decimal("25")
+    assert (exam.name, exam.price_base) == ("Hemograma", Decimal("25"))
 
 
-def test_combined_exam_line_is_never_a_catalog_candidate() -> None:
-    batch_id = uuid4()
-    categories = FakeExamCategoryRepository()
-    categories.add(_category("Perfis"))
-    staging_rows = FakeImportStagingRowRepository()
-    _stage_dados_row(
-        staging_rows,
-        batch_id,
-        row_number=5,
-        date_serial="46025",
-        category="Perfis",
-        exam="Check-up 2 + Urinálise",
-        price="145",
+def test_import_merges_variants_and_ignores_combined_lines_and_zero_prices() -> None:
+    # Variantes de caixa se fundem: vale o nome e o preço da ocorrência mais recente.
+    (result,), exams = _run(
+        {"exam": "hemograma", "price": "25"},
+        {"exam": "Hemograma", "price": "28", "date_serial": "46100"},
     )
-    exams = FakeExamRepository()
-    use_case = _use_case(staging_rows=staging_rows, exams=exams, categories=categories)
+    exam = exams.get_by_code("HEMOGRAMA")
+    assert result.imported_count == 1
+    assert exam is not None
+    assert (exam.name, exam.price_base) == ("Hemograma", Decimal("28"))
 
-    result = use_case.execute(
-        ImportExamsFromHistoryCommand(
-            actor_id=uuid4(), actor_permissions=frozenset({"imports.execute"}), batch_id=batch_id
-        )
+    # Só o acento difere ("Basico 3" vs. "Básico 3"): um único exame; data antiga não muda o preço.
+    (result,), exams = _run(
+        {"category": "Perfis", "exam": "Básico 3", "price": "80"},
+        {"category": "Perfis", "exam": "Basico 3", "price": "80", "date_serial": "46020"},
+        categories=("Perfis",),
     )
+    assert result.imported_count == 1
+    assert exams.get_by_code("BASICO3") is not None
 
+    # Linha combinada nunca é candidata a catálogo.
+    (result,), exams = _run(
+        {"category": "Perfis", "exam": "Check-up 2 + Urinálise", "price": "145"},
+        categories=("Perfis",),
+    )
     assert result.imported_count == 0
     assert exams.get_by_code("CHECKUP2") is None
     assert exams.get_by_code("URINALISE") is None
 
-
-def test_case_variants_merge_and_most_recent_price_wins() -> None:
-    batch_id = uuid4()
-    categories = FakeExamCategoryRepository()
-    categories.add(_category("Hematológicos"))
-    staging_rows = FakeImportStagingRowRepository()
-    _stage_dados_row(
-        staging_rows,
-        batch_id,
-        row_number=5,
-        date_serial="46025",  # earlier date
-        category="Hematológicos",
-        exam="hemograma",
-        price="25",
+    # Valor 0 (exame cortesia) vira exceção por exame, não um crash; e não esconde um preço
+    # válido de outra ocorrência.
+    (result,), exams = _run({"exam": "Hematócrito", "price": "0"})
+    assert (result.imported_count, len(result.exceptions)) == (0, 1)
+    assert exams.get_by_code("HEMATOCRITO") is None
+    (result,), exams = _run(
+        {"exam": "Hematócrito", "price": "0"},
+        {"exam": "Hematócrito", "price": "15", "date_serial": "46100"},
     )
-    _stage_dados_row(
-        staging_rows,
-        batch_id,
-        row_number=6,
-        date_serial="46100",  # later date
-        category="Hematológicos",
-        exam="Hemograma",
-        price="28",
-    )
-    exams = FakeExamRepository()
-    use_case = _use_case(staging_rows=staging_rows, exams=exams, categories=categories)
-
-    result = use_case.execute(
-        ImportExamsFromHistoryCommand(
-            actor_id=uuid4(), actor_permissions=frozenset({"imports.execute"}), batch_id=batch_id
-        )
-    )
-
     assert result.imported_count == 1
-    exam = exams.get_by_code("HEMOGRAMA")
-    assert exam is not None
-    assert exam.name == "Hemograma"  # most recent occurrence's casing
-    assert exam.price_base == Decimal("28")  # most recent occurrence's price
+    hematocrit = exams.get_by_code("HEMATOCRITO")
+    assert hematocrit is not None
+    assert hematocrit.price_base == Decimal("15")
 
 
-def test_accent_only_variants_merge_into_one_exam() -> None:
-    # Regression found via QA against the real spreadsheet: "Basico 3" (a
-    # typo missing the accent) and "Básico 3" were becoming two separate
-    # catalog rows for the same panel — case-only folding didn't catch it.
-    batch_id = uuid4()
-    categories = FakeExamCategoryRepository()
-    categories.add(_category("Perfis"))
-    staging_rows = FakeImportStagingRowRepository()
-    _stage_dados_row(
-        staging_rows,
-        batch_id,
-        row_number=5,
-        date_serial="46025",
-        category="Perfis",
-        exam="Básico 3",
-        price="80",
-    )
-    _stage_dados_row(
-        staging_rows,
-        batch_id,
-        row_number=6,
-        date_serial="46020",  # earlier date — must not override the price
-        category="Perfis",
-        exam="Basico 3",
-        price="80",
-    )
-    exams = FakeExamRepository()
-    use_case = _use_case(staging_rows=staging_rows, exams=exams, categories=categories)
-
-    result = use_case.execute(
-        ImportExamsFromHistoryCommand(
-            actor_id=uuid4(), actor_permissions=frozenset({"imports.execute"}), batch_id=batch_id
-        )
-    )
-
-    assert result.imported_count == 1
-    assert exams.get_by_code("BASICO3") is not None
-
-
-def test_unknown_category_becomes_exception() -> None:
-    batch_id = uuid4()
-    staging_rows = FakeImportStagingRowRepository()
-    _stage_dados_row(
-        staging_rows,
-        batch_id,
-        row_number=5,
-        date_serial="46025",
-        category="Categoria Inexistente",
-        exam="Hemograma",
-        price="25",
-    )
-    exams = FakeExamRepository()
-    use_case = _use_case(
-        staging_rows=staging_rows, exams=exams, categories=FakeExamCategoryRepository()
-    )
-
-    result = use_case.execute(
-        ImportExamsFromHistoryCommand(
-            actor_id=uuid4(), actor_permissions=frozenset({"imports.execute"}), batch_id=batch_id
-        )
-    )
-
-    assert result.imported_count == 0
-    assert len(result.exceptions) == 1
+def test_import_turns_unknown_or_missing_category_into_exception() -> None:
+    (unknown,), exams = _run({"category": "Categoria Inexistente"})
+    assert (unknown.imported_count, len(unknown.exceptions)) == (0, 1)
     assert exams.get_by_code("HEMOGRAMA") is None
 
-
-def test_zero_price_is_treated_as_no_price_not_a_crash() -> None:
-    # Regression found via QA against an updated version of the real spreadsheet: some rows
-    # record a bundled/complementary exam at "Valor" = 0 (e.g. "Hematócrito" given free
-    # alongside another paid item). `Exam.price_base` requires > 0, so picking a zero price
-    # used to crash the whole use case with an unhandled ValueError instead of degrading to a
-    # per-exam exception.
-    batch_id = uuid4()
-    categories = FakeExamCategoryRepository()
-    categories.add(_category("Hematológicos"))
-    staging_rows = FakeImportStagingRowRepository()
-    _stage_dados_row(
-        staging_rows,
-        batch_id,
-        row_number=5,
-        date_serial="46025",
-        category="Hematológicos",
-        exam="Hematócrito",
-        price="0",
-    )
-    exams = FakeExamRepository()
-    use_case = _use_case(staging_rows=staging_rows, exams=exams, categories=categories)
-
-    result = use_case.execute(
-        ImportExamsFromHistoryCommand(
-            actor_id=uuid4(), actor_permissions=frozenset({"imports.execute"}), batch_id=batch_id
-        )
-    )
-
-    assert result.imported_count == 0
-    assert len(result.exceptions) == 1
-    assert exams.get_by_code("HEMATOCRITO") is None
-
-
-def test_zero_price_occurrence_does_not_shadow_a_valid_price_on_another_occurrence() -> None:
-    batch_id = uuid4()
-    categories = FakeExamCategoryRepository()
-    categories.add(_category("Hematológicos"))
-    staging_rows = FakeImportStagingRowRepository()
-    _stage_dados_row(
-        staging_rows,
-        batch_id,
-        row_number=5,
-        date_serial="46025",
-        category="Hematológicos",
-        exam="Hematócrito",
-        price="0",  # bundled free this time
-    )
-    _stage_dados_row(
-        staging_rows,
-        batch_id,
-        row_number=6,
-        date_serial="46100",
-        category="Hematológicos",
-        exam="Hematócrito",
-        price="15",  # charged normally another time
-    )
-    exams = FakeExamRepository()
-    use_case = _use_case(staging_rows=staging_rows, exams=exams, categories=categories)
-
-    result = use_case.execute(
-        ImportExamsFromHistoryCommand(
-            actor_id=uuid4(), actor_permissions=frozenset({"imports.execute"}), batch_id=batch_id
-        )
-    )
-
-    assert result.imported_count == 1
-    exam = exams.get_by_code("HEMATOCRITO")
-    assert exam is not None
-    assert exam.price_base == Decimal("15")
-
-
-def test_missing_category_across_all_occurrences_becomes_exception() -> None:
-    batch_id = uuid4()
-    staging_rows = FakeImportStagingRowRepository()
-    _stage_dados_row(
-        staging_rows,
-        batch_id,
-        row_number=5,
-        date_serial="46025",
-        category=None,
-        exam="Exame Sem Categoria",
-        price="25",
-    )
-    exams = FakeExamRepository()
-    use_case = _use_case(
-        staging_rows=staging_rows, exams=exams, categories=FakeExamCategoryRepository()
-    )
-
-    result = use_case.execute(
-        ImportExamsFromHistoryCommand(
-            actor_id=uuid4(), actor_permissions=frozenset({"imports.execute"}), batch_id=batch_id
-        )
-    )
-
-    assert result.imported_count == 0
-    assert len(result.exceptions) == 1
-
-
-def test_reimporting_same_exam_is_idempotent() -> None:
-    batch_id = uuid4()
-    categories = FakeExamCategoryRepository()
-    categories.add(_category("Hematológicos"))
-    staging_rows = FakeImportStagingRowRepository()
-    _stage_dados_row(
-        staging_rows,
-        batch_id,
-        row_number=5,
-        date_serial="46025",
-        category="Hematológicos",
-        exam="Hemograma",
-        price="25",
-    )
-    exams = FakeExamRepository()
-    use_case = _use_case(staging_rows=staging_rows, exams=exams, categories=categories)
-    command = ImportExamsFromHistoryCommand(
-        actor_id=uuid4(), actor_permissions=frozenset({"imports.execute"}), batch_id=batch_id
-    )
-
-    first = use_case.execute(command)
-    second = use_case.execute(command)
-
-    assert first.imported_count == 1
-    assert second.imported_count == 0
-    assert second.skipped_existing_count == 1
+    (missing,), _ = _run({"category": None, "exam": "Exame Sem Categoria"}, categories=())
+    assert (missing.imported_count, len(missing.exceptions)) == (0, 1)

@@ -1,0 +1,39 @@
+.topbar {
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  height: 3rem;
+  padding: 0 1.25rem;
+  display: flex;
+  align-items: center;
+  background: var(--color-surface);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.topbar__trail {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.8125rem;
+  color: var(--color-text-secondary);
+}
+
+.topbar__crumb + .topbar__crumb::before {
+  content: '›';
+  margin-right: 0.5rem;
+  color: var(--color-border-strong);
+}
+
+.topbar__crumb[aria-current='page'] {
+  color: var(--color-text-primary);
+  font-weight: 600;
+}
+
+@media (max-width: 767px) {
+  .topbar {
+    display: none;
+  }
+}

@@ -81,9 +81,10 @@ def _execute(
     return closures, candidates, audit
 
 
-def test_reopens_under_lock_releases_attendances_and_audits_reason() -> None:
+def test_reopens_under_lock_releases_attendances_audits_reason_and_rejects_invalid_requests() -> (
+    None
+):
     closure = _closure()
-
     closures, candidates, audit = _execute(closure)
 
     assert closure.status is ClosureStatus.REOPENED
@@ -93,17 +94,9 @@ def test_reopens_under_lock_releases_attendances_and_audits_reason() -> None:
     assert candidates.released_closure_ids == [closure.id]
     assert audit.entries[0].reason == "Correção financeira autorizada."
 
-
-def test_rejects_missing_permission() -> None:
     with pytest.raises(ForbiddenError):
         _execute(_closure(), actor=_actor())
-
-
-def test_unknown_closure_is_not_found() -> None:
     with pytest.raises(NotFoundError):
         _execute(None)
-
-
-def test_reopening_twice_is_an_invalid_transition() -> None:
-    with pytest.raises(InvalidStateTransitionError):
+    with pytest.raises(InvalidStateTransitionError):  # já reaberto
         _execute(_closure(status=ClosureStatus.REOPENED))

@@ -1,10 +1,15 @@
 .app-shell {
+  --sidebar-width: 232px;
   position: relative;
   display: flex;
   width: 100%;
   height: 100vh;
   overflow: hidden;
-  background: #fff;
+  background: var(--color-surface-cream);
+}
+
+.app-shell--collapsed {
+  --sidebar-width: 64px;
 }
 
 .app-shell__content {
@@ -12,7 +17,12 @@
   min-width: 0;
   height: 100%;
   overflow-y: auto;
-  margin-left: 220px;
+  margin-left: var(--sidebar-width);
+  transition: margin-left 200ms ease;
+}
+
+.app-shell__main {
+  min-width: 0;
 }
 
 .app-shell__mobile-header,
@@ -34,8 +44,9 @@
     display: flex;
     align-items: center;
     gap: 0.875rem;
-    color: #fff;
-    background: var(--color-brand-ink-deep);
+    color: var(--color-brand-ink-deep);
+    background: var(--color-surface);
+    border-bottom: 1px solid var(--color-border);
   }
 
   .app-shell__menu-button {
@@ -52,13 +63,13 @@
   .app-shell__menu-button span {
     display: block;
     height: 2px;
-    background: #fff;
+    background: var(--color-brand-ink-deep);
   }
 
   .app-shell__mobile-brand {
-    font-family: var(--font-display);
-    font-weight: 800;
-    letter-spacing: 0.12em;
+    font-family: Georgia, 'Times New Roman', serif;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
   }
 
   .app-shell__backdrop {
@@ -76,5 +87,10 @@
     margin-left: 0;
     padding-top: 3.5rem;
   }
+}
 
+@media (prefers-reduced-motion: reduce) {
+  .app-shell__content {
+    transition: none;
+  }
 }

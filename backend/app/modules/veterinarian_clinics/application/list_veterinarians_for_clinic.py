@@ -7,7 +7,7 @@ from app.modules.veterinarian_clinics.application.dtos import LinkedVeterinarian
 from app.modules.veterinarian_clinics.domain.repositories import VeterinarianClinicLinkRepository
 from app.modules.veterinarians.domain.repositories import VeterinarianRepository
 from app.shared.application.authorization import ActorContext
-from app.shared.domain.errors import ForbiddenError
+from app.shared.domain.errors import ForbiddenError, NotFoundError
 
 _REQUIRED_PERMISSION = "clinics.read"
 
@@ -28,6 +28,9 @@ class ListVeterinariansForClinicUseCase:
     def execute(self, query: ListVeterinariansForClinicQuery) -> list[LinkedVeterinarianDTO]:
         if _REQUIRED_PERMISSION not in query.actor.permissions:
             raise ForbiddenError(f"Permissão ausente: {_REQUIRED_PERMISSION}")
+
+        if not query.actor.can_access_clinic(query.clinic_id):
+            raise NotFoundError("Clínica não encontrada.")
 
         result: list[LinkedVeterinarianDTO] = []
         for link in self._links.list_by_clinic(query.clinic_id):

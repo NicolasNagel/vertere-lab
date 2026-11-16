@@ -7,7 +7,9 @@ from app.core.config import Settings
 from app.main import create_app
 
 
-async def test_health_returns_ok(client: httpx.AsyncClient) -> None:
+async def test_health_sets_security_headers_keeps_request_id_and_wraps_unknown_routes(
+    client: httpx.AsyncClient,
+) -> None:
     response = await client.get("/api/v1/health")
 
     assert response.status_code == 200
@@ -22,6 +24,18 @@ async def test_health_returns_ok(client: httpx.AsyncClient) -> None:
     assert response.headers["X-Content-Type-Options"] == "nosniff"
     assert response.headers["X-Frame-Options"] == "DENY"
     assert "Strict-Transport-Security" not in response.headers
+
+    # O X-Request-ID enviado pelo cliente é preservado.
+    echoed = await client.get("/api/v1/health", headers={"X-Request-ID": "req-abc-123"})
+    assert echoed.headers["X-Request-ID"] == "req-abc-123"
+
+    # Rota inexistente responde com o envelope de erro padrão.
+    unknown = await client.get("/api/v1/does-not-exist")
+    assert unknown.status_code == 404
+    error = unknown.json()["error"]
+    assert error["code"] == "NOT_FOUND"
+    assert error["request_id"] == unknown.headers["X-Request-ID"]
+    assert error["details"] == []
 
 
 async def test_health_enables_hsts_in_production() -> None:
@@ -40,47 +54,21 @@ async def test_health_enables_hsts_in_production() -> None:
     assert response.headers["Strict-Transport-Security"] == ("max-age=31536000; includeSubDomains")
 
 
-async def test_unknown_route_returns_error_envelope(client: httpx.AsyncClient) -> None:
-    response = await client.get("/api/v1/does-not-exist")
-
-    assert response.status_code == 404
-    error = response.json()["error"]
-    assert error["code"] == "NOT_FOUND"
-    assert error["request_id"] == response.headers["X-Request-ID"]
-    assert error["details"] == []
-
-
-async def test_request_id_from_client_is_preserved(client: httpx.AsyncClient) -> None:
-    response = await client.get("/api/v1/health", headers={"X-Request-ID": "req-abc-123"})
-
-    assert response.headers["X-Request-ID"] == "req-abc-123"
-
-
-async def test_mutation_from_untrusted_browser_origin_is_rejected(
-    client: httpx.AsyncClient,
-) -> None:
-    response = await client.post(
-        "/api/v1/auth/login",
-        headers={"Origin": "https://attacker.example"},
-        json={},
+async def test_mutations_are_only_accepted_from_trusted_origins(client: httpx.AsyncClient) -> None:
+    rejected = await client.post(
+        "/api/v1/auth/login", headers={"Origin": "https://attacker.example"}, json={}
     )
+    assert rejected.status_code == 403
+    assert rejected.json()["error"]["code"] == "CSRF_ORIGIN_FORBIDDEN"
+    assert rejected.json()["error"]["request_id"] == rejected.headers["X-Request-ID"]
 
-    assert response.status_code == 403
-    assert response.json()["error"]["code"] == "CSRF_ORIGIN_FORBIDDEN"
-    assert response.json()["error"]["request_id"] == response.headers["X-Request-ID"]
-
-
-async def test_mutation_from_same_origin_reaches_the_endpoint(client: httpx.AsyncClient) -> None:
-    response = await client.post(
-        "/api/v1/does-not-exist",
-        headers={"Origin": "http://test"},
-        json={},
+    # Mesma origem chega ao endpoint (404 porque a rota não existe).
+    same_origin = await client.post(
+        "/api/v1/does-not-exist", headers={"Origin": "http://test"}, json={}
     )
+    assert same_origin.status_code == 404
 
-    assert response.status_code == 404
-
-
-async def test_mutation_from_trusted_vite_origin_reaches_the_endpoint() -> None:
+    # Em dev, a origem do Vite também é confiável.
     app = create_app(
         Settings(
             env="dev",
@@ -90,11 +78,8 @@ async def test_mutation_from_trusted_vite_origin_reaches_the_endpoint() -> None:
     )
     async with httpx.AsyncClient(
         transport=httpx.ASGITransport(app=app), base_url="http://localhost:8200"
-    ) as client:
-        response = await client.post(
-            "/api/v1/does-not-exist",
-            headers={"Origin": "http://localhost:5173"},
-            json={},
+    ) as vite_client:
+        vite = await vite_client.post(
+            "/api/v1/does-not-exist", headers={"Origin": "http://localhost:5173"}, json={}
         )
-
-    assert response.status_code == 404
+    assert vite.status_code == 404

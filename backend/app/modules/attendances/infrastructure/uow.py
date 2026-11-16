@@ -8,9 +8,15 @@ from typing import Self
 from app.modules.attendances.infrastructure.repositories import (
     SqlAlchemyAttendanceRepository,
     SqlAlchemyAttendanceSequenceRepository,
+    SqlAlchemyClinicFeeRuleRepository,
     SqlAlchemyOnCallFeeSettingRepository,
+    SqlAlchemyUrgencyFeeSettingRepository,
 )
 from app.modules.audit.infrastructure.repositories import SqlAlchemyAuditLogWriter
+from app.modules.billing.application.settle_attendance_correction import (
+    AttendanceCorrectionSettlement,
+)
+from app.modules.billing.infrastructure.repositories import SqlAlchemyMonthlyClosureRepository
 from app.modules.catalog.infrastructure.repositories import SqlAlchemyExamRepository
 from app.modules.clinics.infrastructure.repositories import SqlAlchemyClinicRepository
 from app.modules.patients.infrastructure.repositories import SqlAlchemyPatientRepository
@@ -23,7 +29,9 @@ from app.modules.veterinarians.infrastructure.repositories import (
 from app.shared.idempotency.infrastructure.repositories import (
     SqlAlchemyIdempotencyRecordRepository,
 )
+from app.shared.infrastructure.clock import SystemClock
 from app.shared.infrastructure.uow import SqlAlchemyUnitOfWork
+from app.shared.outbox.infrastructure.repositories import SqlAlchemyOutboxEventRepository
 
 
 class SqlAlchemyAttendanceUnitOfWork:
@@ -41,7 +49,15 @@ class SqlAlchemyAttendanceUnitOfWork:
         self.patients = SqlAlchemyPatientRepository(session)
         self.exams = SqlAlchemyExamRepository(session)
         self.on_call_fees = SqlAlchemyOnCallFeeSettingRepository(session)
+        self.urgency_fee = SqlAlchemyUrgencyFeeSettingRepository(session)
+        self.clinic_fee_rules = SqlAlchemyClinicFeeRuleRepository(session)
         self.audit = SqlAlchemyAuditLogWriter(session)
+        self.closure_settlement = AttendanceCorrectionSettlement(
+            closures=SqlAlchemyMonthlyClosureRepository(session),
+            audit=self.audit,
+            outbox=SqlAlchemyOutboxEventRepository(session),
+            clock=SystemClock(),
+        )
         self.idempotency_records = SqlAlchemyIdempotencyRecordRepository(session)
         return self
 

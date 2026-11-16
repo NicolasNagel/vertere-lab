@@ -1,14 +1,17 @@
 import { zodResolver } from '@hookform/resolvers/zod'
-import { useForm } from 'react-hook-form'
+import { Controller, useForm } from 'react-hook-form'
 import { z } from 'zod'
 
 import { Button } from '../../../shared/ui/button'
-import { SelectField } from '../../../shared/ui/select'
+import { Dropdown } from '../../../shared/ui/dropdown'
+import { ClinicsIcon, PatientsIcon, TagIcon, UserIcon } from '../../../shared/ui/icons'
 import { TextField } from '../../../shared/ui/text-field'
 import { ApiError } from '../../../shared/api/errors'
 import { useSpeciesQuery } from '../api/use-species-query'
 import { useAllClinicsQuery } from '../../clinics/api/use-clinics-query'
 import type { Patient, PatientFormValues, PatientStatus } from '../api/patients-api'
+import { PatientAgeField } from './patient-age-field'
+import { ageFieldsShape, ageToApi, validateAge } from './patient-age-schema'
 import './patient-form.css'
 
 const patientSchema = z.object({
@@ -17,13 +20,13 @@ const patientSchema = z.object({
   speciesId: z.string().trim().min(1, 'Selecione a espécie.'),
   sex: z.enum(['MALE', 'FEMALE']),
   breed: z.string().trim(),
-  ageDescription: z.string().trim(),
+  ...ageFieldsShape,
   ownerName: z.string().trim().min(1, 'Informe o nome do tutor.'),
   ownerPhone: z.string().trim(),
   ownerDocument: z.string().trim(),
   status: z.enum(['ACTIVE', 'INACTIVE']),
   notes: z.string().trim(),
-})
+}).superRefine(validateAge)
 
 type PatientFormFields = z.infer<typeof patientSchema>
 
@@ -44,7 +47,8 @@ function toFormFields(patient: Patient | null): PatientFormFields {
     speciesId: patient?.speciesId ?? '',
     sex: patient?.sex ?? 'MALE',
     breed: patient?.breed ?? '',
-    ageDescription: patient?.ageDescription ?? '',
+    ageValue: patient?.ageValue === null || patient?.ageValue === undefined ? '' : String(patient.ageValue),
+    ageUnit: patient?.ageUnit ?? 'YEARS',
     ownerName: patient?.ownerName ?? '',
     ownerPhone: patient?.ownerPhone ?? '',
     ownerDocument: patient?.ownerDocument ?? '',
@@ -60,7 +64,7 @@ function toApiValues(fields: PatientFormFields): PatientFormValues {
     speciesId: fields.speciesId,
     sex: fields.sex,
     breed: fields.breed || null,
-    ageDescription: fields.ageDescription || null,
+    ...ageToApi(fields),
     ownerName: fields.ownerName,
     ownerPhone: fields.ownerPhone || null,
     ownerDocument: fields.ownerDocument || null,
@@ -97,6 +101,7 @@ export function PatientForm({
 }: PatientFormProps) {
   const {
     register,
+    control,
     handleSubmit,
     formState: { errors },
   } = useForm<PatientFormFields>({
@@ -120,19 +125,26 @@ export function PatientForm({
 
   return (
     <form className="patient-form" onSubmit={onSubmit} noValidate>
-      <SelectField
-        id="patient-clinic"
-        label="Clínica"
-        options={[
-          { value: '', label: clinicsQuery.isLoading ? 'Carregando…' : 'Selecione…' },
-          ...(clinicsQuery.data?.items ?? []).map((clinic) => ({
-            value: clinic.id,
-            label: clinic.name,
-          })),
-        ]}
-        disabled={submitting || clinicsQuery.isLoading}
-        errorMessage={errors.clinicId?.message}
-        {...register('clinicId')}
+      <Controller
+        control={control}
+        name="clinicId"
+        render={({ field }) => (
+          <Dropdown
+            variant="field"
+            searchable
+            icon={<ClinicsIcon />}
+            label="Clínica"
+            placeholder={clinicsQuery.isLoading ? 'Carregando…' : 'Selecione a clínica'}
+            options={(clinicsQuery.data?.items ?? []).map((clinic) => ({
+              value: clinic.id,
+              label: clinic.name,
+            }))}
+            value={field.value}
+            onChange={field.onChange}
+            disabled={submitting || clinicsQuery.isLoading}
+            errorMessage={errors.clinicId?.message}
+          />
+        )}
       />
       <div className="patient-form__row">
         <TextField
@@ -143,44 +155,81 @@ export function PatientForm({
           {...register('name')}
         />
         {patient && (
-          <SelectField
-            id="patient-status"
-            label="Status"
-            options={STATUS_OPTIONS}
-            disabled={submitting}
-            {...register('status')}
+          <Controller
+            control={control}
+            name="status"
+            render={({ field }) => (
+              <Dropdown
+                variant="field"
+                icon={<TagIcon />}
+                label="Status"
+                options={STATUS_OPTIONS}
+                value={field.value}
+                onChange={field.onChange}
+                disabled={submitting}
+              />
+            )}
           />
         )}
       </div>
 
       <div className="patient-form__row">
-        <SelectField
-          id="patient-species"
-          label="Espécie"
-          options={[
-            { value: '', label: speciesQuery.isLoading ? 'Carregando…' : 'Selecione…' },
-            ...speciesOptions.map((species) => ({ value: species.id, label: species.name })),
-          ]}
-          disabled={submitting || speciesQuery.isLoading}
-          errorMessage={errors.speciesId?.message}
-          {...register('speciesId')}
+        <Controller
+          control={control}
+          name="speciesId"
+          render={({ field }) => (
+            <Dropdown
+              variant="field"
+              icon={<PatientsIcon />}
+              label="Espécie"
+              placeholder={speciesQuery.isLoading ? 'Carregando…' : 'Selecione a espécie'}
+              options={speciesOptions.map((species) => ({ value: species.id, label: species.name }))}
+              value={field.value}
+              onChange={field.onChange}
+              disabled={submitting || speciesQuery.isLoading}
+              errorMessage={errors.speciesId?.message}
+            />
+          )}
         />
-        <SelectField
-          id="patient-sex"
-          label="Sexo"
-          options={SEX_OPTIONS}
-          disabled={submitting}
-          {...register('sex')}
+        <Controller
+          control={control}
+          name="sex"
+          render={({ field }) => (
+            <Dropdown
+              variant="field"
+              icon={<UserIcon />}
+              label="Sexo"
+              options={SEX_OPTIONS}
+              value={field.value}
+              onChange={field.onChange}
+              disabled={submitting}
+            />
+          )}
         />
       </div>
 
       <div className="patient-form__row">
         <TextField id="patient-breed" label="Raça" disabled={submitting} {...register('breed')} />
-        <TextField
-          id="patient-age"
-          label="Idade"
-          disabled={submitting}
-          {...register('ageDescription')}
+        <Controller
+          control={control}
+          name="ageValue"
+          render={({ field: valueField }) => (
+            <Controller
+              control={control}
+              name="ageUnit"
+              render={({ field: unitField }) => (
+                <PatientAgeField
+                  idPrefix="patient"
+                  value={valueField.value}
+                  unit={unitField.value}
+                  disabled={submitting}
+                  errorMessage={errors.ageValue?.message}
+                  onValueChange={valueField.onChange}
+                  onUnitChange={unitField.onChange}
+                />
+              )}
+            />
+          )}
         />
       </div>
 
@@ -215,7 +264,7 @@ export function PatientForm({
       )}
 
       <div className="patient-form__actions">
-        <Button type="button" variant="ghost" onClick={onCancel} disabled={submitting}>
+        <Button type="button" variant="cancel" onClick={onCancel} disabled={submitting}>
           Cancelar
         </Button>
         <Button type="submit" className="patient-form__submit" disabled={submitting}>

@@ -51,9 +51,11 @@ export function formatDate(isoDate: string): string {
   const date = dateOnlyMatch
     ? new Date(Number(dateOnlyMatch[1]), Number(dateOnlyMatch[2]) - 1, Number(dateOnlyMatch[3]))
     : new Date(isoDate)
-  return new Intl.DateTimeFormat('pt-BR', { day: '2-digit', month: 'short', year: 'numeric' }).format(
-    date,
-  )
+  return new Intl.DateTimeFormat('pt-BR', {
+    day: '2-digit',
+    month: 'short',
+    year: 'numeric',
+  }).format(date)
 }
 
 /** Same UTC-to-browser-timezone rule as `formatDate`, plus hour:minute.
@@ -81,4 +83,10 @@ export function formatServiceDateTime(serviceDate: string | null, createdAt: str
   if (!match) return formatDateTime(createdAt)
   const createdTime = formatDateTime(createdAt).split(' · ')[1]
   return `${match[3]}/${match[2]} · ${createdTime ?? '—'}`
+}
+
+/** Máscara de exibição do CEP enquanto se digita: 01310100 -> 01310-100. */
+export function formatCep(value: string): string {
+  const digits = value.replace(/\D/g, '').slice(0, 8)
+  return digits.length > 5 ? `${digits.slice(0, 5)}-${digits.slice(5)}` : digits
 }

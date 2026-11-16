@@ -1,18 +1,16 @@
+import { Badge, type BadgeTone } from '../../../shared/ui/badge'
 import type { AttendanceStatus } from '../api/attendances-api'
-import './attendance-status-badge.css'
 
-/** Labels reais do domínio — não são os mesmos rótulos do mockup
- * (`3-operacoes-lista.html` mostra "Aguardando coleta"/"Em análise"/"Laudo
- * pendente", que descrevem um fluxo laboratorial que ainda não existe no
- * backend). `AttendanceStatus` hoje só cobre o ciclo de vida do registro
- * em si. */
-const STATUS_LABELS: Record<AttendanceStatus, string> = {
-  DRAFT: 'Rascunho',
-  CONFIRMED: 'Confirmado',
-  IN_PROGRESS: 'Em andamento',
-  COMPLETED: 'Concluído',
-  CANCELLED: 'Cancelado',
-  ON_HOLD: 'Em espera',
+/** Labels reais do domínio — não são os rótulos do mockup (`3-operacoes-lista.html` mostra
+ * "Aguardando coleta"/"Em análise"/"Laudo pendente", fluxo laboratorial que ainda não existe no
+ * backend). `AttendanceStatus` hoje só cobre o ciclo de vida do registro em si. */
+const STATUS_BADGE: Record<AttendanceStatus, { label: string; tone: BadgeTone }> = {
+  DRAFT: { label: 'Rascunho', tone: 'neutral' },
+  CONFIRMED: { label: 'Confirmado', tone: 'success' },
+  IN_PROGRESS: { label: 'Em andamento', tone: 'warning' },
+  COMPLETED: { label: 'Concluído', tone: 'info' },
+  CANCELLED: { label: 'Cancelado', tone: 'danger' },
+  ON_HOLD: { label: 'Em espera', tone: 'warning' },
 }
 
 interface AttendanceStatusBadgeProps {
@@ -20,10 +18,10 @@ interface AttendanceStatusBadgeProps {
 }
 
 export function AttendanceStatusBadge({ status }: AttendanceStatusBadgeProps) {
+  const { label, tone } = STATUS_BADGE[status]
   return (
-    <span className="attendance-status-badge" data-status={status}>
-      <span className="attendance-status-badge__dot" />
-      {STATUS_LABELS[status]}
-    </span>
+    <Badge tone={tone} data-status={status}>
+      {label}
+    </Badge>
   )
 }

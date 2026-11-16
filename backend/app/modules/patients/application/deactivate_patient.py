@@ -52,7 +52,7 @@ class DeactivatePatientUseCase:
         self._audit.record(
             AuditEntry(
                 actor_user_id=command.actor.id,
-                actor_scope=ActorScope.LAB,
+                actor_scope=ActorScope(command.actor.role_scope),
                 action="patients.deactivated",
                 entity_type="patient",
                 entity_id=str(patient.id),

@@ -104,6 +104,22 @@ router = APIRouter(prefix="/imports", tags=["imports"])
 _IMPORT_ACCESS = require_permission("imports.execute", allowed_scopes=frozenset({"GLOBAL", "LAB"}))
 
 _MAX_FILE_SIZE = 20 * 1024 * 1024  # 20 MB — planilha de origem tem ~1 MB
+_READ_CHUNK_SIZE = 1024 * 1024
+
+
+async def _read_within_limit(file: UploadFile) -> bytes:
+    """Lê o upload em blocos e aborta ao passar do limite, sem carregá-lo inteiro antes."""
+
+    chunks: list[bytes] = []
+    total = 0
+    while chunk := await file.read(_READ_CHUNK_SIZE):
+        total += len(chunk)
+        if total > _MAX_FILE_SIZE:
+            raise HTTPException(
+                status_code=413, detail="Arquivo excede o tamanho máximo permitido (20 MB)."
+            )
+        chunks.append(chunk)
+    return b"".join(chunks)
 
 
 @router.post("/spreadsheet/stage", response_model=SpreadsheetStageResponse)
@@ -115,11 +131,7 @@ async def stage_spreadsheet(
     if not file.filename or not file.filename.lower().endswith(".xlsx"):
         raise HTTPException(status_code=422, detail="Envie um arquivo .xlsx.")
 
-    content = await file.read()
-    if len(content) > _MAX_FILE_SIZE:
-        raise HTTPException(
-            status_code=413, detail="Arquivo excede o tamanho máximo permitido (20 MB)."
-        )
+    content = await _read_within_limit(file)
 
     result = handle_stage_spreadsheet(
         uow=SqlAlchemyImportUnitOfWork(uow),
@@ -154,11 +166,7 @@ async def stage_price_table_pdf(
     if not file.filename or not file.filename.lower().endswith(".pdf"):
         raise HTTPException(status_code=422, detail="Envie um arquivo .pdf.")
 
-    content = await file.read()
-    if len(content) > _MAX_FILE_SIZE:
-        raise HTTPException(
-            status_code=413, detail="Arquivo excede o tamanho máximo permitido (20 MB)."
-        )
+    content = await _read_within_limit(file)
 
     result = handle_stage_price_table_pdf(
         uow=SqlAlchemyImportUnitOfWork(uow),

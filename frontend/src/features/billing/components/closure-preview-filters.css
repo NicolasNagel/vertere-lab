@@ -13,3 +13,8 @@
 .closure-preview-filters__field--small {
   max-width: 11rem;
 }
+
+/* Menu suspenso de formulário tem o mesmo respiro dos campos de texto. */
+.closure-preview-filters .dropdown-field {
+  margin-bottom: 0.75rem;
+}

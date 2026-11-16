@@ -1997,6 +1997,55 @@
       }
     },
     "/api/v1/veterinarians/{veterinarian_id}/clinics": {
+      "patch": {
+        "tags": [
+          "veterinarians"
+        ],
+        "summary": "Update Veterinarian Clinics",
+        "operationId": "update_veterinarian_clinics_api_v1_veterinarians__veterinarian_id__clinics_patch",
+        "security": [
+          {
+            "SessionCookie": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "veterinarian_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Veterinarian Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/VeterinarianClinicsUpdateRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
       "post": {
         "tags": [
           "veterinarians"
@@ -2078,6 +2127,17 @@
               "type": "string",
               "format": "uuid",
               "title": "Clinic Id"
+            }
+          },
+          {
+            "name": "reason",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 500,
+              "title": "Reason"
             }
           }
         ],
@@ -3024,6 +3084,64 @@
         }
       }
     },
+    "/api/v1/attendances/{attendance_id}/items": {
+      "put": {
+        "tags": [
+          "attendances"
+        ],
+        "summary": "Update Attendance Items",
+        "operationId": "update_attendance_items_api_v1_attendances__attendance_id__items_put",
+        "security": [
+          {
+            "SessionCookie": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "attendance_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Attendance Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AttendanceItemsUpdateRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AttendanceRead"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/attendances/drafts": {
       "post": {
         "tags": [
@@ -3325,6 +3443,246 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/OnCallFeeSettingRead"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/urgency-fee-setting": {
+      "get": {
+        "tags": [
+          "attendances"
+        ],
+        "summary": "Get Urgency Fee Setting",
+        "operationId": "get_urgency_fee_setting_api_v1_urgency_fee_setting_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UrgencyFeeSettingRead"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "SessionCookie": []
+          }
+        ]
+      },
+      "patch": {
+        "tags": [
+          "attendances"
+        ],
+        "summary": "Update Urgency Fee Setting",
+        "operationId": "update_urgency_fee_setting_api_v1_urgency_fee_setting_patch",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UrgencyFeeSettingUpdateRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UrgencyFeeSettingRead"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "SessionCookie": []
+          }
+        ]
+      }
+    },
+    "/api/v1/clinic-fee-rules": {
+      "get": {
+        "tags": [
+          "attendances"
+        ],
+        "summary": "List Clinic Fee Rules",
+        "operationId": "list_clinic_fee_rules_api_v1_clinic_fee_rules_get",
+        "security": [
+          {
+            "SessionCookie": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "clinic_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Clinic Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ClinicFeeRuleListResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "attendances"
+        ],
+        "summary": "Create Clinic Fee Rule",
+        "operationId": "create_clinic_fee_rule_api_v1_clinic_fee_rules_post",
+        "security": [
+          {
+            "SessionCookie": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 255,
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ClinicFeeRuleCreateRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ClinicFeeRuleRead"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/clinic-fee-rules/{rule_id}": {
+      "patch": {
+        "tags": [
+          "attendances"
+        ],
+        "summary": "Update Clinic Fee Rule",
+        "operationId": "update_clinic_fee_rule_api_v1_clinic_fee_rules__rule_id__patch",
+        "security": [
+          {
+            "SessionCookie": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "rule_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Rule Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ClinicFeeRuleUpdateRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ClinicFeeRuleRead"
                 }
               }
             }
@@ -4675,6 +5033,11 @@
             "title": "Service Level",
             "default": "NORMAL"
           },
+          "is_urgent": {
+            "type": "boolean",
+            "title": "Is Urgent",
+            "default": false
+          },
           "service_date": {
             "anyOf": [
               {
@@ -4729,27 +5092,62 @@
             "title": "Exam Name"
           },
           "price_base": {
-            "type": "string",
-            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$"
+              },
+              {
+                "type": "null"
+              }
+            ],
             "title": "Price Base"
+          },
+          "components": {
+            "items": {
+              "$ref": "#/components/schemas/ExamComponentRead"
+            },
+            "type": "array",
+            "title": "Components"
           },
           "quantity": {
             "type": "integer",
             "title": "Quantity"
           },
           "discount_amount": {
-            "type": "string",
-            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$"
+              },
+              {
+                "type": "null"
+              }
+            ],
             "title": "Discount Amount"
           },
           "surcharge_amount": {
-            "type": "string",
-            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$"
+              },
+              {
+                "type": "null"
+              }
+            ],
             "title": "Surcharge Amount"
           },
           "total_amount": {
-            "type": "string",
-            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$"
+              },
+              {
+                "type": "null"
+              }
+            ],
             "title": "Total Amount"
           },
           "override_reason": {
@@ -4779,6 +5177,7 @@
           "exam_code",
           "exam_name",
           "price_base",
+          "components",
           "quantity",
           "discount_amount",
           "surcharge_amount",
@@ -4841,6 +5240,103 @@
           "exceptions"
         ],
         "title": "AttendanceHistoryImportResponse"
+      },
+      "AttendanceItemEditRequest": {
+        "properties": {
+          "item_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Item Id"
+          },
+          "exam_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Exam Id"
+          },
+          "quantity": {
+            "type": "integer",
+            "minimum": 1.0,
+            "title": "Quantity",
+            "default": 1
+          },
+          "discount_amount": {
+            "anyOf": [
+              {
+                "type": "number",
+                "minimum": 0.0
+              },
+              {
+                "type": "string",
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Discount Amount"
+          },
+          "override_reason": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 500
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Override Reason"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "title": "AttendanceItemEditRequest",
+        "description": "One line of the desired item set. `item_id` keeps an existing line (its price\nsnapshot stays); `exam_id` adds a new one, priced on the attendance's service date."
+      },
+      "AttendanceItemsUpdateRequest": {
+        "properties": {
+          "row_version": {
+            "type": "integer",
+            "minimum": 1.0,
+            "title": "Row Version"
+          },
+          "reason": {
+            "type": "string",
+            "maxLength": 500,
+            "minLength": 1,
+            "title": "Reason"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/AttendanceItemEditRequest"
+            },
+            "type": "array",
+            "title": "Items"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "row_version",
+          "reason",
+          "items"
+        ],
+        "title": "AttendanceItemsUpdateRequest",
+        "description": "The complete desired set: existing lines left out are removed (kept as\n`CANCELLED` in history). `reason` is mandatory — it goes to the audit trail."
       },
       "AttendanceListResponse": {
         "properties": {
@@ -4928,28 +5424,98 @@
             "title": "Items"
           },
           "subtotal": {
-            "type": "string",
-            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$"
+              },
+              {
+                "type": "null"
+              }
+            ],
             "title": "Subtotal"
           },
           "discount_total": {
-            "type": "string",
-            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$"
+              },
+              {
+                "type": "null"
+              }
+            ],
             "title": "Discount Total"
           },
           "surcharge_total": {
-            "type": "string",
-            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$"
+              },
+              {
+                "type": "null"
+              }
+            ],
             "title": "Surcharge Total"
           },
           "on_call_fee": {
-            "type": "string",
-            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$"
+              },
+              {
+                "type": "null"
+              }
+            ],
             "title": "On Call Fee"
           },
+          "is_urgent": {
+            "type": "boolean",
+            "title": "Is Urgent"
+          },
+          "urgency_fee": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Urgency Fee"
+          },
+          "clinic_fee": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Clinic Fee"
+          },
+          "fee_lines": {
+            "items": {
+              "$ref": "#/components/schemas/FeeLineRead"
+            },
+            "type": "array",
+            "title": "Fee Lines"
+          },
           "grand_total": {
-            "type": "string",
-            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$"
+              },
+              {
+                "type": "null"
+              }
+            ],
             "title": "Grand Total"
           }
         },
@@ -4967,6 +5533,10 @@
           "discount_total",
           "surcharge_total",
           "on_call_fee",
+          "is_urgent",
+          "urgency_fee",
+          "clinic_fee",
+          "fee_lines",
           "grand_total"
         ],
         "title": "AttendancePreviewResponse",
@@ -5069,28 +5639,98 @@
             "title": "Billing Competence"
           },
           "subtotal": {
-            "type": "string",
-            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$"
+              },
+              {
+                "type": "null"
+              }
+            ],
             "title": "Subtotal"
           },
           "discount_total": {
-            "type": "string",
-            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$"
+              },
+              {
+                "type": "null"
+              }
+            ],
             "title": "Discount Total"
           },
           "surcharge_total": {
-            "type": "string",
-            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$"
+              },
+              {
+                "type": "null"
+              }
+            ],
             "title": "Surcharge Total"
           },
           "on_call_fee": {
-            "type": "string",
-            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$"
+              },
+              {
+                "type": "null"
+              }
+            ],
             "title": "On Call Fee"
           },
+          "is_urgent": {
+            "type": "boolean",
+            "title": "Is Urgent"
+          },
+          "urgency_fee": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Urgency Fee"
+          },
+          "clinic_fee": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Clinic Fee"
+          },
+          "fee_lines": {
+            "items": {
+              "$ref": "#/components/schemas/FeeLineRead"
+            },
+            "type": "array",
+            "title": "Fee Lines"
+          },
           "grand_total": {
-            "type": "string",
-            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$"
+              },
+              {
+                "type": "null"
+              }
+            ],
             "title": "Grand Total"
           },
           "protocol_number": {
@@ -5147,6 +5787,10 @@
           "discount_total",
           "surcharge_total",
           "on_call_fee",
+          "is_urgent",
+          "urgency_fee",
+          "clinic_fee",
+          "fee_lines",
           "grand_total",
           "protocol_number",
           "cancel_reason",
@@ -5180,12 +5824,25 @@
             },
             "type": "object",
             "title": "By Status"
+          },
+          "billed_total": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Billed Total"
           }
         },
         "type": "object",
         "required": [
           "total",
-          "by_status"
+          "by_status",
+          "billed_total"
         ],
         "title": "AttendanceStatusCountsResponse"
       },
@@ -5212,6 +5869,17 @@
               }
             ],
             "title": "Actor User Id"
+          },
+          "actor_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Actor Name"
           },
           "action": {
             "type": "string",
@@ -5374,6 +6042,17 @@
             ],
             "title": "Service Level"
           },
+          "is_urgent": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Is Urgent"
+          },
           "service_date": {
             "anyOf": [
               {
@@ -5397,6 +6076,18 @@
               }
             ],
             "title": "Notes"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 500
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason"
           }
         },
         "additionalProperties": false,
@@ -5534,6 +6225,7 @@
         "properties": {
           "name": {
             "type": "string",
+            "maxLength": 200,
             "minLength": 1,
             "title": "Name"
           },
@@ -5551,7 +6243,9 @@
           "phone": {
             "anyOf": [
               {
-                "type": "string"
+                "type": "string",
+                "maxLength": 30,
+                "minLength": 1
               },
               {
                 "type": "null"
@@ -5562,7 +6256,9 @@
           "email": {
             "anyOf": [
               {
-                "type": "string"
+                "type": "string",
+                "maxLength": 254,
+                "pattern": "^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$"
               },
               {
                 "type": "null"
@@ -5573,7 +6269,8 @@
           "address_zip_code": {
             "anyOf": [
               {
-                "type": "string"
+                "type": "string",
+                "maxLength": 20
               },
               {
                 "type": "null"
@@ -5584,7 +6281,8 @@
           "address_street": {
             "anyOf": [
               {
-                "type": "string"
+                "type": "string",
+                "maxLength": 200
               },
               {
                 "type": "null"
@@ -5595,7 +6293,8 @@
           "address_number": {
             "anyOf": [
               {
-                "type": "string"
+                "type": "string",
+                "maxLength": 30
               },
               {
                 "type": "null"
@@ -5606,7 +6305,8 @@
           "address_neighborhood": {
             "anyOf": [
               {
-                "type": "string"
+                "type": "string",
+                "maxLength": 200
               },
               {
                 "type": "null"
@@ -5617,7 +6317,8 @@
           "address_city": {
             "anyOf": [
               {
-                "type": "string"
+                "type": "string",
+                "maxLength": 200
               },
               {
                 "type": "null"
@@ -5640,7 +6341,8 @@
           "address_complement": {
             "anyOf": [
               {
-                "type": "string"
+                "type": "string",
+                "maxLength": 200
               },
               {
                 "type": "null"
@@ -5651,7 +6353,8 @@
           "notes": {
             "anyOf": [
               {
-                "type": "string"
+                "type": "string",
+                "maxLength": 2000
               },
               {
                 "type": "null"
@@ -5853,6 +6556,284 @@
           "veterinarians"
         ],
         "title": "ClinicDetailRead"
+      },
+      "ClinicFeeRuleCreateRequest": {
+        "properties": {
+          "clinic_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Clinic Id"
+          },
+          "name": {
+            "type": "string",
+            "maxLength": 120,
+            "minLength": 1,
+            "title": "Name"
+          },
+          "fee_amount": {
+            "anyOf": [
+              {
+                "type": "number",
+                "minimum": 0.0
+              },
+              {
+                "type": "string",
+                "pattern": "^(?!^[-+.]*$)[+-]?0*(?:\\d{0,12}|(?=[\\d.]{1,15}0*$)\\d{0,12}\\.\\d{0,2}0*$)"
+              }
+            ],
+            "title": "Fee Amount"
+          },
+          "valid_from": {
+            "type": "string",
+            "format": "date",
+            "title": "Valid From"
+          },
+          "valid_to": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Valid To"
+          },
+          "exam_ids": {
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "type": "array",
+            "maxItems": 50,
+            "title": "Exam Ids"
+          },
+          "attendance_types": {
+            "items": {
+              "type": "string",
+              "enum": [
+                "ROTINA",
+                "PLANTAO_NORMAL",
+                "PLANTAO_ESPECIAL",
+                "URGENTE"
+              ]
+            },
+            "type": "array",
+            "maxItems": 4,
+            "title": "Attendance Types"
+          },
+          "reason": {
+            "type": "string",
+            "maxLength": 500,
+            "minLength": 1,
+            "title": "Reason"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "clinic_id",
+          "name",
+          "fee_amount",
+          "valid_from",
+          "reason"
+        ],
+        "title": "ClinicFeeRuleCreateRequest"
+      },
+      "ClinicFeeRuleListResponse": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/ClinicFeeRuleRead"
+            },
+            "type": "array",
+            "title": "Items"
+          }
+        },
+        "type": "object",
+        "required": [
+          "items"
+        ],
+        "title": "ClinicFeeRuleListResponse"
+      },
+      "ClinicFeeRuleRead": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "clinic_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Clinic Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "fee_amount": {
+            "type": "string",
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Fee Amount"
+          },
+          "valid_from": {
+            "type": "string",
+            "format": "date",
+            "title": "Valid From"
+          },
+          "valid_to": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Valid To"
+          },
+          "is_active": {
+            "type": "boolean",
+            "title": "Is Active"
+          },
+          "exam_ids": {
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "type": "array",
+            "title": "Exam Ids"
+          },
+          "attendance_types": {
+            "items": {
+              "type": "string",
+              "enum": [
+                "ROTINA",
+                "PLANTAO_NORMAL",
+                "PLANTAO_ESPECIAL",
+                "URGENTE"
+              ]
+            },
+            "type": "array",
+            "title": "Attendance Types"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Updated At"
+          },
+          "row_version": {
+            "type": "integer",
+            "title": "Row Version"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "clinic_id",
+          "name",
+          "fee_amount",
+          "valid_from",
+          "valid_to",
+          "is_active",
+          "exam_ids",
+          "attendance_types",
+          "updated_at",
+          "row_version"
+        ],
+        "title": "ClinicFeeRuleRead"
+      },
+      "ClinicFeeRuleUpdateRequest": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "maxLength": 120,
+            "minLength": 1,
+            "title": "Name"
+          },
+          "fee_amount": {
+            "anyOf": [
+              {
+                "type": "number",
+                "minimum": 0.0
+              },
+              {
+                "type": "string",
+                "pattern": "^(?!^[-+.]*$)[+-]?0*(?:\\d{0,12}|(?=[\\d.]{1,15}0*$)\\d{0,12}\\.\\d{0,2}0*$)"
+              }
+            ],
+            "title": "Fee Amount"
+          },
+          "valid_from": {
+            "type": "string",
+            "format": "date",
+            "title": "Valid From"
+          },
+          "valid_to": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Valid To"
+          },
+          "is_active": {
+            "type": "boolean",
+            "title": "Is Active"
+          },
+          "exam_ids": {
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "type": "array",
+            "maxItems": 50,
+            "title": "Exam Ids"
+          },
+          "attendance_types": {
+            "items": {
+              "type": "string",
+              "enum": [
+                "ROTINA",
+                "PLANTAO_NORMAL",
+                "PLANTAO_ESPECIAL",
+                "URGENTE"
+              ]
+            },
+            "type": "array",
+            "maxItems": 4,
+            "title": "Attendance Types"
+          },
+          "reason": {
+            "type": "string",
+            "maxLength": 500,
+            "minLength": 1,
+            "title": "Reason"
+          },
+          "expected_row_version": {
+            "type": "integer",
+            "minimum": 1.0,
+            "title": "Expected Row Version"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "name",
+          "fee_amount",
+          "valid_from",
+          "is_active",
+          "reason",
+          "expected_row_version"
+        ],
+        "title": "ClinicFeeRuleUpdateRequest"
       },
       "ClinicLinkedVeterinarian": {
         "properties": {
@@ -6107,6 +7088,7 @@
         "properties": {
           "name": {
             "type": "string",
+            "maxLength": 200,
             "minLength": 1,
             "title": "Name"
           },
@@ -6124,7 +7106,9 @@
           "phone": {
             "anyOf": [
               {
-                "type": "string"
+                "type": "string",
+                "maxLength": 30,
+                "minLength": 1
               },
               {
                 "type": "null"
@@ -6135,7 +7119,9 @@
           "email": {
             "anyOf": [
               {
-                "type": "string"
+                "type": "string",
+                "maxLength": 254,
+                "pattern": "^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$"
               },
               {
                 "type": "null"
@@ -6156,7 +7142,8 @@
           "address_zip_code": {
             "anyOf": [
               {
-                "type": "string"
+                "type": "string",
+                "maxLength": 20
               },
               {
                 "type": "null"
@@ -6167,7 +7154,8 @@
           "address_street": {
             "anyOf": [
               {
-                "type": "string"
+                "type": "string",
+                "maxLength": 200
               },
               {
                 "type": "null"
@@ -6178,7 +7166,8 @@
           "address_number": {
             "anyOf": [
               {
-                "type": "string"
+                "type": "string",
+                "maxLength": 30
               },
               {
                 "type": "null"
@@ -6189,7 +7178,8 @@
           "address_neighborhood": {
             "anyOf": [
               {
-                "type": "string"
+                "type": "string",
+                "maxLength": 200
               },
               {
                 "type": "null"
@@ -6200,7 +7190,8 @@
           "address_city": {
             "anyOf": [
               {
-                "type": "string"
+                "type": "string",
+                "maxLength": 200
               },
               {
                 "type": "null"
@@ -6223,7 +7214,8 @@
           "address_complement": {
             "anyOf": [
               {
-                "type": "string"
+                "type": "string",
+                "maxLength": 200
               },
               {
                 "type": "null"
@@ -6234,7 +7226,8 @@
           "notes": {
             "anyOf": [
               {
-                "type": "string"
+                "type": "string",
+                "maxLength": 2000
               },
               {
                 "type": "null"
@@ -6641,6 +7634,24 @@
         ],
         "title": "ExamCategoryUpdateRequest"
       },
+      "ExamComponentRead": {
+        "properties": {
+          "code": {
+            "type": "string",
+            "title": "Code"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          }
+        },
+        "type": "object",
+        "required": [
+          "code",
+          "name"
+        ],
+        "title": "ExamComponentRead"
+      },
       "ExamCreateRequest": {
         "properties": {
           "name": {
@@ -6685,6 +7696,14 @@
             "type": "array",
             "minItems": 1,
             "title": "Species Ids"
+          },
+          "component_exam_ids": {
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "type": "array",
+            "title": "Component Exam Ids"
           }
         },
         "additionalProperties": false,
@@ -6806,6 +7825,18 @@
             "type": "array",
             "title": "Species Ids"
           },
+          "component_exam_ids": {
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "type": "array",
+            "title": "Component Exam Ids"
+          },
+          "is_panel": {
+            "type": "boolean",
+            "title": "Is Panel"
+          },
           "status": {
             "type": "string",
             "enum": [
@@ -6873,6 +7904,8 @@
           "category_id",
           "description",
           "species_ids",
+          "component_exam_ids",
+          "is_panel",
           "status",
           "created_at",
           "updated_at",
@@ -6912,6 +7945,9 @@
               {
                 "type": "string",
                 "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$"
+              },
+              {
+                "type": "null"
               }
             ],
             "title": "Price Base"
@@ -6936,6 +7972,14 @@
             "minItems": 1,
             "title": "Species Ids"
           },
+          "component_exam_ids": {
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "type": "array",
+            "title": "Component Exam Ids"
+          },
           "status": {
             "type": "string",
             "enum": [
@@ -6947,6 +7991,18 @@
           "expected_row_version": {
             "type": "integer",
             "title": "Expected Row Version"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 500
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason"
           }
         },
         "additionalProperties": false,
@@ -6954,12 +8010,59 @@
         "required": [
           "name",
           "category_id",
-          "price_base",
           "species_ids",
           "status",
           "expected_row_version"
         ],
         "title": "ExamUpdateRequest"
+      },
+      "FeeLineRead": {
+        "properties": {
+          "kind": {
+            "type": "string",
+            "enum": [
+              "PLANTAO",
+              "URGENCIA",
+              "CLINICA"
+            ],
+            "title": "Kind"
+          },
+          "label": {
+            "type": "string",
+            "title": "Label"
+          },
+          "amount": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Amount"
+          },
+          "rule_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Rule Id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "kind",
+          "label",
+          "amount"
+        ],
+        "title": "FeeLineRead"
       },
       "FinancialAdjustmentCreateRequest": {
         "properties": {
@@ -7851,6 +8954,37 @@
             "type": "string",
             "title": "Schedule Label"
           },
+          "weekdays": {
+            "items": {
+              "type": "integer"
+            },
+            "type": "array",
+            "title": "Weekdays"
+          },
+          "start_time": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Start Time"
+          },
+          "end_time": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "End Time"
+          },
           "updated_at": {
             "type": "string",
             "format": "date-time",
@@ -7867,6 +9001,9 @@
           "service_level",
           "fee_amount",
           "schedule_label",
+          "weekdays",
+          "start_time",
+          "end_time",
           "updated_at",
           "row_version"
         ],
@@ -7887,11 +9024,45 @@
             ],
             "title": "Fee Amount"
           },
-          "schedule_label": {
+          "weekdays": {
+            "items": {
+              "type": "integer",
+              "maximum": 6.0,
+              "minimum": 0.0
+            },
+            "type": "array",
+            "maxItems": 7,
+            "title": "Weekdays"
+          },
+          "start_time": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Start Time"
+          },
+          "end_time": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "End Time"
+          },
+          "reason": {
             "type": "string",
-            "maxLength": 200,
-            "title": "Schedule Label",
-            "default": ""
+            "maxLength": 500,
+            "minLength": 1,
+            "title": "Reason"
           },
           "expected_row_version": {
             "type": "integer",
@@ -7903,6 +9074,7 @@
         "type": "object",
         "required": [
           "fee_amount",
+          "reason",
           "expected_row_version"
         ],
         "title": "OnCallFeeSettingUpdateRequest"
@@ -7991,6 +9163,33 @@
               }
             ],
             "title": "Notes"
+          },
+          "age_value": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Age Value"
+          },
+          "age_unit": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "YEARS",
+                  "MONTHS"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Age Unit"
           }
         },
         "additionalProperties": false,
@@ -8151,6 +9350,44 @@
           "row_version": {
             "type": "integer",
             "title": "Row Version"
+          },
+          "age_value": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Age Value"
+          },
+          "age_unit": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "YEARS",
+                  "MONTHS"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Age Unit"
+          },
+          "age_recorded_on": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Age Recorded On"
           }
         },
         "type": "object",
@@ -8169,7 +9406,10 @@
           "notes",
           "created_at",
           "updated_at",
-          "row_version"
+          "row_version",
+          "age_value",
+          "age_unit",
+          "age_recorded_on"
         ],
         "title": "PatientRead"
       },
@@ -8284,6 +9524,33 @@
               }
             ],
             "title": "Clinic Id"
+          },
+          "age_value": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Age Value"
+          },
+          "age_unit": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "YEARS",
+                  "MONTHS"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Age Unit"
           }
         },
         "additionalProperties": false,
@@ -8703,6 +9970,73 @@
         ],
         "title": "UpdateUserAccessRequest"
       },
+      "UrgencyFeeSettingRead": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "fee_amount": {
+            "type": "string",
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Fee Amount"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Updated At"
+          },
+          "row_version": {
+            "type": "integer",
+            "title": "Row Version"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "fee_amount",
+          "updated_at",
+          "row_version"
+        ],
+        "title": "UrgencyFeeSettingRead"
+      },
+      "UrgencyFeeSettingUpdateRequest": {
+        "properties": {
+          "fee_amount": {
+            "anyOf": [
+              {
+                "type": "number",
+                "minimum": 0.0
+              },
+              {
+                "type": "string",
+                "pattern": "^(?!^[-+.]*$)[+-]?0*(?:\\d{0,12}|(?=[\\d.]{1,15}0*$)\\d{0,12}\\.\\d{0,2}0*$)"
+              }
+            ],
+            "title": "Fee Amount"
+          },
+          "reason": {
+            "type": "string",
+            "maxLength": 500,
+            "minLength": 1,
+            "title": "Reason"
+          },
+          "expected_row_version": {
+            "type": "integer",
+            "minimum": 1.0,
+            "title": "Expected Row Version"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "fee_amount",
+          "reason",
+          "expected_row_version"
+        ],
+        "title": "UrgencyFeeSettingUpdateRequest"
+      },
       "UserCreateRequest": {
         "properties": {
           "email": {
@@ -8955,6 +10289,58 @@
         ],
         "title": "ValidationError"
       },
+      "VeterinarianClinicsUpdateRequest": {
+        "properties": {
+          "add_clinic_ids": {
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "type": "array",
+            "maxItems": 500,
+            "title": "Add Clinic Ids"
+          },
+          "remove_clinic_ids": {
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "type": "array",
+            "maxItems": 500,
+            "title": "Remove Clinic Ids"
+          },
+          "primary_clinic_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Primary Clinic Id"
+          },
+          "expected_row_version": {
+            "type": "integer",
+            "title": "Expected Row Version"
+          },
+          "reason": {
+            "type": "string",
+            "maxLength": 500,
+            "minLength": 1,
+            "title": "Reason"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "expected_row_version",
+          "reason"
+        ],
+        "title": "VeterinarianClinicsUpdateRequest",
+        "description": "Alteração em lote dos vínculos: o que entra, o que sai e a clínica principal."
+      },
       "VeterinarianCreateRequest": {
         "properties": {
           "name": {
@@ -9144,12 +10530,19 @@
             "type": "boolean",
             "title": "Primary",
             "default": false
+          },
+          "reason": {
+            "type": "string",
+            "maxLength": 500,
+            "minLength": 1,
+            "title": "Reason"
           }
         },
         "additionalProperties": false,
         "type": "object",
         "required": [
-          "clinic_id"
+          "clinic_id",
+          "reason"
         ],
         "title": "VeterinarianLinkClinicRequest"
       },
@@ -9368,6 +10761,12 @@
           "expected_row_version": {
             "type": "integer",
             "title": "Expected Row Version"
+          },
+          "reason": {
+            "type": "string",
+            "maxLength": 500,
+            "minLength": 1,
+            "title": "Reason"
           }
         },
         "additionalProperties": false,
@@ -9376,7 +10775,8 @@
           "name",
           "crmv",
           "status",
-          "expected_row_version"
+          "expected_row_version",
+          "reason"
         ],
         "title": "VeterinarianUpdateRequest"
       }

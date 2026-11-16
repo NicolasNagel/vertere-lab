@@ -1,28 +1,42 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { useNavigate } from 'react-router'
+import { Link, useNavigate } from 'react-router'
 import { useQueryClient } from '@tanstack/react-query'
 
 import { ApiError } from '../../../shared/api/errors'
+import { formatCurrencyBRL } from '../../../shared/lib/formatters'
 import { Button } from '../../../shared/ui/button'
-import { SelectField, type SelectOption } from '../../../shared/ui/select'
+import { Checkbox } from '../../../shared/ui/checkbox'
+import { Dropdown, type DropdownOption } from '../../../shared/ui/dropdown'
+import { ArrowLeftIcon } from '../../../shared/ui/icons'
+import { PageHeader } from '../../../shared/ui/page-header'
 import { TextField } from '../../../shared/ui/text-field'
 import { useAuth } from '../../auth/auth-context'
 import { useAllClinicsQuery } from '../../clinics/api/use-clinics-query'
 import type { Patient } from '../../patients/api/patients-api'
+import { usePatientQuery } from '../../patients/api/use-patient-query'
 import { useAllVeterinariansQuery } from '../../veterinarians/api/use-veterinarians-query'
 import { attendanceQueryKey, useAttendanceQuery } from '../api/use-attendance-query'
 import { useAttendanceExamSelections } from '../api/use-attendance-exam-selections'
+import { useOnCallFeeSettingsQuery } from '../api/use-on-call-fee-settings-query'
+import { useUrgencyFeeQuery } from '../api/use-urgency-fee-query'
+import { feeRows } from '../lib/attendance-fees'
 import { useCreateAttendanceDraftMutation } from '../api/use-create-attendance-draft-mutation'
 import { useUpdateAttendanceMutation } from '../api/use-update-attendance-mutation'
 import {
+  CANCELLABLE_STATUSES,
   SERVICE_LEVEL_LABELS,
+  type Attendance,
   type AttendanceUpdateInput,
   type CollectionMethod,
   type ServiceLevel,
 } from '../api/attendances-api'
-import { AttendanceExamSelectionList } from './attendance-exam-selection-list'
+import { useActiveExamCategoriesQuery } from '../../catalog/api/use-active-exam-categories-query'
+import { useAllActiveExamsQuery } from '../../catalog/api/use-all-active-exams-query'
+import { AttendanceCancelModal } from './attendance-cancel-modal'
+import { ExamCartGrid } from './exam-cart-grid'
 import { AttendancePatientSection } from './attendance-patient-section'
-import { AttendanceSummaryPanel } from './attendance-summary-panel'
+import { AttendanceSummaryBar } from './attendance-summary-bar'
+import '../../../shared/ui/button.css'
 import './attendance-draft-page.css'
 
 const COLLECTION_METHOD_OPTIONS: { value: CollectionMethod; label: string }[] = [
@@ -33,11 +47,7 @@ const COLLECTION_METHOD_OPTIONS: { value: CollectionMethod; label: string }[] = 
   { value: 'MARLI', label: 'Marli' },
 ]
 
-const SERVICE_LEVEL_OPTIONS: { value: ServiceLevel; subtitle: string }[] = [
-  { value: 'NORMAL', subtitle: 'Horário comercial' },
-  { value: 'PLANTAO_NORMAL', subtitle: '+R$ 100,00' },
-  { value: 'PLANTAO_ESPECIAL', subtitle: '+R$ 150,00' },
-]
+const SERVICE_LEVELS: ServiceLevel[] = ['NORMAL', 'PLANTAO_NORMAL', 'PLANTAO_ESPECIAL']
 
 function describeError(error: unknown): string | null {
   if (error === null || error === undefined) return null
@@ -57,22 +67,36 @@ function describeError(error: unknown): string | null {
  * plano (`useUpdateAttendanceMutation`, com o `rowVersion` mais recente do
  * cache) — o rascunho já criado nunca fica fora de sincronia com o que a
  * tela mostra. */
-export function AttendanceDraftPage() {
+interface AttendanceDraftPageProps {
+  /** Rascunho já existente (aberto pela lista): a tela abre preenchida e segue dele. */
+  resumeAttendance?: Attendance
+}
+
+export function AttendanceDraftPage({ resumeAttendance }: AttendanceDraftPageProps = {}) {
   const { user } = useAuth()
   const navigate = useNavigate()
   const queryClient = useQueryClient()
   const canCreate = user?.permissions.includes('attendances.create') ?? false
   const canOverridePrice = user?.permissions.includes('attendances.override_price') ?? false
+  const showMoney = user?.permissions.includes('pricing.read') ?? false
 
-  const [clinicId, setClinicId] = useState('')
-  const [veterinarianId, setVeterinarianId] = useState('')
+  const [clinicId, setClinicId] = useState(resumeAttendance?.clinicId ?? '')
+  const [veterinarianId, setVeterinarianId] = useState(resumeAttendance?.veterinarianId ?? '')
   const [patient, setPatient] = useState<Patient | null>(null)
-  const [serviceDate, setServiceDate] = useState('')
-  const [collectionMethod, setCollectionMethod] = useState<CollectionMethod>('INTERNAL')
-  const [serviceLevel, setServiceLevel] = useState<ServiceLevel>('NORMAL')
-  const [notes, setNotes] = useState('')
+  const [serviceDate, setServiceDate] = useState(resumeAttendance?.serviceDate ?? '')
+  const [collectionMethod, setCollectionMethod] = useState<CollectionMethod>(
+    resumeAttendance?.collectionMethod ?? 'INTERNAL',
+  )
+  const [serviceLevel, setServiceLevel] = useState<ServiceLevel>(
+    resumeAttendance?.serviceLevel ?? 'NORMAL',
+  )
+  const [isUrgent, setIsUrgent] = useState(resumeAttendance?.isUrgent ?? false)
+  const [notes, setNotes] = useState(resumeAttendance?.notes ?? '')
+  const [showDiscardModal, setShowDiscardModal] = useState(false)
 
-  const [draftAttendanceId, setDraftAttendanceId] = useState<string | null>(null)
+  const [draftAttendanceId, setDraftAttendanceId] = useState<string | null>(
+    resumeAttendance?.id ?? null,
+  )
   const draftAttendanceQuery = useAttendanceQuery(draftAttendanceId)
   const attendance = draftAttendanceQuery.data ?? null
 
@@ -81,22 +105,50 @@ export function AttendanceDraftPage() {
     status: 'ACTIVE',
     availableForClinicId: clinicId || undefined,
   })
+  const feeSettingsQuery = useOnCallFeeSettingsQuery(showMoney)
+  const urgencyFeeQuery = useUrgencyFeeQuery(showMoney)
+  const examsQuery = useAllActiveExamsQuery()
+  const examCategoriesQuery = useActiveExamCategoriesQuery()
   const createDraftMutation = useCreateAttendanceDraftMutation()
   const updateMutation = useUpdateAttendanceMutation()
-  const draftRequestedRef = useRef(false)
+  const draftRequestedRef = useRef(Boolean(resumeAttendance))
+  const resumedPatientQuery = usePatientQuery(resumeAttendance?.patientId ?? null)
+  const canDiscard = user?.permissions.includes('attendances.cancel') ?? false
 
   const examSelections = useAttendanceExamSelections(attendance, () => navigate('/operacao'))
 
-  const clinicOptions: SelectOption[] = (clinicsQuery.data?.items ?? []).map((clinic) => ({
+  const missingForExams = [
+    !clinicId && 'clínica',
+    !veterinarianId && 'veterinário',
+    !patient && 'paciente',
+  ].filter((label): label is string => Boolean(label))
+
+  const clinicOptions: DropdownOption[] = (clinicsQuery.data?.items ?? []).map((clinic) => ({
     value: clinic.id,
     label: clinic.name,
   }))
-  const veterinarianOptions: SelectOption[] = (veterinariansQuery.data?.items ?? []).map(
+  const veterinarianOptions: DropdownOption[] = (veterinariansQuery.data?.items ?? []).map(
     (veterinarian) => ({ value: veterinarian.id, label: veterinarian.name }),
   )
   const selectedVeterinarian = veterinariansQuery.data?.items.find(
     (veterinarian) => veterinarian.id === veterinarianId,
   )
+
+  const urgencyFeeLabel =
+    urgencyFeeQuery.data && Number(urgencyFeeQuery.data.feeAmount) > 0
+      ? `+ ${formatCurrencyBRL(urgencyFeeQuery.data.feeAmount)}`
+      : ''
+  const feeByLevel = new Map(
+    (feeSettingsQuery.data ?? []).map((setting) => [setting.serviceLevel, setting]),
+  )
+  function describeServiceLevel(level: ServiceLevel): string {
+    if (level === 'NORMAL') return 'Horário comercial'
+    const setting = feeByLevel.get(level)
+    if (!setting) return ''
+    return [showMoney ? `+ ${formatCurrencyBRL(setting.feeAmount)}` : '', setting.scheduleLabel]
+      .filter(Boolean)
+      .join(' · ')
+  }
 
   const attemptCreateDraft = useCallback(() => {
     if (draftRequestedRef.current) return
@@ -110,6 +162,7 @@ export function AttendanceDraftPage() {
         serviceDate: serviceDate || null,
         collectionMethod,
         serviceLevel,
+        isUrgent,
         notes: notes.trim() || null,
       },
       {
@@ -123,11 +176,27 @@ export function AttendanceDraftPage() {
       },
     )
     // eslint-disable-next-line react-hooks/exhaustive-deps -- mutation/queryClient identity churn shouldn't re-trigger the effect below
-  }, [clinicId, veterinarianId, patient, serviceDate, collectionMethod, serviceLevel, notes])
+  }, [
+    clinicId,
+    veterinarianId,
+    patient,
+    serviceDate,
+    collectionMethod,
+    serviceLevel,
+    isUrgent,
+    notes,
+  ])
 
   useEffect(() => {
     attemptCreateDraft()
   }, [attemptCreateDraft])
+
+  // Rascunho retomado: o paciente chega por consulta própria e preenche a tela uma vez.
+  useEffect(() => {
+    if (resumeAttendance && resumedPatientQuery.data) {
+      setPatient((current) => current ?? resumedPatientQuery.data)
+    }
+  }, [resumeAttendance, resumedPatientQuery.data])
 
   // Uma vez que o rascunho existe, toda mudança nos campos de cabeçalho
   // também vira um PATCH real (auditável, com row_version) — nunca só
@@ -163,6 +232,11 @@ export function AttendanceDraftPage() {
     syncHeaderField({ serviceLevel: value })
   }
 
+  function handleUrgentChange(value: boolean) {
+    setIsUrgent(value)
+    syncHeaderField({ isUrgent: value })
+  }
+
   function handleServiceDateBlur() {
     if (attendance && serviceDate !== (attendance.serviceDate ?? '')) {
       syncHeaderField({ serviceDate: serviceDate || null })
@@ -186,59 +260,70 @@ export function AttendanceDraftPage() {
     updateMutation.error instanceof ApiError && updateMutation.error.status === 409
   const fieldsDisabled = createDraftMutation.isPending || updateMutation.isPending
 
+  const preview = examSelections.previewQuery.data
+
   return (
     <div className="attendance-draft-page">
-      <div className="attendance-draft-page__header">
-        <div>
-          <div className="attendance-draft-page__eyebrow">Operação · Novo atendimento</div>
-          <h1 className="attendance-draft-page__title">Abertura de protocolo</h1>
-        </div>
-      </div>
+      <PageHeader
+        title={resumeAttendance ? 'Rascunho de protocolo' : 'Novo protocolo'}
+        actions={
+          resumeAttendance ? (
+            <>
+              <Link to="/operacao" className="button button--secondary">
+                <ArrowLeftIcon />
+                Voltar
+              </Link>
+              {canDiscard && CANCELLABLE_STATUSES.has(resumeAttendance.status) && (
+                <Button type="button" variant="cancel" onClick={() => setShowDiscardModal(true)}>
+                  Descartar rascunho
+                </Button>
+              )}
+            </>
+          ) : undefined
+        }
+      />
 
-      <div className="attendance-draft-page__body">
-        {!canCreate ? (
+      {!canCreate ? (
+        <div className="attendance-draft-page__body">
           <p className="attendance-draft-page__forbidden">
             Você não tem permissão para criar atendimentos.
           </p>
-        ) : (
-          <div className="attendance-draft-page__columns">
-            <div className="attendance-draft-page__column">
-              <section className="attendance-draft-page__section">
-                <h2 className="attendance-draft-page__section-title">
-                  <span className="attendance-draft-page__badge">1</span>
+        </div>
+      ) : (
+        <>
+          <div className="attendance-draft-page__body">
+            <div className="attendance-draft-page__stack">
+              <section className="attendance-draft-page__section" aria-labelledby="draft-requester">
+                <h2 id="draft-requester" className="attendance-draft-page__section-title">
                   Solicitante
                 </h2>
                 <div className="attendance-draft-page__row">
-                  <SelectField
-                    id="attendance-draft-clinic"
+                  <Dropdown
+                    variant="field"
                     label="Clínica solicitante"
-                    options={[
-                      {
-                        value: '',
-                        label: clinicsQuery.isLoading ? 'Carregando…' : 'Selecione a clínica',
-                      },
-                      ...clinicOptions,
-                    ]}
+                    placeholder={clinicsQuery.isLoading ? 'Carregando…' : 'Selecione a clínica'}
+                    options={clinicOptions}
+                    searchable
                     disabled={fieldsDisabled}
                     value={clinicId}
-                    onChange={(event) => handleClinicChange(event.target.value)}
+                    onChange={handleClinicChange}
                   />
                   <div className="attendance-draft-page__field-group">
-                    <SelectField
-                      id="attendance-draft-veterinarian"
+                    <Dropdown
+                      variant="field"
                       label="Veterinário responsável"
-                      options={[
-                        {
-                          value: '',
-                          label: veterinariansQuery.isLoading
+                      placeholder={
+                        !clinicId
+                          ? 'Escolha a clínica primeiro'
+                          : veterinariansQuery.isLoading
                             ? 'Carregando…'
-                            : 'Selecione o veterinário',
-                        },
-                        ...veterinarianOptions,
-                      ]}
+                            : 'Selecione o veterinário'
+                      }
+                      options={veterinarianOptions}
+                      searchable
                       disabled={fieldsDisabled || !clinicId}
                       value={veterinarianId}
-                      onChange={(event) => handleVeterinarianChange(event.target.value)}
+                      onChange={handleVeterinarianChange}
                     />
                     {selectedVeterinarian && (
                       <p className="attendance-draft-page__hint attendance-draft-page__hint--compact attendance-draft-page__mono">
@@ -260,9 +345,8 @@ export function AttendanceDraftPage() {
                 )}
               </section>
 
-              <section className="attendance-draft-page__section">
-                <h2 className="attendance-draft-page__section-title">
-                  <span className="attendance-draft-page__badge">2</span>
+              <section className="attendance-draft-page__section" aria-labelledby="draft-patient">
+                <h2 id="draft-patient" className="attendance-draft-page__section-title">
                   Paciente
                 </h2>
                 <AttendancePatientSection
@@ -274,84 +358,74 @@ export function AttendanceDraftPage() {
                 />
               </section>
 
-              <section className="attendance-draft-page__section">
-                <div className="attendance-draft-page__section-header">
-                  <h2 className="attendance-draft-page__section-title">
-                    <span className="attendance-draft-page__badge">3</span>
-                    Exames
-                  </h2>
-                  <span className="attendance-draft-page__count">
-                    {examSelections.selections.length} selecionado
-                    {examSelections.selections.length === 1 ? '' : 's'}
-                  </span>
-                </div>
-                {!attendance && (
-                  <p className="attendance-draft-page__hint">
-                    Preencha clínica, veterinário e paciente para adicionar exames.
-                  </p>
-                )}
-                <AttendanceExamSelectionList
-                  selections={examSelections.selections}
-                  canOverridePrice={canOverridePrice}
-                  disabled={!attendance || examSelections.isPending}
-                  onAdd={examSelections.addExam}
-                  onRemove={examSelections.removeExam}
-                  onUpdate={examSelections.updateSelection}
-                />
-              </section>
-            </div>
-
-            <div className="attendance-draft-page__column attendance-draft-page__column--side">
-              <section className="attendance-draft-page__section">
-                <h2 className="attendance-draft-page__section-title">
-                  <span className="attendance-draft-page__badge">4</span>
+              <section className="attendance-draft-page__section" aria-labelledby="draft-service">
+                <h2 id="draft-service" className="attendance-draft-page__section-title">
                   Atendimento
                 </h2>
 
-                <div
-                  className="attendance-draft-page__toggle-group"
-                  role="group"
-                  aria-label="Tipo de atendimento"
-                >
-                  {SERVICE_LEVEL_OPTIONS.map((option) => (
-                    <button
-                      key={option.value}
-                      type="button"
-                      className="attendance-draft-page__toggle"
-                      data-active={serviceLevel === option.value}
-                      aria-pressed={serviceLevel === option.value}
-                      disabled={fieldsDisabled}
-                      onClick={() => handleServiceLevelChange(option.value)}
-                    >
-                      <span className="attendance-draft-page__toggle-title">
-                        {SERVICE_LEVEL_LABELS[option.value]}
-                      </span>
-                      <span className="attendance-draft-page__toggle-subtitle">
-                        {option.subtitle}
-                      </span>
-                    </button>
-                  ))}
+                <div className="attendance-draft-page__field-group">
+                  <span className="attendance-draft-page__label" id="draft-service-level-label">
+                    Tipo de atendimento
+                  </span>
+                  <div
+                    className="attendance-draft-page__toggle-group"
+                    role="group"
+                    aria-labelledby="draft-service-level-label"
+                  >
+                    {SERVICE_LEVELS.map((level) => (
+                      <button
+                        key={level}
+                        type="button"
+                        className="attendance-draft-page__toggle"
+                        data-active={serviceLevel === level}
+                        aria-pressed={serviceLevel === level}
+                        disabled={fieldsDisabled}
+                        onClick={() => handleServiceLevelChange(level)}
+                      >
+                        <span className="attendance-draft-page__toggle-title">
+                          {SERVICE_LEVEL_LABELS[level]}
+                        </span>
+                        <span className="attendance-draft-page__toggle-subtitle">
+                          {describeServiceLevel(level)}
+                        </span>
+                      </button>
+                    ))}
+                  </div>
                 </div>
 
-                <span className="attendance-draft-page__label">Método de coleta</span>
-                <div
-                  className="attendance-draft-page__toggle-group attendance-draft-page__toggle-group--flat"
-                  role="group"
-                  aria-label="Método de coleta"
-                >
-                  {COLLECTION_METHOD_OPTIONS.map((option) => (
-                    <button
-                      key={option.value}
-                      type="button"
-                      className="attendance-draft-page__toggle attendance-draft-page__toggle--flat"
-                      data-active={collectionMethod === option.value}
-                      aria-pressed={collectionMethod === option.value}
-                      disabled={fieldsDisabled}
-                      onClick={() => handleCollectionMethodChange(option.value)}
-                    >
-                      {option.label}
-                    </button>
-                  ))}
+                <div className="attendance-draft-page__field-group">
+                  <Checkbox
+                    id="draft-urgent"
+                    label={`Atendimento urgente${showMoney && urgencyFeeLabel ? ` · ${urgencyFeeLabel}` : ''}`}
+                    checked={isUrgent}
+                    disabled={fieldsDisabled}
+                    onChange={(event) => handleUrgentChange(event.target.checked)}
+                  />
+                </div>
+
+                <div className="attendance-draft-page__field-group">
+                  <span className="attendance-draft-page__label" id="draft-collection-label">
+                    Forma de coleta
+                  </span>
+                  <div
+                    className="attendance-draft-page__toggle-group attendance-draft-page__toggle-group--flat"
+                    role="group"
+                    aria-labelledby="draft-collection-label"
+                  >
+                    {COLLECTION_METHOD_OPTIONS.map((option) => (
+                      <button
+                        key={option.value}
+                        type="button"
+                        className="attendance-draft-page__toggle attendance-draft-page__toggle--flat"
+                        data-active={collectionMethod === option.value}
+                        aria-pressed={collectionMethod === option.value}
+                        disabled={fieldsDisabled}
+                        onClick={() => handleCollectionMethodChange(option.value)}
+                      >
+                        {option.label}
+                      </button>
+                    ))}
+                  </div>
                 </div>
 
                 <div className="attendance-draft-page__row">
@@ -375,16 +449,41 @@ export function AttendanceDraftPage() {
                 </div>
               </section>
 
-              <AttendanceSummaryPanel
-                items={examSelections.previewQuery.data?.items ?? []}
-                subtotal={examSelections.previewQuery.data?.subtotal ?? '0.00'}
-                discountTotal={examSelections.previewQuery.data?.discountTotal ?? '0.00'}
-                onCallFee={examSelections.previewQuery.data?.onCallFee ?? '0.00'}
-                grandTotal={examSelections.previewQuery.data?.grandTotal ?? '0.00'}
-                isLoading={
-                  examSelections.selections.length > 0 && examSelections.previewQuery.isLoading
-                }
-              />
+              <section className="attendance-draft-page__section" aria-labelledby="draft-exams">
+                <div className="attendance-draft-page__section-header">
+                  <h2 id="draft-exams" className="attendance-draft-page__section-title">
+                    Exames
+                  </h2>
+                  <span className="attendance-draft-page__count">
+                    {examSelections.selections.length} selecionado
+                    {examSelections.selections.length === 1 ? '' : 's'}
+                  </span>
+                </div>
+                {attendance ? (
+                  <>
+                    <ExamCartGrid
+                      exams={examsQuery.data?.items ?? []}
+                      categories={examCategoriesQuery.data ?? []}
+                      selections={examSelections.selections}
+                      showMoney={showMoney}
+                      canDiscount={canOverridePrice}
+                      patientSpeciesId={patient?.speciesId ?? null}
+                      isLoading={examsQuery.isLoading || examCategoriesQuery.isLoading}
+                      isError={examsQuery.isError || examCategoriesQuery.isError}
+                      disabled={!attendance || examSelections.isPending}
+                      onAdd={examSelections.addExam}
+                      onRemove={examSelections.removeExam}
+                      onUpdate={examSelections.updateSelection}
+                    />
+                  </>
+                ) : (
+                  <p className="attendance-draft-page__hint" role="status">
+                    {missingForExams.length > 0
+                      ? `Para marcar exames, falta informar: ${missingForExams.join(', ')}.`
+                      : 'Preparando o rascunho…'}
+                  </p>
+                )}
+              </section>
 
               {createErrorMessage && (
                 <p role="alert" className="attendance-draft-page__domain-error">
@@ -420,28 +519,47 @@ export function AttendanceDraftPage() {
                   )}
                 </div>
               )}
-
-              <div className="attendance-draft-page__actions">
-                <Button
-                  type="button"
-                  variant="ghost"
-                  onClick={() => navigate('/operacao')}
-                  disabled={examSelections.isPending}
-                >
-                  Cancelar
-                </Button>
-                <Button
-                  type="button"
-                  disabled={!examSelections.canConfirm}
-                  onClick={examSelections.handleConfirm}
-                >
-                  {examSelections.isPending ? 'Abrindo…' : 'Abrir protocolo'}
-                </Button>
-              </div>
             </div>
           </div>
-        )}
-      </div>
+
+          <AttendanceSummaryBar
+            examCount={examSelections.selections.length}
+            showMoney={showMoney}
+            subtotal={preview?.subtotal ?? '0.00'}
+            discountTotal={preview?.discountTotal ?? '0.00'}
+            fees={preview ? feeRows(preview) : []}
+            grandTotal={preview?.grandTotal ?? '0.00'}
+            isCalculating={
+              examSelections.selections.length > 0 && examSelections.previewQuery.isLoading
+            }
+            calculationError={describeError(examSelections.previewQuery.error)}
+          >
+            <Button
+              type="button"
+              variant="cancel"
+              onClick={() => navigate('/operacao')}
+              disabled={examSelections.isPending}
+            >
+              Cancelar
+            </Button>
+            <Button
+              type="button"
+              disabled={!examSelections.canConfirm}
+              onClick={examSelections.handleConfirm}
+            >
+              {examSelections.isPending ? 'Abrindo…' : 'Abrir protocolo'}
+            </Button>
+          </AttendanceSummaryBar>
+        </>
+      )}
+
+      {showDiscardModal && attendance && (
+        <AttendanceCancelModal
+          attendance={attendance}
+          onClose={() => setShowDiscardModal(false)}
+          onCancelled={() => navigate('/operacao')}
+        />
+      )}
     </div>
   )
 }

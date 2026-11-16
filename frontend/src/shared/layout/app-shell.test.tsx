@@ -33,7 +33,9 @@ function mockAuthenticatedUser(permissions: string[] = ['clinics.manage']) {
 }
 
 function renderShell(initialPath: string) {
-  const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+  const queryClient = new QueryClient({
+    defaultOptions: { queries: { retry: false } },
+  })
   return render(
     <QueryClientProvider client={queryClient}>
       <AuthProvider>
@@ -51,46 +53,43 @@ function renderShell(initialPath: string) {
   )
 }
 
-test('keeps the global navigation visible in clinic management', async () => {
+// Cada fase reinicia a árvore e os handlers do MSW para não herdar resposta da anterior.
+function restart(view: ReturnType<typeof renderShell>) {
+  view.unmount()
+  server.resetHandlers()
+}
+
+test('keeps the main navigation visible on every route, shows the user footer and disables items without a route', async () => {
+  const user = userEvent.setup()
+
   mockAuthenticatedUser()
-  renderShell('/cadastros/clinicas')
-
+  let view = renderShell('/cadastros/clinicas')
   expect(await screen.findByText('conteúdo clínicas')).toBeInTheDocument()
-
   expect(screen.getByLabelText('Navegação principal')).toBeInTheDocument()
-})
+  restart(view)
 
-test('keeps the main navigation visible in operation, matching the supplied screenshot', async () => {
   mockAuthenticatedUser(['attendances.read'])
-  renderShell('/operacao')
-
+  view = renderShell('/operacao')
   expect(await screen.findByText('conteúdo operação')).toBeInTheDocument()
   expect(screen.getByLabelText('Navegação principal')).toBeInTheDocument()
-})
+  restart(view)
 
-test('items without a route are not interactive', async () => {
   mockAuthenticatedUser()
   renderShell('/')
-
   expect(await screen.findByText('conteúdo dashboard')).toBeInTheDocument()
 
+  // Rodapé com nome, perfil e iniciais.
+  expect(await screen.findByText('Fabianna Garcia')).toBeInTheDocument()
+  expect(screen.getByText('Administradora')).toBeInTheDocument()
+  expect(screen.getByText('FG')).toBeInTheDocument()
+
+  // Item sem rota não é interativo.
   const laudos = screen.getByText('Laudos').closest('[aria-disabled]')
   expect(laudos).toHaveAttribute('aria-disabled', 'true')
   expect(laudos).toHaveAttribute('tabindex', '-1')
   expect(screen.queryByRole('link', { name: /laudos/i })).not.toBeInTheDocument()
-
-  const user = userEvent.setup()
   await user.click(screen.getByText('Laudos'))
   expect(screen.getByText('conteúdo dashboard')).toBeInTheDocument()
-})
-
-test('footer shows the authenticated user name, role and initials', async () => {
-  mockAuthenticatedUser()
-  renderShell('/')
-
-  expect(await screen.findByText('Fabianna Garcia')).toBeInTheDocument()
-  expect(screen.getByText('Administradora')).toBeInTheDocument()
-  expect(screen.getByText('FG')).toBeInTheDocument()
 })
 
 test('opens and closes the mobile navigation when a destination is selected', async () => {
@@ -98,7 +97,9 @@ test('opens and closes the mobile navigation when a destination is selected', as
   mockAuthenticatedUser()
   renderShell('/')
 
-  const menuButton = await screen.findByRole('button', { name: 'Abrir navegação' })
+  const menuButton = await screen.findByRole('button', {
+    name: 'Abrir navegação',
+  })
   expect(menuButton).toHaveAttribute('aria-expanded', 'false')
 
   await user.click(menuButton)
@@ -114,20 +115,46 @@ test('opens and closes the mobile navigation when a destination is selected', as
   expect(screen.queryByRole('button', { name: 'Fechar navegação' })).not.toBeInTheDocument()
 })
 
-test('hides "Usuários" without the matching read permission', async () => {
+test('shows "Usuários" only with the matching read permission', async () => {
   mockAuthenticatedUser(['clinics.manage'])
-  renderShell('/')
-
+  const view = renderShell('/')
   await screen.findByText('conteúdo dashboard')
   expect(screen.queryByRole('link', { name: /^usuários$/i })).not.toBeInTheDocument()
-})
+  restart(view)
 
-test('shows "Usuários" with users.read', async () => {
   mockAuthenticatedUser(['users.read'])
   renderShell('/')
-
   expect(await screen.findByRole('link', { name: /^usuários$/i })).toHaveAttribute(
     'href',
     '/administracao/usuarios',
   )
+})
+
+test('collapses the menu to icons, remembers the choice and shows the page trail', async () => {
+  const user = userEvent.setup()
+  localStorage.clear()
+  mockAuthenticatedUser()
+  const view = renderShell('/cadastros/clinicas')
+
+  const trail = await screen.findByRole('navigation', { name: 'Caminho da página' })
+  expect(trail).toHaveTextContent('Cadastros')
+  expect(trail).toHaveTextContent('Clínicas')
+
+  await user.click(screen.getByRole('button', { name: 'Recolher menu' }))
+  const expand = screen.getByRole('button', { name: 'Expandir menu' })
+  expect(expand).toHaveAttribute('aria-expanded', 'false')
+  expect(screen.getByLabelText('Navegação principal')).toHaveClass('sidebar--collapsed')
+  expect(screen.getByRole('link', { name: /clínicas/i })).toHaveAttribute('title', 'Clínicas')
+  restart(view)
+
+  // A preferência sobrevive a um novo carregamento.
+  mockAuthenticatedUser()
+  renderShell('/cadastros/clinicas')
+  expect(await screen.findByRole('button', { name: 'Expandir menu' })).toBeInTheDocument()
+  await user.click(screen.getByRole('button', { name: 'Expandir menu' }))
+  expect(screen.getByRole('button', { name: 'Recolher menu' })).toHaveAttribute(
+    'aria-expanded',
+    'true',
+  )
+  localStorage.clear()
 })

@@ -11,7 +11,6 @@ repositório, para validar a fundação isoladamente antes de existir
 
 from __future__ import annotations
 
-from collections.abc import AsyncIterator, Iterator
 from datetime import UTC, date, datetime
 from decimal import Decimal
 from pathlib import Path
@@ -19,57 +18,19 @@ from uuid import UUID, uuid4
 
 import httpx
 import pytest
-from alembic.config import Config
-from fastapi import FastAPI
-from pydantic import SecretStr
 from sqlalchemy import text
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, sessionmaker
-from testcontainers.postgres import PostgresContainer
 
-from alembic import command
-from app.core.config import Settings
 from app.core.security import hash_password
-from app.main import create_app
 from app.modules.billing.domain.entities import ClosureStatus, MonthlyClosure, MonthlyClosureItem
 from app.modules.billing.infrastructure.repositories import SqlAlchemyMonthlyClosureRepository
 from app.modules.identity.infrastructure.models import LabMembershipModel, UserModel
 from app.modules.identity.infrastructure.seed import ROLE_LAB_ADMIN
-from app.shared.infrastructure.database import build_engine, build_session_factory
 
 pytestmark = pytest.mark.integration
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
-
-
-@pytest.fixture(scope="module")
-def postgres_url() -> Iterator[str]:
-    with PostgresContainer("postgres:17-alpine", driver="psycopg") as postgres:
-        yield postgres.get_connection_url()
-
-
-@pytest.fixture(scope="module")
-def monkeypatch_module() -> Iterator[pytest.MonkeyPatch]:
-    mp = pytest.MonkeyPatch()
-    yield mp
-    mp.undo()
-
-
-@pytest.fixture(scope="module", autouse=True)
-def _migrated_schema(postgres_url: str, monkeypatch_module: pytest.MonkeyPatch) -> None:
-    monkeypatch_module.setenv("DATABASE_URL", postgres_url)
-    config = Config()
-    config.set_main_option("script_location", str(REPO_ROOT / "backend" / "alembic"))
-    command.upgrade(config, "head")
-
-
-@pytest.fixture
-def session_factory(postgres_url: str) -> Iterator[sessionmaker[Session]]:
-    engine = build_engine(postgres_url)
-    try:
-        yield build_session_factory(engine)
-    finally:
-        engine.dispose()
 
 
 @pytest.fixture(autouse=True)
@@ -84,6 +45,7 @@ def _reset_data(session_factory: sessionmaker[Session]) -> None:
         session.execute(text("DELETE FROM attendance_exams"))
         session.execute(text("DELETE FROM attendances"))
         session.execute(text("DELETE FROM attendance_sequences"))
+        session.execute(text("DELETE FROM exam_panel_items"))
         session.execute(text("DELETE FROM exams"))
         session.execute(text("DELETE FROM exam_categories"))
         session.execute(text("DELETE FROM veterinarian_clinics"))
@@ -92,31 +54,6 @@ def _reset_data(session_factory: sessionmaker[Session]) -> None:
         session.execute(text("DELETE FROM clinics"))
         session.execute(text("DELETE FROM users"))
         session.commit()
-
-
-@pytest.fixture
-def settings(postgres_url: str) -> Settings:
-    return Settings(
-        env="test",
-        log_level="WARNING",
-        database_url=SecretStr(postgres_url),
-        session_cookie_secure=False,
-    )
-
-
-@pytest.fixture
-def app(settings: Settings) -> FastAPI:
-    return create_app(settings)
-
-
-@pytest.fixture
-async def client(app: FastAPI) -> AsyncIterator[httpx.AsyncClient]:
-    transport = httpx.ASGITransport(app=app)
-    async with (
-        httpx.AsyncClient(transport=transport, base_url="http://test") as async_client,
-        app.router.lifespan_context(app),
-    ):
-        yield async_client
 
 
 def _create_user(session_factory: sessionmaker[Session]) -> None:
@@ -156,15 +93,19 @@ def _get_species_id(session_factory: sessionmaker[Session]) -> str:
 
 
 async def _confirmed_attendance_exam(
-    client: httpx.AsyncClient, session_factory: sessionmaker[Session]
+    client: httpx.AsyncClient,
+    session_factory: sessionmaker[Session],
+    *,
+    clinic_id: str | None = None,
 ) -> dict[str, object]:
     """Real DRAFT -> CONFIRMED flow via the API — this fatia has no closure
     endpoint yet, but the source item snapshotted must be a real
     `attendance_exams` row, not a hand-crafted UUID that would violate the
     FK."""
-    clinic_response = await client.post("/api/v1/clinics", json={"name": f"Clinica {uuid4()}"})
-    assert clinic_response.status_code == 201
-    clinic_id = clinic_response.json()["id"]
+    if clinic_id is None:
+        clinic_response = await client.post("/api/v1/clinics", json={"name": f"Clinica {uuid4()}"})
+        assert clinic_response.status_code == 201
+        clinic_id = clinic_response.json()["id"]
 
     vet_response = await client.post(
         "/api/v1/veterinarians",
@@ -275,7 +216,30 @@ def _closure_from_confirmed(
     )
 
 
-async def test_repository_round_trips_a_closure_with_its_items(
+async def _persist_closure(
+    client: httpx.AsyncClient,
+    session_factory: sessionmaker[Session],
+    *,
+    clinic_id: str | None = None,
+    period_start: date = date(2026, 1, 1),
+    period_end: date = date(2026, 1, 31),
+) -> MonthlyClosure:
+    """Confirmed attendance via the API, closure inserted by the repository."""
+    source = await _confirmed_attendance_exam(client, session_factory, clinic_id=clinic_id)
+    closure = _closure_from_confirmed(
+        clinic_id=str(source["clinic_id"]),
+        attendance=source["attendance"],  # type: ignore[arg-type]
+        item=source["item"],  # type: ignore[arg-type]
+        period_start=period_start,
+        period_end=period_end,
+    )
+    with session_factory() as session:
+        SqlAlchemyMonthlyClosureRepository(session).add(closure)
+        session.commit()
+    return closure
+
+
+async def test_repository_round_trips_a_closure_links_the_attendance_and_rejects_a_duplicate(
     client: httpx.AsyncClient, session_factory: sessionmaker[Session]
 ) -> None:
     await _login(client, session_factory)
@@ -285,21 +249,26 @@ async def test_repository_round_trips_a_closure_with_its_items(
         attendance=source["attendance"],  # type: ignore[arg-type]
         item=source["item"],  # type: ignore[arg-type]
     )
+    attendance_id = str(source["attendance"]["id"])  # type: ignore[index]
 
     with session_factory() as session:
         repo = SqlAlchemyMonthlyClosureRepository(session)
         repo.add(closure)
+        session.flush()
+        # A FK de `attendances.monthly_closure_id` aceita o vínculo.
+        session.execute(
+            text("UPDATE attendances SET monthly_closure_id = :closure_id WHERE id = :id"),
+            {"closure_id": str(closure.id), "id": attendance_id},
+        )
         session.commit()
 
     with session_factory() as session:
         repo = SqlAlchemyMonthlyClosureRepository(session)
         loaded = repo.get_by_id(closure.id)
         assert loaded is not None
-        assert loaded.status == ClosureStatus.CLOSED
-        assert loaded.item_count == 1
+        assert (loaded.status, loaded.item_count) == (ClosureStatus.CLOSED, 1)
         assert loaded.grand_total == Decimal("100.00")
-        assert len(loaded.items) == 1
-        assert loaded.items[0].exam_name == "Hemograma"
+        assert [item.exam_name for item in loaded.items] == ["Hemograma"]
 
         active = repo.get_active_for_clinic_and_period(
             clinic_id=closure.clinic_id,
@@ -313,134 +282,59 @@ async def test_repository_round_trips_a_closure_with_its_items(
         assert total == 1
         assert page[0].id == closure.id
 
+        linked = session.execute(
+            text("SELECT monthly_closure_id FROM attendances WHERE id = :id"), {"id": attendance_id}
+        ).one()
+        assert str(linked[0]) == str(closure.id)
 
-async def test_database_rejects_a_second_closed_closure_for_the_same_clinic_and_period(
-    client: httpx.AsyncClient, session_factory: sessionmaker[Session]
-) -> None:
-    await _login(client, session_factory)
-    source = await _confirmed_attendance_exam(client, session_factory)
-    first = _closure_from_confirmed(
-        clinic_id=str(source["clinic_id"]),
-        attendance=source["attendance"],  # type: ignore[arg-type]
-        item=source["item"],  # type: ignore[arg-type]
+    # O banco rejeita um segundo fechamento para a mesma clínica e período.
+    duplicate_source = await _confirmed_attendance_exam(
+        client, session_factory, clinic_id=str(source["clinic_id"])
     )
-
-    with session_factory() as session:
-        SqlAlchemyMonthlyClosureRepository(session).add(first)
-        session.commit()
-
-    second_source = await _confirmed_attendance_exam(client, session_factory)
-    second = _closure_from_confirmed(
+    duplicate = _closure_from_confirmed(
         clinic_id=str(source["clinic_id"]),
-        attendance=second_source["attendance"],  # type: ignore[arg-type]
-        item=second_source["item"],  # type: ignore[arg-type]
+        attendance=duplicate_source["attendance"],  # type: ignore[arg-type]
+        item=duplicate_source["item"],  # type: ignore[arg-type]
     )
-
     with session_factory() as session, pytest.raises(IntegrityError):
-        SqlAlchemyMonthlyClosureRepository(session).add(second)
+        SqlAlchemyMonthlyClosureRepository(session).add(duplicate)
         session.commit()
 
 
-async def test_database_rejects_two_free_periods_that_partially_overlap(
+async def test_database_rejects_partially_overlapping_periods_but_accepts_back_to_back_ones(
     client: httpx.AsyncClient, session_factory: sessionmaker[Session]
 ) -> None:
-    """The uniqueness invariant is now an overlap check, not an exact
-    year+month match — two quinzena-shaped periods that partially overlap
-    (1-20 vs. 15-31) must still conflict (migration 0037's EXCLUDE
-    constraint), even though neither is a full calendar month."""
+    """The invariant is an overlap check (migration 0037's EXCLUDE), not an
+    exact year+month match: 1-20 vs. 15-31 conflict, 1-15 then 16-31 coexist."""
     await _login(client, session_factory)
-    source = await _confirmed_attendance_exam(client, session_factory)
-    first = _closure_from_confirmed(
-        clinic_id=str(source["clinic_id"]),
-        attendance=source["attendance"],  # type: ignore[arg-type]
-        item=source["item"],  # type: ignore[arg-type]
-        period_start=date(2026, 1, 1),
-        period_end=date(2026, 1, 20),
+    first = await _persist_closure(
+        client, session_factory, period_start=date(2026, 1, 1), period_end=date(2026, 1, 15)
     )
 
-    with session_factory() as session:
-        SqlAlchemyMonthlyClosureRepository(session).add(first)
-        session.commit()
-
-    second_source = await _confirmed_attendance_exam(client, session_factory)
-    second = _closure_from_confirmed(
-        clinic_id=str(source["clinic_id"]),
-        attendance=second_source["attendance"],  # type: ignore[arg-type]
-        item=second_source["item"],  # type: ignore[arg-type]
-        period_start=date(2026, 1, 15),
+    overlapping_source = await _confirmed_attendance_exam(
+        client, session_factory, clinic_id=str(first.clinic_id)
+    )
+    overlapping = _closure_from_confirmed(
+        clinic_id=str(first.clinic_id),
+        attendance=overlapping_source["attendance"],  # type: ignore[arg-type]
+        item=overlapping_source["item"],  # type: ignore[arg-type]
+        period_start=date(2026, 1, 10),
         period_end=date(2026, 1, 31),
     )
-
     with session_factory() as session, pytest.raises(IntegrityError):
-        SqlAlchemyMonthlyClosureRepository(session).add(second)
+        SqlAlchemyMonthlyClosureRepository(session).add(overlapping)
         session.commit()
 
-
-async def test_database_accepts_two_non_overlapping_biweekly_periods_for_the_same_clinic(
-    client: httpx.AsyncClient, session_factory: sessionmaker[Session]
-) -> None:
-    """Two real quinzenas of the same clinic, back to back with no overlap,
-    must both close successfully — this is the whole point of the feature."""
-    await _login(client, session_factory)
-    source = await _confirmed_attendance_exam(client, session_factory)
-    first_half = _closure_from_confirmed(
-        clinic_id=str(source["clinic_id"]),
-        attendance=source["attendance"],  # type: ignore[arg-type]
-        item=source["item"],  # type: ignore[arg-type]
-        period_start=date(2026, 1, 1),
-        period_end=date(2026, 1, 15),
-    )
-
-    with session_factory() as session:
-        SqlAlchemyMonthlyClosureRepository(session).add(first_half)
-        session.commit()
-
-    second_source = await _confirmed_attendance_exam(client, session_factory)
-    second_half = _closure_from_confirmed(
-        clinic_id=str(source["clinic_id"]),
-        attendance=second_source["attendance"],  # type: ignore[arg-type]
-        item=second_source["item"],  # type: ignore[arg-type]
+    second = await _persist_closure(
+        client,
+        session_factory,
+        clinic_id=str(first.clinic_id),
         period_start=date(2026, 1, 16),
         period_end=date(2026, 1, 31),
     )
-
-    with session_factory() as session:
-        SqlAlchemyMonthlyClosureRepository(session).add(second_half)
-        session.commit()
-
     with session_factory() as session:
         page, total = SqlAlchemyMonthlyClosureRepository(session).list_page(
-            clinic_id=UUID(str(source["clinic_id"])), page=1, page_size=20
+            clinic_id=first.clinic_id, page=1, page_size=20
         )
         assert total == 2
-        assert {item.id for item in page} == {first_half.id, second_half.id}
-
-
-async def test_setting_attendance_monthly_closure_id_links_it_to_the_closure(
-    client: httpx.AsyncClient, session_factory: sessionmaker[Session]
-) -> None:
-    await _login(client, session_factory)
-    source = await _confirmed_attendance_exam(client, session_factory)
-    closure = _closure_from_confirmed(
-        clinic_id=str(source["clinic_id"]),
-        attendance=source["attendance"],  # type: ignore[arg-type]
-        item=source["item"],  # type: ignore[arg-type]
-    )
-
-    with session_factory() as session:
-        SqlAlchemyMonthlyClosureRepository(session).add(closure)
-        session.flush()
-        session.execute(
-            text(
-                "UPDATE attendances SET monthly_closure_id = :closure_id WHERE id = :attendance_id"
-            ),
-            {"closure_id": str(closure.id), "attendance_id": str(source["attendance"]["id"])},  # type: ignore[index]
-        )
-        session.commit()
-
-    with session_factory() as session:
-        row = session.execute(
-            text("SELECT monthly_closure_id FROM attendances WHERE id = :id"),
-            {"id": str(source["attendance"]["id"])},  # type: ignore[index]
-        ).one()
-        assert str(row[0]) == str(closure.id)
+        assert {item.id for item in page} == {first.id, second.id}

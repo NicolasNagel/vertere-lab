@@ -4,6 +4,7 @@ import { describeError } from '../../../shared/api/describe-error'
 import { ApiError } from '../../../shared/api/errors'
 import { formatCurrencyBRL, formatDate } from '../../../shared/lib/formatters'
 import { Button } from '../../../shared/ui/button'
+import { Modal } from '../../../shared/ui/modal'
 import { useCloseMonthlyPeriodMutation } from '../api/use-close-monthly-period-mutation'
 import type { ClosurePreview, MonthlyClosure } from '../api/closures-api'
 import './closure-close-modal.css'
@@ -51,13 +52,12 @@ export function ClosureCloseModal({
   }
 
   return (
-    <div className="closure-close-modal__backdrop" role="presentation">
-      <div
-        className="closure-close-modal"
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="closure-close-modal-title"
-      >
+    <Modal
+      titleId="closure-close-modal-title"
+      className="closure-close-modal"
+      canDismiss={!closeMutation.isPending}
+      onClose={onClose}
+    >
         <h2 id="closure-close-modal-title" className="closure-close-modal__title">
           Fechar período
         </h2>
@@ -102,14 +102,13 @@ export function ClosureCloseModal({
         )}
 
         <div className="closure-close-modal__actions">
-          <Button type="button" variant="ghost" disabled={closeMutation.isPending} onClick={onClose}>
+          <Button type="button" variant="secondary" disabled={closeMutation.isPending} onClick={onClose}>
             Voltar
           </Button>
           <Button type="button" disabled={!confirmed || closeMutation.isPending} onClick={handleConfirm}>
             {closeMutation.isPending ? 'Fechando…' : 'Fechar período'}
           </Button>
         </div>
-      </div>
-    </div>
+    </Modal>
   )
 }

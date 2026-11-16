@@ -60,38 +60,26 @@ def _actor_from(admin: User, role: Role) -> AuthenticatedUserDTO:
     )
 
 
-def test_activate_user_reactivates_and_audits() -> None:
+def test_activate_user_checks_permission_and_existence_then_reactivates_and_audits() -> None:
     users, roles, target, admin_role = _setup()
-    audit = FakeAuditLogWriter()
-    use_case = ActivateUserUseCase(users=users, roles=roles, audit=audit, clock=FakeClock(_NOW))
-    actor = _actor_from(target, admin_role)
-
-    result = use_case.execute(ActivateUserCommand(actor=actor, user_id=target.id))
-
-    assert result.is_active is True
-    assert users.get_by_id(target.id).is_active is True  # type: ignore[union-attr]
-    assert audit.entries[0].action == "users.activated"
-
-
-def test_activate_user_without_permission_is_forbidden() -> None:
-    users, roles, target, _admin_role = _setup()
     powerless_role = Role(
         id=uuid4(), name="RECEPTION", scope=RoleScope.LAB, permission_codes=frozenset()
     )
     roles.add(powerless_role)
     audit = FakeAuditLogWriter()
     use_case = ActivateUserUseCase(users=users, roles=roles, audit=audit, clock=FakeClock(_NOW))
-    actor = _actor_from(target, powerless_role)
-
-    with pytest.raises(ForbiddenError):
-        use_case.execute(ActivateUserCommand(actor=actor, user_id=target.id))
-
-
-def test_activate_unknown_user_raises_not_found() -> None:
-    users, roles, target, admin_role = _setup()
-    audit = FakeAuditLogWriter()
-    use_case = ActivateUserUseCase(users=users, roles=roles, audit=audit, clock=FakeClock(_NOW))
     actor = _actor_from(target, admin_role)
 
+    with pytest.raises(ForbiddenError):
+        use_case.execute(
+            ActivateUserCommand(actor=_actor_from(target, powerless_role), user_id=target.id)
+        )
     with pytest.raises(NotFoundError):
         use_case.execute(ActivateUserCommand(actor=actor, user_id=uuid4()))
+    assert users.get_by_id(target.id).is_active is False  # type: ignore[union-attr]
+
+    result = use_case.execute(ActivateUserCommand(actor=actor, user_id=target.id))
+
+    assert result.is_active is True
+    assert users.get_by_id(target.id).is_active is True  # type: ignore[union-attr]
+    assert audit.entries[0].action == "users.activated"

@@ -3,7 +3,8 @@ import { useState } from 'react'
 import { describeError } from '../../../shared/api/describe-error'
 import { Button } from '../../../shared/ui/button'
 import { Checkbox } from '../../../shared/ui/checkbox'
-import { SelectField, type SelectOption } from '../../../shared/ui/select'
+import { Dropdown, type DropdownOption } from '../../../shared/ui/dropdown'
+import { UsersIcon } from '../../../shared/ui/icons'
 import './assign-role-dialog.css'
 import type { Clinic } from '../../clinics/api/clinics-api'
 import type { Role } from '../../roles/api/roles-api'
@@ -34,7 +35,7 @@ export function AssignRoleDialog({
   const [accessError, setAccessError] = useState<string | null>(null)
   const errorMessage = describeError(error)
   const selectedRole = roles.find((role) => role.id === roleId)
-  const roleOptions: SelectOption[] = roles.map((role) => ({ value: role.id, label: role.name }))
+  const roleOptions: DropdownOption[] = roles.map((role) => ({ value: role.id, label: role.name }))
   const unchanged = roleId === currentRoleId && clinicIds.length === currentClinicIds.length &&
     clinicIds.every((id) => currentClinicIds.includes(id))
 
@@ -51,13 +52,14 @@ export function AssignRoleDialog({
         onSubmit(roleId, selectedClinicIds)
       }}
     >
-      <SelectField
-        id="assign-role-select"
+      <Dropdown
+        variant="field"
+        icon={<UsersIcon />}
         label="Novo perfil"
         disabled={submitting}
         options={roleOptions}
         value={roleId}
-        onChange={(event) => setRoleId(event.target.value)}
+        onChange={setRoleId}
       />
 
       {selectedRole?.scope === 'CLINIC' && (
@@ -86,7 +88,7 @@ export function AssignRoleDialog({
       )}
 
       <div className="assign-role-dialog__actions">
-        <Button type="button" variant="ghost" onClick={onCancel} disabled={submitting}>
+        <Button type="button" variant="cancel" onClick={onCancel} disabled={submitting}>
           Cancelar
         </Button>
         <Button

@@ -33,6 +33,10 @@ class FakeAuditLogWriter:
 class FakeVeterinarianRepository:
     def __init__(self, veterinarians: dict[UUID, Veterinarian] | None = None) -> None:
         self._veterinarians: dict[UUID, Veterinarian] = veterinarians or {}
+        self.linked_clinics: dict[UUID, set[UUID]] = {}
+
+    def is_linked_to_any_clinic(self, veterinarian_id: UUID, clinic_ids: frozenset[UUID]) -> bool:
+        return bool(self.linked_clinics.get(veterinarian_id, set()) & clinic_ids)
 
     def add(self, veterinarian: Veterinarian) -> None:
         self._veterinarians[veterinarian.id] = veterinarian

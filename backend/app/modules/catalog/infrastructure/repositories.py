@@ -13,7 +13,13 @@ from sqlalchemy.orm import Session as SqlAlchemySession
 
 from app.modules.catalog.domain.entities import Exam, ExamCategory, ExamCategoryStatus, ExamStatus
 from app.modules.catalog.domain.value_objects import ExamCode
-from app.modules.catalog.infrastructure.models import ExamCategoryModel, ExamModel, ExamSpeciesModel
+from app.modules.catalog.infrastructure.models import (
+    ExamCategoryModel,
+    ExamModel,
+    ExamPanelItemModel,
+    ExamSpeciesModel,
+)
+from app.shared.infrastructure.sql import LIKE_ESCAPE, contains_pattern
 
 
 def _category_to_domain(model: ExamCategoryModel) -> ExamCategory:
@@ -66,6 +72,7 @@ class SqlAlchemyExamCategoryRepository:
         model.updated_by = category.updated_by
         model.updated_at = category.updated_at
         model.row_version = category.row_version + 1
+        category.row_version = model.row_version
 
     def list_page(
         self,
@@ -79,8 +86,10 @@ class SqlAlchemyExamCategoryRepository:
         if status is not None:
             conditions.append(ExamCategoryModel.status == status.value)
         if search:
-            like_pattern = f"%{search.lower()}%"
-            conditions.append(func.lower(ExamCategoryModel.name).like(like_pattern))
+            like_pattern = contains_pattern(search.lower())
+            conditions.append(
+                func.lower(ExamCategoryModel.name).like(like_pattern, escape=LIKE_ESCAPE)
+            )
 
         count_stmt = select(func.count()).select_from(ExamCategoryModel)
         list_stmt = select(ExamCategoryModel).order_by(ExamCategoryModel.name)
@@ -116,6 +125,46 @@ class SqlAlchemyExamRepository:
         ).scalars()
         return frozenset(rows)
 
+    def _component_ids_for(self, exam_id: UUID) -> tuple[UUID, ...]:
+        rows = self._session.execute(
+            select(ExamPanelItemModel.component_id)
+            .where(ExamPanelItemModel.panel_id == exam_id)
+            .order_by(ExamPanelItemModel.position)
+        ).scalars()
+        return tuple(rows)
+
+    def _sync_components(self, exam_id: UUID, component_ids: tuple[UUID, ...]) -> None:
+        existing = self._session.execute(
+            select(ExamPanelItemModel).where(ExamPanelItemModel.panel_id == exam_id)
+        ).scalars()
+        for link in existing:
+            self._session.delete(link)
+        self._session.flush()
+        for position, component_id in enumerate(component_ids):
+            self._session.add(
+                ExamPanelItemModel(panel_id=exam_id, component_id=component_id, position=position)
+            )
+
+    def get_many_by_ids(self, exam_ids: list[UUID]) -> list[Exam]:
+        if not exam_ids:
+            return []
+        models = self._session.execute(
+            select(ExamModel).where(ExamModel.id.in_(exam_ids))
+        ).scalars()
+        return [self._to_domain(model) for model in models]
+
+    def list_active_panels_containing(self, exam_id: UUID) -> list[Exam]:
+        models = self._session.execute(
+            select(ExamModel)
+            .join(ExamPanelItemModel, ExamPanelItemModel.panel_id == ExamModel.id)
+            .where(
+                ExamPanelItemModel.component_id == exam_id,
+                ExamModel.status == ExamStatus.ACTIVE.value,
+            )
+            .order_by(ExamModel.name)
+        ).scalars()
+        return [self._to_domain(model) for model in models]
+
     def _to_domain(self, model: ExamModel) -> Exam:
         return Exam(
             id=model.id,
@@ -127,6 +176,7 @@ class SqlAlchemyExamRepository:
             price_valid_from=model.price_valid_from,
             price_valid_to=model.price_valid_to,
             species_ids=self._species_ids_for(model.id),
+            component_ids=self._component_ids_for(model.id),
             status=ExamStatus(model.status),
             created_by=model.created_by,
             updated_by=model.updated_by,
@@ -180,6 +230,7 @@ class SqlAlchemyExamRepository:
         )
         self._session.flush()
         self._sync_species(exam.id, exam.species_ids)
+        self._sync_components(exam.id, exam.component_ids)
 
     def save(self, exam: Exam) -> None:
         model = self._session.get(ExamModel, exam.id)
@@ -198,6 +249,7 @@ class SqlAlchemyExamRepository:
         model.row_version = exam.row_version + 1
         exam.row_version = model.row_version
         self._sync_species(exam.id, exam.species_ids)
+        self._sync_components(exam.id, exam.component_ids)
 
     def list_page(
         self,
@@ -215,11 +267,11 @@ class SqlAlchemyExamRepository:
         if category_id is not None:
             conditions.append(ExamModel.category_id == category_id)
         if search:
-            like_pattern = f"%{search.lower()}%"
+            like_pattern = contains_pattern(search.lower())
             conditions.append(
                 or_(
-                    func.lower(ExamModel.name).like(like_pattern),
-                    func.lower(ExamModel.code).like(like_pattern),
+                    func.lower(ExamModel.name).like(like_pattern, escape=LIKE_ESCAPE),
+                    func.lower(ExamModel.code).like(like_pattern, escape=LIKE_ESCAPE),
                 )
             )
 

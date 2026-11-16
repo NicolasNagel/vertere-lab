@@ -1,0 +1,435 @@
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import { render, screen, waitFor, within } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
+import { http, HttpResponse } from 'msw'
+import { setupServer } from 'msw/node'
+import { afterAll, afterEach, beforeAll, expect, test } from 'vitest'
+
+import { AuthProvider } from '../../auth/auth-provider'
+import { MemoryRouter } from 'react-router'
+import { pickOption } from '../../../test/dropdown'
+import { ExamsPage } from './exams-page'
+
+const server = setupServer()
+
+beforeAll(() => server.listen({ onUnhandledRequest: 'error' }))
+afterEach(() => server.resetHandlers())
+afterAll(() => server.close())
+
+function meHandler(permissions: string[]) {
+  return http.get('/api/v1/auth/me', () =>
+    HttpResponse.json({
+      user: {
+        id: 'u1',
+        email: 'a@b.com',
+        full_name: 'A',
+        role_id: 'r1',
+        role_name: 'FINANCE',
+      },
+      permissions,
+    }),
+  )
+}
+
+const urgency = {
+  id: 'u',
+  fee_amount: '30.00',
+  updated_at: '2026-01-01T00:00:00Z',
+  row_version: 3,
+}
+
+const rule = {
+  id: 'r1',
+  clinic_id: 'c1',
+  name: 'Taxa de coleta',
+  fee_amount: '5.00',
+  valid_from: '2026-01-01',
+  valid_to: null,
+  is_active: true,
+  exam_ids: [],
+  attendance_types: [],
+  updated_at: '2026-01-01T00:00:00Z',
+  row_version: 1,
+}
+
+const hemograma = {
+  id: 'e1',
+  code: 'HEM001',
+  name: 'Hemograma completo',
+  category_id: 'cat1',
+  description: null,
+  species_ids: [],
+  status: 'ACTIVE',
+  row_version: 1,
+  is_panel: false,
+  component_exam_ids: [],
+  price_base: '85.00',
+  updated_at: '2026-06-01T00:00:00Z',
+}
+
+function clinicsHandler() {
+  return http.get('/api/v1/clinics', () =>
+    HttpResponse.json({
+      items: [
+        {
+          id: 'c1',
+          name: 'Clínica Alfa',
+          status: 'ACTIVE',
+          row_version: 1,
+        },
+      ],
+      total: 1,
+      page: 1,
+      page_size: 20,
+    }),
+  )
+}
+
+// A aba de taxas vive dentro de Exames & Preços; estas rotas só alimentam a tela em volta.
+function pageHandlers() {
+  return [
+    http.get('/api/v1/exams', () =>
+      HttpResponse.json({ items: [hemograma], total: 1, page: 1, page_size: 100 }),
+    ),
+    http.get('/api/v1/exams/e1', () => HttpResponse.json(hemograma)),
+    http.get('/api/v1/species', () => HttpResponse.json({ items: [] })),
+    http.get('/api/v1/exam-categories/active', () => HttpResponse.json({ items: [] })),
+  ]
+}
+
+function renderTab() {
+  const queryClient = new QueryClient({
+    defaultOptions: { queries: { retry: false } },
+  })
+  return render(
+    <QueryClientProvider client={queryClient}>
+      <AuthProvider>
+        <MemoryRouter>
+          <ExamsPage />
+        </MemoryRouter>
+      </AuthProvider>
+    </QueryClientProvider>,
+  )
+}
+
+test('urgency register shows the fixed value and saves with reason and row version', async () => {
+  const user = userEvent.setup()
+  let body: unknown = null
+  server.use(
+    ...pageHandlers(),
+    meHandler(['pricing.read', 'pricing.manage']),
+    http.get('/api/v1/on-call-fee-settings', () => HttpResponse.json({ items: [] })),
+    http.get('/api/v1/urgency-fee-setting', () => HttpResponse.json(urgency)),
+    http.patch('/api/v1/urgency-fee-setting', async ({ request }) => {
+      body = await request.json()
+      return HttpResponse.json({
+        ...urgency,
+        fee_amount: '40.00',
+        row_version: 4,
+      })
+    }),
+  )
+  renderTab()
+
+  await user.click(await screen.findByRole('tab', { name: 'Urgência' }))
+  expect(await screen.findByText('R$ 30,00')).toBeInTheDocument()
+  await user.click(screen.getByRole('button', { name: 'Ações para Urgência' }))
+  await user.click(screen.getByRole('menuitem', { name: 'Editar taxa' }))
+  const amount = screen.getByLabelText('Valor da taxa (R$)')
+  await user.clear(amount)
+  await user.type(amount, '40')
+  await user.type(screen.getByLabelText('Motivo da alteração'), 'Reajuste')
+  await user.click(screen.getByRole('button', { name: 'Salvar' }))
+  await waitFor(() => expect(body).not.toBeNull())
+  expect(body).toEqual({
+    fee_amount: '40.00',
+    reason: 'Reajuste',
+    expected_row_version: 3,
+  })
+})
+
+test('clinic register lists rules and creates one with validity and reason', async () => {
+  const user = userEvent.setup()
+  let created: unknown = null
+  server.use(
+    ...pageHandlers(),
+    meHandler(['pricing.read', 'pricing.manage']),
+    http.get('/api/v1/on-call-fee-settings', () => HttpResponse.json({ items: [] })),
+    clinicsHandler(),
+    http.get('/api/v1/clinic-fee-rules', () => HttpResponse.json({ items: [rule] })),
+    http.post('/api/v1/clinic-fee-rules', async ({ request }) => {
+      created = await request.json()
+      return HttpResponse.json({
+        ...rule,
+        id: 'r2',
+        name: 'Taxa nova',
+        fee_amount: '7.50',
+      })
+    }),
+  )
+  renderTab()
+
+  await user.click(await screen.findByRole('tab', { name: 'Por clínica' }))
+  expect(await screen.findByText('Taxa de coleta')).toBeInTheDocument()
+  expect(screen.getByText('R$ 5,00')).toBeInTheDocument()
+  expect(screen.getByText('Ativa')).toBeInTheDocument()
+
+  await user.click(screen.getByRole('button', { name: /nova taxa/i }))
+  await screen.findByRole('dialog')
+  await pickOption(user, 'Clínica', 'Clínica Alfa', await screen.findByRole('dialog'))
+  await user.type(screen.getByLabelText('Nome da taxa'), 'Taxa nova')
+  await user.type(screen.getByLabelText('Valor (R$)'), '7,5')
+  await user.type(screen.getByLabelText('Vale a partir de'), '2026-02-01')
+  await user.type(screen.getByLabelText('Motivo da alteração'), 'Contrato novo')
+  await user.click(screen.getByRole('button', { name: 'Salvar' }))
+  await waitFor(() => expect(created).not.toBeNull())
+  expect(created).toEqual({
+    clinic_id: 'c1',
+    name: 'Taxa nova',
+    fee_amount: '7.50',
+    valid_from: '2026-02-01',
+    valid_to: null,
+    exam_ids: [],
+    attendance_types: [],
+    reason: 'Contrato novo',
+  })
+})
+
+test('urgency register has no days or hours, only the fixed value', async () => {
+  const user = userEvent.setup()
+  server.use(
+    ...pageHandlers(),
+    meHandler(['pricing.read', 'pricing.manage']),
+    http.get('/api/v1/on-call-fee-settings', () => HttpResponse.json({ items: [] })),
+    http.get('/api/v1/urgency-fee-setting', () => HttpResponse.json(urgency)),
+  )
+  renderTab()
+
+  await user.click(await screen.findByRole('tab', { name: 'Urgência' }))
+  await screen.findByText('R$ 30,00')
+  expect(screen.queryByRole('columnheader', { name: /dias/i })).not.toBeInTheDocument()
+  expect(screen.queryByRole('columnheader', { name: /horário/i })).not.toBeInTheDocument()
+  await user.click(screen.getByRole('button', { name: 'Ações para Urgência' }))
+  await user.click(screen.getByRole('menuitem', { name: 'Editar taxa' }))
+  expect(screen.queryByText('Dias da semana')).not.toBeInTheDocument()
+  expect(screen.queryByLabelText('Horário de início')).not.toBeInTheDocument()
+})
+
+test('a clinic rule is created with exam and attendance-type conditions', async () => {
+  const user = userEvent.setup()
+  let created: unknown = null
+  server.use(
+    ...pageHandlers(),
+    meHandler(['pricing.read', 'pricing.manage']),
+    http.get('/api/v1/on-call-fee-settings', () => HttpResponse.json({ items: [] })),
+    clinicsHandler(),
+    http.get('/api/v1/clinic-fee-rules', () => HttpResponse.json({ items: [rule] })),
+    http.post('/api/v1/clinic-fee-rules', async ({ request }) => {
+      created = await request.json()
+      return HttpResponse.json({ ...rule, id: 'r3' })
+    }),
+  )
+  renderTab()
+
+  await user.click(await screen.findByRole('tab', { name: 'Por clínica' }))
+  await user.click(await screen.findByRole('button', { name: /nova taxa/i }))
+  const dialog = await screen.findByRole('dialog')
+  await pickOption(user, 'Clínica', 'Clínica Alfa', dialog)
+  await user.type(screen.getByLabelText('Nome da taxa'), 'Urgente com hemograma')
+  await user.type(screen.getByLabelText('Valor (R$)'), '9')
+  await user.type(screen.getByLabelText('Vale a partir de'), '2026-02-01')
+  await user.click(within(dialog).getByRole('button', { name: 'Urgente' }))
+  await user.click(within(dialog).getByRole('button', { name: 'Plantão normal' }))
+  await user.click(await within(dialog).findByRole('checkbox', { name: 'Hemograma completo' }))
+  expect(within(dialog).getByRole('button', { name: 'Remover Hemograma completo' })).toBeVisible()
+  await user.type(screen.getByLabelText('Motivo da alteração'), 'Acordo')
+  await user.click(screen.getByRole('button', { name: 'Salvar' }))
+  await waitFor(() => expect(created).not.toBeNull())
+  expect(created).toMatchObject({
+    exam_ids: ['e1'],
+    attendance_types: ['URGENTE', 'PLANTAO_NORMAL'],
+    fee_amount: '9.00',
+  })
+})
+
+const manyExams = Array.from({ length: 150 }, (_, index) => ({
+  ...hemograma,
+  id: `x${index + 1}`,
+  code: `EX${String(index + 1).padStart(3, '0')}`,
+  name: `Exame ${String(index + 1).padStart(3, '0')}`,
+}))
+
+function searchableExamsHandler(seen: URLSearchParams[]) {
+  return [
+    http.get('/api/v1/exams/:id', ({ params }) => {
+      const found = manyExams.find((exam) => exam.id === params.id)
+      return found ? HttpResponse.json(found) : new HttpResponse(null, { status: 404 })
+    }),
+    http.get('/api/v1/exams', ({ request }) => {
+      const query = new URL(request.url).searchParams
+      seen.push(query)
+      const term = (query.get('search') ?? '').toLowerCase()
+      const filtered = manyExams.filter((exam) => exam.name.toLowerCase().includes(term))
+      const size = Number(query.get('page_size') ?? 20)
+      const page = Number(query.get('page') ?? 1)
+      return HttpResponse.json({
+        items: filtered.slice((page - 1) * size, page * size),
+        total: filtered.length,
+        page,
+        page_size: size,
+      })
+    }),
+  ]
+}
+
+test('the exam condition searches the server and reaches exams past the first 100', async () => {
+  const user = userEvent.setup()
+  const seen: URLSearchParams[] = []
+  let created: unknown = null
+  server.use(
+    ...searchableExamsHandler(seen),
+    ...pageHandlers(),
+    meHandler(['pricing.read', 'pricing.manage']),
+    http.get('/api/v1/on-call-fee-settings', () => HttpResponse.json({ items: [] })),
+    clinicsHandler(),
+    http.get('/api/v1/clinic-fee-rules', () => HttpResponse.json({ items: [] })),
+    http.post('/api/v1/clinic-fee-rules', async ({ request }) => {
+      created = await request.json()
+      return HttpResponse.json({ ...rule, id: 'r5' })
+    }),
+  )
+  renderTab()
+
+  await user.click(await screen.findByRole('tab', { name: 'Por clínica' }))
+  await user.click(await screen.findByRole('button', { name: /nova taxa/i }))
+  const dialog = await screen.findByRole('dialog')
+  await pickOption(user, 'Clínica', 'Clínica Alfa', dialog)
+  await user.type(screen.getByLabelText('Nome da taxa'), 'Exame distante')
+  await user.type(screen.getByLabelText('Valor (R$)'), '3')
+  await user.type(screen.getByLabelText('Vale a partir de'), '2026-02-01')
+
+  await user.type(within(dialog).getByLabelText('Buscar exame'), 'Exame 137')
+  await user.click(await within(dialog).findByRole('checkbox', { name: 'Exame 137' }))
+  await waitFor(() =>
+    expect(
+      seen.some((query) => query.get('search') === 'Exame 137' && query.get('status') === 'ACTIVE'),
+    ).toBe(true),
+  )
+  expect(within(dialog).getByRole('button', { name: 'Remover Exame 137' })).toBeVisible()
+  expect(within(dialog).getByText('1 exame selecionado (máximo 50)')).toBeVisible()
+
+  await user.type(screen.getByLabelText('Motivo da alteração'), 'Acordo')
+  await user.click(screen.getByRole('button', { name: 'Salvar' }))
+  await waitFor(() => expect(created).not.toBeNull())
+  expect(created).toMatchObject({ exam_ids: ['x137'] })
+})
+
+test('editing a rule shows the names of selected exams that are not on the current page', async () => {
+  const user = userEvent.setup()
+  server.use(
+    ...searchableExamsHandler([]),
+    ...pageHandlers(),
+    meHandler(['pricing.read', 'pricing.manage']),
+    http.get('/api/v1/on-call-fee-settings', () => HttpResponse.json({ items: [] })),
+    clinicsHandler(),
+    http.get('/api/v1/clinic-fee-rules', () =>
+      HttpResponse.json({ items: [{ ...rule, exam_ids: ['x149', 'x150'] }] }),
+    ),
+  )
+  renderTab()
+
+  await user.click(await screen.findByRole('tab', { name: 'Por clínica' }))
+  expect(await screen.findByText('Exame 149 +1')).toBeVisible()
+  await user.click(screen.getByRole('button', { name: 'Ações para Taxa de coleta' }))
+  await user.click(screen.getByRole('menuitem', { name: 'Editar taxa' }))
+  const dialog = await screen.findByRole('dialog')
+  expect(await within(dialog).findByRole('button', { name: 'Remover Exame 149' })).toBeVisible()
+  expect(within(dialog).getByRole('button', { name: 'Remover Exame 150' })).toBeVisible()
+})
+
+test('the exam condition stops at 50 exams and says so', async () => {
+  const user = userEvent.setup()
+  const fifty = manyExams.slice(0, 50).map((exam) => exam.id)
+  server.use(
+    ...searchableExamsHandler([]),
+    ...pageHandlers(),
+    meHandler(['pricing.read', 'pricing.manage']),
+    http.get('/api/v1/on-call-fee-settings', () => HttpResponse.json({ items: [] })),
+    clinicsHandler(),
+    http.get('/api/v1/clinic-fee-rules', () =>
+      HttpResponse.json({ items: [{ ...rule, exam_ids: fifty }] }),
+    ),
+  )
+  renderTab()
+
+  await user.click(await screen.findByRole('tab', { name: 'Por clínica' }))
+  await user.click(await screen.findByRole('button', { name: 'Ações para Taxa de coleta' }))
+  await user.click(screen.getByRole('menuitem', { name: 'Editar taxa' }))
+  const dialog = await screen.findByRole('dialog')
+  expect(await within(dialog).findByText(/Limite de 50 exames por taxa/)).toBeVisible()
+  await user.type(within(dialog).getByLabelText('Buscar exame'), 'Exame 120')
+  expect(await within(dialog).findByRole('checkbox', { name: 'Exame 120' })).toBeDisabled()
+})
+
+test('the clinic rule row and popover show the conditions in short form', async () => {
+  const user = userEvent.setup()
+  server.use(
+    ...pageHandlers(),
+    meHandler(['pricing.read', 'pricing.manage']),
+    http.get('/api/v1/on-call-fee-settings', () => HttpResponse.json({ items: [] })),
+    clinicsHandler(),
+    http.get('/api/v1/clinic-fee-rules', () =>
+      HttpResponse.json({
+        items: [
+          { ...rule, exam_ids: ['e1'], attendance_types: ['URGENTE', 'PLANTAO_NORMAL'] },
+          { ...rule, id: 'r9', name: 'Taxa geral' },
+        ],
+      }),
+    ),
+  )
+  renderTab()
+
+  await user.click(await screen.findByRole('tab', { name: 'Por clínica' }))
+  expect(await screen.findByText('Hemograma completo · Urgente ou Plantão normal')).toBeVisible()
+  expect(screen.getByText('Todos os atendimentos')).toBeVisible()
+  await user.click(screen.getByRole('button', { name: 'Taxa de coleta' }))
+  const summary = within(await screen.findByRole('dialog'))
+  expect(summary.getByText('Condições')).toBeVisible()
+  expect(summary.getByText('Hemograma completo · Urgente ou Plantão normal')).toBeVisible()
+})
+
+test('without pricing.manage the registers are read-only', async () => {
+  server.use(
+    ...pageHandlers(),
+    meHandler(['pricing.read']),
+    http.get('/api/v1/on-call-fee-settings', () => HttpResponse.json({ items: [] })),
+    clinicsHandler(),
+    http.get('/api/v1/clinic-fee-rules', () => HttpResponse.json({ items: [rule] })),
+  )
+  const user = userEvent.setup()
+  renderTab()
+  await user.click(await screen.findByRole('tab', { name: 'Por clínica' }))
+  expect(await screen.findByText('Taxa de coleta')).toBeInTheDocument()
+  expect(screen.queryByRole('button', { name: /nova taxa/i })).not.toBeInTheDocument()
+  expect(screen.queryByRole('button', { name: /editar/i })).not.toBeInTheDocument()
+})
+
+test('clicking a fee row opens the summary popover with the edit action', async () => {
+  const user = userEvent.setup()
+  server.use(
+    ...pageHandlers(),
+    meHandler(['pricing.read', 'pricing.manage']),
+    http.get('/api/v1/on-call-fee-settings', () => HttpResponse.json({ items: [] })),
+    clinicsHandler(),
+    http.get('/api/v1/clinic-fee-rules', () => HttpResponse.json({ items: [rule] })),
+  )
+  renderTab()
+
+  await user.click(await screen.findByRole('tab', { name: 'Por clínica' }))
+  await user.click(await screen.findByRole('button', { name: 'Taxa de coleta' }))
+  const summary = within(await screen.findByRole('dialog'))
+  expect(summary.getByRole('heading', { name: 'Taxa de coleta' })).toBeInTheDocument()
+  expect(summary.getByText('R$ 5,00')).toBeInTheDocument()
+  await user.click(summary.getByRole('button', { name: 'Editar taxa' }))
+  expect(await screen.findByLabelText('Nome da taxa')).toHaveValue('Taxa de coleta')
+})

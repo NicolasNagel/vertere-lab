@@ -15,60 +15,42 @@ def _client(handler: object) -> ViaCepClient:
     )
 
 
-def test_maps_via_cep_payload_to_address() -> None:
-    def handle(request: httpx.Request) -> httpx.Response:
-        return httpx.Response(
-            200,
-            json={
-                "cep": "01310-100",
-                "logradouro": "Avenida Paulista",
-                "bairro": "Bela Vista",
-                "localidade": "São Paulo",
-                "uf": "SP",
-            },
-        )
+def _respond(payload: dict[str, object]) -> ViaCepClient:
+    return _client(lambda request: httpx.Response(200, json=payload))
 
-    address = _client(handle).lookup("01310100")
 
+def test_lookup_maps_the_payload_and_treats_empty_fields_and_erro_flag_as_missing() -> None:
+    address = _respond(
+        {
+            "cep": "01310-100",
+            "logradouro": "Avenida Paulista",
+            "bairro": "Bela Vista",
+            "localidade": "São Paulo",
+            "uf": "SP",
+        }
+    ).lookup("01310100")
     assert address is not None
-    assert address.street == "Avenida Paulista"
-    assert address.neighborhood == "Bela Vista"
-    assert address.city == "São Paulo"
-    assert address.state == "SP"
+    assert (address.street, address.neighborhood, address.city, address.state) == (
+        "Avenida Paulista",
+        "Bela Vista",
+        "São Paulo",
+        "SP",
+    )
+
+    blank = _respond(
+        {"cep": "01310-100", "logradouro": "", "bairro": "", "localidade": "", "uf": ""}
+    ).lookup("01310100")
+    assert blank is not None
+    assert (blank.street, blank.neighborhood) == (None, None)
+
+    assert _respond({"erro": True}).lookup("00000000") is None
 
 
-def test_empty_fields_map_to_none() -> None:
-    def handle(request: httpx.Request) -> httpx.Response:
-        return httpx.Response(
-            200,
-            json={"cep": "01310-100", "logradouro": "", "bairro": "", "localidade": "", "uf": ""},
-        )
-
-    address = _client(handle).lookup("01310100")
-
-    assert address is not None
-    assert address.street is None
-    assert address.neighborhood is None
-
-
-def test_provider_erro_flag_returns_none() -> None:
-    def handle(request: httpx.Request) -> httpx.Response:
-        return httpx.Response(200, json={"erro": True})
-
-    assert _client(handle).lookup("00000000") is None
-
-
-def test_timeout_raises_external_service_unavailable() -> None:
-    def handle(request: httpx.Request) -> httpx.Response:
+def test_lookup_raises_external_service_unavailable_on_timeout_and_server_error() -> None:
+    def time_out(request: httpx.Request) -> httpx.Response:
         raise httpx.TimeoutException("timed out", request=request)
 
     with pytest.raises(ExternalServiceUnavailableError):
-        _client(handle).lookup("01310100")
-
-
-def test_server_error_raises_external_service_unavailable() -> None:
-    def handle(request: httpx.Request) -> httpx.Response:
-        return httpx.Response(500, json={})
-
+        _client(time_out).lookup("01310100")
     with pytest.raises(ExternalServiceUnavailableError):
-        _client(handle).lookup("01310100")
+        _client(lambda request: httpx.Response(500, json={})).lookup("01310100")
