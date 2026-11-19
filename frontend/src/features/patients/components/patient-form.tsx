@@ -1,6 +1,5 @@
 import { zodResolver } from '@hookform/resolvers/zod'
 import { Controller, useForm } from 'react-hook-form'
-import { z } from 'zod'
 
 import { Button } from '../../../shared/ui/button'
 import { Dropdown } from '../../../shared/ui/dropdown'
@@ -11,66 +10,19 @@ import { useSpeciesQuery } from '../api/use-species-query'
 import { useAllClinicsQuery } from '../../clinics/api/use-clinics-query'
 import type { Patient, PatientFormValues, PatientStatus } from '../api/patients-api'
 import { PatientAgeField } from './patient-age-field'
-import { ageFieldsShape, ageToApi, validateAge } from './patient-age-schema'
+import {
+  patientSchema,
+  SEX_OPTIONS,
+  toApiValues,
+  toFormFields,
+  type PatientFormFields,
+} from './patient-fields'
 import './patient-form.css'
-
-const patientSchema = z.object({
-  clinicId: z.string().trim().min(1, 'Selecione a clínica.'),
-  name: z.string().trim().min(1, 'Informe o nome do paciente.').max(200, 'Use até 200 caracteres.'),
-  speciesId: z.string().trim().min(1, 'Selecione a espécie.'),
-  sex: z.enum(['MALE', 'FEMALE']),
-  breed: z.string().trim().max(100, 'Use até 100 caracteres.'),
-  ...ageFieldsShape,
-  ownerName: z.string().trim().min(1, 'Informe o nome do tutor.').max(200, 'Use até 200 caracteres.'),
-  ownerPhone: z.string().trim().max(30, 'Use até 30 caracteres.'),
-  ownerDocument: z.string().trim().max(30, 'Use até 30 caracteres.'),
-  status: z.enum(['ACTIVE', 'INACTIVE']),
-  notes: z.string().trim().max(2000, 'Use até 2000 caracteres.'),
-}).superRefine(validateAge)
-
-type PatientFormFields = z.infer<typeof patientSchema>
-
-const SEX_OPTIONS: { value: 'MALE' | 'FEMALE'; label: string }[] = [
-  { value: 'MALE', label: 'Macho' },
-  { value: 'FEMALE', label: 'Fêmea' },
-]
 
 const STATUS_OPTIONS: { value: PatientStatus; label: string }[] = [
   { value: 'ACTIVE', label: 'Ativo' },
   { value: 'INACTIVE', label: 'Inativo' },
 ]
-
-function toFormFields(patient: Patient | null): PatientFormFields {
-  return {
-    clinicId: patient?.clinicId ?? '',
-    name: patient?.name ?? '',
-    speciesId: patient?.speciesId ?? '',
-    sex: patient?.sex ?? 'MALE',
-    breed: patient?.breed ?? '',
-    ageValue: patient?.ageValue === null || patient?.ageValue === undefined ? '' : String(patient.ageValue),
-    ageUnit: patient?.ageUnit ?? 'YEARS',
-    ownerName: patient?.ownerName ?? '',
-    ownerPhone: patient?.ownerPhone ?? '',
-    ownerDocument: patient?.ownerDocument ?? '',
-    status: patient?.status ?? 'ACTIVE',
-    notes: patient?.notes ?? '',
-  }
-}
-
-function toApiValues(fields: PatientFormFields): PatientFormValues {
-  return {
-    clinicId: fields.clinicId,
-    name: fields.name,
-    speciesId: fields.speciesId,
-    sex: fields.sex,
-    breed: fields.breed || null,
-    ...ageToApi(fields),
-    ownerName: fields.ownerName,
-    ownerPhone: fields.ownerPhone || null,
-    ownerDocument: fields.ownerDocument || null,
-    notes: fields.notes || null,
-  }
-}
 
 function describeError(error: unknown): string | null {
   if (error === null || error === undefined) {

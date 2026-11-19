@@ -193,16 +193,21 @@ export async function createPatient(values: PatientFormValues): Promise<Patient>
   return fromApiPatient(patient)
 }
 
-export async function updatePatient(
-  id: string,
-  values: PatientFormValues & { status: PatientStatus; expectedRowVersion: number },
-): Promise<Patient> {
+export interface PatientUpdateValues extends PatientFormValues {
+  status: PatientStatus
+  expectedRowVersion: number
+  /** Obrigatório quando a clínica muda (o backend recusa sem motivo). */
+  reason?: string
+}
+
+export async function updatePatient(id: string, values: PatientUpdateValues): Promise<Patient> {
   const patient = await apiRequest<ApiPatient>(`/patients/${id}`, {
     method: 'PATCH',
     body: {
       ...toApiPayload(values),
       status: values.status,
       expected_row_version: values.expectedRowVersion,
+      ...(values.reason ? { reason: values.reason } : {}),
     },
   })
   return fromApiPatient(patient)

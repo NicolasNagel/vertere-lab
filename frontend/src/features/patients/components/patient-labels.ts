@@ -19,10 +19,12 @@ export function patientListErrorMessage(error: unknown): string {
 }
 
 /** Falha ao abrir um paciente: 403 (sem `patients.read`) é diferente de 404 (inexistente ou fora
- * do escopo, que o backend não distingue de propósito). */
+ * do escopo, que o backend não distingue de propósito) e ambos diferem de uma falha do servidor. */
 export function patientLoadErrorMessage(error: unknown): string {
-  return error instanceof ApiError && error.status === 403
-    ? 'Você não tem permissão para ver este paciente.'
-    : 'Paciente não encontrado.'
+  if (error instanceof ApiError && error.status === 403) {
+    return 'Você não tem permissão para ver este paciente.'
+  }
+  if (error instanceof ApiError && error.status === 404) return 'Paciente não encontrado.'
+  return 'Não foi possível carregar o paciente. Tente novamente.'
 }
 

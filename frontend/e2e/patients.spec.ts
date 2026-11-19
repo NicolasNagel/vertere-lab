@@ -8,6 +8,7 @@ const json = (body: unknown, status = 200) => ({
 })
 
 const LONG_NAME = 'Sir Bartholomew Maximilian von Hohenzollern de la Cruz Segundo'
+const VERY_LONG_NAME = 'Z'.repeat(200)
 const LONG_OWNER = 'Maria Fernanda de Albuquerque Cavalcanti Souza Pereira Nogueira Lima'
 
 const patient = {
@@ -60,6 +61,7 @@ async function mockApi(page: Page, permissions: string[], mode: Mode = 'ok') {
     if (path === '/patients/summary')
       return route.fulfill(json({ total: PATIENTS.length, active: 2, inactive: 1 }))
     if (path === '/patients/p1') return route.fulfill(json(patient))
+    if (path === '/patients/p2') return route.fulfill(json(PATIENTS[1]))
     if (path === '/patients') {
       if (mode === 'error') return route.fulfill(json({ error: { code: 'X', message: 'x' } }, 500))
       if (mode === 'forbidden')
@@ -180,3 +182,47 @@ test('patient page is accessible and fits the viewport', async ({ page }) => {
   await expect(page.getByRole('heading', { name: 'Bidu' })).toBeVisible()
   await expectAccessible(page)
 })
+
+test('patient page with a 200-character name and owner wraps instead of overflowing', async ({
+  page,
+}) => {
+  await mockApi(page, MANAGER)
+  await page.route('**/api/v1/patients/p2', (route) =>
+    route.fulfill(
+      json({ ...PATIENTS[1], name: VERY_LONG_NAME, owner_name: VERY_LONG_NAME, notes: VERY_LONG_NAME }),
+    ),
+  )
+  await page.goto('/pacientes/p2')
+  await expect(page.getByRole('heading', { name: VERY_LONG_NAME, level: 1 })).toBeVisible()
+  await expectAccessible(page)
+})
+
+test('each block editor opens accessibly, and the clinic block asks for a reason', async ({
+  page,
+}) => {
+  await mockApi(page, MANAGER)
+  await page.goto('/pacientes/p1')
+  await expect(page.getByRole('heading', { name: 'Bidu', level: 1 })).toBeVisible()
+
+  for (const block of ['identificação', 'tutor', 'clínica', 'observação']) {
+    await page.getByRole('button', { name: `Editar ${block}`, exact: true }).click()
+    await expectAccessible(page, { portaledPopup: false })
+    await page.locator('main button', { hasText: 'Cancelar' }).click()
+  }
+
+  await page.getByRole('button', { name: 'Editar clínica', exact: true }).click()
+  await expect(page.getByRole('button', { name: 'Salvar', exact: true })).toBeDisabled()
+})
+
+test('inactive patient is read-only on its page', async ({ page }) => {
+  await mockApi(page, MANAGER)
+  await page.route('**/api/v1/patients/p1', (route) =>
+    route.fulfill(json({ ...patient, status: 'INACTIVE' })),
+  )
+  await page.goto('/pacientes/p1')
+  await expect(page.getByText('Paciente inativo: somente leitura até reativar.')).toBeVisible()
+  await expect(page.getByRole('button', { name: /^Editar/ })).toHaveCount(0)
+  await expect(page.getByRole('button', { name: 'Reativar paciente' })).toBeVisible()
+  await expectAccessible(page)
+})
+
