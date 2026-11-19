@@ -157,3 +157,35 @@ Ressalvas da revisão independente (19/11), não bloqueantes:
 - [ ] O subagente `qa-fatia` (`.claude/agents/qa-fatia.md`) só vira tipo de agente depois de recarregar
       a sessão; nesta rodada o QA independente rodou como agente genérico seguindo esse arquivo.
 
+## Pacientes: regra de domínio e backend (fatia 3, 19/11)
+Decisão do usuário: paciente INATIVO só reativa; trocar a clínica exige motivo e grava antes/depois na
+auditoria; atendimentos antigos não mudam (guardam a própria `clinic_id`). Implementado: `POST
+/patients/{id}/reactivate`, PATCH de inativo = 409, `reason` na troca de clínica, filtro `species_id`,
+`clinic_id` combinado com o escopo do ator, `GET /patients/summary`. Ressalvas da revisão, não bloqueantes:
+- [ ] Teste de integração (HTTP, PostgreSQL) com ator de ESCOPO CLÍNICA: PATCH com destino fora do
+      escopo (404), `reactivate` de paciente de outra clínica (404), `/summary` com `clinic_id` de outra
+      clínica (zeros) e 403 sem `patients.read`. Hoje só há teste unitário com fakes; depende de um papel
+      de clínica com permissão (fatia 6 do plano).
+- [x] Concorrência (lost update) CORRIGIDA nesta fatia: `save()` gravava `row_version + 1` sem conferir a
+      versão do banco, então dois PATCH com a mesma `expected_row_version` davam 200 e 200 (reproduzido pelo
+      QA em servidor real, 3 de 3 rodadas). Agora `save()` lê a linha com `FOR UPDATE`, compara a versão e
+      levanta `ConflictError`; update, desativar e reativar pedem `get_by_id(..., for_update=True)`.
+      Antes `[200, 200]`, depois `[200, 409]` nas mesmas 3 rodadas; teste determinístico em
+      `tests/integration/test_patients_repository.py` (falha sem a correção). O mesmo padrão deve ser
+      conferido nos outros repositórios que fazem `session.get` + `row_version + 1` (clínicas,
+      veterinários, catálogo, identidade) — o HANDOFF já listava a fatia "`row_version` transversal".
+- [ ] `confirm_attendance` não trava a linha do paciente: uma troca de clínica entre a leitura e o commit
+      da confirmação deixaria o atendimento (íntegro, com a própria clínica) ligado a paciente já em outra
+      clínica. Risco baixo; mesmo conserto (lock) se for relevante.
+- [ ] Rascunho de atendimento aberto cujo paciente mudou de clínica passa a falhar na prévia e na
+      confirmação ("Paciente não pertence à clínica do atendimento"): seguro, mas pode estranhar; avisar
+      na tela de troca de clínica (fatia 5).
+- [ ] `reason` é texto livre e vai para o `audit_log`: pode conter PII digitada; sugerir na UI não
+      incluir dado pessoal e garantir que o log de aplicação não o imprima.
+- [ ] `species_id` e `status` de `patients` sem índice: medir com `EXPLAIN` antes de criar.
+- [ ] O formulário de edição atual desabilita a clínica, então paciente LEGADO sem clínica não ganha uma
+      pelo formulário; resolver na tela de detalhe com blocos (fatia 5).
+- [ ] `reason` enviado sem troca de clínica é descartado em silêncio (coberto por teste unitário).
+- [ ] O `openapi.json` desta fatia inclui também os limites de schema da rodada anterior, que não tinham
+      sido regenerados (`npm run api:check` falharia no CI sem isso).
+
