@@ -111,3 +111,11 @@
 .patient-detail__mono {
   font-family: var(--font-mono);
 }
+
+@media (max-width: 767px) {
+  .patient-detail {
+    flex: none;
+    padding: 1.25rem 1rem;
+    overflow: visible;
+  }
+}

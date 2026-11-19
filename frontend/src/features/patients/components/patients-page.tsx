@@ -1,6 +1,7 @@
 import { useState } from 'react'
 
 import { useAuth } from '../../auth/auth-context'
+import { useSubmitGuard } from '../../../shared/lib/use-submit-guard'
 import { Button } from '../../../shared/ui/button'
 import { PlusIcon } from '../../../shared/ui/icons'
 import { useCreatePatientMutation } from '../api/use-create-patient-mutation'
@@ -28,6 +29,7 @@ export function PatientsPage() {
   const detailQuery = usePatientQuery(mode === 'create' ? null : selectedId)
 
   const createMutation = useCreatePatientMutation()
+  const guardCreate = useSubmitGuard()
   const updateMutation = useUpdatePatientMutation()
   const deactivateMutation = useDeactivatePatientMutation()
 
@@ -70,6 +72,7 @@ export function PatientsPage() {
           selectedId={mode === 'create' ? null : selectedId}
           search={search}
           isLoading={listQuery.isLoading}
+          isError={listQuery.isError}
           onSearchChange={(value) => {
             setSearch(value)
             setPage(1)
@@ -90,12 +93,15 @@ export function PatientsPage() {
               error={createMutation.error}
               onCancel={() => setMode('view')}
               onSubmitCreate={(values) =>
-                createMutation.mutate(values, {
-                  onSuccess: (patient) => {
-                    setSelectedId(patient.id)
-                    setMode('view')
-                  },
-                })
+                guardCreate((release) =>
+                  createMutation.mutate(values, {
+                    onSuccess: (patient) => {
+                      setSelectedId(patient.id)
+                      setMode('view')
+                    },
+                    onSettled: release,
+                  }),
+                )
               }
             />
           </div>

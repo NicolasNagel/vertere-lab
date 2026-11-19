@@ -62,3 +62,22 @@
   color: var(--color-brand-ink-deep);
   margin: 0 0 1.5rem;
 }
+
+/* Mobile: the list is a fixed 380px column, so side by side the form was squeezed to ~70px. Stack
+   list above the form/detail and let the page scroll. */
+@media (max-width: 767px) {
+  .patients-page__header {
+    padding: 1rem;
+  }
+
+  .patients-page__body {
+    flex-direction: column;
+    overflow-y: auto;
+  }
+
+  .patients-page__create-panel {
+    flex: none;
+    padding: 1.25rem 1rem;
+    overflow: visible;
+  }
+}

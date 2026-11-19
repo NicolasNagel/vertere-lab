@@ -16,16 +16,16 @@ import './patient-form.css'
 
 const patientSchema = z.object({
   clinicId: z.string().trim().min(1, 'Selecione a clínica.'),
-  name: z.string().trim().min(1, 'Informe o nome do paciente.'),
+  name: z.string().trim().min(1, 'Informe o nome do paciente.').max(200, 'Use até 200 caracteres.'),
   speciesId: z.string().trim().min(1, 'Selecione a espécie.'),
   sex: z.enum(['MALE', 'FEMALE']),
-  breed: z.string().trim(),
+  breed: z.string().trim().max(100, 'Use até 100 caracteres.'),
   ...ageFieldsShape,
-  ownerName: z.string().trim().min(1, 'Informe o nome do tutor.'),
-  ownerPhone: z.string().trim(),
-  ownerDocument: z.string().trim(),
+  ownerName: z.string().trim().min(1, 'Informe o nome do tutor.').max(200, 'Use até 200 caracteres.'),
+  ownerPhone: z.string().trim().max(30, 'Use até 30 caracteres.'),
+  ownerDocument: z.string().trim().max(30, 'Use até 30 caracteres.'),
   status: z.enum(['ACTIVE', 'INACTIVE']),
-  notes: z.string().trim(),
+  notes: z.string().trim().max(2000, 'Use até 2000 caracteres.'),
 }).superRefine(validateAge)
 
 type PatientFormFields = z.infer<typeof patientSchema>

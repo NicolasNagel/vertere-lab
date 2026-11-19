@@ -15,6 +15,7 @@ interface PatientListProps {
   selectedId: string | null
   search: string
   isLoading: boolean
+  isError?: boolean
   onSearchChange: (value: string) => void
   onSelect: (id: string) => void
   page?: number
@@ -29,6 +30,7 @@ export function PatientList({
   selectedId,
   search,
   isLoading,
+  isError = false,
   onSearchChange,
   onSelect,
   page,
@@ -55,7 +57,12 @@ export function PatientList({
 
       <div className="patient-list__rows">
         {isLoading && <p className="patient-list__empty">Carregando…</p>}
-        {!isLoading && patients.length === 0 && (
+        {isError && (
+          <p role="alert" className="patient-list__empty">
+            Não foi possível carregar os pacientes.
+          </p>
+        )}
+        {!isLoading && !isError && patients.length === 0 && (
           <p className="patient-list__empty">Nenhum paciente encontrado.</p>
         )}
         {patients.map((patient) => (

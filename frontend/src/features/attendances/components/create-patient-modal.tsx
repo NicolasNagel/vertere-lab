@@ -1,3 +1,4 @@
+import { useSubmitGuard } from '../../../shared/lib/use-submit-guard'
 import { Modal } from '../../../shared/ui/modal'
 import { useCreatePatientMutation } from '../../patients/api/use-create-patient-mutation'
 import { PatientForm } from '../../patients/components/patient-form'
@@ -23,6 +24,7 @@ interface CreatePatientModalProps {
  */
 export function CreatePatientModal({ initialName, onCreated, onClose }: CreatePatientModalProps) {
   const createMutation = useCreatePatientMutation()
+  const guardCreate = useSubmitGuard()
 
   return (
     <Modal
@@ -44,7 +46,9 @@ export function CreatePatientModal({ initialName, onCreated, onClose }: CreatePa
           error={createMutation.error}
           onCancel={onClose}
           onSubmitCreate={(values) => {
-            createMutation.mutate(values, { onSuccess: onCreated })
+            guardCreate((release) =>
+              createMutation.mutate(values, { onSuccess: onCreated, onSettled: release }),
+            )
           }}
         />
     </Modal>

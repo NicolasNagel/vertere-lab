@@ -193,6 +193,73 @@ test('with patients.manage, creates a patient with embedded owner data and retur
   expect(screen.getByText('Joana Lima')).toBeInTheDocument()
 })
 
+test('shows an error, not the empty state, when the list request fails', async () => {
+  server.use(
+    meHandler(['patients.read']),
+    speciesHandler(),
+    http.get('/api/v1/patients', () => HttpResponse.json({}, { status: 500 })),
+  )
+  renderWithProviders(<PatientsPage />)
+
+  expect(await screen.findByRole('alert')).toHaveTextContent('Não foi possível carregar os pacientes.')
+  expect(screen.queryByText('Nenhum paciente encontrado.')).not.toBeInTheDocument()
+})
+
+test('a double click on Salvar creates the patient only once', async () => {
+  const user = userEvent.setup()
+  let posts = 0
+  server.use(
+    meHandler(['patients.read', 'patients.manage']),
+    speciesHandler(),
+    clinicsHandler(),
+    patientsListHandler(),
+    http.post('/api/v1/patients', async () => {
+      posts += 1
+      await new Promise((resolve) => setTimeout(resolve, 150))
+      return HttpResponse.json(apiPatient({ id: 'p2', name: 'Bidu' }), { status: 201 })
+    }),
+    http.get('/api/v1/patients/p2', () => HttpResponse.json(apiPatient({ id: 'p2', name: 'Bidu' }))),
+  )
+  renderWithProviders(<PatientsPage />)
+
+  await user.click(await screen.findByRole('button', { name: /Novo paciente/i }))
+  await user.type(screen.getByLabelText('Nome do paciente'), 'Bidu')
+  await pickOption(user, 'Clínica', 'Clínica Central')
+  await pickOption(user, 'Espécie', 'Gato')
+  await user.type(screen.getByLabelText('Nome do tutor'), 'Joana Lima')
+  await user.dblClick(screen.getByRole('button', { name: 'Salvar' }))
+
+  expect(await screen.findByRole('heading', { name: 'Bidu' })).toBeInTheDocument()
+  expect(posts).toBe(1)
+})
+
+test('the new patient form mirrors the API length limits instead of sending a doomed request', async () => {
+  const user = userEvent.setup()
+  let posts = 0
+  server.use(
+    meHandler(['patients.read', 'patients.manage']),
+    speciesHandler(),
+    clinicsHandler(),
+    patientsListHandler(),
+    http.post('/api/v1/patients', () => {
+      posts += 1
+      return HttpResponse.json(apiPatient({ id: 'p9' }), { status: 201 })
+    }),
+  )
+  renderWithProviders(<PatientsPage />)
+
+  await user.click(await screen.findByRole('button', { name: /Novo paciente/i }))
+  await user.click(screen.getByLabelText('Nome do paciente'))
+  await user.paste('N'.repeat(201))
+  await pickOption(user, 'Clínica', 'Clínica Central')
+  await pickOption(user, 'Espécie', 'Gato')
+  await user.type(screen.getByLabelText('Nome do tutor'), 'Joana Lima')
+  await user.click(screen.getByRole('button', { name: 'Salvar' }))
+
+  expect(await screen.findByText('Use até 200 caracteres.')).toBeInTheDocument()
+  expect(posts).toBe(0)
+})
+
 test('deactivates a patient and preserves the record', async () => {
   const user = userEvent.setup()
   let status: 'ACTIVE' | 'INACTIVE' = 'ACTIVE'
