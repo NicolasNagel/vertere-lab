@@ -125,7 +125,8 @@ mostrava erro de API como "Nenhum paciente encontrado."; tela de pacientes inuti
 Abertas (não bloqueantes):
 - [ ] Lista de veterinários mostra a mesma mensagem genérica para 403 e para falha de rede; a regra
       de frontend pede 401 e 403 distintos.
-- [ ] Formulário de paciente no celular: "Nome do paciente" ocupa só metade da linha.
+- [x] Formulário de paciente no celular: "Nome do paciente" ocupa só metade da linha.
+      RESOLVIDO (fatia 5): cadastro em coluna única no mobile, nome em largura total.
 - [ ] Decidir se está certo: editar paciente INATIVO é aceito (200) e mover paciente para outra
       clínica via PATCH também; hoje não há bloqueio nem aviso.
 - [ ] Isolamento por clínica não foi exercitado: os papéis de clínica (CLINIC_ADMIN, CLINIC_STAFF,
@@ -133,7 +134,8 @@ Abertas (não bloqueantes):
       responde 403 para eles. Segue valendo o bloqueador de tenant do HANDOFF.
 - [ ] Bloqueio por tentativas é por login (5 falhas): quem erra a senha de outra pessoa trava a conta
       dela (efeito esperado do desenho; registrar a decisão).
-- [ ] Atualização de paciente (PATCH) não tem o guard de duplo envio; o `row_version` impede dano.
+- [x] Atualização de paciente (PATCH) não tem o guard de duplo envio; o `row_version` impede dano.
+      RESOLVIDO (fatia 5): os formulários de bloco usam `useSubmitGuard`.
 - [ ] Não verificado: menu lateral para o papel TECHNICAL (a leitura devolveu lista vazia), fluxo só
       por teclado, telas de detalhe com XSS, e leitura por leitor de tela (o `getByRole` do Playwright
       não achou o "Salvar" do formulário de paciente, embora o DOM e o Chromium o mostrem).
@@ -183,8 +185,9 @@ auditoria; atendimentos antigos não mudam (guardam a própria `clinic_id`). Imp
 - [ ] `reason` é texto livre e vai para o `audit_log`: pode conter PII digitada; sugerir na UI não
       incluir dado pessoal e garantir que o log de aplicação não o imprima.
 - [ ] `species_id` e `status` de `patients` sem índice: medir com `EXPLAIN` antes de criar.
-- [ ] O formulário de edição atual desabilita a clínica, então paciente LEGADO sem clínica não ganha uma
+- [x] O formulário de edição atual desabilita a clínica, então paciente LEGADO sem clínica não ganha uma
       pelo formulário; resolver na tela de detalhe com blocos (fatia 5).
+      RESOLVIDO (fatia 5): o bloco Clínica dá clínica ao legado sem motivo.
 - [ ] `reason` enviado sem troca de clínica é descartado em silêncio (coberto por teste unitário).
 - [ ] O `openapi.json` desta fatia inclui também os limites de schema da rodada anterior, que não tinham
       sido regenerados (`npm run api:check` falharia no CI sem isso).
@@ -211,7 +214,8 @@ A lista passou ao padrão (cartões, abas, filtros, tabela, popover) e ganhou `/
 - [ ] Inativar numa aba de status, estando na página N, pode deixar a página vazia com `total` > 0.
 - [ ] No mobile as colunas Clínica e Idade ficam só no popover (igual a Veterinários); a tabela rola
       dentro do painel.
-- [ ] O detalhe interino `/pacientes/:id` não quebra nome/tutor de 200 caracteres (fatia 5 refaz).
+- [x] O detalhe interino `/pacientes/:id` não quebra nome/tutor de 200 caracteres (fatia 5 refaz).
+      RESOLVIDO (fatia 5): título, cartões e blocos quebram linha.
 - [ ] O `getByRole('button', { name: 'Cancelar' })` do Playwright não achou o botão do formulário de
       paciente embora o DOM e o jsdom o encontrem (mesma limitação de seletor já vista com "Salvar").
 
@@ -236,4 +240,26 @@ calculou. `search` aceita até 254 caracteres (e-mail de usuário). Abertas, nã
       CRMV agora trunca; conferir e-mail.
 - [ ] `frontend/test-results` ficou com artefatos de falha do Playwright (ignorado pelo git); apagar à mão.
 - [ ] Teste do `confirm` de atendimento com quantidade enorme (faltou payload válido no QA).
+
+## Pacientes: detalhe e cadastro em blocos (fatia 5, 19/11)
+`/pacientes/:id` virou blocos editáveis (Identificação, Tutor, Clínica com motivo, Observação) e
+`/pacientes/novo` usa o layout do Novo Protocolo. Corrigidos depois da revisão e do QA: motivo da troca
+de clínica validado em 500 caracteres; "Recarregar" após 409 volta o bloco à leitura (antes deixava o texto
+digitado para um novo Salvar sobrescrever); bloco aberto volta à leitura quando o paciente é inativado;
+clínica atual inativa continua no dropdown; falha 500 do detalhe não diz "não encontrado"; foco do teclado
+vai ao primeiro campo ao abrir e volta ao "Editar" ao fechar. Abertas, não bloqueantes:
+- [ ] **DRY e camada:** `shared/ui/detail-block.tsx` importa CSS de `features/attendances` (as classes
+      `attendance-correction-block__*` e `attendance-readonly-detail__*`). Extrair `shared/ui/detail-block.css`
+      com nomes `detail-block__*` e migrar o detalhe de Veterinários e o de atendimento para o `DetailBlock`
+      (Veterinários ainda tem a cópia `veterinarian-detail-block.tsx`).
+- [ ] O `audit_log` de `patients.updated` guarda só nome, status e `clinic_id` (e o motivo na troca de clínica);
+      não registra quais campos mudaram (telefone, observação, raça, espécie, idade). Decidir o que auditar
+      (cuidado com PII de tutor) e gravar antes/depois dos campos alterados.
+- [ ] `create-patient-modal.tsx` não é usado em nenhum lugar (código morto, achado do QA): apagar ou
+      reaproveitar. `PatientForm` segue só no "Corrigir cadastro" de atendimento; migrar para os blocos
+      ou para o formulário de criação na fatia de atendimento.
+- [ ] Teclado em tablet/mobile, contraste medido do foco, IDOR entre escopos de clínica e grep de PII no
+      log não foram executados no QA desta fatia (fatia 6 trata o isolamento).
+- [ ] Um teste de teclado de Veterinários (tablet) falhou uma vez no run completo e passou isolado e 9 de 9
+      repetido (`veterinarians.spec.ts:230`, `toHaveCount` logo após Esc): provável corrida; estabilizar.
 
