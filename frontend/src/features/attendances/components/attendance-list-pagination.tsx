@@ -17,16 +17,18 @@ export function AttendanceListPagination({
   itemLabel = ['atendimento', 'atendimentos'],
   onPageChange,
 }: AttendanceListPaginationProps) {
+  // Sem itens (carregando, vazio ou erro) não há o que paginar: a lista já diz o que houve, e o
+  // rodapé "Nenhum … ‹ 1 / 1 ›" só repetia isso.
+  if (total === 0) return null
+
   const totalPages = Math.max(1, Math.ceil(total / pageSize))
-  const rangeStart = total === 0 ? 0 : (page - 1) * pageSize + 1
+  const rangeStart = (page - 1) * pageSize + 1
   const rangeEnd = Math.min(page * pageSize, total)
 
   return (
     <div className="attendance-list-pagination">
       <span className="attendance-list-pagination__summary">
-        {total === 0
-          ? `Nenhum ${itemLabel[0]}`
-          : `Mostrando ${rangeStart}–${rangeEnd} de ${total} ${pluralize(total, itemLabel[0], itemLabel[1])}`}
+        Mostrando {rangeStart}–{rangeEnd} de {total} {pluralize(total, itemLabel[0], itemLabel[1])}
       </span>
       <div className="attendance-list-pagination__controls">
         <button

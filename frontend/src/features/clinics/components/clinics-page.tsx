@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router'
 
 import { useAuth } from '../../auth/auth-context'
+import { useActionError } from '../../../shared/lib/use-action-error'
 import { Modal } from '../../../shared/ui/modal'
 import { PlusIcon, SearchIcon } from '../../../shared/ui/icons'
 import { PageHeader } from '../../../shared/ui/page-header'
@@ -49,6 +50,7 @@ export function ClinicsPage() {
   ]
   const detailQuery = useClinicQuery(selectedId)
   const deactivateMutation = useDeactivateClinicMutation()
+  const actionError = useActionError()
 
   function select(id: string | null) {
     setSearchParams(id ? { clinica: id } : {}, { replace: true })
@@ -103,6 +105,11 @@ export function ClinicsPage() {
           </div>
         </div>
 
+        {actionError.message && (
+          <p role="alert" className="attendance-list-page__error">
+            {actionError.message}
+          </p>
+        )}
         <ClinicTable
           clinics={listQuery.data?.items ?? []}
           canManage={canManage}
@@ -130,9 +137,11 @@ export function ClinicsPage() {
             clinic={detailQuery.data ?? null}
             isLoading={detailQuery.isLoading}
             canManage={canManage}
+            actionError={actionError.message}
             onClose={() => select(null)}
             onDeactivate={() => {
-              deactivateMutation.mutate(selectedId)
+              actionError.clear()
+              deactivateMutation.mutate(selectedId, { onError: actionError.onError })
             }}
           />
         </Modal>

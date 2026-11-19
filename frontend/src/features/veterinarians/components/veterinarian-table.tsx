@@ -5,7 +5,7 @@ import type { Veterinarian } from '../api/veterinarians-api'
 import '../../attendances/components/attendance-list-page.css'
 import '../../attendances/components/attendance-list-pagination.css'
 import '../../attendances/components/attendance-list-table.css'
-import './veterinarian-table.css'
+import '../../../shared/ui/registry-table.css'
 
 interface VeterinarianTableProps {
   veterinarians: Veterinarian[]
@@ -50,19 +50,19 @@ export function VeterinarianTable({
       )}
       {veterinarians.length > 0 && (
         <div className="attendance-list-table">
-          <table className="attendance-list-table__table veterinarian-table__table">
+          <table className="attendance-list-table__table registry-table__table">
             <thead>
               <tr>
                 <th scope="col">Veterinário</th>
                 <th scope="col">CRMV</th>
-                <th scope="col" className="veterinarian-table__optional">
+                <th scope="col" className="registry-table__optional">
                   Telefone
                 </th>
                 <th scope="col">Vínculo</th>
                 <th scope="col">Status</th>
                 {canManage && (
-                  <th scope="col" className="veterinarian-table__actions">
-                    <span className="veterinarian-table__sr">Ações</span>
+                  <th scope="col" className="registry-table__actions">
+                    <span className="registry-table__sr">Ações</span>
                   </th>
                 )}
               </tr>
@@ -89,7 +89,7 @@ export function VeterinarianTable({
                     <td>
                       <button
                         type="button"
-                        className="veterinarian-table__name"
+                        className="registry-table__name"
                         title={veterinarian.name}
                         onClick={(event) => {
                           event.stopPropagation()
@@ -99,8 +99,10 @@ export function VeterinarianTable({
                         {veterinarian.name}
                       </button>
                     </td>
-                    <td className="attendance-list-table__protocol">{veterinarian.crmv}</td>
-                    <td className="attendance-list-table__protocol veterinarian-table__optional">
+                    <td className="attendance-list-table__protocol registry-table__truncate" title={veterinarian.crmv}>
+                      {veterinarian.crmv}
+                    </td>
+                    <td className="attendance-list-table__protocol registry-table__optional">
                       {veterinarian.phone ?? '—'}
                     </td>
                     <td>{veterinarian.isAutonomous ? 'Autônomo' : 'Vinculado a clínica'}</td>
@@ -111,7 +113,7 @@ export function VeterinarianTable({
                     </td>
                     {canManage && (
                       <td
-                        className="veterinarian-table__actions"
+                        className="registry-table__actions"
                         onClick={(event) => event.stopPropagation()}
                       >
                         {items.length > 0 && (

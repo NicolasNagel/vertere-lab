@@ -1,15 +1,16 @@
 import { Link } from 'react-router'
 
+import { displayValue } from '../../../shared/lib/formatters'
 import { Badge } from '../../../shared/ui/badge'
 import { KebabMenu, type KebabMenuItem } from '../../../shared/ui/kebab-menu'
 import type { Patient } from '../api/patients-api'
 import {
-  displayValue,
   PATIENT_SEX_LABELS,
   PATIENT_STATUS_LABELS,
   patientLoadErrorMessage,
 } from './patient-labels'
 import '../../../shared/ui/button.css'
+import '../../attendances/components/attendance-list-page.css'
 import '../../attendances/components/attendance-row-popover.css'
 
 export const PATIENT_POPOVER_TITLE_ID = 'patient-row-popover-title'
@@ -22,6 +23,8 @@ interface PatientRowPopoverProps {
   loadError?: unknown
   speciesName: string
   clinicName: string
+  /** Falha de Inativar/Reativar: o diálogo cobre a lista, então a mensagem também aparece aqui. */
+  actionError?: string | null
   /** `patients.manage`: libera Inativar/Reativar; editar acontece na tela do paciente. */
   canManage: boolean
   onClose: () => void
@@ -36,6 +39,7 @@ export function PatientRowPopover({
   loadError,
   speciesName,
   clinicName,
+  actionError,
   canManage,
   onClose,
   onDeactivate,
@@ -97,6 +101,11 @@ export function PatientRowPopover({
       </header>
 
       <div className="attendance-row-popover__body">
+        {actionError && (
+          <p role="alert" className="attendance-list-page__error">
+            {actionError}
+          </p>
+        )}
         <section aria-labelledby="patient-row-popover-data">
           <h3 id="patient-row-popover-data" className="attendance-row-popover__section">
             Dados gerais

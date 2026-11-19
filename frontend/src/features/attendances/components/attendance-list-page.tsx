@@ -199,7 +199,7 @@ export function AttendanceListPage() {
               )}
 
               {isGenericError && (
-                <p className="attendance-list-page__error">
+                <p role="alert" className="attendance-list-page__error">
                   Não foi possível carregar os atendimentos. Tente novamente.
                 </p>
               )}

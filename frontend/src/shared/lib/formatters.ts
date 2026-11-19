@@ -98,3 +98,8 @@ export function normalizeSearchText(text: string): string {
     .replace(/[̀-ͯ]/g, '')
     .toLowerCase()
 }
+
+/** Campo opcional em leitura: vazio aparece como travessão, nunca como string em branco. */
+export function displayValue(value: string | null): string {
+  return value && value.trim().length > 0 ? value : '—'
+}

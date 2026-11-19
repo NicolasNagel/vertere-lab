@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react'
 import { Link, useSearchParams } from 'react-router'
 
 import { useAuth } from '../../auth/auth-context'
+import { useActionError } from '../../../shared/lib/use-action-error'
 import { useDebouncedValue } from '../../../shared/lib/use-debounced-value'
 import { useAllClinicsQuery } from '../../clinics/api/use-clinics-query'
 import { Dropdown, type DropdownOption } from '../../../shared/ui/dropdown'
@@ -79,6 +80,17 @@ export function PatientsPage() {
   const speciesQuery = useSpeciesQuery()
   const deactivateMutation = useDeactivatePatientMutation()
   const reactivateMutation = useReactivatePatientMutation()
+  const actionError = useActionError()
+
+  function deactivate(id: string) {
+    actionError.clear()
+    deactivateMutation.mutate(id, { onError: actionError.onError })
+  }
+
+  function reactivate(id: string) {
+    actionError.clear()
+    reactivateMutation.mutate(id, { onError: actionError.onError })
+  }
 
   const clinicNameById = useMemo(
     () => new Map((clinicsQuery.data?.items ?? []).map((clinic) => [clinic.id, clinic.name])),
@@ -196,6 +208,11 @@ export function PatientsPage() {
           </div>
         </div>
 
+        {actionError.message && (
+          <p role="alert" className="attendance-list-page__error">
+            {actionError.message}
+          </p>
+        )}
         <PatientTable
           patients={listQuery.data?.items ?? []}
           speciesNameById={speciesNameById}
@@ -208,8 +225,8 @@ export function PatientsPage() {
           pageSize={listQuery.data?.pageSize ?? PAGE_SIZE}
           total={listQuery.data?.total ?? 0}
           onSelect={select}
-          onDeactivate={(id) => deactivateMutation.mutate(id)}
-          onReactivate={(id) => reactivateMutation.mutate(id)}
+          onDeactivate={deactivate}
+          onReactivate={reactivate}
           onPageChange={setPage}
         />
       </div>
@@ -234,8 +251,9 @@ export function PatientsPage() {
             }
             canManage={canManage}
             onClose={() => select(null)}
-            onDeactivate={(id) => deactivateMutation.mutate(id)}
-            onReactivate={(id) => reactivateMutation.mutate(id)}
+            actionError={actionError.message}
+            onDeactivate={deactivate}
+            onReactivate={reactivate}
           />
         </Modal>
       )}

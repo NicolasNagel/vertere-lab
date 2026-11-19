@@ -1,9 +1,10 @@
+import { displayValue } from '../../../shared/lib/formatters'
 import { Button } from '../../../shared/ui/button'
 import { KebabMenu, type KebabMenuItem } from '../../../shared/ui/kebab-menu'
 import type { Patient, PatientFormValues, PatientStatus } from '../api/patients-api'
 import { useSpeciesQuery } from '../api/use-species-query'
 import { PatientForm } from './patient-form'
-import { displayValue, PATIENT_SEX_LABELS, PATIENT_STATUS_LABELS } from './patient-labels'
+import { PATIENT_SEX_LABELS, PATIENT_STATUS_LABELS } from './patient-labels'
 import './patient-detail.css'
 
 interface PatientDetailProps {

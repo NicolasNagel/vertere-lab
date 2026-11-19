@@ -11,11 +11,6 @@ export const PATIENT_SEX_LABELS: Record<Patient['sex'], string> = {
   FEMALE: 'Fêmea',
 }
 
-/** Campo opcional em leitura: vazio aparece como travessão, nunca como string em branco. */
-export function displayValue(value: string | null): string {
-  return value && value.trim().length > 0 ? value : '—'
-}
-
 /** 403 não é "falha de rede": quem não tem `patients.read` precisa saber que é permissão. */
 export function patientListErrorMessage(error: unknown): string {
   return error instanceof ApiError && error.status === 403

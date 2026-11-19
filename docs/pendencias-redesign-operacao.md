@@ -192,22 +192,48 @@ auditoria; atendimentos antigos não mudam (guardam a própria `clinic_id`). Imp
 ## Pacientes: lista no padrão Operação (fatia 4, 19/11)
 A lista passou ao padrão (cartões, abas, filtros, tabela, popover) e ganhou `/pacientes/novo` e
 `/pacientes/:id` (interinas, com os componentes antigos até a fatia 5). Ressalvas do QA e da revisão:
-- [ ] **Backend, transversal (achado do QA):** `search` com byte NUL (`%00`) devolve 500 (`psycopg.DataError:
+- [x] **Backend, transversal (achado do QA):** `search` com byte NUL (`%00`) devolve 500 (`psycopg.DataError:
       PostgreSQL text fields cannot contain NUL`) em `/patients`, `/veterinarians` e `/clinics`. Validar o
       parâmetro (tipo compartilhado `SearchQuery` sem NUL e com tamanho máximo) e devolver 422.
-- [ ] Erro ao inativar/reativar (409, 403, rede) não aparece para o usuário nas listas de Pacientes e de
+      RESOLVIDO (rodada fix/search-validation-and-list-cleanup): tipos `SearchQuery`/`ProtocolQuery`/`OwnerNameQuery`/`ReasonQuery` e rede para NUL em corpo; ver a seção abaixo.
+- [x] Erro ao inativar/reativar (409, 403, rede) não aparece para o usuário nas listas de Pacientes e de
       Veterinários; mostrar alerta ou toast.
-- [ ] DRY: `displayValue` existe em 4 lugares (`patient-labels.ts`, `clinic-detail.tsx`,
+      RESOLVIDO: hook `useActionError`; alerta na lista e dentro do popover (pacientes e clínicas).
+- [x] DRY: `displayValue` existe em 4 lugares (`patient-labels.ts`, `clinic-detail.tsx`,
       `veterinarian-detail-page.tsx`, `veterinarian-row-popover.tsx`) e o CSS de tabela de cadastro em 3
       (`patient-table.css`, `veterinarian-table.css`, `clinic-table.css`, incluindo regras globais
       `tr[data-selectable]`). Extrair para `shared/lib` e um `registry-table.css`; deve ser a primeira
       tarefa da próxima tela de cadastro.
-- [ ] Rodapé de paginação mostra "Nenhum paciente ‹ 1 / 1 ›" durante carregamento, lista vazia e erro
+      RESOLVIDO: `displayValue` em `shared/lib/formatters` e `shared/ui/registry-table.css` (regras de seleção escopadas).
+- [x] Rodapé de paginação mostra "Nenhum paciente ‹ 1 / 1 ›" durante carregamento, lista vazia e erro
       (componente compartilhado da Operação; igual em Veterinários).
+      RESOLVIDO: sem itens não há rodapé.
 - [ ] Inativar numa aba de status, estando na página N, pode deixar a página vazia com `total` > 0.
 - [ ] No mobile as colunas Clínica e Idade ficam só no popover (igual a Veterinários); a tabela rola
       dentro do painel.
 - [ ] O detalhe interino `/pacientes/:id` não quebra nome/tutor de 200 caracteres (fatia 5 refaz).
 - [ ] O `getByRole('button', { name: 'Cancelar' })` do Playwright não achou o botão do formulário de
       paciente embora o DOM e o jsdom o encontrem (mesma limitação de seletor já vista com "Salvar").
+
+## Rodada de limpeza: busca com NUL, erro de ação, tabelas e rodapé (19/11)
+Corrigido: byte NUL em `search`/`protocol_number`/`owner_name`/`reason` agora dá 422 no campo; NUL em
+campo de corpo dá 422 pela rede de `DataError` (restrita a texto: NUL e SQLSTATE 22021/22P05); o resto
+da classe 22 segue 500 com o SQLSTATE logado, para não culpar o cliente por um total que o servidor
+calculou. `search` aceita até 254 caracteres (e-mail de usuário). Abertas, não bloqueantes:
+- [ ] **Entradas numéricas sem limite** (auditor): `quantity` de item de atendimento (`ge=1`, sem `le`),
+      `age_value` e os campos de dinheiro enviados pelo cliente podem estourar a coluna e viram 500
+      (22003). Definir limites de domínio (decisão de produto) e uma exceção de domínio para estouro de
+      total no confirmar/fechar, com teste no limite (`12-attendance.md`, `13-monthly-closure.md`).
+- [ ] **Importação com NUL** (auditor): CSV de exames (`csv.DictReader` aceita NUL) e planilha (`raw_data`
+      JSONB recusa `\u0000`) derrubam o lote inteiro com 422 genérico, sem a linha. Rejeitar NUL por linha
+      e registrar status de erro (`10-data-migration.md`: toda linha tem estado final); testar célula com NUL.
+- [ ] NUL em campo de corpo responde 422 genérico sem indicar o campo; aplicar `reject_nul` nos tipos de
+      texto dos schemas daria a mensagem por campo.
+- [ ] Confirmar se o registro de idempotência fica em transação própria: um 4xx no meio do caso de uso
+      poderia deixar a chave "em andamento".
+- [ ] Busca no servidor não ignora acento: `joao` não acha `João` (a lista local ignora; o SQL não).
+- [ ] A lista de veterinários não quebrava CRMV/e-mail de 5000 caracteres (dado legado de antes dos limites):
+      CRMV agora trunca; conferir e-mail.
+- [ ] `frontend/test-results` ficou com artefatos de falha do Playwright (ignorado pelo git); apagar à mão.
+- [ ] Teste do `confirm` de atendimento com quantidade enorme (faltou payload válido no QA).
 

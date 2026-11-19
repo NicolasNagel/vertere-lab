@@ -310,3 +310,60 @@ test('the popover says when the patient cannot be shown because of permission', 
   ).toBeInTheDocument()
 })
 
+test('a failed Inativar shows the reason in the list and in the popover, and clears on the next try', async () => {
+  const user = userEvent.setup()
+  let fail = true
+  server.use(
+    ...baseHandlers(MANAGE),
+    http.get('/api/v1/patients', () => HttpResponse.json(pageOf([apiPatient()]))),
+    http.get('/api/v1/patients/p1', () => HttpResponse.json(apiPatient())),
+    http.post('/api/v1/patients/p1/deactivate', () =>
+      fail
+        ? HttpResponse.json(
+            { error: { code: 'CONFLICT', message: 'Paciente alterado por outra pessoa.' } },
+            { status: 409 },
+          )
+        : HttpResponse.json(apiPatient({ status: 'INACTIVE' })),
+    ),
+  )
+  renderList()
+
+  await user.click(await screen.findByRole('button', { name: 'Ações para Rex' }))
+  await user.click(await screen.findByRole('menuitem', { name: 'Inativar paciente' }))
+  expect(await screen.findByRole('alert')).toHaveTextContent('Paciente alterado por outra pessoa.')
+
+  // The popover covers the list, so the same message shows there.
+  await user.click(screen.getByRole('button', { name: 'Rex' }))
+  const dialog = within(await screen.findByRole('dialog'))
+  await user.click(await dialog.findByRole('button', { name: 'Mais ações' }))
+  await user.click(await screen.findByRole('menuitem', { name: 'Inativar paciente' }))
+  expect(await dialog.findByRole('alert')).toHaveTextContent('Paciente alterado por outra pessoa.')
+
+  // A successful retry clears it.
+  fail = false
+  await user.click(dialog.getByRole('button', { name: 'Mais ações' }))
+  await user.click(await screen.findByRole('menuitem', { name: 'Inativar paciente' }))
+  await waitFor(() => expect(screen.queryByRole('alert')).not.toBeInTheDocument())
+})
+
+test('without items the list has no pagination footer (loading, empty and error)', async () => {
+  server.use(
+    ...baseHandlers(READ),
+    http.get('/api/v1/patients', () => HttpResponse.json(pageOf([]))),
+  )
+  const empty = renderList()
+  await screen.findByText('Nenhum paciente encontrado para os filtros selecionados.')
+  expect(screen.queryByRole('button', { name: 'Próxima página' })).not.toBeInTheDocument()
+  expect(screen.queryByText(/Mostrando/)).not.toBeInTheDocument()
+  empty.unmount()
+  server.resetHandlers()
+
+  server.use(
+    ...baseHandlers(READ),
+    http.get('/api/v1/patients', () => HttpResponse.json(pageOf([apiPatient()]))),
+  )
+  renderList()
+  await screen.findByRole('button', { name: 'Rex' })
+  expect(screen.getByText('Mostrando 1–1 de 1 paciente')).toBeInTheDocument()
+  expect(screen.getByRole('button', { name: 'Próxima página' })).toBeDisabled()
+})

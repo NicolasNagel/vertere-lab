@@ -1,11 +1,13 @@
+import { displayValue } from '../../../shared/lib/formatters'
 import { Badge } from '../../../shared/ui/badge'
 import { KebabMenu, type KebabMenuItem } from '../../../shared/ui/kebab-menu'
 import { AttendanceListPagination } from '../../attendances/components/attendance-list-pagination'
 import type { Patient } from '../api/patients-api'
-import { displayValue, PATIENT_STATUS_LABELS, patientListErrorMessage } from './patient-labels'
+import { PATIENT_STATUS_LABELS, patientListErrorMessage } from './patient-labels'
 import '../../attendances/components/attendance-list-page.css'
 import '../../attendances/components/attendance-list-pagination.css'
 import '../../attendances/components/attendance-list-table.css'
+import '../../../shared/ui/registry-table.css'
 import './patient-table.css'
 
 interface PatientTableProps {
@@ -58,22 +60,22 @@ export function PatientTable({
       )}
       {patients.length > 0 && (
         <div className="attendance-list-table">
-          <table className="attendance-list-table__table patient-table__table">
+          <table className="attendance-list-table__table registry-table__table patient-table__table">
             <thead>
               <tr>
                 <th scope="col">Paciente</th>
                 <th scope="col">Espécie</th>
                 <th scope="col">Tutor</th>
-                <th scope="col" className="patient-table__optional">
+                <th scope="col" className="registry-table__optional">
                   Clínica
                 </th>
-                <th scope="col" className="patient-table__optional">
+                <th scope="col" className="registry-table__optional">
                   Idade
                 </th>
                 <th scope="col">Status</th>
                 {canManage && (
-                  <th scope="col" className="patient-table__actions">
-                    <span className="patient-table__sr">Ações</span>
+                  <th scope="col" className="registry-table__actions">
+                    <span className="registry-table__sr">Ações</span>
                   </th>
                 )}
               </tr>
@@ -100,7 +102,7 @@ export function PatientTable({
                     <td>
                       <button
                         type="button"
-                        className="patient-table__name"
+                        className="registry-table__name"
                         title={patient.name}
                         onClick={(event) => {
                           event.stopPropagation()
@@ -111,13 +113,13 @@ export function PatientTable({
                       </button>
                     </td>
                     <td>{speciesNameById.get(patient.speciesId) ?? '—'}</td>
-                    <td className="patient-table__owner" title={patient.ownerName}>
+                    <td className="registry-table__truncate" title={patient.ownerName}>
                       {patient.ownerName}
                     </td>
-                    <td className="patient-table__optional patient-table__clinic">
+                    <td className="registry-table__optional registry-table__truncate">
                       {patient.clinicId ? (clinicNameById.get(patient.clinicId) ?? '—') : '—'}
                     </td>
-                    <td className="patient-table__optional">
+                    <td className="registry-table__optional">
                       {displayValue(patient.ageDescription)}
                     </td>
                     <td>
@@ -127,7 +129,7 @@ export function PatientTable({
                     </td>
                     {canManage && (
                       <td
-                        className="patient-table__actions"
+                        className="registry-table__actions"
                         onClick={(event) => event.stopPropagation()}
                       >
                         <KebabMenu label={`Ações para ${patient.name}`} items={items} />

@@ -1,6 +1,7 @@
 import { Link, useParams } from 'react-router'
 
 import { ApiError } from '../../../shared/api/errors'
+import { displayValue } from '../../../shared/lib/formatters'
 import { Badge } from '../../../shared/ui/badge'
 import { ArrowLeftIcon, ClinicsIcon, TagIcon, UserIcon } from '../../../shared/ui/icons'
 import { PageHeader } from '../../../shared/ui/page-header'
@@ -19,10 +20,6 @@ import './veterinarian-detail-page.css'
 function summarizeClinics(names: string[]): string {
   const shown = names.slice(0, 2).join(' · ')
   return names.length > 2 ? `${shown} e mais ${names.length - 2}` : shown
-}
-
-function displayValue(value: string | null): string {
-  return value && value.trim().length > 0 ? value : '—'
 }
 
 /** Detalhe do veterinário em blocos, cada um com "Editar" + motivo (auditado no backend). */

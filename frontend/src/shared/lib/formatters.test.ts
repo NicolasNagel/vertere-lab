@@ -1,6 +1,6 @@
 import { expect, test } from 'vitest'
 
-import { formatDate, formatTaxId, normalizeSearchText, pluralize } from './formatters'
+import { displayValue, formatDate, formatTaxId, normalizeSearchText, pluralize } from './formatters'
 
 test('formatTaxId masks 14 digits, is idempotent, leaves other values alone and passes through null', () => {
   expect(formatTaxId('21804204000155')).toBe('21.804.204/0001-55')
@@ -30,4 +30,10 @@ test('formatDate keeps a date-only string on its own calendar day and converts f
 test('normalizeSearchText ignores accents and case', () => {
   expect(normalizeSearchText('  Fábio ÇÃO ')).toBe('  fabio cao ')
   expect(normalizeSearchText('Veterinário')).toBe(normalizeSearchText('veterinario'))
+})
+
+test('displayValue shows a dash for missing or blank values', () => {
+  expect(displayValue(null)).toBe('—')
+  expect(displayValue('   ')).toBe('—')
+  expect(displayValue('Maria')).toBe('Maria')
 })
