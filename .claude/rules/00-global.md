@@ -62,6 +62,11 @@
 - Remova dependência sem uso.
 
 ## Git
-- Commits pequenos e coerentes; migration acompanha o código na mesma mudança.
+- **Toda fatia termina em commit**, em branch própria (nunca na `main`), depois de `/validar`,
+  QA e revisão independentes — fluxo completo no `AGENTS.md` ("Fluxo de toda fatia").
+- Commits pequenos e coerentes (um por fatia); migration acompanha o código na mesma mudança.
+- Mensagem em inglês, `tipo(escopo): resumo`, corpo com o porquê e os critérios atendidos.
+- `git add` só dos caminhos da fatia (nunca `-A`/`.`); `push`, PR, merge, `amend`, `rebase` e
+  `force` só a pedido explícito do usuário.
 - Nunca commitar segredo, dump de banco ou dado real.
 - Não reformate arquivo não relacionado à mudança; não altere contrato público sem documentar.
