@@ -200,3 +200,39 @@ async def test_veterinarian_clinic_links_availability_versions_and_deactivation(
     assert (deactivated.status_code, deactivated.json()["status"]) == (200, "INACTIVE")
     kept = await client.get(url)
     assert (kept.status_code, kept.json()["name"]) == (200, "Vet Dois")
+
+
+async def test_veterinarian_input_is_trimmed_bounded_and_blank_crmv_is_a_422_not_a_500(
+    client: httpx.AsyncClient, session_factory: sessionmaker[Session]
+) -> None:
+    """QA 2026-11-19: a whitespace-only CRMV raised a bare ValueError (500); an invalid e-mail and
+    unbounded text were stored as sent."""
+    await _login_as(client, session_factory, email="admin@vertere.local", role_id=ROLE_LAB_ADMIN)
+    body = {"name": "Dra. QA", "crmv": "CRMV-SC 77001", "is_autonomous": True}
+
+    for field, value in (
+        ("name", "   "),
+        ("name", "x" * 201),
+        ("crmv", "   "),
+        ("crmv", "9" * 51),
+        ("email", "not-an-email"),
+        ("email", "a" * 250 + "@x.com"),
+        ("phone", "9" * 31),
+        ("notes", "n" * 2001),
+    ):
+        rejected = await client.post("/api/v1/veterinarians", json={**body, field: value})
+        assert rejected.status_code == 422, (field, len(value))
+
+    created = await client.post("/api/v1/veterinarians", json={**body, "name": "  Dra. QA  "})
+    assert created.status_code == 201
+    assert created.json()["name"] == "Dra. QA"
+
+    update = {
+        "name": "Dra. QA",
+        "crmv": "   ",
+        "status": "ACTIVE",
+        "expected_row_version": created.json()["row_version"],
+        "reason": "teste",
+    }
+    blank_crmv = await client.patch(f"/api/v1/veterinarians/{created.json()['id']}", json=update)
+    assert blank_crmv.status_code == 422

@@ -267,3 +267,47 @@ async def test_patient_structured_age_round_trips_validates_pair_and_tracks_reco
     listed = await client.get("/api/v1/patients", params={"search": "Thor"})
     assert listed.status_code == 200
     assert "age_value" in listed.json()["items"][0]
+
+
+async def test_patient_free_text_is_trimmed_and_bounded(
+    client: httpx.AsyncClient, session_factory: sessionmaker[Session]
+) -> None:
+    """QA 2026-11-19: whitespace-only and 5000-char names used to be stored as sent."""
+    dog_id = _get_species_id(session_factory, name="Canino")
+    await _login_as(client, session_factory, email="admin@vertere.local", role_id=ROLE_LAB_ADMIN)
+    body = {
+        "clinic_id": _clinic_id(session_factory),
+        "name": "Rex",
+        "species_id": dog_id,
+        "sex": "MALE",
+        "owner_name": "Maria",
+    }
+
+    for field, value in (
+        ("name", "   "),
+        ("name", "x" * 201),
+        ("owner_name", "   "),
+        ("owner_name", "x" * 201),
+        ("breed", "x" * 101),
+        ("owner_phone", "9" * 31),
+        ("notes", "x" * 2001),
+    ):
+        rejected = await client.post("/api/v1/patients", json={**body, field: value})
+        assert rejected.status_code == 422, (field, len(value))
+
+    trimmed = await client.post("/api/v1/patients", json={**body, "name": "  Rex  "})
+    assert trimmed.status_code == 201
+    assert trimmed.json()["name"] == "Rex"
+
+    update = {
+        "name": "Rex",
+        "species_id": dog_id,
+        "sex": "MALE",
+        "owner_name": "Maria",
+        "status": "ACTIVE",
+        "expected_row_version": trimmed.json()["row_version"],
+    }
+    url = f"/api/v1/patients/{trimmed.json()['id']}"
+    for field, value in (("name", "   "), ("owner_name", "x" * 201), ("notes", "x" * 2001)):
+        rejected_update = await client.patch(url, json={**update, field: value})
+        assert rejected_update.status_code == 422, field
