@@ -32,7 +32,17 @@ const clinic = {
   ],
 }
 
-type Mode = 'ok' | 'empty' | 'error'
+const clinicWithManyVets = {
+  ...clinic,
+  veterinarians: Array.from({ length: 20 }, (_, index) => ({
+    veterinarian_id: `v${index}`,
+    veterinarian_name: `Dra. Veterinária ${String(index).padStart(2, '0')}`,
+    crmv: `CRMV-SP ${1000 + index}`,
+    primary_clinic: index === 0,
+  })),
+}
+
+type Mode = 'ok' | 'empty' | 'error' | 'manyVets'
 
 async function mockApi(page: Page, permissions: string[], mode: Mode = 'ok') {
   await page.route('**/api/v1/**', (route) => {
@@ -53,7 +63,8 @@ async function mockApi(page: Page, permissions: string[], mode: Mode = 'ok') {
           permissions,
         }),
       )
-    if (path === '/clinics/c1') return route.fulfill(json(clinic))
+    if (path === '/clinics/c1')
+      return route.fulfill(json(mode === 'manyVets' ? clinicWithManyVets : clinic))
     if (path === '/clinics') {
       if (mode === 'error') return route.fulfill(json({ error: { code: 'X', message: 'x' } }, 500))
       const items = mode === 'empty' ? [] : [clinic]
@@ -96,6 +107,28 @@ for (const viewport of VIEWPORTS) {
       await page.getByRole('button', { name: LONG_NAME }).first().click()
       await expect(page.getByRole('dialog')).toBeVisible()
       await expect(page.getByRole('complementary', { name: 'Detalhes da clínica' })).toBeVisible()
+      await expectAccessible(page)
+    })
+
+    test('popover with 20 veterinarians shows a preview and a bounded, searchable full list', async ({
+      page,
+    }) => {
+      await mockApi(page, MANAGER, 'manyVets')
+      await page.goto('/cadastros/clinicas')
+      await page.getByRole('button', { name: LONG_NAME }).first().click()
+      const popover = page.getByRole('complementary', { name: 'Detalhes da clínica' })
+      await expect(popover.getByRole('listitem')).toHaveCount(5)
+      await expectAccessible(page)
+
+      await popover.getByRole('button', { name: 'Ver todos (20)' }).click()
+      const list = popover.getByRole('list', { name: 'Veterinários vinculados' })
+      await expect(list.getByRole('listitem')).toHaveCount(20)
+      const box = await list.boundingBox()
+      expect(box?.height ?? 0).toBeLessThanOrEqual(260)
+      await expectAccessible(page)
+
+      await popover.getByLabel('Buscar veterinário vinculado').fill('veterinária 07')
+      await expect(list.getByRole('listitem')).toHaveCount(1)
       await expectAccessible(page)
     })
 

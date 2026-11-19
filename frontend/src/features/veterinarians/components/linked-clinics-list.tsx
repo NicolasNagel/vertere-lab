@@ -1,17 +1,11 @@
 import { useState } from 'react'
 
+import { normalizeSearchText } from '../../../shared/lib/formatters'
 import { TextField } from '../../../shared/ui/text-field'
 import type { VeterinarianLinkedClinic } from '../api/veterinarians-api'
 import './clinic-batch-picker.css'
 
 const FILTER_THRESHOLD = 8
-
-function normalize(text: string): string {
-  return text
-    .normalize('NFD')
-    .replace(/[̀-ͯ]/g, '')
-    .toLowerCase()
-}
 
 /** Clínicas vinculadas em leitura: altura limitada com rolagem e busca quando a lista é longa. */
 export function LinkedClinicsList({
@@ -22,9 +16,9 @@ export function LinkedClinicsList({
   clinics: VeterinarianLinkedClinic[]
 }) {
   const [filter, setFilter] = useState('')
-  const term = normalize(filter.trim())
+  const term = normalizeSearchText(filter.trim())
   const visible = term
-    ? clinics.filter((clinic) => normalize(clinic.clinicName).includes(term))
+    ? clinics.filter((clinic) => normalizeSearchText(clinic.clinicName).includes(term))
     : clinics
 
   return (

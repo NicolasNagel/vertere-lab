@@ -11,6 +11,7 @@ import {
 } from 'react'
 import { createPortal } from 'react-dom'
 
+import { normalizeSearchText } from '../lib/formatters'
 import { CheckIcon, ChevronDownIcon, SearchIcon } from './icons'
 import './dropdown.css'
 
@@ -37,13 +38,6 @@ interface DropdownProps {
   /** Só no `field`: texto quando nada está selecionado. */
   placeholder?: string
   errorMessage?: string
-}
-
-function normalize(text: string): string {
-  return text
-    .normalize('NFD')
-    .replace(/[̀-ͯ]/g, '')
-    .toLowerCase()
 }
 
 interface PopoverPosition {
@@ -84,8 +78,8 @@ export function Dropdown({
 
   const visibleOptions = useMemo(() => {
     if (!searchable || !query.trim()) return options
-    const needle = normalize(query.trim())
-    return options.filter((option) => normalize(option.label).includes(needle))
+    const needle = normalizeSearchText(query.trim())
+    return options.filter((option) => normalizeSearchText(option.label).includes(needle))
   }, [options, query, searchable])
 
   const isField = variant === 'field'

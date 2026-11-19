@@ -90,3 +90,11 @@ export function formatCep(value: string): string {
   const digits = value.replace(/\D/g, '').slice(0, 8)
   return digits.length > 5 ? `${digits.slice(0, 5)}-${digits.slice(5)}` : digits
 }
+
+/** Texto para comparar em buscas locais: sem acento e sem diferença de caixa. */
+export function normalizeSearchText(text: string): string {
+  return text
+    .normalize('NFD')
+    .replace(/[̀-ͯ]/g, '')
+    .toLowerCase()
+}
