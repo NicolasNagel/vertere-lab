@@ -171,7 +171,8 @@
             "schema": {
               "anyOf": [
                 {
-                  "type": "string"
+                  "type": "string",
+                  "maxLength": 254
                 },
                 {
                   "type": "null"
@@ -760,7 +761,8 @@
             "schema": {
               "anyOf": [
                 {
-                  "type": "string"
+                  "type": "string",
+                  "maxLength": 254
                 },
                 {
                   "type": "null"
@@ -1049,7 +1051,8 @@
             "schema": {
               "anyOf": [
                 {
-                  "type": "string"
+                  "type": "string",
+                  "maxLength": 254
                 },
                 {
                   "type": "null"
@@ -1398,7 +1401,8 @@
             "schema": {
               "anyOf": [
                 {
-                  "type": "string"
+                  "type": "string",
+                  "maxLength": 254
                 },
                 {
                   "type": "null"
@@ -1749,7 +1753,8 @@
             "schema": {
               "anyOf": [
                 {
-                  "type": "string"
+                  "type": "string",
+                  "maxLength": 254
                 },
                 {
                   "type": "null"
@@ -2217,7 +2222,8 @@
             "schema": {
               "anyOf": [
                 {
-                  "type": "string"
+                  "type": "string",
+                  "maxLength": 254
                 },
                 {
                   "type": "null"
@@ -2349,7 +2355,8 @@
             "schema": {
               "anyOf": [
                 {
-                  "type": "string"
+                  "type": "string",
+                  "maxLength": 254
                 },
                 {
                   "type": "null"

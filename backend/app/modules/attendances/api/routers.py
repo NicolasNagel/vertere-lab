@@ -12,6 +12,7 @@ from fastapi import APIRouter, Depends, Header, Query
 from sqlalchemy.orm import Session as SqlAlchemySession
 
 from app.api.dependencies import get_session, get_unit_of_work
+from app.api.query_types import OwnerNameQuery, ProtocolQuery
 from app.modules.attendances.api.schemas import (
     AttendanceCancelRequest,
     AttendanceConfirmRequest,
@@ -251,8 +252,8 @@ def list_attendances(
     patient_id: UUID | None = Query(None),
     status: AttendanceStatus | None = Query(None),
     service_level: ServiceLevel | None = Query(None),
-    protocol_number: str | None = Query(None, min_length=1, max_length=32),
-    owner_name: str | None = Query(None, min_length=1, max_length=200),
+    protocol_number: ProtocolQuery = None,
+    owner_name: OwnerNameQuery = None,
     service_date_from: date | None = Query(None),
     service_date_to: date | None = Query(None),
     session: SqlAlchemySession = Depends(get_session),
@@ -288,8 +289,8 @@ def get_attendance_status_counts(
     clinic_id: UUID | None = Query(None),
     veterinarian_id: UUID | None = Query(None),
     service_level: ServiceLevel | None = Query(None),
-    protocol_number: str | None = Query(None, min_length=1, max_length=32),
-    owner_name: str | None = Query(None, min_length=1, max_length=200),
+    protocol_number: ProtocolQuery = None,
+    owner_name: OwnerNameQuery = None,
     service_date_from: date | None = Query(None),
     service_date_to: date | None = Query(None),
     session: SqlAlchemySession = Depends(get_session),

@@ -14,6 +14,7 @@ from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session as SqlAlchemySession
 
 from app.api.dependencies import get_session, get_unit_of_work
+from app.api.query_types import SearchQuery
 from app.modules.identity.api.dependencies import get_current_user, require_permission
 from app.modules.patients.api.schemas import (
     AgeUnitLiteral,
@@ -107,7 +108,7 @@ def list_patients(
     page: int = Query(1, ge=1),
     page_size: int = Query(20, ge=1, le=100),
     status: PatientStatus | None = Query(None),
-    search: str | None = Query(None),
+    search: SearchQuery = None,
     clinic_id: UUID | None = Query(None),
     species_id: UUID | None = Query(None),
     session: SqlAlchemySession = Depends(get_session),
@@ -135,7 +136,7 @@ def list_patients(
 
 @patients_router.get("/summary", response_model=PatientsSummaryRead)
 def summarize_patients(
-    search: str | None = Query(None),
+    search: SearchQuery = None,
     clinic_id: UUID | None = Query(None),
     species_id: UUID | None = Query(None),
     session: SqlAlchemySession = Depends(get_session),
