@@ -97,7 +97,8 @@ export function LoginForm({ notice }: LoginFormProps) {
         <Checkbox label="Manter conectado" disabled={submitting} {...register('rememberMe')} />
         <Button
           type="button"
-          variant="ghost"
+          variant="secondary"
+          size="sm"
           onClick={() => setShowForgotPasswordNotice((current) => !current)}
         >
           Esqueci a senha
