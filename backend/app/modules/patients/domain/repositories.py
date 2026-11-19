@@ -17,7 +17,10 @@ class SpeciesRepository(Protocol):
 
 
 class PatientRepository(Protocol):
-    def get_by_id(self, patient_id: UUID) -> Patient | None: ...
+    def get_by_id(self, patient_id: UUID, *, for_update: bool = False) -> Patient | None:
+        """`for_update=True` locks the row until the unit of work ends: use it on every path that
+        changes the patient, so concurrent writers are serialized and the version check is real."""
+        ...
 
     def get_by_owner_and_name(self, *, owner_name: str, name: str) -> Patient | None:
         """Case-insensitive match on (owner_name, name) — the closest thing
@@ -39,4 +42,16 @@ class PatientRepository(Protocol):
         search: str | None,
         clinic_ids: frozenset[UUID] | None = None,
         clinic_id: UUID | None = None,
+        species_id: UUID | None = None,
     ) -> tuple[list[Patient], int]: ...
+
+    def count_by_status(
+        self,
+        *,
+        search: str | None,
+        clinic_ids: frozenset[UUID] | None = None,
+        clinic_id: UUID | None = None,
+        species_id: UUID | None = None,
+    ) -> tuple[int, int]:
+        """Return `(active, inactive)` for the same filters `list_page` accepts."""
+        ...

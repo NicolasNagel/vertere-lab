@@ -5,6 +5,7 @@ ponta via HTTPX/ASGI.
 
 from __future__ import annotations
 
+import asyncio
 from datetime import UTC, datetime
 from uuid import UUID, uuid4
 
@@ -15,7 +16,12 @@ from sqlalchemy.orm import Session, sessionmaker
 
 from app.core.security import hash_password
 from app.modules.identity.infrastructure.models import LabMembershipModel, UserModel
-from app.modules.identity.infrastructure.seed import ROLE_FINANCE, ROLE_LAB_ADMIN, ROLE_RECEPTION
+from app.modules.identity.infrastructure.seed import (
+    ROLE_FINANCE,
+    ROLE_LAB_ADMIN,
+    ROLE_RECEPTION,
+    ROLE_TECHNICAL,
+)
 
 pytestmark = pytest.mark.integration
 
@@ -311,3 +317,230 @@ async def test_patient_free_text_is_trimmed_and_bounded(
     for field, value in (("name", "   "), ("owner_name", "x" * 201), ("notes", "x" * 2001)):
         rejected_update = await client.patch(url, json={**update, field: value})
         assert rejected_update.status_code == 422, field
+
+
+def _second_clinic_id(session_factory: sessionmaker[Session]) -> str:
+    with session_factory() as session:
+        existing = session.execute(
+            text("SELECT id FROM clinics WHERE name = 'Segunda Clínica de Teste'")
+        ).scalar_one_or_none()
+        if existing is not None:
+            return str(existing)
+        clinic_id = uuid4()
+        session.execute(
+            text(
+                "INSERT INTO clinics (id, name, status, created_at, updated_at, row_version) "
+                "VALUES (:id, 'Segunda Clínica de Teste', 'ACTIVE', now(), now(), 1)"
+            ),
+            {"id": clinic_id},
+        )
+        session.commit()
+        return str(clinic_id)
+
+
+def _audit_count(session_factory: sessionmaker[Session], action: str) -> int:
+    with session_factory() as session:
+        return int(
+            session.execute(
+                text("SELECT count(*) FROM audit_log WHERE action = :action"), {"action": action}
+            ).scalar_one()
+        )
+
+
+async def _create_patient(
+    client: httpx.AsyncClient, *, clinic_id: str, species_id: str, name: str
+) -> dict[str, object]:
+    response = await client.post(
+        "/api/v1/patients",
+        json={
+            "clinic_id": clinic_id,
+            "name": name,
+            "species_id": species_id,
+            "sex": "MALE",
+            "owner_name": "Maria Souza",
+        },
+    )
+    assert response.status_code == 201
+    created: dict[str, object] = response.json()
+    return created
+
+
+def _update_body(patient: dict[str, object], **overrides: object) -> dict[str, object]:
+    body: dict[str, object] = {
+        "name": patient["name"],
+        "species_id": patient["species_id"],
+        "sex": patient["sex"],
+        "owner_name": patient["owner_name"],
+        "status": "ACTIVE",
+        "expected_row_version": patient["row_version"],
+    }
+    body.update(overrides)
+    return body
+
+
+async def test_inactive_patient_is_read_only_and_reactivation_restores_editing(
+    client: httpx.AsyncClient, session_factory: sessionmaker[Session]
+) -> None:
+    dog_id = _get_species_id(session_factory, name="Canino")
+    clinic_id = _clinic_id(session_factory)
+
+    await _login_as(client, session_factory, email="admin@vertere.local", role_id=ROLE_LAB_ADMIN)
+    patient = await _create_patient(client, clinic_id=clinic_id, species_id=dog_id, name="Rex")
+    url = f"/api/v1/patients/{patient['id']}"
+    deactivated = await client.post(f"{url}/deactivate")
+    assert deactivated.status_code == 200
+    inactive = deactivated.json()
+
+    # Read-only: any edit is a state-transition conflict and changes nothing.
+    audit_before = _audit_count(session_factory, "patients.updated")
+    blocked = await client.patch(url, json=_update_body(inactive, name="Outro nome"))
+    assert blocked.status_code == 409
+    assert blocked.json()["error"]["code"] == "INVALID_STATE_TRANSITION"
+    unchanged = await client.get(url)
+    assert unchanged.json()["name"] == "Rex"
+    assert unchanged.json()["row_version"] == inactive["row_version"]
+    assert _audit_count(session_factory, "patients.updated") == audit_before
+
+    # Read access works, but reactivating needs patients.manage and an existing patient.
+    await _login_as(
+        client, session_factory, email="technical@vertere.local", role_id=ROLE_TECHNICAL
+    )
+    assert (await client.get(url)).status_code == 200
+    assert (await client.post(f"{url}/reactivate")).status_code == 403
+
+    await _login_as(
+        client, session_factory, email="reception@vertere.local", role_id=ROLE_RECEPTION
+    )
+    assert (await client.post(f"/api/v1/patients/{uuid4()}/reactivate")).status_code == 404
+    reactivated = await client.post(f"{url}/reactivate")
+    assert reactivated.status_code == 200
+    assert reactivated.json()["status"] == "ACTIVE"
+    assert reactivated.json()["row_version"] == inactive["row_version"] + 1
+    assert _audit_count(session_factory, "patients.reactivated") == 1
+
+    # Idempotent: a second call changes and audits nothing.
+    again = await client.post(f"{url}/reactivate")
+    assert again.status_code == 200
+    assert again.json()["row_version"] == reactivated.json()["row_version"]
+    assert _audit_count(session_factory, "patients.reactivated") == 1
+
+    edited = await client.patch(url, json=_update_body(reactivated.json(), name="Rex Renomeado"))
+    assert edited.status_code == 200
+    assert edited.json()["name"] == "Rex Renomeado"
+
+
+async def test_moving_a_patient_between_clinics_needs_a_reason_and_is_audited(
+    client: httpx.AsyncClient, session_factory: sessionmaker[Session]
+) -> None:
+    dog_id = _get_species_id(session_factory, name="Canino")
+    clinic_a = _clinic_id(session_factory)
+    clinic_b = _second_clinic_id(session_factory)
+
+    await _login_as(client, session_factory, email="admin@vertere.local", role_id=ROLE_LAB_ADMIN)
+    patient = await _create_patient(client, clinic_id=clinic_a, species_id=dog_id, name="Rex")
+    url = f"/api/v1/patients/{patient['id']}"
+
+    for reason in (None, "", "   "):
+        overrides: dict[str, object] = {"clinic_id": clinic_b}
+        if reason is not None:
+            overrides["reason"] = reason
+        rejected = await client.patch(url, json=_update_body(patient, **overrides))
+        assert rejected.status_code == 422, reason
+    assert (await client.get(url)).json()["clinic_id"] == clinic_a
+
+    missing_clinic = await client.patch(
+        url, json=_update_body(patient, clinic_id=str(uuid4()), reason="Mudança")
+    )
+    assert missing_clinic.status_code == 404
+
+    moved = await client.patch(
+        url, json=_update_body(patient, clinic_id=clinic_b, reason="  Tutor mudou de clínica  ")
+    )
+    assert moved.status_code == 200
+    assert moved.json()["clinic_id"] == clinic_b
+    with session_factory() as session:
+        row = session.execute(
+            text(
+                "SELECT before_state->>'clinic_id', after_state->>'clinic_id', "
+                "after_state->>'reason' FROM audit_log WHERE action = 'patients.updated'"
+            )
+        ).one()
+    assert tuple(row) == (clinic_a, clinic_b, "Tutor mudou de clínica")
+
+    # Same clinic (or none given) needs no reason.
+    same = await client.patch(
+        url, json=_update_body(moved.json(), clinic_id=clinic_b, notes="sem troca")
+    )
+    assert same.status_code == 200
+    with session_factory() as session:
+        reasons = session.execute(
+            text(
+                "SELECT after_state->>'reason' FROM audit_log "
+                "WHERE action = 'patients.updated' ORDER BY occurred_at"
+            )
+        ).all()
+    assert [r[0] for r in reasons] == ["Tutor mudou de clínica", None]
+
+
+async def test_list_filters_by_species_and_summary_counts_by_status(
+    client: httpx.AsyncClient, session_factory: sessionmaker[Session]
+) -> None:
+    dog_id = _get_species_id(session_factory, name="Canino")
+    cat_id = _get_species_id(session_factory, name="Felino")
+    clinic_a = _clinic_id(session_factory)
+    clinic_b = _second_clinic_id(session_factory)
+
+    assert (await client.get("/api/v1/patients/summary")).status_code == 401
+
+    await _login_as(client, session_factory, email="admin@vertere.local", role_id=ROLE_LAB_ADMIN)
+    rex = await _create_patient(client, clinic_id=clinic_a, species_id=dog_id, name="Rex")
+    await _create_patient(client, clinic_id=clinic_a, species_id=cat_id, name="Mimi")
+    await _create_patient(client, clinic_id=clinic_b, species_id=dog_id, name="Bidu")
+    assert (await client.post(f"/api/v1/patients/{rex['id']}/deactivate")).status_code == 200
+
+    cats = await client.get("/api/v1/patients", params={"species_id": cat_id})
+    assert [item["name"] for item in cats.json()["items"]] == ["Mimi"]
+    dogs_in_b = await client.get(
+        "/api/v1/patients", params={"species_id": dog_id, "clinic_id": clinic_b}
+    )
+    assert [item["name"] for item in dogs_in_b.json()["items"]] == ["Bidu"]
+
+    everyone = await client.get("/api/v1/patients/summary")
+    assert everyone.status_code == 200
+    assert everyone.json() == {"total": 3, "active": 2, "inactive": 1}
+    in_a = await client.get("/api/v1/patients/summary", params={"clinic_id": clinic_a})
+    assert in_a.json() == {"total": 2, "active": 1, "inactive": 1}
+    only_dogs = await client.get("/api/v1/patients/summary", params={"species_id": dog_id})
+    assert only_dogs.json() == {"total": 2, "active": 1, "inactive": 1}
+    searched = await client.get("/api/v1/patients/summary", params={"search": "mimi"})
+    assert searched.json() == {"total": 1, "active": 1, "inactive": 0}
+    # `summary` is a route of its own, not a patient id.
+    assert (await client.get("/api/v1/patients/not-a-uuid")).status_code == 422
+
+
+async def test_concurrent_patches_with_the_same_version_let_exactly_one_win(
+    client: httpx.AsyncClient, session_factory: sessionmaker[Session]
+) -> None:
+    """QA 2026-11-19: two PATCHes carrying the same expected_row_version both answered 200."""
+    dog_id = _get_species_id(session_factory, name="Canino")
+    clinic_a = _clinic_id(session_factory)
+    clinic_b = _second_clinic_id(session_factory)
+    await _login_as(client, session_factory, email="admin@vertere.local", role_id=ROLE_LAB_ADMIN)
+    patient = await _create_patient(client, clinic_id=clinic_a, species_id=dog_id, name="Rex")
+    url = f"/api/v1/patients/{patient['id']}"
+
+    responses = await asyncio.gather(
+        *[
+            client.patch(
+                url,
+                json=_update_body(patient, clinic_id=clinic_b, reason=f"Motivo {index}"),
+            )
+            for index in range(6)
+        ]
+    )
+
+    assert sorted(response.status_code for response in responses) == [200] + [409] * 5
+    final = (await client.get(url)).json()
+    assert final["row_version"] == int(str(patient["row_version"])) + 1
+    assert final["clinic_id"] == clinic_b
+    assert _audit_count(session_factory, "patients.updated") == 1

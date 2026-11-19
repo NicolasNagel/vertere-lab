@@ -20,6 +20,7 @@ from app.modules.patients.domain.entities import (
     Species,
 )
 from app.modules.patients.infrastructure.models import PatientModel, SpeciesModel
+from app.shared.domain.errors import ConflictError
 from app.shared.infrastructure.sql import LIKE_ESCAPE, contains_pattern
 
 
@@ -70,8 +71,22 @@ class SqlAlchemyPatientRepository:
     def __init__(self, session: SqlAlchemySession) -> None:
         self._session = session
 
-    def get_by_id(self, patient_id: UUID) -> Patient | None:
-        model = self._session.get(PatientModel, patient_id)
+    def _locked_model(self, patient_id: UUID) -> PatientModel | None:
+        """Row lock until the unit of work ends. `populate_existing` re-reads the committed row, so a
+        writer that waited for the lock sees the version the previous writer committed."""
+        return self._session.execute(
+            select(PatientModel)
+            .where(PatientModel.id == patient_id)
+            .with_for_update()
+            .execution_options(populate_existing=True)
+        ).scalar_one_or_none()
+
+    def get_by_id(self, patient_id: UUID, *, for_update: bool = False) -> Patient | None:
+        model = (
+            self._locked_model(patient_id)
+            if for_update
+            else self._session.get(PatientModel, patient_id)
+        )
         return _patient_to_domain(model) if model is not None else None
 
     def get_by_owner_and_name(self, *, owner_name: str, name: str) -> Patient | None:
@@ -114,9 +129,14 @@ class SqlAlchemyPatientRepository:
         )
 
     def save(self, patient: Patient) -> None:
-        model = self._session.get(PatientModel, patient.id)
+        model = self._locked_model(patient.id)
         if model is None:
             raise LookupError(f"Paciente {patient.id} não encontrado para atualização.")
+        if model.row_version != patient.row_version:
+            # Someone committed between this unit of work's read and its write: never overwrite.
+            raise ConflictError(
+                "Este paciente foi alterado por outra pessoa. Recarregue e tente de novo."
+            )
         model.name = patient.name
         model.clinic_id = patient.clinic_id
         model.species_id = patient.species_id
@@ -136,6 +156,33 @@ class SqlAlchemyPatientRepository:
         model.row_version = patient.row_version + 1
         patient.row_version = model.row_version
 
+    def _filter_conditions(
+        self,
+        *,
+        search: str | None,
+        clinic_ids: frozenset[UUID] | None,
+        clinic_id: UUID | None,
+        species_id: UUID | None,
+    ) -> list[ColumnElement[bool]]:
+        """Scope and filters shared by the page and the summary counts. The actor's clinic scope and
+        an explicit `clinic_id` filter are combined (AND), never one replacing the other."""
+        conditions: list[ColumnElement[bool]] = []
+        if clinic_ids is not None:
+            conditions.append(PatientModel.clinic_id.in_(clinic_ids))
+        if clinic_id is not None:
+            conditions.append(PatientModel.clinic_id == clinic_id)
+        if species_id is not None:
+            conditions.append(PatientModel.species_id == species_id)
+        if search:
+            like_pattern = contains_pattern(search.lower())
+            conditions.append(
+                or_(
+                    func.lower(PatientModel.name).like(like_pattern, escape=LIKE_ESCAPE),
+                    func.lower(PatientModel.owner_name).like(like_pattern, escape=LIKE_ESCAPE),
+                )
+            )
+        return conditions
+
     def list_page(
         self,
         *,
@@ -145,22 +192,13 @@ class SqlAlchemyPatientRepository:
         search: str | None,
         clinic_ids: frozenset[UUID] | None = None,
         clinic_id: UUID | None = None,
+        species_id: UUID | None = None,
     ) -> tuple[list[Patient], int]:
-        conditions: list[ColumnElement[bool]] = []
-        if clinic_ids is not None:
-            conditions.append(PatientModel.clinic_id.in_(clinic_ids))
-        elif clinic_id is not None:
-            conditions.append(PatientModel.clinic_id == clinic_id)
+        conditions = self._filter_conditions(
+            search=search, clinic_ids=clinic_ids, clinic_id=clinic_id, species_id=species_id
+        )
         if status is not None:
             conditions.append(PatientModel.status == status.value)
-        if search:
-            like_pattern = contains_pattern(search.lower())
-            conditions.append(
-                or_(
-                    func.lower(PatientModel.name).like(like_pattern, escape=LIKE_ESCAPE),
-                    func.lower(PatientModel.owner_name).like(like_pattern, escape=LIKE_ESCAPE),
-                )
-            )
 
         count_stmt = select(func.count()).select_from(PatientModel)
         list_stmt = select(PatientModel).order_by(PatientModel.name)
@@ -172,3 +210,22 @@ class SqlAlchemyPatientRepository:
         list_stmt = list_stmt.offset((page - 1) * page_size).limit(page_size)
         models = self._session.execute(list_stmt).scalars().all()
         return [_patient_to_domain(model) for model in models], total
+
+    def count_by_status(
+        self,
+        *,
+        search: str | None,
+        clinic_ids: frozenset[UUID] | None = None,
+        clinic_id: UUID | None = None,
+        species_id: UUID | None = None,
+    ) -> tuple[int, int]:
+        stmt = select(PatientModel.status, func.count()).group_by(PatientModel.status)
+        for condition in self._filter_conditions(
+            search=search, clinic_ids=clinic_ids, clinic_id=clinic_id, species_id=species_id
+        ):
+            stmt = stmt.where(condition)
+        counts = dict(self._session.execute(stmt).tuples().all())
+        return (
+            counts.get(PatientStatus.ACTIVE.value, 0),
+            counts.get(PatientStatus.INACTIVE.value, 0),
+        )

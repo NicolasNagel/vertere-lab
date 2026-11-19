@@ -22,6 +22,7 @@ class ListPatientsQuery:
     status: PatientStatus | None = None
     search: str | None = None
     clinic_id: UUID | None = None
+    species_id: UUID | None = None
 
 
 class ListPatientsUseCase:
@@ -41,6 +42,7 @@ class ListPatientsUseCase:
             search=query.search,
             clinic_ids=query.actor.clinic_filter,
             clinic_id=query.clinic_id,
+            species_id=query.species_id,
         )
         return PageDTO(
             items=[patient_to_dto(patient) for patient in patients],

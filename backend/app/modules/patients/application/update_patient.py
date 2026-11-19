@@ -12,7 +12,7 @@ from app.modules.patients.domain.entities import PatientAge, PatientSex, Patient
 from app.modules.patients.domain.repositories import PatientRepository, SpeciesRepository
 from app.shared.application.authorization import ActorContext
 from app.shared.application.clock import Clock
-from app.shared.domain.errors import ConflictError, ForbiddenError, NotFoundError
+from app.shared.domain.errors import ConflictError, ForbiddenError, NotFoundError, ValidationError
 
 _REQUIRED_PERMISSION = "patients.manage"
 
@@ -35,6 +35,7 @@ class UpdatePatientCommand:
     expected_row_version: int
     age_value: int | None = None
     age_unit: str | None = None
+    reason: str | None = None
 
 
 class UpdatePatientUseCase:
@@ -57,19 +58,28 @@ class UpdatePatientUseCase:
         if _REQUIRED_PERMISSION not in command.actor.permissions:
             raise ForbiddenError(f"Permissão ausente: {_REQUIRED_PERMISSION}")
 
-        patient = self._patients.get_by_id(command.patient_id)
+        patient = self._patients.get_by_id(command.patient_id, for_update=True)
         if patient is not None and not command.actor.can_access_clinic(patient.clinic_id):
             patient = None
         if patient is None:
             raise NotFoundError("Paciente não encontrado.")
 
+        patient.ensure_editable()
+
         target_clinic_id = command.clinic_id or patient.clinic_id
+        # Giving a clinic to a legacy patient that has none is not a clinic change: no reason needed.
+        clinic_changed = patient.clinic_id is not None and target_clinic_id != patient.clinic_id
+        reason = (command.reason or "").strip()
+        # Existence and scope of the destination first (404 hides what the actor may not see),
+        # then the missing reason (422).
         if not command.actor.can_access_clinic(target_clinic_id):
             raise NotFoundError("Clínica não encontrada.")
         if command.clinic_id is not None and (
             self._clinics is None or self._clinics.get_by_id(command.clinic_id) is None
         ):
             raise NotFoundError("Clínica não encontrada.")
+        if clinic_changed and not reason:
+            raise ValidationError("Informe o motivo da troca de clínica.")
 
         if patient.row_version != command.expected_row_version:
             raise ConflictError(
@@ -116,6 +126,7 @@ class UpdatePatientUseCase:
                     "name": patient.name,
                     "status": patient.status.value,
                     "clinic_id": str(patient.clinic_id) if patient.clinic_id else None,
+                    **({"reason": reason} if clinic_changed else {}),
                 },
             )
         )

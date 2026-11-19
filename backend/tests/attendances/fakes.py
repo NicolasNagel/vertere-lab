@@ -303,7 +303,7 @@ class FakePatientRepository:
     def __init__(self, patients: list[Patient] | None = None) -> None:
         self._patients: dict[UUID, Patient] = {patient.id: patient for patient in (patients or [])}
 
-    def get_by_id(self, patient_id: UUID) -> Patient | None:
+    def get_by_id(self, patient_id: UUID, *, for_update: bool = False) -> Patient | None:
         return self._patients.get(patient_id)
 
     def get_by_owner_and_name(self, *, owner_name: str, name: str) -> Patient | None:
@@ -324,7 +324,18 @@ class FakePatientRepository:
         search: str | None,
         clinic_ids: frozenset[UUID] | None = None,
         clinic_id: UUID | None = None,
+        species_id: UUID | None = None,
     ) -> tuple[list[Patient], int]:
+        raise NotImplementedError
+
+    def count_by_status(
+        self,
+        *,
+        search: str | None,
+        clinic_ids: frozenset[UUID] | None = None,
+        clinic_id: UUID | None = None,
+        species_id: UUID | None = None,
+    ) -> tuple[int, int]:
         raise NotImplementedError
 
 

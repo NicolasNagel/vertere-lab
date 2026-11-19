@@ -2242,6 +2242,23 @@
               ],
               "title": "Clinic Id"
             }
+          },
+          {
+            "name": "species_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Species Id"
+            }
           }
         ],
         "responses": {
@@ -2295,6 +2312,94 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/PatientRead"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/patients/summary": {
+      "get": {
+        "tags": [
+          "patients"
+        ],
+        "summary": "Summarize Patients",
+        "operationId": "summarize_patients_api_v1_patients_summary_get",
+        "security": [
+          {
+            "SessionCookie": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "search",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Search"
+            }
+          },
+          {
+            "name": "clinic_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Clinic Id"
+            }
+          },
+          {
+            "name": "species_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Species Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PatientsSummaryRead"
                 }
               }
             }
@@ -2423,6 +2528,54 @@
         ],
         "summary": "Deactivate Patient",
         "operationId": "deactivate_patient_api_v1_patients__patient_id__deactivate_post",
+        "security": [
+          {
+            "SessionCookie": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "patient_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Patient Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PatientRead"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/patients/{patient_id}/reactivate": {
+      "post": {
+        "tags": [
+          "patients"
+        ],
+        "summary": "Reactivate Patient",
+        "operationId": "reactivate_patient_api_v1_patients__patient_id__reactivate_post",
         "security": [
           {
             "SessionCookie": []
@@ -9088,6 +9241,7 @@
           },
           "name": {
             "type": "string",
+            "maxLength": 200,
             "minLength": 1,
             "title": "Name"
           },
@@ -9107,7 +9261,8 @@
           "breed": {
             "anyOf": [
               {
-                "type": "string"
+                "type": "string",
+                "maxLength": 100
               },
               {
                 "type": "null"
@@ -9118,7 +9273,8 @@
           "age_description": {
             "anyOf": [
               {
-                "type": "string"
+                "type": "string",
+                "maxLength": 100
               },
               {
                 "type": "null"
@@ -9128,13 +9284,15 @@
           },
           "owner_name": {
             "type": "string",
+            "maxLength": 200,
             "minLength": 1,
             "title": "Owner Name"
           },
           "owner_phone": {
             "anyOf": [
               {
-                "type": "string"
+                "type": "string",
+                "maxLength": 30
               },
               {
                 "type": "null"
@@ -9145,7 +9303,8 @@
           "owner_document": {
             "anyOf": [
               {
-                "type": "string"
+                "type": "string",
+                "maxLength": 30
               },
               {
                 "type": "null"
@@ -9156,7 +9315,8 @@
           "notes": {
             "anyOf": [
               {
-                "type": "string"
+                "type": "string",
+                "maxLength": 2000
               },
               {
                 "type": "null"
@@ -9425,6 +9585,7 @@
         "properties": {
           "name": {
             "type": "string",
+            "maxLength": 200,
             "minLength": 1,
             "title": "Name"
           },
@@ -9444,7 +9605,8 @@
           "breed": {
             "anyOf": [
               {
-                "type": "string"
+                "type": "string",
+                "maxLength": 100
               },
               {
                 "type": "null"
@@ -9455,7 +9617,8 @@
           "age_description": {
             "anyOf": [
               {
-                "type": "string"
+                "type": "string",
+                "maxLength": 100
               },
               {
                 "type": "null"
@@ -9465,13 +9628,15 @@
           },
           "owner_name": {
             "type": "string",
+            "maxLength": 200,
             "minLength": 1,
             "title": "Owner Name"
           },
           "owner_phone": {
             "anyOf": [
               {
-                "type": "string"
+                "type": "string",
+                "maxLength": 30
               },
               {
                 "type": "null"
@@ -9482,7 +9647,8 @@
           "owner_document": {
             "anyOf": [
               {
-                "type": "string"
+                "type": "string",
+                "maxLength": 30
               },
               {
                 "type": "null"
@@ -9501,7 +9667,8 @@
           "notes": {
             "anyOf": [
               {
-                "type": "string"
+                "type": "string",
+                "maxLength": 2000
               },
               {
                 "type": "null"
@@ -9551,6 +9718,19 @@
               }
             ],
             "title": "Age Unit"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 500,
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason"
           }
         },
         "additionalProperties": false,
@@ -9564,6 +9744,29 @@
           "expected_row_version"
         ],
         "title": "PatientUpdateRequest"
+      },
+      "PatientsSummaryRead": {
+        "properties": {
+          "total": {
+            "type": "integer",
+            "title": "Total"
+          },
+          "active": {
+            "type": "integer",
+            "title": "Active"
+          },
+          "inactive": {
+            "type": "integer",
+            "title": "Inactive"
+          }
+        },
+        "type": "object",
+        "required": [
+          "total",
+          "active",
+          "inactive"
+        ],
+        "title": "PatientsSummaryRead"
       },
       "PermissionRead": {
         "properties": {
@@ -10345,18 +10548,21 @@
         "properties": {
           "name": {
             "type": "string",
+            "maxLength": 200,
             "minLength": 1,
             "title": "Name"
           },
           "crmv": {
             "type": "string",
+            "maxLength": 50,
             "minLength": 1,
             "title": "Crmv"
           },
           "phone": {
             "anyOf": [
               {
-                "type": "string"
+                "type": "string",
+                "maxLength": 30
               },
               {
                 "type": "null"
@@ -10367,7 +10573,9 @@
           "email": {
             "anyOf": [
               {
-                "type": "string"
+                "type": "string",
+                "maxLength": 254,
+                "pattern": "^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$"
               },
               {
                 "type": "null"
@@ -10383,7 +10591,8 @@
           "notes": {
             "anyOf": [
               {
-                "type": "string"
+                "type": "string",
+                "maxLength": 2000
               },
               {
                 "type": "null"
@@ -10704,18 +10913,21 @@
         "properties": {
           "name": {
             "type": "string",
+            "maxLength": 200,
             "minLength": 1,
             "title": "Name"
           },
           "crmv": {
             "type": "string",
+            "maxLength": 50,
             "minLength": 1,
             "title": "Crmv"
           },
           "phone": {
             "anyOf": [
               {
-                "type": "string"
+                "type": "string",
+                "maxLength": 30
               },
               {
                 "type": "null"
@@ -10726,7 +10938,9 @@
           "email": {
             "anyOf": [
               {
-                "type": "string"
+                "type": "string",
+                "maxLength": 254,
+                "pattern": "^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$"
               },
               {
                 "type": "null"
@@ -10750,7 +10964,8 @@
           "notes": {
             "anyOf": [
               {
-                "type": "string"
+                "type": "string",
+                "maxLength": 2000
               },
               {
                 "type": "null"

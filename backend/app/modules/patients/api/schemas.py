@@ -19,6 +19,9 @@ OwnerName = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1
 PatientShortText = Annotated[str, StringConstraints(strip_whitespace=True, max_length=100)]
 PatientContact = Annotated[str, StringConstraints(strip_whitespace=True, max_length=30)]
 PatientNotes = Annotated[str, StringConstraints(max_length=2000)]
+ChangeReason = Annotated[
+    str, StringConstraints(strip_whitespace=True, min_length=1, max_length=500)
+]
 
 
 def _require_age_pair(age_value: int | None, age_unit: str | None) -> None:
@@ -55,6 +58,12 @@ class PatientRead(BaseModel):
     age_value: int | None
     age_unit: AgeUnitLiteral | None
     age_recorded_on: date | None
+
+
+class PatientsSummaryRead(BaseModel):
+    total: int
+    active: int
+    inactive: int
 
 
 class PatientListResponse(BaseModel):
@@ -103,6 +112,8 @@ class PatientUpdateRequest(BaseModel):
     clinic_id: UUID | None = None
     age_value: int | None = Field(default=None, ge=0)
     age_unit: AgeUnitLiteral | None = None
+    # Required when `clinic_id` moves the patient to another clinic (checked in the use case).
+    reason: ChangeReason | None = None
 
     @model_validator(mode="after")
     def _age_pair(self) -> Self:

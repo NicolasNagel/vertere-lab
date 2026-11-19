@@ -21,7 +21,7 @@ from datetime import date, datetime
 from enum import StrEnum
 from uuid import UUID
 
-from app.shared.domain.errors import ValidationError
+from app.shared.domain.errors import InvalidStateTransitionError, ValidationError
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -105,6 +105,13 @@ class Patient:
     updated_at: datetime
     row_version: int = 1
 
+    def ensure_editable(self) -> None:
+        """An inactive patient is read-only: the only way back is `reactivate`."""
+        if self.status is PatientStatus.INACTIVE:
+            raise InvalidStateTransitionError(
+                "Paciente inativo: reative o cadastro antes de editar."
+            )
+
     def update_details(
         self,
         *,
@@ -123,6 +130,7 @@ class Patient:
         updated_by: UUID | None,
         now: datetime,
     ) -> None:
+        self.ensure_editable()
         self.name = name
         self.species_id = species_id
         self.sex = sex
@@ -149,6 +157,13 @@ class Patient:
             self.age_recorded_on = today
         self.age = age
         self.age_description = age.describe()
+
+    def reactivate(self, *, updated_by: UUID | None, now: datetime) -> None:
+        if self.status is PatientStatus.ACTIVE:
+            return
+        self.status = PatientStatus.ACTIVE
+        self.updated_by = updated_by
+        self.updated_at = now
 
     def deactivate(self, *, updated_by: UUID | None, now: datetime) -> None:
         if self.status == PatientStatus.INACTIVE:
