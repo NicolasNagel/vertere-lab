@@ -189,3 +189,25 @@ auditoria; atendimentos antigos não mudam (guardam a própria `clinic_id`). Imp
 - [ ] O `openapi.json` desta fatia inclui também os limites de schema da rodada anterior, que não tinham
       sido regenerados (`npm run api:check` falharia no CI sem isso).
 
+## Pacientes: lista no padrão Operação (fatia 4, 19/11)
+A lista passou ao padrão (cartões, abas, filtros, tabela, popover) e ganhou `/pacientes/novo` e
+`/pacientes/:id` (interinas, com os componentes antigos até a fatia 5). Ressalvas do QA e da revisão:
+- [ ] **Backend, transversal (achado do QA):** `search` com byte NUL (`%00`) devolve 500 (`psycopg.DataError:
+      PostgreSQL text fields cannot contain NUL`) em `/patients`, `/veterinarians` e `/clinics`. Validar o
+      parâmetro (tipo compartilhado `SearchQuery` sem NUL e com tamanho máximo) e devolver 422.
+- [ ] Erro ao inativar/reativar (409, 403, rede) não aparece para o usuário nas listas de Pacientes e de
+      Veterinários; mostrar alerta ou toast.
+- [ ] DRY: `displayValue` existe em 4 lugares (`patient-labels.ts`, `clinic-detail.tsx`,
+      `veterinarian-detail-page.tsx`, `veterinarian-row-popover.tsx`) e o CSS de tabela de cadastro em 3
+      (`patient-table.css`, `veterinarian-table.css`, `clinic-table.css`, incluindo regras globais
+      `tr[data-selectable]`). Extrair para `shared/lib` e um `registry-table.css`; deve ser a primeira
+      tarefa da próxima tela de cadastro.
+- [ ] Rodapé de paginação mostra "Nenhum paciente ‹ 1 / 1 ›" durante carregamento, lista vazia e erro
+      (componente compartilhado da Operação; igual em Veterinários).
+- [ ] Inativar numa aba de status, estando na página N, pode deixar a página vazia com `total` > 0.
+- [ ] No mobile as colunas Clínica e Idade ficam só no popover (igual a Veterinários); a tabela rola
+      dentro do painel.
+- [ ] O detalhe interino `/pacientes/:id` não quebra nome/tutor de 200 caracteres (fatia 5 refaz).
+- [ ] O `getByRole('button', { name: 'Cancelar' })` do Playwright não achou o botão do formulário de
+      paciente embora o DOM e o jsdom o encontrem (mesma limitação de seletor já vista com "Salvar").
+
