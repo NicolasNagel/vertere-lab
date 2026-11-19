@@ -11,15 +11,15 @@ import { ClinicBatchPicker } from './clinic-batch-picker'
 import '../../attendances/components/attendance-draft-page.css'
 import './veterinarian-form.css'
 
-const optionalEmail = z.union([z.literal(''), z.email('Informe um e-mail válido.')])
+const optionalEmail = z.union([z.literal(''), z.email('Informe um e-mail válido.').max(254, 'Use até 254 caracteres.')])
 
 const veterinarianSchema = z.object({
-  name: z.string().trim().min(1, 'Informe o nome do veterinário.'),
-  crmv: z.string().trim().min(1, 'Informe o CRMV.'),
-  phone: z.string().trim(),
+  name: z.string().trim().min(1, 'Informe o nome do veterinário.').max(200, 'Use até 200 caracteres.'),
+  crmv: z.string().trim().min(1, 'Informe o CRMV.').max(50, 'Use até 50 caracteres.'),
+  phone: z.string().trim().max(30, 'Use até 30 caracteres.'),
   email: optionalEmail,
   isAutonomous: z.boolean(),
-  notes: z.string().trim(),
+  notes: z.string().trim().max(2000, 'Use até 2000 caracteres.'),
 })
 
 type VeterinarianFormFields = z.infer<typeof veterinarianSchema>
