@@ -22,7 +22,7 @@ import {
 } from './patient-labels'
 import '../../../shared/ui/button.css'
 import '../../attendances/components/attendance-detail-page.css'
-import '../../attendances/components/attendance-readonly-detail.css'
+import '../../../shared/ui/readonly-detail.css'
 import '../../attendances/components/attendance-summary-cards.css'
 import './patient-detail-page.css'
 

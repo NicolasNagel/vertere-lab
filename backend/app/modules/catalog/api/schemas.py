@@ -10,6 +10,8 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from app.api.field_types import MAX_UNIT_PRICE
+
 ExamCategoryStatusLiteral = Literal["ACTIVE", "INACTIVE"]
 ExamStatusLiteral = Literal["ACTIVE", "INACTIVE"]
 
@@ -81,7 +83,7 @@ class ExamCreateRequest(BaseModel):
 
     name: str = Field(min_length=1)
     category_id: UUID
-    price_base: Decimal = Field(gt=0)
+    price_base: Decimal = Field(gt=0, le=MAX_UNIT_PRICE)
     description: str | None = None
     species_ids: list[UUID] = Field(min_length=1)
     component_exam_ids: list[UUID] = Field(default_factory=list)
@@ -93,7 +95,7 @@ class ExamUpdateRequest(BaseModel):
     name: str = Field(min_length=1)
     category_id: UUID
     # Omitido = manter o preço; alterar exige `pricing.manage` e motivo.
-    price_base: Decimal | None = Field(default=None, gt=0)
+    price_base: Decimal | None = Field(default=None, gt=0, le=MAX_UNIT_PRICE)
     description: str | None = None
     species_ids: list[UUID] = Field(min_length=1)
     component_exam_ids: list[UUID] = Field(default_factory=list)

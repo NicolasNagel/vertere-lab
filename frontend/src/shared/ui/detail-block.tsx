@@ -6,8 +6,8 @@ import { Button } from './button'
 import { TextField } from './text-field'
 import './button.css'
 // Os estilos do bloco são os do detalhe/correção de atendimento, que Veterinários também usa.
-import '../../features/attendances/components/attendance-readonly-detail.css'
-import '../../features/attendances/components/attendance-correction-block.css'
+import './readonly-detail.css'
+import './correction-block.css'
 
 interface DetailBlockProps {
   title: string

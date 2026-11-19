@@ -7,8 +7,8 @@ import { Button } from '../../../shared/ui/button'
 import { TextField } from '../../../shared/ui/text-field'
 import { examQueryKey } from '../api/use-exam-query'
 import '../../../shared/ui/button.css'
-import '../../attendances/components/attendance-readonly-detail.css'
-import '../../attendances/components/attendance-correction-block.css'
+import '../../../shared/ui/readonly-detail.css'
+import '../../../shared/ui/correction-block.css'
 
 interface ExamDetailBlockProps {
   title: string

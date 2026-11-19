@@ -224,18 +224,22 @@ Corrigido: byte NUL em `search`/`protocol_number`/`owner_name`/`reason` agora d�
 campo de corpo dá 422 pela rede de `DataError` (restrita a texto: NUL e SQLSTATE 22021/22P05); o resto
 da classe 22 segue 500 com o SQLSTATE logado, para não culpar o cliente por um total que o servidor
 calculou. `search` aceita até 254 caracteres (e-mail de usuário). Abertas, não bloqueantes:
-- [ ] **Entradas numéricas sem limite** (auditor): `quantity` de item de atendimento (`ge=1`, sem `le`),
+- [x] **Entradas numéricas sem limite** (auditor): `quantity` de item de atendimento (`ge=1`, sem `le`),
       `age_value` e os campos de dinheiro enviados pelo cliente podem estourar a coluna e viram 500
       (22003). Definir limites de domínio (decisão de produto) e uma exceção de domínio para estouro de
       total no confirmar/fechar, com teste no limite (`12-attendance.md`, `13-monthly-closure.md`).
-- [ ] **Importação com NUL** (auditor): CSV de exames (`csv.DictReader` aceita NUL) e planilha (`raw_data`
+      PARCIAL (rodada de pendências 19/11): limites decididos com o usuário — quantidade 1–999 e preço/taxa até R$ 99.999,99 (`shared/domain/limits.py`, `api/field_types.py`), desconto limitado a 14 dígitos; testes no limite. Segue aberto: `age_value` e a exceção de domínio para total estourado no fechar (não alcançável com os tetos atuais).
+- [x] **Importação com NUL** (auditor): CSV de exames (`csv.DictReader` aceita NUL) e planilha (`raw_data`
       JSONB recusa `\u0000`) derrubam o lote inteiro com 422 genérico, sem a linha. Rejeitar NUL por linha
       e registrar status de erro (`10-data-migration.md`: toda linha tem estado final); testar célula com NUL.
+      RESOLVIDO: CSV de exames rejeita NUL e preço acima do limite/não finito por linha (teste). Planilha .xlsx com NUL já é recusada como arquivo inválido pelo leitor (XML não carrega NUL), antes de qualquer staging (teste).
 - [ ] NUL em campo de corpo responde 422 genérico sem indicar o campo; aplicar `reject_nul` nos tipos de
       texto dos schemas daria a mensagem por campo.
-- [ ] Confirmar se o registro de idempotência fica em transação própria: um 4xx no meio do caso de uso
+- [x] Confirmar se o registro de idempotência fica em transação própria: um 4xx no meio do caso de uso
       poderia deixar a chave "em andamento".
-- [ ] Busca no servidor não ignora acento: `joao` não acha `João` (a lista local ignora; o SQL não).
+      RESOLVIDO: `test_a_failed_confirm_does_not_burn_its_idempotency_key` mostra que a falha desfaz o registro e a mesma chave funciona depois.
+- [x] Busca no servidor não ignora acento: `joao` não acha `João` (a lista local ignora; o SQL não).
+      RESOLVIDO: migration 0044 (`unaccent`) + `folded()`/`fold()`; vale para pacientes, clínicas, veterinários, usuários, exames, categorias e tutor em atendimentos. Índice trigram fica para quando houver volume medido.
 - [ ] A lista de veterinários não quebrava CRMV/e-mail de 5000 caracteres (dado legado de antes dos limites):
       CRMV agora trunca; conferir e-mail.
 - [ ] `frontend/test-results` ficou com artefatos de falha do Playwright (ignorado pelo git); apagar à mão.
@@ -248,18 +252,38 @@ de clínica validado em 500 caracteres; "Recarregar" após 409 volta o bloco à 
 digitado para um novo Salvar sobrescrever); bloco aberto volta à leitura quando o paciente é inativado;
 clínica atual inativa continua no dropdown; falha 500 do detalhe não diz "não encontrado"; foco do teclado
 vai ao primeiro campo ao abrir e volta ao "Editar" ao fechar. Abertas, não bloqueantes:
-- [ ] **DRY e camada:** `shared/ui/detail-block.tsx` importa CSS de `features/attendances` (as classes
+- [x] **DRY e camada:** `shared/ui/detail-block.tsx` importa CSS de `features/attendances` (as classes
       `attendance-correction-block__*` e `attendance-readonly-detail__*`). Extrair `shared/ui/detail-block.css`
       com nomes `detail-block__*` e migrar o detalhe de Veterinários e o de atendimento para o `DetailBlock`
       (Veterinários ainda tem a cópia `veterinarian-detail-block.tsx`).
+      PARCIAL: o CSS saiu de `features/attendances` para `shared/ui/readonly-detail.css` e `correction-block.css` (sem inversão de camada). Renomear as classes para `detail-block__*` e migrar Veterinários/atendimento para o `DetailBlock` segue aberto.
 - [ ] O `audit_log` de `patients.updated` guarda só nome, status e `clinic_id` (e o motivo na troca de clínica);
       não registra quais campos mudaram (telefone, observação, raça, espécie, idade). Decidir o que auditar
       (cuidado com PII de tutor) e gravar antes/depois dos campos alterados.
-- [ ] `create-patient-modal.tsx` não é usado em nenhum lugar (código morto, achado do QA): apagar ou
+- [x] `create-patient-modal.tsx` não é usado em nenhum lugar (código morto, achado do QA): apagar ou
       reaproveitar. `PatientForm` segue só no "Corrigir cadastro" de atendimento; migrar para os blocos
       ou para o formulário de criação na fatia de atendimento.
+      RESOLVIDO: arquivo e CSS removidos. `PatientForm` continua no Corrigir cadastro do atendimento.
 - [ ] Teclado em tablet/mobile, contraste medido do foco, IDOR entre escopos de clínica e grep de PII no
       log não foram executados no QA desta fatia (fatia 6 trata o isolamento).
 - [ ] Um teste de teclado de Veterinários (tablet) falhou uma vez no run completo e passou isolado e 9 de 9
       repetido (`veterinarians.spec.ts:230`, `toHaveCount` logo após Esc): provável corrida; estabilizar.
 
+
+## Rodada de pendências (19/11)
+Teste de prévia do fechamento (`closure-page.test.tsx`) falhava 1 em 3 por o estado "Carregando" durar 50 ms;
+atraso do mock subiu para 500 ms (4 de 4 verdes). Abertas e dependentes de decisão: o que auditar nos campos do
+paciente (PII do tutor) e a correção transversal de `row_version` (catálogo, clínicas, identidade, veterinários).
+Ressalvas da revisão e do QA desta rodada, não bloqueantes (dono: backend, próxima rodada de API):
+- [ ] 405 (método não permitido) responde `error.code = "INTERNAL_ERROR"` (ex.: GET em `/on-call-fee-settings/NORMAL`):
+      mapear `HTTPException` 4xx para código estável (`METHOD_NOT_ALLOWED`) no handler de erros.
+- [ ] `fold()` (NFD) não cobre ø, đ, ł, ß, æ que o `unaccent` do Postgres mapeia; irrelevante para nomes em
+      português. Se aparecer, aplicar `unaccent(:termo)` no SQL em vez de dobrar em Python.
+- [ ] Índice de busca: `unaccent` é STABLE; um índice trigram exigirá wrapper IMMUTABLE em migration própria,
+      só quando houver volume medido (hoje varredura sequencial, igual ao `lower(col) LIKE` anterior).
+- [ ] Migration 0044: o `downgrade` remove a extensão mesmo se um DBA a criou antes; confirmar no runbook de
+      deploy que o papel da migration tem `CREATE` no banco e a versão do Postgres de produção (>= 13).
+- [ ] Antes do deploy rodar `SELECT max(price_base) FROM exams` e `max(fee_amount)` nas taxas: valor legado acima de
+      R$ 99.999,99 impediria reenviar o valor em edição (422).
+- [ ] `age_value` do paciente segue sem teto numérico (dono: cadastro de pacientes, próxima fatia de pacientes).
+- [ ] Teste de prévia do fechamento ainda depende de tempo (delay 500 ms); trocar por promise controlada.

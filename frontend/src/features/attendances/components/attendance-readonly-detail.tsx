@@ -25,7 +25,7 @@ import {
 } from './attendance-header-corrections'
 import { AttendancePatientCard } from './attendance-patient-card'
 import { AttendanceRequesterCard } from './attendance-requester-card'
-import './attendance-readonly-detail.css'
+import '../../../shared/ui/readonly-detail.css'
 
 interface AttendanceReadonlyDetailProps {
   attendance: Attendance

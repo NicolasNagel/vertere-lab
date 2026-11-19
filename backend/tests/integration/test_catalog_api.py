@@ -403,3 +403,58 @@ async def test_exam_panels_compose_validate_snapshot_and_block_unsafe_changes(
     assert edited.json()["component_exam_ids"] == [hemograma["id"], alt["id"]]
     assert (await client.post(f"/api/v1/exams/{panel['id']}/deactivate")).status_code == 200
     assert (await client.post(f"/api/v1/exams/{alt['id']}/deactivate")).status_code == 200
+
+
+async def test_exam_price_has_a_ceiling(
+    client: httpx.AsyncClient, session_factory: sessionmaker[Session]
+) -> None:
+    await _login_as(client, session_factory, email="admin@vertere.local", role_id=ROLE_LAB_ADMIN)
+    dog_id = _get_species_id(session_factory, name="Canino")
+    category_id = await _create_category(client)
+
+    def body(name: str, price: str) -> dict[str, object]:
+        return {
+            "name": name,
+            "category_id": category_id,
+            "price_base": price,
+            "species_ids": [dog_id],
+        }
+
+    too_expensive = await client.post("/api/v1/exams", json=body("Caro", "100000.00"))
+    overflow = await client.post("/api/v1/exams", json=body("Estouro", "1" + "0" * 20))
+    at_limit = await client.post("/api/v1/exams", json=body("No limite", "99999.99"))
+    assert (too_expensive.status_code, overflow.status_code) == (422, 422)
+    assert at_limit.status_code == 201
+
+    update = await client.patch(
+        f"/api/v1/exams/{at_limit.json()['id']}",
+        json={"price_base": "100000.00", "expected_row_version": at_limit.json()["row_version"]},
+    )
+    assert update.status_code == 422
+
+
+async def test_import_exams_reports_a_nul_byte_and_an_excessive_price_on_their_own_rows(
+    client: httpx.AsyncClient, session_factory: sessionmaker[Session]
+) -> None:
+    """A NUL in one cell used to abort the whole file; now every line has its own outcome."""
+    await _login_as(client, session_factory, email="admin@vertere.local", role_id=ROLE_LAB_ADMIN)
+    await _create_category(client, name="Hematologia")
+    csv_content = (
+        "code,name,category,price_base,species\n"
+        "HEM001,Hemograma,Hematologia,85.00,Canino\n"
+        "HEM002,Nome com \x00 nulo,Hematologia,85.00,Canino\n"
+        "HEM003,Preço alto,Hematologia,100000.00,Canino\n"
+        "HEM004,Preço infinito,Hematologia,Infinity,Canino\n"
+        "HEM005,Plaquetas,Hematologia,30.00,Canino\n"
+    )
+
+    response = await client.post(
+        "/api/v1/exams/import", files={"file": ("exams.csv", csv_content, "text/csv")}
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["imported_count"] == 2
+    assert [error["line"] for error in body["errors"]] == [3, 4, 5]
+    assert "NUL" in body["errors"][0]["message"]
+    assert "limite" in body["errors"][1]["message"]

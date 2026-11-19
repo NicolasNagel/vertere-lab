@@ -313,7 +313,7 @@ test('the prévia shows eligible and blocked items, the demonstrativo, grouping 
     clinicDetailHandler(),
     http.get('/api/v1/closures/preview', async ({ request }) => {
       const clinicId = new URL(request.url).searchParams.get('clinic_id')
-      await delay(50)
+      await delay(500)
       return HttpResponse.json(
         previewResponseBody({
           clinic_id: clinicId,

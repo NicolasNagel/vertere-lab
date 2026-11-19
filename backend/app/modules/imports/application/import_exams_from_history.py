@@ -42,6 +42,7 @@ from app.modules.imports.domain.repositories import ImportStagingRowRepository
 from app.modules.patients.domain.repositories import SpeciesRepository
 from app.shared.application.clock import Clock
 from app.shared.domain.errors import ForbiddenError
+from app.shared.domain.limits import MAX_UNIT_PRICE
 
 _REQUIRED_PERMISSION = "imports.execute"
 
@@ -141,6 +142,8 @@ class ImportExamsFromHistoryUseCase:
                 price = Decimal(price_raw) if price_raw else None
             except InvalidOperation:
                 price = None
+            if price is not None and (not price.is_finite() or price > MAX_UNIT_PRICE):
+                price = None  # unreadable / absurd: same as a blank cell, never a crash
             # A zero (or negative) "Valor" shows up on real rows for exams bundled at no extra
             # charge alongside another paid item on the same visit — found via QA against an
             # updated version of the spreadsheet (e.g. "Hematócrito" at 0). `Exam.price_base`

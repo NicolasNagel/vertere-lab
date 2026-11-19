@@ -7,7 +7,7 @@ import { Button } from '../../../shared/ui/button'
 import { TextField } from '../../../shared/ui/text-field'
 import { attendanceQueryKey } from '../api/use-attendance-query'
 import '../../../shared/ui/button.css'
-import './attendance-correction-block.css'
+import '../../../shared/ui/correction-block.css'
 
 interface CorrectionFormApi {
   close: () => void
