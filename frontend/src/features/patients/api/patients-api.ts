@@ -39,6 +39,7 @@ export interface PatientPage {
 
 export interface PatientListParams {
   clinicId?: string
+  speciesId?: string
   search?: string
   status?: PatientStatus
   page?: number
@@ -141,6 +142,7 @@ export async function fetchPatients(params: PatientListParams = {}): Promise<Pat
   const query = new URLSearchParams()
   if (params.search) query.set('search', params.search)
   if (params.clinicId) query.set('clinic_id', params.clinicId)
+  if (params.speciesId) query.set('species_id', params.speciesId)
   if (params.status) query.set('status', params.status)
   query.set('page', String(params.page ?? 1))
   query.set('page_size', String(params.pageSize ?? 20))
@@ -152,6 +154,31 @@ export async function fetchPatients(params: PatientListParams = {}): Promise<Pat
     page: body.page,
     pageSize: body.page_size,
   }
+}
+
+export interface PatientsSummaryParams {
+  search?: string
+  clinicId?: string
+  speciesId?: string
+}
+
+export interface PatientsSummary {
+  total: number
+  active: number
+  inactive: number
+}
+
+/** Contagens por status do servidor, com o mesmo escopo e filtros da lista (menos o status). */
+export async function fetchPatientsSummary(
+  params: PatientsSummaryParams = {},
+): Promise<PatientsSummary> {
+  const query = new URLSearchParams()
+  if (params.search) query.set('search', params.search)
+  if (params.clinicId) query.set('clinic_id', params.clinicId)
+  if (params.speciesId) query.set('species_id', params.speciesId)
+
+  const suffix = query.size > 0 ? `?${query.toString()}` : ''
+  return apiRequest<PatientsSummary>(`/patients/summary${suffix}`)
 }
 
 export async function fetchPatient(id: string): Promise<Patient> {

@@ -3,21 +3,8 @@ import { KebabMenu, type KebabMenuItem } from '../../../shared/ui/kebab-menu'
 import type { Patient, PatientFormValues, PatientStatus } from '../api/patients-api'
 import { useSpeciesQuery } from '../api/use-species-query'
 import { PatientForm } from './patient-form'
+import { displayValue, PATIENT_SEX_LABELS, PATIENT_STATUS_LABELS } from './patient-labels'
 import './patient-detail.css'
-
-const STATUS_LABELS: Record<Patient['status'], string> = {
-  ACTIVE: 'Ativo',
-  INACTIVE: 'Inativo',
-}
-
-const SEX_LABELS: Record<Patient['sex'], string> = {
-  MALE: 'Macho',
-  FEMALE: 'Fêmea',
-}
-
-function displayValue(value: string | null): string {
-  return value && value.trim().length > 0 ? value : '—'
-}
 
 interface PatientDetailProps {
   patient: Patient | null
@@ -59,7 +46,7 @@ export function PatientDetail({
   if (!patient) {
     return (
       <div className="patient-detail">
-        <p className="patient-detail__empty">Selecione um paciente na lista ao lado.</p>
+        <p className="patient-detail__empty">Paciente não encontrado.</p>
       </div>
     )
   }
@@ -94,7 +81,7 @@ export function PatientDetail({
             <div className="patient-detail__title-row">
               <h2 className="patient-detail__title">{patient.name}</h2>
               <span className="patient-detail__status" data-status={patient.status}>
-                {STATUS_LABELS[patient.status]}
+                {PATIENT_STATUS_LABELS[patient.status]}
               </span>
             </div>
           </div>
@@ -128,7 +115,7 @@ export function PatientDetail({
               <dt>Raça</dt>
               <dd>{displayValue(patient.breed)}</dd>
               <dt>Sexo</dt>
-              <dd>{SEX_LABELS[patient.sex]}</dd>
+              <dd>{PATIENT_SEX_LABELS[patient.sex]}</dd>
               <dt>Idade</dt>
               <dd>{displayValue(patient.ageDescription)}</dd>
               <dt>Observação</dt>

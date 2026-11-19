@@ -1,330 +1,312 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { render, screen, waitFor } from '@testing-library/react'
+import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { http, HttpResponse } from 'msw'
 import { setupServer } from 'msw/node'
-import type { ReactNode } from 'react'
+import { MemoryRouter, Route, Routes } from 'react-router'
 import { afterAll, afterEach, beforeAll, expect, test } from 'vitest'
 
 import { AuthProvider } from '../../auth/auth-provider'
+import { apiPatient, clinicsHandler, meHandler, speciesHandler } from '../../../test/patients-handlers'
 import { PatientsPage } from './patients-page'
-import { pickOption } from '../../../test/dropdown'
 
-const server = setupServer(clinicsHandler())
+const server = setupServer()
 
 beforeAll(() => server.listen({ onUnhandledRequest: 'error' }))
 afterEach(() => server.resetHandlers())
 afterAll(() => server.close())
 
-function meHandler(permissions: string[]) {
-  return http.get('/api/v1/auth/me', () =>
-    HttpResponse.json({
-      user: {
-        id: 'u1',
-        email: 'a@b.com',
-        full_name: 'A',
-        role_id: 'r1',
-        role_name: 'LAB_ADMIN',
-      },
-      permissions,
-    }),
-  )
+const READ = ['patients.read']
+const MANAGE = ['patients.read', 'patients.manage']
+
+function pageOf(items: unknown[]) {
+  return { items, total: items.length, page: 1, page_size: 25 }
 }
 
-function speciesHandler() {
-  return http.get('/api/v1/species', () =>
-    HttpResponse.json({
-      items: [
-        { id: 's1', name: 'Cão', created_at: '2026-01-01T00:00:00Z' },
-        { id: 's2', name: 'Gato', created_at: '2026-01-01T00:00:00Z' },
-      ],
-    }),
-  )
+/** Handlers comuns da lista: espécies, clínicas e o resumo. */
+function baseHandlers(permissions: string[], summary = { total: 3, active: 2, inactive: 1 }) {
+  return [
+    meHandler(permissions),
+    speciesHandler(),
+    clinicsHandler(),
+    http.get('/api/v1/patients/summary', () => HttpResponse.json(summary)),
+  ]
 }
 
-function clinicsHandler() {
-  return http.get('/api/v1/clinics', () =>
-    HttpResponse.json({
-      items: [{ id: 'c1', name: 'Clínica Central', status: 'ACTIVE' }],
-      total: 1,
-      page: 1,
-      page_size: 100,
-    }),
-  )
-}
-
-function patientsListHandler() {
-  return http.get('/api/v1/patients', () =>
-    HttpResponse.json({
-      items: [
-        {
-          id: 'p1',
-          name: 'Rex',
-          species_id: 's1',
-          sex: 'MALE',
-          breed: 'SRD',
-          age_description: '2 anos',
-          owner_name: 'Maria Souza',
-          owner_phone: null,
-          owner_document: null,
-          status: 'ACTIVE',
-          notes: null,
-          created_at: '2026-01-01T00:00:00Z',
-          updated_at: '2026-01-01T00:00:00Z',
-          row_version: 1,
-        },
-      ],
-      total: 1,
-      page: 1,
-      page_size: 100,
-    }),
-  )
-}
-
-function renderWithProviders(children: ReactNode) {
-  const queryClient = new QueryClient({
-    defaultOptions: { queries: { retry: false } },
-  })
+function renderList(path = '/pacientes') {
+  const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   return render(
     <QueryClientProvider client={queryClient}>
-      <AuthProvider>{children}</AuthProvider>
+      <AuthProvider>
+        <MemoryRouter initialEntries={[path]}>
+          <Routes>
+            <Route path="/pacientes" element={<PatientsPage />} />
+          </Routes>
+        </MemoryRouter>
+      </AuthProvider>
     </QueryClientProvider>,
   )
 }
 
-function apiPatient(overrides: Record<string, unknown> = {}) {
-  return {
-    id: 'p1',
-    name: 'Rex',
-    species_id: 's1',
-    sex: 'MALE',
-    breed: 'SRD',
-    age_description: '2 anos',
-    owner_name: 'Maria Souza',
-    owner_phone: null,
-    owner_document: null,
-    status: 'ACTIVE',
-    notes: null,
-    created_at: '2026-01-01T00:00:00Z',
-    updated_at: '2026-01-01T00:00:00Z',
-    row_version: 1,
-    ...overrides,
-  }
-}
-
-test('lists patients and searches by owner name, without "Novo paciente" for read-only users', async () => {
-  const user = userEvent.setup()
+test('lists patients with species and clinic names and offers "Novo paciente" only with patients.manage', async () => {
   server.use(
-    meHandler(['patients.read']),
+    ...baseHandlers(READ),
+    http.get('/api/v1/patients', () => HttpResponse.json(pageOf([apiPatient()]))),
+  )
+  const view = renderList()
+
+  const row = (await screen.findByRole('button', { name: 'Rex' })).closest('tr') as HTMLElement
+  expect(within(row).getByText('Cão')).toBeInTheDocument()
+  expect(within(row).getByText('Maria Souza')).toBeInTheDocument()
+  expect(await within(row).findByText('Clínica Central')).toBeInTheDocument()
+  expect(within(row).getByText('2 anos')).toBeInTheDocument()
+  expect(screen.queryByRole('link', { name: /Novo paciente/i })).not.toBeInTheDocument()
+  view.unmount()
+  server.resetHandlers()
+
+  server.use(
+    ...baseHandlers(MANAGE),
+    http.get('/api/v1/patients', () => HttpResponse.json(pageOf([apiPatient()]))),
+  )
+  renderList()
+  expect(await screen.findByRole('link', { name: /Novo paciente/i })).toHaveAttribute(
+    'href',
+    '/pacientes/novo',
+  )
+})
+
+test('summary cards and status tabs show the server counts', async () => {
+  server.use(
+    ...baseHandlers(READ, { total: 7, active: 5, inactive: 2 }),
+    http.get('/api/v1/patients', () => HttpResponse.json(pageOf([apiPatient()]))),
+  )
+  renderList()
+
+  const cards = within(await screen.findByRole('region', { name: 'Resumo dos pacientes' }))
+  expect(await cards.findByText('7')).toBeInTheDocument()
+  expect(cards.getByText('5')).toBeInTheDocument()
+  expect(cards.getByText('2')).toBeInTheDocument()
+  const tabs = within(screen.getByRole('group', { name: 'Filtrar por status' }))
+  expect(await tabs.findByRole('button', { name: /Todos\s*7/ })).toBeInTheDocument()
+  expect(tabs.getByRole('button', { name: /Ativos\s*5/ })).toBeInTheDocument()
+  expect(tabs.getByRole('button', { name: /Inativos\s*2/ })).toBeInTheDocument()
+})
+
+test('search, status tab, clinic and species filters are sent to the server and reset the page', async () => {
+  const user = userEvent.setup()
+  const listCalls: Record<string, string>[] = []
+  const summaryCalls: Record<string, string>[] = []
+  server.use(
+    meHandler(READ),
     speciesHandler(),
+    clinicsHandler(),
+    http.get('/api/v1/patients/summary', ({ request }) => {
+      summaryCalls.push(Object.fromEntries(new URL(request.url).searchParams))
+      return HttpResponse.json({ total: 1, active: 1, inactive: 0 })
+    }),
     http.get('/api/v1/patients', ({ request }) => {
-      const search = new URL(request.url).searchParams.get('search')
-      const items =
-        search === 'joana'
-          ? [
-              apiPatient({
-                id: 'p2',
-                name: 'Bidu',
-                species_id: 's2',
-                owner_name: 'Joana Lima',
-              }),
-            ]
-          : [apiPatient()]
-      return HttpResponse.json({ items, total: 1, page: 1, page_size: 100 })
+      listCalls.push(Object.fromEntries(new URL(request.url).searchParams))
+      return HttpResponse.json(pageOf([apiPatient()]))
     }),
   )
-  renderWithProviders(<PatientsPage />)
-
-  expect(await screen.findByText('Rex')).toBeInTheDocument()
-  expect(screen.getByText('Maria Souza')).toBeInTheDocument()
-  expect(screen.queryByRole('button', { name: /Novo paciente/i })).not.toBeInTheDocument()
+  renderList()
+  await screen.findByRole('button', { name: 'Rex' })
 
   await user.type(screen.getByLabelText('Buscar paciente'), 'joana')
-  expect(await screen.findByText('Bidu')).toBeInTheDocument()
-  expect(screen.queryByText('Rex')).not.toBeInTheDocument()
-})
-
-test('with patients.manage, creates a patient with embedded owner data and returns to the detail view', async () => {
-  const user = userEvent.setup()
-  server.use(
-    meHandler(['patients.read', 'patients.manage']),
-    speciesHandler(),
-    clinicsHandler(),
-    patientsListHandler(),
-    http.post('/api/v1/patients', async ({ request }) => {
-      const body = (await request.json()) as Record<string, unknown>
-      return HttpResponse.json(
-        apiPatient({
-          id: 'p2',
-          name: body.name,
-          species_id: body.species_id,
-          sex: body.sex,
-          owner_name: body.owner_name,
-        }),
-        { status: 201 },
-      )
-    }),
-    http.get('/api/v1/patients/p2', () =>
-      HttpResponse.json(
-        apiPatient({
-          id: 'p2',
-          name: 'Bidu',
-          species_id: 's2',
-          breed: null,
-          age_description: null,
-          owner_name: 'Joana Lima',
-        }),
-      ),
-    ),
-  )
-  renderWithProviders(<PatientsPage />)
-
-  await user.click(await screen.findByRole('button', { name: /Novo paciente/i }))
-  await user.type(screen.getByLabelText('Nome do paciente'), 'Bidu')
-  await pickOption(user, 'Clínica', 'Clínica Central')
-  await pickOption(user, 'Espécie', 'Gato')
-  await user.type(screen.getByLabelText('Nome do tutor'), 'Joana Lima')
-  await user.click(screen.getByRole('button', { name: 'Salvar' }))
+  await user.click(screen.getByRole('button', { name: /^Clínica/ }))
+  await user.click(await screen.findByRole('option', { name: 'Clínica Norte' }))
+  await user.click(screen.getByRole('button', { name: /^Espécie/ }))
+  await user.click(await screen.findByRole('option', { name: 'Gato' }))
+  await user.click(screen.getByRole('button', { name: /Inativos/ }))
 
   await waitFor(() =>
-    expect(screen.queryByRole('heading', { name: 'Novo paciente' })).not.toBeInTheDocument(),
-  )
-  expect(await screen.findByRole('heading', { name: 'Bidu' })).toBeInTheDocument()
-  expect(screen.getByText('Joana Lima')).toBeInTheDocument()
-})
-
-test('shows an error, not the empty state, when the list request fails', async () => {
-  server.use(
-    meHandler(['patients.read']),
-    speciesHandler(),
-    http.get('/api/v1/patients', () => HttpResponse.json({}, { status: 500 })),
-  )
-  renderWithProviders(<PatientsPage />)
-
-  expect(await screen.findByRole('alert')).toHaveTextContent('Não foi possível carregar os pacientes.')
-  expect(screen.queryByText('Nenhum paciente encontrado.')).not.toBeInTheDocument()
-})
-
-test('a double click on Salvar creates the patient only once', async () => {
-  const user = userEvent.setup()
-  let posts = 0
-  server.use(
-    meHandler(['patients.read', 'patients.manage']),
-    speciesHandler(),
-    clinicsHandler(),
-    patientsListHandler(),
-    http.post('/api/v1/patients', async () => {
-      posts += 1
-      await new Promise((resolve) => setTimeout(resolve, 150))
-      return HttpResponse.json(apiPatient({ id: 'p2', name: 'Bidu' }), { status: 201 })
-    }),
-    http.get('/api/v1/patients/p2', () => HttpResponse.json(apiPatient({ id: 'p2', name: 'Bidu' }))),
-  )
-  renderWithProviders(<PatientsPage />)
-
-  await user.click(await screen.findByRole('button', { name: /Novo paciente/i }))
-  await user.type(screen.getByLabelText('Nome do paciente'), 'Bidu')
-  await pickOption(user, 'Clínica', 'Clínica Central')
-  await pickOption(user, 'Espécie', 'Gato')
-  await user.type(screen.getByLabelText('Nome do tutor'), 'Joana Lima')
-  await user.dblClick(screen.getByRole('button', { name: 'Salvar' }))
-
-  expect(await screen.findByRole('heading', { name: 'Bidu' })).toBeInTheDocument()
-  expect(posts).toBe(1)
-})
-
-test('the new patient form mirrors the API length limits instead of sending a doomed request', async () => {
-  const user = userEvent.setup()
-  let posts = 0
-  server.use(
-    meHandler(['patients.read', 'patients.manage']),
-    speciesHandler(),
-    clinicsHandler(),
-    patientsListHandler(),
-    http.post('/api/v1/patients', () => {
-      posts += 1
-      return HttpResponse.json(apiPatient({ id: 'p9' }), { status: 201 })
+    expect(listCalls.at(-1)).toMatchObject({
+      search: 'joana',
+      clinic_id: 'c2',
+      species_id: 's2',
+      status: 'INACTIVE',
+      page: '1',
     }),
   )
-  renderWithProviders(<PatientsPage />)
+  // As abas contam com os mesmos filtros (sem status), para bater com a tabela.
+  await waitFor(() =>
+    expect(summaryCalls.at(-1)).toMatchObject({
+      search: 'joana',
+      clinic_id: 'c2',
+      species_id: 's2',
+    }),
+  )
+  expect(summaryCalls.at(-1)).not.toHaveProperty('status')
+  // Os cartões contam só com a busca: existe uma chamada sem clínica nem espécie.
+  expect(
+    summaryCalls.some(
+      (call) => call.search === 'joana' && !('clinic_id' in call) && !('species_id' in call),
+    ),
+  ).toBe(true)
 
-  await user.click(await screen.findByRole('button', { name: /Novo paciente/i }))
-  await user.click(screen.getByLabelText('Nome do paciente'))
-  await user.paste('N'.repeat(201))
-  await pickOption(user, 'Clínica', 'Clínica Central')
-  await pickOption(user, 'Espécie', 'Gato')
-  await user.type(screen.getByLabelText('Nome do tutor'), 'Joana Lima')
-  await user.click(screen.getByRole('button', { name: 'Salvar' }))
-
-  expect(await screen.findByText('Use até 200 caracteres.')).toBeInTheDocument()
-  expect(posts).toBe(0)
+  await user.click(screen.getByRole('button', { name: /Limpar filtros/ }))
+  await waitFor(() => {
+    const last = listCalls.at(-1)
+    expect(last).not.toHaveProperty('clinic_id')
+    expect(last).not.toHaveProperty('species_id')
+    expect(last).toMatchObject({ search: 'joana', status: 'INACTIVE' })
+  })
 })
 
-test('deactivates a patient and preserves the record', async () => {
+test('row click opens the summary popover with the patient, the owner and a link to the patient page', async () => {
+  const user = userEvent.setup()
+  server.use(
+    ...baseHandlers(READ),
+    http.get('/api/v1/patients', () => HttpResponse.json(pageOf([apiPatient()]))),
+    http.get('/api/v1/patients/p1', () => HttpResponse.json(apiPatient())),
+  )
+  renderList()
+
+  await user.click(await screen.findByRole('button', { name: 'Rex' }))
+  const summary = within(await screen.findByRole('dialog'))
+  expect(await summary.findByText('(47) 99999-0000')).toBeInTheDocument()
+  expect(summary.getByText('Maria Souza')).toBeInTheDocument()
+  expect(summary.getByText('SRD')).toBeInTheDocument()
+  expect(summary.getByText('Macho')).toBeInTheDocument()
+  expect(summary.getByRole('link', { name: 'Abrir paciente' })).toHaveAttribute(
+    'href',
+    '/pacientes/p1',
+  )
+  // Sem patients.manage não há menu de ações.
+  expect(summary.queryByRole('button', { name: 'Mais ações' })).not.toBeInTheDocument()
+
+  await user.keyboard('{Escape}')
+  await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+})
+
+test('with patients.manage the row menu inactivates and reactivates, and counts refresh', async () => {
   const user = userEvent.setup()
   let status: 'ACTIVE' | 'INACTIVE' = 'ACTIVE'
-  const patientBody = () => apiPatient({ status, row_version: status === 'ACTIVE' ? 1 : 2 })
+  const calls: string[] = []
   server.use(
-    meHandler(['patients.read', 'patients.manage']),
+    meHandler(MANAGE),
     speciesHandler(),
-    patientsListHandler(),
-    http.get('/api/v1/patients/p1', () => HttpResponse.json(patientBody())),
+    clinicsHandler(),
+    http.get('/api/v1/patients/summary', () =>
+      HttpResponse.json(
+        status === 'ACTIVE'
+          ? { total: 1, active: 1, inactive: 0 }
+          : { total: 1, active: 0, inactive: 1 },
+      ),
+    ),
+    http.get('/api/v1/patients', () => HttpResponse.json(pageOf([apiPatient({ status })]))),
     http.post('/api/v1/patients/p1/deactivate', () => {
+      calls.push('deactivate')
       status = 'INACTIVE'
-      return HttpResponse.json(patientBody())
+      return HttpResponse.json(apiPatient({ status }))
     }),
-  )
-  renderWithProviders(<PatientsPage />)
-
-  await user.click(await screen.findByText('Rex'))
-  await user.click(await screen.findByRole('button', { name: 'Mais ações' }))
-  await user.click(await screen.findByRole('menuitem', { name: 'Inativar' }))
-
-  await waitFor(() => expect(screen.getByText('Inativo')).toBeInTheDocument())
-})
-
-test('an inactive patient offers Reativar instead of Editar, and reactivating brings Editar back', async () => {
-  const user = userEvent.setup()
-  let status: 'ACTIVE' | 'INACTIVE' = 'INACTIVE'
-  const patientBody = () => apiPatient({ status, row_version: status === 'ACTIVE' ? 3 : 2 })
-  server.use(
-    meHandler(['patients.read', 'patients.manage']),
-    speciesHandler(),
-    clinicsHandler(),
-    patientsListHandler(),
-    http.get('/api/v1/patients/p1', () => HttpResponse.json(patientBody())),
     http.post('/api/v1/patients/p1/reactivate', () => {
+      calls.push('reactivate')
       status = 'ACTIVE'
-      return HttpResponse.json(patientBody())
+      return HttpResponse.json(apiPatient({ status }))
     }),
   )
-  renderWithProviders(<PatientsPage />)
+  renderList()
 
-  await user.click(await screen.findByText('Rex'))
-  expect(await screen.findByRole('button', { name: 'Reativar' })).toBeInTheDocument()
-  expect(screen.queryByRole('button', { name: 'Editar' })).not.toBeInTheDocument()
+  await user.click(await screen.findByRole('button', { name: 'Ações para Rex' }))
+  await user.click(await screen.findByRole('menuitem', { name: 'Inativar paciente' }))
+  await waitFor(() => expect(calls).toEqual(['deactivate']))
+  const cards = within(screen.getByRole('region', { name: 'Resumo dos pacientes' }))
+  await waitFor(() =>
+    expect(cards.getByText('Inativos').closest('article')).toHaveTextContent('1'),
+  )
+  expect(await screen.findByText('Inativo', { selector: '.badge' })).toBeInTheDocument()
 
-  await user.click(screen.getByRole('button', { name: 'Reativar' }))
-  expect(await screen.findByRole('button', { name: 'Editar' })).toBeInTheDocument()
-  expect(screen.queryByRole('button', { name: 'Reativar' })).not.toBeInTheDocument()
+  await user.click(screen.getByRole('button', { name: 'Ações para Rex' }))
+  await user.click(await screen.findByRole('menuitem', { name: 'Reativar paciente' }))
+  await waitFor(() => expect(calls).toEqual(['deactivate', 'reactivate']))
+  expect(await screen.findByText('Ativo', { selector: '.badge' })).toBeInTheDocument()
 })
 
-test('editing an existing patient does not let the clinic change (that needs a reason)', async () => {
-  const user = userEvent.setup()
+test('shows the empty, error and permission states', async () => {
   server.use(
-    meHandler(['patients.read', 'patients.manage']),
-    speciesHandler(),
-    clinicsHandler(),
-    patientsListHandler(),
-    http.get('/api/v1/patients/p1', () =>
-      HttpResponse.json(apiPatient({ clinic_id: 'c1' })),
+    ...baseHandlers(READ),
+    http.get('/api/v1/patients', () => HttpResponse.json(pageOf([]))),
+  )
+  const empty = renderList()
+  expect(
+    await screen.findByText('Nenhum paciente encontrado para os filtros selecionados.'),
+  ).toBeInTheDocument()
+  empty.unmount()
+  server.resetHandlers()
+
+  server.use(
+    ...baseHandlers(READ),
+    http.get('/api/v1/patients', () => HttpResponse.json({}, { status: 500 })),
+  )
+  const failed = renderList()
+  expect(await screen.findByRole('alert')).toHaveTextContent(
+    'Não foi possível carregar os pacientes.',
+  )
+  expect(screen.queryByText(/Nenhum paciente encontrado/)).not.toBeInTheDocument()
+  failed.unmount()
+  server.resetHandlers()
+
+  server.use(
+    ...baseHandlers(READ),
+    http.get('/api/v1/patients', () =>
+      HttpResponse.json({ error: { code: 'FORBIDDEN', message: 'x' } }, { status: 403 }),
     ),
   )
-  renderWithProviders(<PatientsPage />)
-
-  await user.click(await screen.findByText('Rex'))
-  await user.click(await screen.findByRole('button', { name: 'Editar' }))
-
-  expect(await screen.findByLabelText('Nome do paciente')).toBeEnabled()
-  expect(screen.getByRole('button', { name: /Clínica/ })).toBeDisabled()
+  renderList()
+  expect(await screen.findByRole('alert')).toHaveTextContent(
+    'Você não tem permissão para ver pacientes.',
+  )
 })
+
+test('the popover menu inactivates the patient, stays open with the new status, and closes by x and by backdrop', async () => {
+  const user = userEvent.setup()
+  let status: 'ACTIVE' | 'INACTIVE' = 'ACTIVE'
+  server.use(
+    ...baseHandlers(MANAGE),
+    http.get('/api/v1/patients', () => HttpResponse.json(pageOf([apiPatient({ status })]))),
+    http.get('/api/v1/patients/p1', () => HttpResponse.json(apiPatient({ status }))),
+    http.post('/api/v1/patients/p1/deactivate', () => {
+      status = 'INACTIVE'
+      return HttpResponse.json(apiPatient({ status }))
+    }),
+  )
+  renderList()
+
+  await user.click(await screen.findByRole('button', { name: 'Rex' }))
+  const dialog = within(await screen.findByRole('dialog'))
+  await user.click(await dialog.findByRole('button', { name: 'Mais ações' }))
+  await user.click(await screen.findByRole('menuitem', { name: 'Inativar paciente' }))
+  expect(await dialog.findByText('Inativo')).toBeInTheDocument()
+  await user.click(dialog.getByRole('button', { name: 'Mais ações' }))
+  expect(await screen.findByRole('menuitem', { name: 'Reativar paciente' })).toBeInTheDocument()
+  await user.keyboard('{Escape}')
+
+  await user.click(dialog.getByRole('button', { name: 'Fechar resumo' }))
+  await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+
+  await user.click(screen.getByRole('button', { name: 'Rex' }))
+  await screen.findByRole('dialog')
+  await user.click(document.querySelector('.modal__backdrop') as HTMLElement)
+  await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+})
+
+test('the popover says when the patient cannot be shown because of permission', async () => {
+  const user = userEvent.setup()
+  server.use(
+    ...baseHandlers(READ),
+    http.get('/api/v1/patients', () => HttpResponse.json(pageOf([apiPatient()]))),
+    http.get('/api/v1/patients/p1', () =>
+      HttpResponse.json({ error: { code: 'FORBIDDEN', message: 'x' } }, { status: 403 }),
+    ),
+  )
+  renderList()
+
+  await user.click(await screen.findByRole('button', { name: 'Rex' }))
+  expect(
+    await within(await screen.findByRole('dialog')).findByText(
+      'Você não tem permissão para ver este paciente.',
+    ),
+  ).toBeInTheDocument()
+})
+
