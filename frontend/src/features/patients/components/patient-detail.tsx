@@ -30,6 +30,7 @@ interface PatientDetailProps {
   onCancelEdit: () => void
   onSubmitUpdate: (values: PatientFormValues & { status: PatientStatus }) => void
   onDeactivate: () => void
+  onReactivate: () => void
 }
 
 export function PatientDetail({
@@ -43,6 +44,7 @@ export function PatientDetail({
   onCancelEdit,
   onSubmitUpdate,
   onDeactivate,
+  onReactivate,
 }: PatientDetailProps) {
   const speciesQuery = useSpeciesQuery()
 
@@ -98,14 +100,20 @@ export function PatientDetail({
           </div>
           {canManage && (
             <div className="patient-detail__actions">
-              <Button
-                type="button"
-                variant="ghost"
-                className="patient-detail__edit"
-                onClick={onStartEdit}
-              >
-                Editar
-              </Button>
+              {patient.status === 'INACTIVE' ? (
+                <Button type="button" variant="secondary" onClick={onReactivate}>
+                  Reativar
+                </Button>
+              ) : (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  className="patient-detail__edit"
+                  onClick={onStartEdit}
+                >
+                  Editar
+                </Button>
+              )}
               {menuItems.length > 0 && <KebabMenu label="Mais ações" items={menuItems} />}
             </div>
           )}

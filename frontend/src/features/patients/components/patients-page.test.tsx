@@ -282,3 +282,49 @@ test('deactivates a patient and preserves the record', async () => {
 
   await waitFor(() => expect(screen.getByText('Inativo')).toBeInTheDocument())
 })
+
+test('an inactive patient offers Reativar instead of Editar, and reactivating brings Editar back', async () => {
+  const user = userEvent.setup()
+  let status: 'ACTIVE' | 'INACTIVE' = 'INACTIVE'
+  const patientBody = () => apiPatient({ status, row_version: status === 'ACTIVE' ? 3 : 2 })
+  server.use(
+    meHandler(['patients.read', 'patients.manage']),
+    speciesHandler(),
+    clinicsHandler(),
+    patientsListHandler(),
+    http.get('/api/v1/patients/p1', () => HttpResponse.json(patientBody())),
+    http.post('/api/v1/patients/p1/reactivate', () => {
+      status = 'ACTIVE'
+      return HttpResponse.json(patientBody())
+    }),
+  )
+  renderWithProviders(<PatientsPage />)
+
+  await user.click(await screen.findByText('Rex'))
+  expect(await screen.findByRole('button', { name: 'Reativar' })).toBeInTheDocument()
+  expect(screen.queryByRole('button', { name: 'Editar' })).not.toBeInTheDocument()
+
+  await user.click(screen.getByRole('button', { name: 'Reativar' }))
+  expect(await screen.findByRole('button', { name: 'Editar' })).toBeInTheDocument()
+  expect(screen.queryByRole('button', { name: 'Reativar' })).not.toBeInTheDocument()
+})
+
+test('editing an existing patient does not let the clinic change (that needs a reason)', async () => {
+  const user = userEvent.setup()
+  server.use(
+    meHandler(['patients.read', 'patients.manage']),
+    speciesHandler(),
+    clinicsHandler(),
+    patientsListHandler(),
+    http.get('/api/v1/patients/p1', () =>
+      HttpResponse.json(apiPatient({ clinic_id: 'c1' })),
+    ),
+  )
+  renderWithProviders(<PatientsPage />)
+
+  await user.click(await screen.findByText('Rex'))
+  await user.click(await screen.findByRole('button', { name: 'Editar' }))
+
+  expect(await screen.findByLabelText('Nome do paciente')).toBeEnabled()
+  expect(screen.getByRole('button', { name: /Clínica/ })).toBeDisabled()
+})

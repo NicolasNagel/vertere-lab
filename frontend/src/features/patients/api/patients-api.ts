@@ -188,6 +188,13 @@ export async function deactivatePatient(id: string): Promise<Patient> {
   return fromApiPatient(patient)
 }
 
+export async function reactivatePatient(id: string): Promise<Patient> {
+  const patient = await apiRequest<ApiPatient>(`/patients/${id}/reactivate`, {
+    method: 'POST',
+  })
+  return fromApiPatient(patient)
+}
+
 export async function fetchSpecies(): Promise<Species[]> {
   const body = await apiRequest<{ items: ApiSpecies[] }>('/species')
   return body.items.map((item) => ({ id: item.id, name: item.name }))

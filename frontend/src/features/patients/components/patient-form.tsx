@@ -141,7 +141,9 @@ export function PatientForm({
             }))}
             value={field.value}
             onChange={field.onChange}
-            disabled={submitting || clinicsQuery.isLoading}
+            // Changing a patient's clinic needs a reason (the API rejects it otherwise); until the
+            // detail screen offers that, an existing patient keeps its clinic here.
+            disabled={submitting || clinicsQuery.isLoading || patient !== null}
             errorMessage={errors.clinicId?.message}
           />
         )}

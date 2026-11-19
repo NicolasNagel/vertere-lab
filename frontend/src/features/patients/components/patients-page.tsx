@@ -6,6 +6,7 @@ import { Button } from '../../../shared/ui/button'
 import { PlusIcon } from '../../../shared/ui/icons'
 import { useCreatePatientMutation } from '../api/use-create-patient-mutation'
 import { useDeactivatePatientMutation } from '../api/use-deactivate-patient-mutation'
+import { useReactivatePatientMutation } from '../api/use-reactivate-patient-mutation'
 import { usePatientQuery } from '../api/use-patient-query'
 import { usePatientsQuery } from '../api/use-patients-query'
 import { useUpdatePatientMutation } from '../api/use-update-patient-mutation'
@@ -32,6 +33,7 @@ export function PatientsPage() {
   const guardCreate = useSubmitGuard()
   const updateMutation = useUpdatePatientMutation()
   const deactivateMutation = useDeactivatePatientMutation()
+  const reactivateMutation = useReactivatePatientMutation()
 
   const patients = listQuery.data?.items ?? []
   const activeCount = patients.filter((patient) => patient.status === 'ACTIVE').length
@@ -126,6 +128,7 @@ export function PatientsPage() {
               )
             }}
             onDeactivate={handleDeactivate}
+            onReactivate={() => selectedId && reactivateMutation.mutate(selectedId)}
           />
         )}
       </div>
