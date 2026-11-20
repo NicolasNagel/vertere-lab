@@ -34,6 +34,7 @@ from app.modules.imports.application.text_normalization import merge_key
 from app.modules.imports.domain.repositories import ImportStagingRowRepository
 from app.shared.application.clock import Clock
 from app.shared.domain.errors import ForbiddenError
+from app.shared.domain.limits import MAX_UNIT_PRICE
 
 _REQUIRED_PERMISSION = "imports.execute"
 
@@ -106,6 +107,18 @@ class ImportPriceTableUseCase:
                     ImportRowException(
                         source_row_number=row.source_row_number,
                         message=f"Preço '{price_raw}' do exame '{name}' não é um valor numérico válido.",
+                    )
+                )
+                continue
+
+            if not price.is_finite() or price > MAX_UNIT_PRICE:
+                exceptions.append(
+                    ImportRowException(
+                        source_row_number=row.source_row_number,
+                        message=(
+                            f"Preço '{price_raw}' do exame '{name}' está fora do limite "
+                            f"(até R$ {MAX_UNIT_PRICE})."
+                        ),
                     )
                 )
                 continue

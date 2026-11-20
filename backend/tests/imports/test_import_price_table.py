@@ -113,3 +113,24 @@ def test_price_table_import_never_creates_exams_missing_from_the_catalog() -> No
         )[1]
         == 0
     )
+
+
+def test_price_table_import_sends_nan_infinity_and_oversized_prices_to_exceptions() -> None:
+    """A non-finite or absurd price used to abort the whole import (500); now it is one exception."""
+    result, _, _, by_name = _run(
+        {"category": "Exames Urinários", "name": "Exame NaN", "price": "NaN"},
+        {"category": "Exames Urinários", "name": "Exame Infinito", "price": "Infinity"},
+        {"category": "Exames Urinários", "name": "Exame Gigante", "price": "1E+20"},
+        {"category": "Exames Urinários", "name": "Exame Normal", "price": "30.00"},
+        catalog={
+            "Exame NaN": "10.00",
+            "Exame Infinito": "10.00",
+            "Exame Gigante": "10.00",
+            "Exame Normal": "20.00",
+        },
+    )
+
+    assert result.imported_count == 1
+    assert len(result.exceptions) == 3
+    assert by_name["Exame Gigante"].price_base == Decimal("10.00")
+    assert by_name["Exame Normal"].price_base == Decimal("30.00")

@@ -230,14 +230,22 @@ def _cell(raw_data: dict[str, object], column: str) -> str | None:
     return stripped or None
 
 
+_NUMERIC_14_2_LIMIT = Decimal(10) ** 12
+
+
 def _cell_decimal(raw_data: dict[str, object], column: str) -> Decimal | None:
     raw = _cell(raw_data, column)
     if raw is None:
         return None
     try:
-        return Decimal(raw)
+        value = Decimal(raw)
     except InvalidOperation:
         return None
+    # NaN/Infinity crash rounding and a value past NUMERIC(14,2) aborts the insert: both are
+    # "unreadable" so the row keeps its own exception instead of failing the whole batch.
+    if not value.is_finite() or abs(value) >= _NUMERIC_14_2_LIMIT:
+        return None
+    return value
 
 
 def _excel_serial_to_date(raw: str | None) -> date | None:

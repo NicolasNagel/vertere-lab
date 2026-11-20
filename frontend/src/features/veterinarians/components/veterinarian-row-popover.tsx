@@ -1,5 +1,6 @@
 import { Link } from 'react-router'
 
+import { displayValue } from '../../../shared/lib/formatters'
 import { Badge } from '../../../shared/ui/badge'
 import { KebabMenu, type KebabMenuItem } from '../../../shared/ui/kebab-menu'
 import type { Veterinarian } from '../api/veterinarians-api'
@@ -8,10 +9,6 @@ import '../../attendances/components/attendance-row-popover.css'
 import './clinic-batch-picker.css'
 
 export const VETERINARIAN_POPOVER_TITLE_ID = 'veterinarian-row-popover-title'
-
-function displayValue(value: string | null): string {
-  return value && value.trim().length > 0 ? value : '—'
-}
 
 interface VeterinarianRowPopoverProps {
   /** `null` enquanto o detalhe (com as clínicas vinculadas) carrega. */

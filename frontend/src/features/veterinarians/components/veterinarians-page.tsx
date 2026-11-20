@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { Link, useSearchParams } from 'react-router'
 
 import { useAuth } from '../../auth/auth-context'
+import { useActionError } from '../../../shared/lib/use-action-error'
 import { Dropdown } from '../../../shared/ui/dropdown'
 import { ClinicsIcon, CloseIcon, PlusIcon, SearchIcon } from '../../../shared/ui/icons'
 import { Modal } from '../../../shared/ui/modal'
@@ -99,6 +100,12 @@ export function VeterinariansPage() {
   })
   const detailQuery = useVeterinarianQuery(selectedId)
   const deactivateMutation = useDeactivateVeterinarianMutation()
+  const actionError = useActionError()
+
+  function deactivate(id: string) {
+    actionError.clear()
+    deactivateMutation.mutate(id, { onError: actionError.onError })
+  }
 
   const hasActiveFilters = link !== ''
 
@@ -185,6 +192,11 @@ export function VeterinariansPage() {
           </div>
         </div>
 
+        {actionError.message && (
+          <p role="alert" className="attendance-list-page__error">
+            {actionError.message}
+          </p>
+        )}
         <VeterinarianTable
           veterinarians={listQuery.data?.items ?? []}
           canManage={canManage}
@@ -195,7 +207,7 @@ export function VeterinariansPage() {
           pageSize={listQuery.data?.pageSize ?? 25}
           total={listQuery.data?.total ?? 0}
           onSelect={select}
-          onDeactivate={(id) => deactivateMutation.mutate(id)}
+          onDeactivate={deactivate}
           onPageChange={setPage}
         />
       </div>
@@ -214,7 +226,7 @@ export function VeterinariansPage() {
             canManage={canManage}
             onClose={() => select(null)}
             onDeactivate={(id) => {
-              deactivateMutation.mutate(id)
+              deactivate(id)
               select(null)
             }}
           />

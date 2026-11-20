@@ -6,7 +6,7 @@ import { ClinicStatusBadge } from './clinic-status-badge'
 import '../../attendances/components/attendance-list-page.css'
 import '../../attendances/components/attendance-list-pagination.css'
 import '../../attendances/components/attendance-list-table.css'
-import './clinic-table.css'
+import '../../../shared/ui/registry-table.css'
 
 interface ClinicTableProps {
   clinics: Clinic[]
@@ -49,21 +49,21 @@ export function ClinicTable({
       )}
       {clinics.length > 0 && (
         <div className="attendance-list-table">
-          <table className="attendance-list-table__table clinic-table__table">
+          <table className="attendance-list-table__table registry-table__table">
             <thead>
               <tr>
                 <th scope="col">Clínica</th>
-                <th scope="col" className="clinic-table__optional">
+                <th scope="col" className="registry-table__optional">
                   CNPJ
                 </th>
                 <th scope="col">Cidade / UF</th>
-                <th scope="col" className="clinic-table__optional">
+                <th scope="col" className="registry-table__optional">
                   Telefone
                 </th>
                 <th scope="col">Status</th>
                 {canManage && (
-                  <th scope="col" className="clinic-table__actions">
-                    <span className="clinic-table__sr">Ações</span>
+                  <th scope="col" className="registry-table__actions">
+                    <span className="registry-table__sr">Ações</span>
                   </th>
                 )}
               </tr>
@@ -83,7 +83,7 @@ export function ClinicTable({
                     <td>
                       <button
                         type="button"
-                        className="clinic-table__name"
+                        className="registry-table__name"
                         title={clinic.name}
                         onClick={(event) => {
                           event.stopPropagation()
@@ -93,7 +93,7 @@ export function ClinicTable({
                         {clinic.name}
                       </button>
                     </td>
-                    <td className="attendance-list-table__protocol clinic-table__optional">
+                    <td className="attendance-list-table__protocol registry-table__optional">
                       {formatTaxId(clinic.taxId) ?? '—'}
                     </td>
                     <td>
@@ -101,14 +101,14 @@ export function ClinicTable({
                         ? `${clinic.addressCity} / ${clinic.addressState ?? '—'}`
                         : '—'}
                     </td>
-                    <td className="attendance-list-table__protocol clinic-table__optional">
+                    <td className="attendance-list-table__protocol registry-table__optional">
                       {clinic.phone ?? '—'}
                     </td>
                     <td>
                       <ClinicStatusBadge status={clinic.status} />
                     </td>
                     {canManage && (
-                      <td className="clinic-table__actions" onClick={(event) => event.stopPropagation()}>
+                      <td className="registry-table__actions" onClick={(event) => event.stopPropagation()}>
                         <KebabMenu label={`Ações para ${clinic.name}`} items={items} />
                       </td>
                     )}

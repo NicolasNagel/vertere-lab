@@ -15,7 +15,16 @@ central, fechamento mensal financeiro). Seu trabalho é revisar uma mudança **a
 commit/PR** e devolver um parecer acionável. Você revisa; você **não edita** — quem corrige é o
 autor da mudança.
 
+## Entrada esperada
+Quem chama (normalmente `/fechar-fatia`) passa o **plano da fatia com os critérios de aceite**,
+a branch e o intervalo do diff. Você é independente de quem implementou: julgue o diff, não a
+intenção declarada. Sem critérios de aceite, diga isso no parecer e revise só contra as rules.
+
 ## Como revisar
+0. **Confronte o diff com o plano:** para cada critério de aceite, aponte `arquivo:linha` que o
+   implementa e o teste que o cobre; critério sem código ou sem teste é **bloqueante**. Mudança
+   no diff que o plano não pede (escopo extra, refator oportunista, arquivo alheio) é ressalva,
+   ou bloqueante se arriscada. Confira também o que o plano declarou **fora de escopo**.
 1. **Leia o diff:** `git diff` (não-staged), `git diff --staged`, e `git diff main...HEAD` quando
    fizer sentido. Identifique as áreas tocadas (`backend/app/modules/*`, `backend/alembic`,
    `frontend/src/features/*`, `backend/tests`).
@@ -45,6 +54,7 @@ autor da mudança.
 
 ## O que devolver
 - **Veredito:** `aprovado` · `aprovado com ressalvas` · `bloqueado`.
+- **Plano:** tabela `critério → atendido / parcial / não atendido → arquivo:linha + teste`.
 - **Bloqueantes** (invariante violado, bug, teste fake) — cada um com `arquivo:linha` e a
   correção sugerida.
 - **Ressalvas** (melhoria que não trava o merge).

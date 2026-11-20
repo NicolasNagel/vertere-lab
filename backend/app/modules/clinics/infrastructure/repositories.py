@@ -14,7 +14,7 @@ from sqlalchemy.orm import Session as SqlAlchemySession
 from app.modules.clinics.domain.entities import Clinic, ClinicStatus
 from app.modules.clinics.domain.value_objects import TaxId
 from app.modules.clinics.infrastructure.models import ClinicModel
-from app.shared.infrastructure.sql import LIKE_ESCAPE, contains_pattern
+from app.shared.infrastructure.sql import LIKE_ESCAPE, folded, folded_pattern
 
 
 def _to_domain(model: ClinicModel) -> Clinic:
@@ -127,11 +127,11 @@ class SqlAlchemyClinicRepository:
         if status is not None:
             conditions.append(ClinicModel.status == status.value)
         if search:
-            like_pattern = contains_pattern(search.lower())
+            like_pattern = folded_pattern(search)
             conditions.append(
                 or_(
-                    func.lower(ClinicModel.name).like(like_pattern, escape=LIKE_ESCAPE),
-                    func.lower(ClinicModel.tax_id).like(like_pattern, escape=LIKE_ESCAPE),
+                    folded(ClinicModel.name).like(like_pattern, escape=LIKE_ESCAPE),
+                    folded(ClinicModel.tax_id).like(like_pattern, escape=LIKE_ESCAPE),
                 )
             )
 

@@ -39,6 +39,12 @@ class FakePasswordHasher:
     def verify(self, plain_password: str, password_hash: str) -> bool:
         return password_hash == f"hashed::{plain_password}"
 
+    def __init__(self) -> None:
+        self.unknown_user_verifications = 0
+
+    def verify_against_unknown_user(self, plain_password: str) -> None:
+        self.unknown_user_verifications += 1
+
 
 class FakeSessionTokens:
     def __init__(self) -> None:

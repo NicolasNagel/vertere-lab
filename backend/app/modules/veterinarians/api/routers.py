@@ -15,6 +15,7 @@ from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session as SqlAlchemySession
 
 from app.api.dependencies import get_session, get_unit_of_work
+from app.api.query_types import ReasonQuery, SearchQuery
 from app.modules.clinics.infrastructure.repositories import SqlAlchemyClinicRepository
 from app.modules.identity.api.dependencies import require_permission
 from app.modules.veterinarian_clinics.application.link_veterinarian_to_clinic import (
@@ -104,7 +105,7 @@ def list_veterinarians(
     page_size: int = Query(20, ge=1, le=100),
     status: VeterinarianStatus | None = Query(None),
     is_autonomous: bool | None = Query(None),
-    search: str | None = Query(None),
+    search: SearchQuery = None,
     available_for_clinic_id: UUID | None = Query(None),
     session: SqlAlchemySession = Depends(get_session),
     current_user: ActorContext = Depends(require_permission("veterinarians.read")),
@@ -270,7 +271,7 @@ def link_veterinarian_clinic(
 def unlink_veterinarian_clinic(
     veterinarian_id: UUID,
     clinic_id: UUID,
-    reason: str = Query(min_length=1, max_length=500),
+    reason: ReasonQuery,
     uow: SqlAlchemyUnitOfWork = Depends(get_unit_of_work),
     current_user: ActorContext = Depends(require_permission("veterinarians.manage")),
 ) -> None:

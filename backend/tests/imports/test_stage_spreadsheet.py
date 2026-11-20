@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 from datetime import UTC, datetime
 from uuid import uuid4
 
@@ -70,3 +71,19 @@ def test_stage_creates_batch_and_rows_and_staging_the_same_file_twice_is_idempot
     assert second.already_staged is True
     assert second.batch.id == first.batch.id
     assert len(staging_rows.list_by_batch(first.batch.id)) == 3
+
+
+def test_a_cell_with_a_nul_byte_is_refused_as_an_invalid_workbook_not_staged() -> None:
+    """XML cannot carry NUL, so the reader refuses the file with a clear validation error before any
+    row is staged (it never reaches PostgreSQL's JSONB, which would reject the whole batch)."""
+    batches = FakeImportBatchRepository()
+    staging_rows = FakeImportStagingRowRepository()
+    use_case = _use_case(batches=batches, staging_rows=staging_rows)
+    content = build_xlsx(
+        "Cadastro Clínicas", [["Clínica", "Status"], ["Bicho \x00 Urbano", "Ativo"]]
+    )
+
+    with pytest.raises(ValidationError):
+        use_case.execute(_command(content=content))
+
+    assert batches.get_by_checksum(hashlib.sha256(content).hexdigest()) is None

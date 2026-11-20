@@ -11,7 +11,7 @@ import { useSpeciesQuery } from '../../patients/api/use-species-query'
 import { fetchExam } from '../api/catalog-api'
 import { useActiveExamCategoriesQuery } from '../api/use-active-exam-categories-query'
 import { examQueryKey, useExamQuery } from '../api/use-exam-query'
-import { ExamDetailBlock } from './exam-detail-block'
+import { DetailBlock } from '../../../shared/ui/detail-block'
 import {
   CategorySpeciesForm,
   CompositionForm,
@@ -22,7 +22,7 @@ import {
 import { ExamSummaryCards } from './exam-summary-cards'
 import '../../../shared/ui/button.css'
 import '../../attendances/components/attendance-detail-page.css'
-import '../../attendances/components/attendance-readonly-detail.css'
+import '../../../shared/ui/readonly-detail.css'
 
 /** Detalhe do exame em blocos, cada um com "Editar" + motivo. Preço só com `pricing.read`
  * e só editável com `pricing.manage`; o backend é quem decide de verdade. */
@@ -105,9 +105,8 @@ export function ExamDetailPage() {
         <div className="attendance-readonly-detail">
           <div className="attendance-readonly-detail__columns" data-money={priceVisible}>
             <div className="attendance-readonly-detail__column">
-              <ExamDetailBlock
+              <DetailBlock
                 title="Identificação"
-                examId={exam.id}
                 canEdit={canEdit}
                 form={({ close }) => <IdentityForm {...formProps} onClose={close} />}
               >
@@ -119,11 +118,10 @@ export function ExamDetailPage() {
                   <dt>Descrição</dt>
                   <dd>{exam.description || '—'}</dd>
                 </dl>
-              </ExamDetailBlock>
+              </DetailBlock>
 
-              <ExamDetailBlock
+              <DetailBlock
                 title="Categoria e espécies"
-                examId={exam.id}
                 canEdit={canEdit}
                 form={({ close }) => (
                   <CategorySpeciesForm {...formProps} categories={categories} onClose={close} />
@@ -135,12 +133,11 @@ export function ExamDetailPage() {
                   <dt>Espécies</dt>
                   <dd>{speciesNames || '—'}</dd>
                 </dl>
-              </ExamDetailBlock>
+              </DetailBlock>
 
               {exam.isPanel && (
-                <ExamDetailBlock
+                <DetailBlock
                   title="Composição"
-                  examId={exam.id}
                   canEdit={canEdit}
                   form={({ close }) => <CompositionForm {...formProps} onClose={close} />}
                 >
@@ -154,14 +151,13 @@ export function ExamDetailPage() {
                       </li>
                     ))}
                   </ul>
-                </ExamDetailBlock>
+                </DetailBlock>
               )}
             </div>
             <div className="attendance-readonly-detail__column">
               {priceVisible && (
-                <ExamDetailBlock
+                <DetailBlock
                   title="Preço e vigência"
-                  examId={exam.id}
                   canEdit={canEdit && canManagePrice}
                   form={({ close }) => <PriceForm {...formProps} onClose={close} />}
                 >
@@ -181,12 +177,11 @@ export function ExamDetailPage() {
                       Alterar preço exige a permissão de gerir preços.
                     </p>
                   )}
-                </ExamDetailBlock>
+                </DetailBlock>
               )}
 
-              <ExamDetailBlock
+              <DetailBlock
                 title="Status"
-                examId={exam.id}
                 canEdit={canEdit}
                 form={({ close }) => <StatusForm {...formProps} onClose={close} />}
               >
@@ -194,7 +189,7 @@ export function ExamDetailPage() {
                   <dt>Status</dt>
                   <dd>{exam.status === 'ACTIVE' ? 'Ativo' : 'Inativo'}</dd>
                 </dl>
-              </ExamDetailBlock>
+              </DetailBlock>
             </div>
           </div>
         </div>

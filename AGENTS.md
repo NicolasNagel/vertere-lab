@@ -60,9 +60,11 @@ verdade. Não trocar peça estrutural da stack sem ADR em `docs/adr/`.
 
 ## Onde fica o quê
 - regras por área (path-scoped via `paths:`, carregam só ao tocar a área): `.claude/rules/`
-- subagentes (verificação *soft*): `.claude/agents/` — `revisor-codigo` (diff vs. rules) e
+- subagentes (verificação independente de cada fatia): `.claude/agents/` — `qa-fatia` (QA real
+  contra os critérios de aceite), `revisor-codigo` (diff vs. plano e rules) e
   `auditor-integridade` (os 7 riscos do `docs/06-estrategia-qa.md` §1 contra o diff)
-- comandos: `.claude/commands/` — `/planejar-fatia` (quebra em fatias antes de codificar),
+- comandos: `.claude/commands/` — `/planejar-fatia` (quebra em fatias com critérios de aceite
+  antes de codificar), `/fechar-fatia` (validar, QA, revisão e commit da fatia),
   `/validar`, `/testar-app` (QA exploratório real — API e navegador, funcional e segurança),
   `/reconciliar-migracao`, `/verificar-fechamento`, `/handoff`
 - skills: `.claude/skills/qa-exploratorio/` — checklist e scripts reais (`probe_idor.py`,
@@ -103,23 +105,51 @@ matriz de permissão, migration, OpenAPI/schema, testes, auditoria, e verifique 
 fechamento — mudança parcial que esquece um desses é a forma mais comum de dívida silenciosa
 aqui.
 
-## Como trabalho em fatias
-Para qualquer tarefa que não seja trivial (mais de ~1 caso de uso/migration/conjunto de testes),
-o primeiro passo é propor um plano de fatias verticais pequenas (ver
-`.claude/commands/planejar-fatia.md`) e **parar para confirmação antes de codificar**. Não
-execute a tarefa inteira em um único bloco silencioso. Depois de cada fatia: rode `/validar` no
-escopo tocado, reporte verde/vermelho, e só siga para a próxima fatia com sinal explícito de
-continuar. Isso vale mesmo sem o usuário pedir explicitamente — é o modo de trabalho padrão
-deste projeto, não uma opção.
+## Fluxo de toda fatia — planejar, implementar, validar, QA, revisão, commit
+Vale para **toda** rodada de alterações (feature, correção, refatoração, ajuste de tela ou de
+docs). Nenhuma alteração fica só no worktree: **cada fatia termina em commit**, e é isso que
+mantém a rastreabilidade (o que mudou, por quê, contra qual plano e com qual evidência).
 
-**Toda fatia que for feature nova ou refatoração** — não só as que tocam `attendances`,
-`billing`, `identity`, `owners`, `patients` ou `imports` — roda a skill `qa-exploratorio` (QA
-exploratório real) depois do `/validar` verde, antes de reportar a fatia como concluída. Isso é
-automático: **não espere o usuário digitar `/testar-app`** — invoque a skill você mesmo como
-parte do critério de conclusão, do mesmo jeito que já roda `/validar` sem precisar que peçam.
-Gate verde de lint/tipo não significa que o comportamento real foi verificado contra o app
-rodando. Não descreva o que um teste "deveria" mostrar; execute e reporte o que foi observado de
-fato — inclusive quando a mudança for só um ajuste de leitura/consulta, não só criação/escrita.
+0. **Branch.** Nunca commitar direto na `main`. Uma branch por rodada (`feat/…`, `fix/…`,
+   `refactor/…`, `docs/…`); se estiver na `main`, crie a branch antes do primeiro commit.
+1. **Plano com critérios de aceite** (`.claude/commands/planejar-fatia.md`). Para qualquer
+   tarefa que não seja trivial (mais de ~1 caso de uso/migration/conjunto de testes), proponha
+   fatias verticais pequenas, **cada uma com critérios de aceite verificáveis**, e **pare para
+   confirmação antes de codificar**. Os critérios são a referência contra a qual QA e revisor
+   julgam a fatia — não os reescreva depois para caber no que foi feito.
+2. **Implementar** a fatia com testes, migration, schema de API, auditoria e docs afetados.
+3. **`/validar` verde** no escopo tocado (Ruff, mypy, pytest, tsc, oxlint, Vitest, Playwright
+   quando aplicável).
+4. **QA independente.** Subagente `qa-fatia` (contexto limpo, sem ter escrito o código) roda a
+   skill `qa-exploratorio` contra o app rodando e confere **cada critério de aceite**, devolvendo
+   atendido / não atendido com a evidência observada. Não espere o usuário digitar `/testar-app`.
+   Gate verde de lint/tipo não significa que o comportamento real foi verificado.
+5. **Revisão independente.** Subagente `revisor-codigo` confronta o diff com o plano, os critérios
+   e as rules; some `auditor-integridade` quando a fatia tocar dinheiro, permissão, escopo de
+   clínica, atendimento, fechamento, importação ou identidade. Quem implementou não aprova a
+   própria fatia: é por isso que QA e revisor são subagentes separados, que recebem só o plano e
+   o diff.
+6. **Corrigir** todo achado bloqueante e repetir 3–5 no que mudou. Ressalva não bloqueante vai
+   para `docs/pendencias-redesign-operacao.md` (ou o registro da área) com dono e motivo — nunca
+   some em silêncio. Se um achado for aceito sem correção, o corpo do commit diz qual e por quê.
+7. **Commit** — uma fatia, um commit coerente (migration junto do código; teste junto da
+   mudança). Mensagem em inglês no formato `tipo(escopo): resumo` (feat, fix, refactor, test,
+   docs, chore), com corpo curto: o que mudou e por quê, os critérios de aceite atendidos e o
+   resultado de gates, QA e revisão. `git add` só dos caminhos da fatia, nunca `-A`/`.`; fora do
+   commit ficam segredo, dump, dado real, artefato temporário de QA e arquivos alheios à fatia
+   (ex.: a planilha `.xlsx` da raiz).
+8. **Reportar** a fatia como concluída com o hash do commit e esperar sinal explícito para a
+   próxima. Item que não pôde ser executado é declarado pendente, nunca "passou".
+
+`/fechar-fatia` executa os passos 3–8 em sequência. **Autorização durável (usuário, 2026-11-19):**
+commitar ao fim de cada fatia aprovada não precisa de novo pedido. Continuam exigindo pedido
+explícito: `push`, abrir PR, merge, `amend`/`rebase`/`force` e qualquer comando destrutivo.
+Mudança trivial (erro de digitação, ajuste de uma linha de docs) também termina em commit, mas
+QA e revisor podem ser dispensados se a dispensa e o motivo forem ditos na mensagem do commit.
+
+Gate verde de lint/tipo não substitui o comportamento real: não descreva o que um teste
+"deveria" mostrar; execute e reporte o que foi observado de fato — inclusive quando a mudança
+for só um ajuste de leitura/consulta, não só criação/escrita.
 
 ## Antes de editar um arquivo existente
 - **Quem importa este arquivo?** Pode quebrar quem consome.

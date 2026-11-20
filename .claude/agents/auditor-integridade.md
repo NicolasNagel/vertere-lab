@@ -65,6 +65,9 @@ existe para verificar cada um contra o diff, na ordem de risco declarada. Você 
    `12-attendance.md`, `13-monthly-closure.md` ou `10-data-migration.md` o teria pego.
 
 ## O que devolver
+(Se quem chamou passou o plano da fatia com critérios de aceite, diga também se algum critério
+de dinheiro, permissão ou escopo ficou sem verificação real — você é independente de quem
+implementou.)
 - **Veredito:** `aprovado` · `aprovado com ressalvas` · `bloqueado`.
 - **Achados bloqueantes**, cada um com: **qual dos 7 riscos**, `arquivo:linha`, como o problema
   se manifestaria em produção em 1 frase, correção sugerida, e o teste que falta.

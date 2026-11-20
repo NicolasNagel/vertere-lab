@@ -12,7 +12,7 @@ import logging
 
 from fastapi import FastAPI, status
 from fastapi.exceptions import RequestValidationError
-from sqlalchemy.exc import IntegrityError
+from sqlalchemy.exc import DataError, IntegrityError
 from sqlalchemy.orm.exc import StaleDataError
 from starlette.exceptions import HTTPException as StarletteHTTPException
 from starlette.requests import Request
@@ -36,6 +36,7 @@ ERROR_STATUS: dict[ErrorCode, int] = {
     ErrorCode.PRICE_NOT_AVAILABLE: status.HTTP_422_UNPROCESSABLE_CONTENT,
     ErrorCode.EXTERNAL_SERVICE_UNAVAILABLE: status.HTTP_503_SERVICE_UNAVAILABLE,
     ErrorCode.RATE_LIMITED: status.HTTP_429_TOO_MANY_REQUESTS,
+    ErrorCode.METHOD_NOT_ALLOWED: status.HTTP_405_METHOD_NOT_ALLOWED,
     ErrorCode.INTERNAL_ERROR: status.HTTP_500_INTERNAL_SERVER_ERROR,
 }
 
@@ -84,6 +85,7 @@ _HTTP_STATUS_CODES: dict[int, ErrorCode] = {
     status.HTTP_403_FORBIDDEN: ErrorCode.FORBIDDEN,
     status.HTTP_404_NOT_FOUND: ErrorCode.NOT_FOUND,
     status.HTTP_409_CONFLICT: ErrorCode.CONFLICT,
+    status.HTTP_405_METHOD_NOT_ALLOWED: ErrorCode.METHOD_NOT_ALLOWED,
 }
 
 
@@ -104,6 +106,36 @@ async def handle_integrity_error(request: Request, exc: IntegrityError) -> JSONR
     return error_response(
         ErrorCode.CONFLICT,
         "A operação não pôde ser concluída porque conflita com dados existentes.",
+    )
+
+
+# Data exceptions that are the CALLER's text, never a server calculation: 22021 (invalid byte
+# sequence for the encoding) and 22P05 (untranslatable character). A NUL byte is rejected by the
+# driver itself before it reaches the server, so it carries no SQLSTATE at all.
+_CLIENT_TEXT_SQLSTATES = frozenset({"22021", "22P05"})
+
+
+async def handle_data_error(request: Request, exc: DataError) -> JSONResponse:
+    # Last-resort net for text PostgreSQL cannot store (a NUL byte in a body field). Boundary types
+    # (`app.api.query_types`) reject the query-string cases early with a field-level message.
+    #
+    # Deliberately NOT a catch-all for SQLSTATE class 22: numeric_value_out_of_range (22003) or
+    # division_by_zero (22012) can come from a total the server calculated, and answering those as
+    # "your value is invalid" would hide a financial divergence behind a client error. They stay a
+    # 500, and the SQLSTATE is logged (never the value: the driver message can carry it).
+    sqlstate = getattr(exc.orig, "sqlstate", None)
+    if sqlstate is None or sqlstate in _CLIENT_TEXT_SQLSTATES:
+        logger.warning("data_error", extra={"path": request.url.path, "sqlstate": sqlstate})
+        return error_response(
+            ErrorCode.VALIDATION_ERROR,
+            "Algum texto enviado contém caractere que não pode ser armazenado.",
+        )
+    logger.error(
+        "data_error_not_client_text", extra={"path": request.url.path, "sqlstate": sqlstate}
+    )
+    return error_response(
+        ErrorCode.INTERNAL_ERROR,
+        "Erro interno. Tente novamente ou contate o suporte.",
     )
 
 
@@ -133,5 +165,6 @@ def register_error_handlers(app: FastAPI) -> None:
     app.add_exception_handler(RequestValidationError, handle_validation_error)  # type: ignore[arg-type]
     app.add_exception_handler(StarletteHTTPException, handle_http_exception)  # type: ignore[arg-type]
     app.add_exception_handler(IntegrityError, handle_integrity_error)  # type: ignore[arg-type]
+    app.add_exception_handler(DataError, handle_data_error)  # type: ignore[arg-type]
     app.add_exception_handler(StaleDataError, handle_stale_data_error)  # type: ignore[arg-type]
     app.add_exception_handler(Exception, handle_unexpected_error)

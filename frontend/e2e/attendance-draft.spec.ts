@@ -145,6 +145,7 @@ async function mockApi(page: Page) {
           ],
         }),
       )
+    if (path === '/attendances/drafts') return route.fulfill(json(attendance))
     if (path === '/attendances/a1') return route.fulfill(json(attendance))
     if (path === '/attendances/a1/timeline') return route.fulfill(list([]))
     if (path === '/clinics/c1') return route.fulfill(json(clinic))
@@ -178,12 +179,17 @@ const attendance = {
   grand_total: '0.00',
 }
 
-async function expectAccessible(page: Page) {
+async function expectAccessible(page: Page, options: { portaledPopup?: boolean } = {}) {
   const overflow = await page.evaluate(
     () => document.documentElement.scrollWidth > document.documentElement.clientWidth,
   )
   expect(overflow).toBe(false)
-  expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([])
+  // O menu do Dropdown vai por portal para o <body> (para não ser cortado por overflow). Um popup
+  // aberto fica fora dos landmarks por construção; ele é um listbox nomeado, não conteúdo de página.
+  const builder = new AxeBuilder({ page })
+  if (options.portaledPopup) builder.disableRules(['region'])
+  const v = (await builder.analyze()).violations
+  expect(v.map((x) => `${x.id}: ${x.nodes.map((n) => n.target.join(' ')).join(' | ')}`)).toEqual([])
 }
 
 test('new protocol asks for clinic, veterinarian and patient before listing exams', async ({
@@ -204,5 +210,33 @@ test('resumed draft shows the exam grid and stays accessible', async ({ page }) 
   await page.goto('/operacao/a1')
   await expect(page.getByRole('checkbox', { name: /Hemograma/ })).toBeVisible()
   await page.getByRole('checkbox', { name: /Hemograma/ }).focus()
+  await expectAccessible(page)
+})
+
+async function pickOption(page: Page, field: string, option: string) {
+  await page.getByRole('button', { name: new RegExp(field) }).click()
+  await expect(page.getByRole('listbox', { name: field })).toBeVisible()
+  await expectAccessible(page, { portaledPopup: true })
+  await page.getByRole('option', { name: option }).click()
+}
+
+test('filled new protocol keeps dropdowns, exam grid and summary bar accessible', async ({
+  page,
+}) => {
+  await mockApi(page)
+  await page.goto('/operacao/novo')
+  await pickOption(page, 'Clínica solicitante', 'Clínica Central')
+  await pickOption(page, 'Veterinário responsável', 'Dra. Ana')
+  await page.getByRole('button', { name: '+ buscar do histórico' }).click()
+  await page.getByRole('textbox', { name: 'Paciente', exact: true }).fill('Bidu')
+  await expect(page.getByRole('option', { name: /Bidu/ })).toBeVisible()
+  await expectAccessible(page)
+  await page.getByRole('option', { name: /Bidu/ }).click()
+
+  const hemograma = page.getByRole('checkbox', { name: /Hemograma/ })
+  await expect(hemograma).toBeVisible()
+  await page.locator('label', { has: hemograma }).click()
+  await expect(hemograma).toBeChecked()
+  await expect(page.getByRole('region', { name: 'Resumo do protocolo' })).toBeVisible()
   await expectAccessible(page)
 })

@@ -1,0 +1,71 @@
+/* Tabela de cadastro (clínicas, veterinários, pacientes) no padrão da lista de atendimentos.
+   Tabela, cabeçalho e linhas vêm de attendance-list-table.css; aqui fica só o que os cadastros
+   têm em comum. Regras próprias de uma tela ficam no CSS dela. */
+.registry-table__table {
+  min-width: var(--registry-table-min-width, 46rem);
+}
+
+.registry-table__table tbody tr[data-selectable] {
+  cursor: pointer;
+}
+
+.registry-table__table tbody tr[data-selected] td {
+  background: #f4f8fd;
+}
+
+.registry-table__name {
+  appearance: none;
+  max-width: 18rem;
+  padding: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  border: none;
+  background: none;
+  font: inherit;
+  font-weight: 600;
+  color: inherit;
+  text-align: left;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.registry-table__name:hover {
+  color: var(--color-brand-ink-deep);
+  text-decoration: underline;
+}
+
+.registry-table__name:focus-visible {
+  outline: 2px solid var(--color-brand-ink-deep);
+  outline-offset: 2px;
+}
+
+.registry-table__truncate {
+  max-width: 14rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.registry-table__actions {
+  width: 3.5rem;
+  text-align: right;
+}
+
+.registry-table__sr {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+@media (max-width: 48rem) {
+  .registry-table__optional {
+    display: none;
+  }
+
+  .registry-table__table {
+    min-width: 0;
+  }
+}

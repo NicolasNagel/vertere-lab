@@ -367,3 +367,15 @@ def test_import_turns_unresolvable_rows_into_exceptions_and_skips_non_data_rows(
     assert (result.imported_count, result.rejected_count) == (0, 1)
     assert result.imported_grand_total == Decimal("0")
     assert [row.source_row_number for row in result.exceptions] == [2502]  # só a residual
+
+
+def test_import_turns_nan_infinity_and_oversized_values_into_row_exceptions() -> None:
+    """NaN crashed `round_currency` and a value past NUMERIC(14,2) aborted the insert: the whole
+    import died instead of leaving one exception per bad row."""
+    for bad in ("NaN", "Infinity", "1E+20", "-Infinity"):
+        fixture, result = _import_one(
+            {"Hemograma": "75.00"}, exam="Hemograma", value=bad, total=bad
+        )
+        assert result.imported_count == 0, bad
+        assert len(result.exceptions) == 1, bad
+        assert not fixture.attendances._attendances

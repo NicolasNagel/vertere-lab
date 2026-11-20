@@ -48,7 +48,15 @@ def main() -> int:
 
     counts = Counter(statuses)
     print(f"\nStatus codes: {dict(counts)}")
-    blocked_seen = any(code in (429, 423) for code in statuses) or statuses[-1] not in (401, 400)
+    # Só 429/423 contam como bloqueio. Antes, qualquer status diferente de 401/400 (um 404 de URL
+    # errada, um 500) virava PASS — falso positivo que escondeu um login-url mal passado.
+    if not any(code in (401, 400, 429, 423) for code in statuses):
+        print(
+            f"INVÁLIDO — o endpoint nunca respondeu como login ({dict(Counter(statuses))}). "
+            "Confira --base-url/--login-url (no Git Bash use MSYS_NO_PATHCONV=1)."
+        )
+        return 2
+    blocked_seen = any(code in (429, 423) for code in statuses)
     growing_delay = durations[-1] > durations[0] * 3 and durations[-1] > 1.0
 
     if blocked_seen:

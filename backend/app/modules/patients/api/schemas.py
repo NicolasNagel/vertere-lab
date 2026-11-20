@@ -4,14 +4,24 @@ separate; never the SQLAlchemy model (rule: .claude/rules/02-backend.md)."""
 from __future__ import annotations
 
 from datetime import date, datetime
-from typing import Literal, Self
+from typing import Annotated, Literal, Self
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, StringConstraints, model_validator
 
 PatientSexLiteral = Literal["MALE", "FEMALE"]
 PatientStatusLiteral = Literal["ACTIVE", "INACTIVE"]
 AgeUnitLiteral = Literal["YEARS", "MONTHS"]
+
+# Same convention as the clinics API: trim, reject whitespace-only, and bound every free-text field.
+PatientName = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=200)]
+OwnerName = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=200)]
+PatientShortText = Annotated[str, StringConstraints(strip_whitespace=True, max_length=100)]
+PatientContact = Annotated[str, StringConstraints(strip_whitespace=True, max_length=30)]
+PatientNotes = Annotated[str, StringConstraints(max_length=2000)]
+ChangeReason = Annotated[
+    str, StringConstraints(strip_whitespace=True, min_length=1, max_length=500)
+]
 
 
 def _require_age_pair(age_value: int | None, age_unit: str | None) -> None:
@@ -50,6 +60,12 @@ class PatientRead(BaseModel):
     age_recorded_on: date | None
 
 
+class PatientsSummaryRead(BaseModel):
+    total: int
+    active: int
+    inactive: int
+
+
 class PatientListResponse(BaseModel):
     items: list[PatientRead]
     total: int
@@ -61,16 +77,16 @@ class PatientCreateRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     clinic_id: UUID
-    name: str = Field(min_length=1)
+    name: PatientName
     species_id: UUID
     sex: PatientSexLiteral
-    breed: str | None = None
-    age_description: str | None = None
-    owner_name: str = Field(min_length=1)
-    owner_phone: str | None = None
-    owner_document: str | None = None
-    notes: str | None = None
-    age_value: int | None = Field(default=None, ge=0)
+    breed: PatientShortText | None = None
+    age_description: PatientShortText | None = None
+    owner_name: OwnerName
+    owner_phone: PatientContact | None = None
+    owner_document: PatientContact | None = None
+    notes: PatientNotes | None = None
+    age_value: int | None = Field(default=None, ge=0, le=999)
     age_unit: AgeUnitLiteral | None = None
 
     @model_validator(mode="after")
@@ -82,20 +98,22 @@ class PatientCreateRequest(BaseModel):
 class PatientUpdateRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    name: str = Field(min_length=1)
+    name: PatientName
     species_id: UUID
     sex: PatientSexLiteral
-    breed: str | None = None
-    age_description: str | None = None
-    owner_name: str = Field(min_length=1)
-    owner_phone: str | None = None
-    owner_document: str | None = None
+    breed: PatientShortText | None = None
+    age_description: PatientShortText | None = None
+    owner_name: OwnerName
+    owner_phone: PatientContact | None = None
+    owner_document: PatientContact | None = None
     status: PatientStatusLiteral
-    notes: str | None = None
+    notes: PatientNotes | None = None
     expected_row_version: int
     clinic_id: UUID | None = None
-    age_value: int | None = Field(default=None, ge=0)
+    age_value: int | None = Field(default=None, ge=0, le=999)
     age_unit: AgeUnitLiteral | None = None
+    # Required when `clinic_id` moves the patient to another clinic (checked in the use case).
+    reason: ChangeReason | None = None
 
     @model_validator(mode="after")
     def _age_pair(self) -> Self:

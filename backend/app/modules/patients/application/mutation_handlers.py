@@ -9,6 +9,10 @@ from app.modules.patients.application.deactivate_patient import (
     DeactivatePatientUseCase,
 )
 from app.modules.patients.application.dtos import PatientDTO
+from app.modules.patients.application.reactivate_patient import (
+    ReactivatePatientCommand,
+    ReactivatePatientUseCase,
+)
 from app.modules.patients.application.uow import PatientUnitOfWork
 from app.modules.patients.application.update_patient import (
     UpdatePatientCommand,
@@ -52,6 +56,17 @@ def handle_deactivate_patient(
 ) -> PatientDTO:
     with uow:
         r = DeactivatePatientUseCase(patients=uow.patients, audit=uow.audit, clock=clock).execute(
+            command
+        )
+        uow.commit()
+        return r
+
+
+def handle_reactivate_patient(
+    *, uow: PatientUnitOfWork, command: ReactivatePatientCommand, clock: Clock
+) -> PatientDTO:
+    with uow:
+        r = ReactivatePatientUseCase(patients=uow.patients, audit=uow.audit, clock=clock).execute(
             command
         )
         uow.commit()

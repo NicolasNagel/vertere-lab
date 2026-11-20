@@ -41,7 +41,7 @@ class DeactivatePatientUseCase:
         if _REQUIRED_PERMISSION not in command.actor.permissions:
             raise ForbiddenError(f"Permissão ausente: {_REQUIRED_PERMISSION}")
 
-        patient = self._patients.get_by_id(command.patient_id)
+        patient = self._patients.get_by_id(command.patient_id, for_update=True)
         if patient is None or not command.actor.can_access_clinic(patient.clinic_id):
             raise NotFoundError("Paciente não encontrado.")
 

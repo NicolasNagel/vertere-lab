@@ -26,5 +26,15 @@
     pedido explícito. Achado de segurança crítico/alto bloqueia conforme
     `docs/06-estrategia-qa.md §12`.
 
+15. **QA independente aprovou** — subagente `qa-fatia` conferiu cada critério de aceite do plano
+    contra o app rodando e devolveu evidência por critério (não "parece certo"). Ele executa a
+    skill `qa-exploratorio`, então este item é a forma de cumprir o item 14.
+16. **Revisão independente aprovou** — subagente `revisor-codigo` (e `auditor-integridade` quando
+    há dinheiro, permissão, tenant, atendimento, fechamento, importação ou identidade) confrontou
+    o diff com o plano e as rules. Achado bloqueante corrigido; ressalva registrada com dono.
+17. **Commit feito** — a fatia termina em commit coerente em branch própria (nunca na `main`),
+    com mensagem que cita critérios atendidos e o resultado de gates, QA e revisão. Alteração sem
+    commit não está pronta, por mais verde que esteja (fluxo completo no `AGENTS.md`).
+
 Item que não pôde ser executado nesta sessão (ex.: sem acesso a banco de teste) deve ser
 declarado explicitamente como pendente — nunca reportado como se tivesse passado.

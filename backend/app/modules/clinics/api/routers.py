@@ -14,6 +14,7 @@ from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session as SqlAlchemySession
 
 from app.api.dependencies import get_session, get_unit_of_work
+from app.api.query_types import SearchQuery
 from app.modules.clinics.api.schemas import (
     ClinicCreateRequest,
     ClinicDetailRead,
@@ -84,7 +85,7 @@ def list_clinics(
     page: int = Query(1, ge=1),
     page_size: int = Query(20, ge=1, le=100),
     status: ClinicStatus | None = Query(None),
-    search: str | None = Query(None),
+    search: SearchQuery = None,
     session: SqlAlchemySession = Depends(get_session),
     current_user: ActorContext = Depends(require_permission("clinics.read")),
 ) -> ClinicListResponse:

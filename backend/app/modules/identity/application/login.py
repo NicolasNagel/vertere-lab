@@ -97,7 +97,13 @@ class LoginUseCase:
 
         user = self._users.get_by_email(normalized_login)
 
-        if user is None or not self._password_hasher.verify(command.password, user.password_hash):
+        if user is None:
+            self._password_hasher.verify_against_unknown_user(command.password)
+            password_ok = False
+        else:
+            password_ok = self._password_hasher.verify(command.password, user.password_hash)
+
+        if user is None or not password_ok:
             self._login_failures.record_failure(normalized_login, occurred_at=now)
             self._audit.record(
                 AuditEntry(

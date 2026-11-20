@@ -1,10 +1,10 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 
-import { updatePatient, type PatientFormValues, type PatientStatus } from './patients-api'
+import { updatePatient, type PatientUpdateValues } from './patients-api'
 
 interface UpdatePatientInput {
   id: string
-  values: PatientFormValues & { status: PatientStatus; expectedRowVersion: number }
+  values: PatientUpdateValues
 }
 
 export function useUpdatePatientMutation() {

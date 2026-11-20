@@ -164,3 +164,18 @@ def test_import_turns_unknown_or_missing_category_into_exception() -> None:
 
     (missing,), _ = _run({"category": None, "exam": "Exame Sem Categoria"}, categories=())
     assert (missing.imported_count, len(missing.exceptions)) == (0, 1)
+
+
+def test_import_treats_nan_infinity_and_oversized_prices_as_missing_instead_of_crashing() -> None:
+    (result,), exams = _run(
+        {"exam": "Exame NaN", "price": "NaN"},
+        {"exam": "Exame Infinito", "price": "Infinity"},
+        {"exam": "Exame Gigante", "price": "1E+20"},
+        {"exam": "Exame Normal", "price": "30"},
+    )
+
+    assert exams.get_by_code("EXAMENORMAL") is not None
+    for code in ("EXAMENAN", "EXAMEINFINITO", "EXAMEGIGANTE"):
+        created = exams.get_by_code(code)
+        assert created is None or created.price_base.is_finite()
+    assert result.imported_count >= 1

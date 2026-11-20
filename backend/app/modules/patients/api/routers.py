@@ -14,6 +14,7 @@ from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session as SqlAlchemySession
 
 from app.api.dependencies import get_session, get_unit_of_work
+from app.api.query_types import SearchQuery
 from app.modules.identity.api.dependencies import get_current_user, require_permission
 from app.modules.patients.api.schemas import (
     AgeUnitLiteral,
@@ -21,6 +22,7 @@ from app.modules.patients.api.schemas import (
     PatientListResponse,
     PatientRead,
     PatientSexLiteral,
+    PatientsSummaryRead,
     PatientStatusLiteral,
     PatientUpdateRequest,
     SpeciesListResponse,
@@ -39,7 +41,13 @@ from app.modules.patients.application.list_species import ListSpeciesQuery, List
 from app.modules.patients.application.mutation_handlers import (
     handle_create_patient,
     handle_deactivate_patient,
+    handle_reactivate_patient,
     handle_update_patient,
+)
+from app.modules.patients.application.reactivate_patient import ReactivatePatientCommand
+from app.modules.patients.application.summarize_patients import (
+    SummarizePatientsQuery,
+    SummarizePatientsUseCase,
 )
 from app.modules.patients.application.update_patient import (
     UpdatePatientCommand,
@@ -100,8 +108,9 @@ def list_patients(
     page: int = Query(1, ge=1),
     page_size: int = Query(20, ge=1, le=100),
     status: PatientStatus | None = Query(None),
-    search: str | None = Query(None),
+    search: SearchQuery = None,
     clinic_id: UUID | None = Query(None),
+    species_id: UUID | None = Query(None),
     session: SqlAlchemySession = Depends(get_session),
     current_user: ActorContext = Depends(require_permission("patients.read")),
 ) -> PatientListResponse:
@@ -114,6 +123,7 @@ def list_patients(
             status=status,
             search=search,
             clinic_id=clinic_id,
+            species_id=species_id,
         )
     )
     return PatientListResponse(
@@ -122,6 +132,23 @@ def list_patients(
         page=result.page,
         page_size=result.page_size,
     )
+
+
+@patients_router.get("/summary", response_model=PatientsSummaryRead)
+def summarize_patients(
+    search: SearchQuery = None,
+    clinic_id: UUID | None = Query(None),
+    species_id: UUID | None = Query(None),
+    session: SqlAlchemySession = Depends(get_session),
+    current_user: ActorContext = Depends(require_permission("patients.read")),
+) -> PatientsSummaryRead:
+    use_case = SummarizePatientsUseCase(patients=SqlAlchemyPatientRepository(session))
+    result = use_case.execute(
+        SummarizePatientsQuery(
+            actor=current_user, search=search, clinic_id=clinic_id, species_id=species_id
+        )
+    )
+    return PatientsSummaryRead(total=result.total, active=result.active, inactive=result.inactive)
 
 
 @patients_router.get("/{patient_id}", response_model=PatientRead)
@@ -189,6 +216,7 @@ def update_patient(
             expected_row_version=payload.expected_row_version,
             age_value=payload.age_value,
             age_unit=payload.age_unit,
+            reason=payload.reason,
         ),
         clock=SystemClock(),
     )
@@ -204,6 +232,20 @@ def deactivate_patient(
     result = handle_deactivate_patient(
         uow=SqlAlchemyPatientUnitOfWork(uow),
         command=DeactivatePatientCommand(actor=current_user, patient_id=patient_id),
+        clock=SystemClock(),
+    )
+    return _patient_read(result)
+
+
+@patients_router.post("/{patient_id}/reactivate", response_model=PatientRead)
+def reactivate_patient(
+    patient_id: UUID,
+    uow: SqlAlchemyUnitOfWork = Depends(get_unit_of_work),
+    current_user: ActorContext = Depends(require_permission("patients.manage")),
+) -> PatientRead:
+    result = handle_reactivate_patient(
+        uow=SqlAlchemyPatientUnitOfWork(uow),
+        command=ReactivatePatientCommand(actor=current_user, patient_id=patient_id),
         clock=SystemClock(),
     )
     return _patient_read(result)

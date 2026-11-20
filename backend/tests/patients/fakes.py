@@ -47,7 +47,7 @@ class FakePatientRepository:
         patient.row_version += 1
         self._patients[patient.id] = patient
 
-    def get_by_id(self, patient_id: UUID) -> Patient | None:
+    def get_by_id(self, patient_id: UUID, *, for_update: bool = False) -> Patient | None:
         return self._patients.get(patient_id)
 
     def get_by_owner_and_name(self, *, owner_name: str, name: str) -> Patient | None:
@@ -59,6 +59,28 @@ class FakePatientRepository:
                 return patient
         return None
 
+    def _filtered(
+        self,
+        *,
+        search: str | None,
+        clinic_ids: frozenset[UUID] | None,
+        clinic_id: UUID | None,
+        species_id: UUID | None,
+    ) -> list[Patient]:
+        patients = list(self._patients.values())
+        if clinic_ids is not None:
+            patients = [patient for patient in patients if patient.clinic_id in clinic_ids]
+        if clinic_id is not None:
+            patients = [patient for patient in patients if patient.clinic_id == clinic_id]
+        if species_id is not None:
+            patients = [patient for patient in patients if patient.species_id == species_id]
+        if search:
+            needle = search.lower()
+            patients = [
+                p for p in patients if needle in p.name.lower() or needle in p.owner_name.lower()
+            ]
+        return patients
+
     def list_page(
         self,
         *,
@@ -68,17 +90,25 @@ class FakePatientRepository:
         search: str | None,
         clinic_ids: frozenset[UUID] | None = None,
         clinic_id: UUID | None = None,
+        species_id: UUID | None = None,
     ) -> tuple[list[Patient], int]:
-        patients = list(self._patients.values())
-        if clinic_ids is not None:
-            patients = [patient for patient in patients if patient.clinic_id in clinic_ids]
-        elif clinic_id is not None:
-            patients = [patient for patient in patients if patient.clinic_id == clinic_id]
+        patients = self._filtered(
+            search=search, clinic_ids=clinic_ids, clinic_id=clinic_id, species_id=species_id
+        )
         if status is not None:
             patients = [p for p in patients if p.status == status]
-        if search:
-            needle = search.lower()
-            patients = [
-                p for p in patients if needle in p.name.lower() or needle in p.owner_name.lower()
-            ]
         return patients, len(patients)
+
+    def count_by_status(
+        self,
+        *,
+        search: str | None,
+        clinic_ids: frozenset[UUID] | None = None,
+        clinic_id: UUID | None = None,
+        species_id: UUID | None = None,
+    ) -> tuple[int, int]:
+        patients = self._filtered(
+            search=search, clinic_ids=clinic_ids, clinic_id=clinic_id, species_id=species_id
+        )
+        active = sum(1 for p in patients if p.status == PatientStatus.ACTIVE)
+        return active, len(patients) - active
