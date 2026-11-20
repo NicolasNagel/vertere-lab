@@ -35,6 +35,9 @@ class FakeVeterinarianRepository:
         self._veterinarians: dict[UUID, Veterinarian] = veterinarians or {}
         self.linked_clinics: dict[UUID, set[UUID]] = {}
 
+    def linked_clinic_ids(self, veterinarian_id: UUID) -> frozenset[UUID]:
+        return frozenset(self.linked_clinics.get(veterinarian_id, set()))
+
     def is_linked_to_any_clinic(self, veterinarian_id: UUID, clinic_ids: frozenset[UUID]) -> bool:
         return bool(self.linked_clinics.get(veterinarian_id, set()) & clinic_ids)
 

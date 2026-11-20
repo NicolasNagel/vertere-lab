@@ -238,6 +238,9 @@ class FakeVeterinarianRepository:
     def get_by_name(self, name: str) -> Veterinarian | None:
         raise NotImplementedError
 
+    def linked_clinic_ids(self, veterinarian_id: UUID) -> frozenset[UUID]:
+        raise NotImplementedError
+
     def is_linked_to_any_clinic(self, veterinarian_id: UUID, clinic_ids: frozenset[UUID]) -> bool:
         raise NotImplementedError
 

@@ -7,7 +7,10 @@ from app.modules.audit.domain.entities import ActorScope, AuditEntry
 from app.modules.audit.domain.repositories import AuditLogWriter
 from app.modules.veterinarians.application.dtos import VeterinarianDTO
 from app.modules.veterinarians.application.mappers import veterinarian_to_dto
-from app.modules.veterinarians.application.visibility import ensure_veterinarian_visible
+from app.modules.veterinarians.application.visibility import (
+    ensure_veterinarian_mutable,
+    ensure_veterinarian_visible,
+)
 from app.modules.veterinarians.domain.repositories import VeterinarianRepository
 from app.shared.application.authorization import ActorContext
 from app.shared.application.clock import Clock
@@ -46,6 +49,7 @@ class DeactivateVeterinarianUseCase:
         if veterinarian is None:
             raise NotFoundError("Veterinário não encontrado.")
         ensure_veterinarian_visible(command.actor, veterinarian, self._veterinarians)
+        ensure_veterinarian_mutable(command.actor, veterinarian, self._veterinarians)
 
         before_status = veterinarian.status.value
         veterinarian.deactivate(updated_by=command.actor.id, now=self._clock.now())

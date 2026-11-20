@@ -66,6 +66,9 @@ class CreateVeterinarianUseCase:
         if _REQUIRED_PERMISSION not in command.actor.permissions:
             raise ForbiddenError(f"Permissão ausente: {_REQUIRED_PERMISSION}")
 
+        if command.is_autonomous and command.actor.clinic_filter is not None:
+            raise ForbiddenError("Apenas o laboratório cadastra veterinário autônomo.")
+
         if not command.is_autonomous and not command.clinic_ids:
             raise ValidationError(
                 "Veterinário não autônomo precisa de ao menos uma clínica vinculada."

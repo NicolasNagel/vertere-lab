@@ -407,3 +407,122 @@ async def test_a_clinic_user_cannot_escalate_roles_or_manage_permission_profiles
             )
         }
     assert role_ids == {ROLE_CLINIC_ADMIN}
+
+
+async def test_a_clinic_user_changes_only_veterinarians_that_belong_to_its_own_clinics(
+    client: httpx.AsyncClient, session_factory: sessionmaker[Session]
+) -> None:
+    _grant_clinic_role_permissions(session_factory)
+    _create_user(
+        session_factory, email="lab-admin@vertere.local", role_id=ROLE_LAB_ADMIN, clinic_ids=[]
+    )
+    await _login(client, "lab-admin@vertere.local")
+    clinic_a = await _clinic(client, "Clínica A")
+    clinic_b = await _clinic(client, "Clínica B")
+    own = await _vet(client, "CRMV-SC 71001", [clinic_a])
+    shared = await _vet(client, "CRMV-SC 71002", [clinic_a, clinic_b])
+    created = await client.post(
+        "/api/v1/veterinarians",
+        json={"name": "Vet autônomo", "crmv": "CRMV-SC 71003", "is_autonomous": True},
+    )
+    assert created.status_code == 201, created.text
+    unlinked = str(created.json()["id"])
+    _create_user(
+        session_factory,
+        email="user-a@vertere.local",
+        role_id=ROLE_CLINIC_ADMIN,
+        clinic_ids=[clinic_a],
+    )
+
+    def body(crmv: str, *, autonomous: bool = False) -> dict[str, object]:
+        return {
+            "name": "Renomeado",
+            "crmv": crmv,
+            "is_autonomous": autonomous,
+            "status": "ACTIVE",
+            "reason": "Correção",
+            "expected_row_version": 1,
+        }
+
+    await _login(client, "user-a@vertere.local")
+
+    # shared with another clinic, or autonomous without links: visible, yet never changed by a clinic
+    shared_url = f"/api/v1/veterinarians/{shared}"
+    assert (await client.patch(shared_url, json=body("CRMV-SC 71002"))).status_code == 403
+    assert (await client.post(f"{shared_url}/deactivate")).status_code == 403
+    free_url = f"/api/v1/veterinarians/{unlinked}"
+    assert (await client.get(free_url)).status_code == 200
+    assert (
+        await client.patch(free_url, json=body("CRMV-SC 71003", autonomous=True))
+    ).status_code == 403
+    assert (await client.post(f"{free_url}/deactivate")).status_code == 403
+
+    # the clinic's own veterinarian can be edited, but not turned into an autonomous one
+    own_url = f"/api/v1/veterinarians/{own}"
+    assert (await client.patch(own_url, json=body("CRMV-SC 71001"))).status_code == 200
+    current = (await client.get(own_url)).json()
+    promoted = body("CRMV-SC 71001", autonomous=True)
+    promoted["expected_row_version"] = current["row_version"]
+    assert (await client.patch(own_url, json=promoted)).status_code == 403
+    assert (await client.post(f"{own_url}/deactivate")).status_code == 200
+
+    # the laboratory is not restricted
+    await _login(client, "lab-admin@vertere.local")
+    assert (
+        await client.patch(f"/api/v1/veterinarians/{shared}", json=body("CRMV-SC 71002"))
+    ).status_code == 200
+
+
+async def test_a_clinic_user_cannot_adopt_an_unowned_autonomous_veterinarian(
+    client: httpx.AsyncClient, session_factory: sessionmaker[Session]
+) -> None:
+    _grant_clinic_role_permissions(session_factory)
+    _create_user(
+        session_factory, email="lab-admin@vertere.local", role_id=ROLE_LAB_ADMIN, clinic_ids=[]
+    )
+    await _login(client, "lab-admin@vertere.local")
+    clinic_a = await _clinic(client, "Clínica A")
+    created = await client.post(
+        "/api/v1/veterinarians",
+        json={"name": "Vet autônomo", "crmv": "CRMV-SC 72001", "is_autonomous": True},
+    )
+    assert created.status_code == 201, created.text
+    free = str(created.json()["id"])
+    _create_user(
+        session_factory,
+        email="user-a@vertere.local",
+        role_id=ROLE_CLINIC_ADMIN,
+        clinic_ids=[clinic_a],
+    )
+
+    await _login(client, "user-a@vertere.local")
+
+    # linking would make the clinic its only owner, so it is refused and nothing is created
+    link = await client.post(
+        f"/api/v1/veterinarians/{free}/clinics",
+        json={"clinic_id": str(clinic_a), "primary": False, "reason": "Adotar"},
+    )
+    assert link.status_code == 403
+    batch = await client.patch(
+        f"/api/v1/veterinarians/{free}/clinics",
+        json={
+            "add_clinic_ids": [str(clinic_a)],
+            "remove_clinic_ids": [],
+            "reason": "Adotar",
+            "expected_row_version": 1,
+        },
+    )
+    assert batch.status_code == 403, batch.text
+    with session_factory() as session:
+        count = session.execute(
+            text("SELECT count(*) FROM veterinarian_clinics WHERE clinic_id = :c"),
+            {"c": clinic_a},
+        ).scalar_one()
+    assert count == 0
+
+    # a clinic user does not register autonomous veterinarians either
+    autonomous = await client.post(
+        "/api/v1/veterinarians",
+        json={"name": "Outro", "crmv": "CRMV-SC 72002", "is_autonomous": True},
+    )
+    assert autonomous.status_code == 403

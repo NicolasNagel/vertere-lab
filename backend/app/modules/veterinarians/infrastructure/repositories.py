@@ -101,6 +101,12 @@ class SqlAlchemyVeterinarianRepository:
         model.row_version = veterinarian.row_version + 1
         veterinarian.row_version = model.row_version
 
+    def linked_clinic_ids(self, veterinarian_id: UUID) -> frozenset[UUID]:
+        stmt = select(VeterinarianClinicModel.clinic_id).where(
+            VeterinarianClinicModel.veterinarian_id == veterinarian_id
+        )
+        return frozenset(self._session.execute(stmt).scalars())
+
     def is_linked_to_any_clinic(self, veterinarian_id: UUID, clinic_ids: frozenset[UUID]) -> bool:
         if not clinic_ids:
             return False
