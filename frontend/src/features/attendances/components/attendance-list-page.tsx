@@ -144,6 +144,7 @@ export function AttendanceListPage() {
                 <input
                   value={protocolNumber}
                   maxLength={32}
+                  aria-label="Buscar protocolo"
                   placeholder="Buscar protocolo..."
                   onChange={(event) =>
                     handleFilterChange(() => setProtocolNumber(event.target.value))

@@ -77,6 +77,9 @@ class CreateVeterinarianUseCase:
             raise ValidationError("A clínica principal precisa estar entre as clínicas vinculadas.")
 
         for clinic_id in command.clinic_ids:
+            # A clinic-scope actor links only to its own clinics (404 hides the others).
+            if not command.actor.can_access_clinic(clinic_id):
+                raise NotFoundError("Clínica não encontrada.")
             if self._clinics.get_by_id(clinic_id) is None:
                 raise NotFoundError("Clínica não encontrada.")
 

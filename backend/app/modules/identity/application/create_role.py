@@ -40,6 +40,8 @@ class CreateRoleUseCase:
     def execute(self, command: CreateRoleCommand) -> RoleDTO:
         if _REQUIRED_PERMISSION not in command.actor.permissions:
             raise ForbiddenError(f"Permissão ausente: {_REQUIRED_PERMISSION}")
+        if command.actor.clinic_filter is not None:
+            raise ForbiddenError("Perfis de acesso são geridos apenas pelo laboratório.")
 
         if self._roles.get_by_name(command.name) is not None:
             raise RoleNameAlreadyExistsError("Nome de perfil já existe.")

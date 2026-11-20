@@ -137,7 +137,12 @@ def handle_assign_role(
 ) -> UserSummaryDTO:
     with uow:
         result = AssignRoleUseCase(
-            users=uow.users, roles=uow.roles, sessions=uow.sessions, audit=uow.audit, clock=clock
+            users=uow.users,
+            roles=uow.roles,
+            clinic_memberships=uow.clinic_memberships,
+            sessions=uow.sessions,
+            audit=uow.audit,
+            clock=clock,
         ).execute(command)
         uow.commit()
         return result
@@ -151,7 +156,12 @@ def handle_deactivate_user(
 ) -> UserSummaryDTO:
     with uow:
         result = DeactivateUserUseCase(
-            users=uow.users, roles=uow.roles, sessions=uow.sessions, audit=uow.audit, clock=clock
+            users=uow.users,
+            roles=uow.roles,
+            clinic_memberships=uow.clinic_memberships,
+            sessions=uow.sessions,
+            audit=uow.audit,
+            clock=clock,
         ).execute(command)
         uow.commit()
         return result
@@ -165,7 +175,11 @@ def handle_activate_user(
 ) -> UserSummaryDTO:
     with uow:
         result = ActivateUserUseCase(
-            users=uow.users, roles=uow.roles, audit=uow.audit, clock=clock
+            users=uow.users,
+            roles=uow.roles,
+            clinic_memberships=uow.clinic_memberships,
+            audit=uow.audit,
+            clock=clock,
         ).execute(command)
         uow.commit()
         return result

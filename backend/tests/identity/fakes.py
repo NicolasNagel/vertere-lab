@@ -100,7 +100,13 @@ class FakeUserRepository:
         return None
 
     def list_page(
-        self, *, page: int, page_size: int, is_active: bool | None, search: str | None
+        self,
+        *,
+        page: int,
+        page_size: int,
+        is_active: bool | None,
+        search: str | None,
+        clinic_ids: frozenset[UUID] | None = None,
     ) -> tuple[list[User], int]:
         users = list(self._users.values())
         if is_active is not None:

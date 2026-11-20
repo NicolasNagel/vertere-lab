@@ -7,6 +7,7 @@ from app.modules.audit.domain.entities import ActorScope, AuditEntry
 from app.modules.audit.domain.repositories import AuditLogWriter
 from app.modules.veterinarian_clinics.domain.errors import LastClinicLinkRequiredError
 from app.modules.veterinarian_clinics.domain.repositories import VeterinarianClinicLinkRepository
+from app.modules.veterinarians.application.visibility import ensure_veterinarian_visible
 from app.modules.veterinarians.domain.repositories import VeterinarianRepository
 from app.shared.application.authorization import ActorContext
 from app.shared.domain.errors import ForbiddenError, NotFoundError
@@ -51,6 +52,7 @@ class UnlinkVeterinarianFromClinicUseCase:
         veterinarian = self._veterinarians.get_by_id(command.veterinarian_id)
         if veterinarian is None:
             raise NotFoundError("Veterinário não encontrado.")
+        ensure_veterinarian_visible(command.actor, veterinarian, self._veterinarians)
 
         link = self._links.get(command.veterinarian_id, command.clinic_id)
         if link is None:

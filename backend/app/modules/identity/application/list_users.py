@@ -45,6 +45,7 @@ class ListUsersUseCase:
             page_size=query.page_size,
             is_active=query.is_active,
             search=query.search,
+            clinic_ids=query.actor.clinic_filter,
         )
 
         roles_by_id: dict[UUID, tuple[str, str]] = {}

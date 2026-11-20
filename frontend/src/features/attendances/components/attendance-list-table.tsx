@@ -98,8 +98,6 @@ export function AttendanceListTable({
               <tr
                 key={attendance.id}
                 tabIndex={0}
-                aria-haspopup="dialog"
-                aria-expanded={attendance.id === selectedId}
                 data-selected={attendance.id === selectedId || undefined}
                 data-cancelled={attendance.status === "CANCELLED" || undefined}
                 onClick={() => onSelect(attendance)}

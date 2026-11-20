@@ -147,8 +147,24 @@ class SqlAlchemyUserRepository:
         page_size: int,
         is_active: bool | None,
         search: str | None,
+        clinic_ids: frozenset[UUID] | None = None,
     ) -> tuple[list[User], int]:
         conditions: list[ColumnElement[bool]] = []
+        if clinic_ids is not None:
+            # Only users that belong to the actor's clinics and to no other clinic.
+            active_membership = select(ClinicMembershipModel.id).where(
+                ClinicMembershipModel.user_id == UserModel.id,
+                ClinicMembershipModel.is_active.is_(True),
+                ClinicMembershipModel.revoked_at.is_(None),
+            )
+            conditions.append(
+                active_membership.where(ClinicMembershipModel.clinic_id.in_(clinic_ids)).exists()
+            )
+            conditions.append(
+                ~active_membership.where(
+                    ClinicMembershipModel.clinic_id.notin_(clinic_ids)
+                ).exists()
+            )
         if is_active is not None:
             conditions.append(UserModel.is_active.is_(is_active))
         if search:

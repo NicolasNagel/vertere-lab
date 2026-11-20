@@ -40,6 +40,7 @@ class UserRepository(Protocol):
         page_size: int,
         is_active: bool | None,
         search: str | None,
+        clinic_ids: frozenset[UUID] | None = None,
     ) -> tuple[list[User], int]: ...
 
     def count_active_users_with_permission(
