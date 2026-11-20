@@ -7,7 +7,10 @@ from app.modules.audit.domain.entities import ActorScope, AuditEntry
 from app.modules.audit.domain.repositories import AuditLogWriter
 from app.modules.veterinarians.application.dtos import VeterinarianDTO
 from app.modules.veterinarians.application.mappers import veterinarian_to_dto
-from app.modules.veterinarians.application.visibility import ensure_veterinarian_visible
+from app.modules.veterinarians.application.visibility import (
+    ensure_veterinarian_mutable,
+    ensure_veterinarian_visible,
+)
 from app.modules.veterinarians.domain.entities import Veterinarian, VeterinarianStatus
 from app.modules.veterinarians.domain.errors import DuplicateCrmvError
 from app.modules.veterinarians.domain.repositories import VeterinarianRepository
@@ -67,10 +70,16 @@ class UpdateVeterinarianUseCase:
         if not reason:
             raise ValidationError("Informe o motivo da alteração.")
 
-        veterinarian = self._veterinarians.get_by_id(command.veterinarian_id)
+        veterinarian = self._veterinarians.get_by_id_for_update(command.veterinarian_id)
         if veterinarian is None:
             raise NotFoundError("Veterinário não encontrado.")
         ensure_veterinarian_visible(command.actor, veterinarian, self._veterinarians)
+        ensure_veterinarian_mutable(command.actor, veterinarian, self._veterinarians)
+        if (
+            command.actor.clinic_filter is not None
+            and command.is_autonomous != veterinarian.is_autonomous
+        ):
+            raise ForbiddenError("Apenas o laboratório altera a condição de autônomo.")
 
         if veterinarian.row_version != command.expected_row_version:
             raise ConflictError(

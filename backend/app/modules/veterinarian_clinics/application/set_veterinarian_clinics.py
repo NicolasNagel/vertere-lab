@@ -23,7 +23,10 @@ from app.modules.clinics.domain.repositories import ClinicRepository
 from app.modules.veterinarian_clinics.domain.entities import VeterinarianClinicLink
 from app.modules.veterinarian_clinics.domain.errors import LastClinicLinkRequiredError
 from app.modules.veterinarian_clinics.domain.repositories import VeterinarianClinicLinkRepository
-from app.modules.veterinarians.application.visibility import ensure_veterinarian_visible
+from app.modules.veterinarians.application.visibility import (
+    ensure_veterinarian_linkable,
+    ensure_veterinarian_visible,
+)
 from app.modules.veterinarians.domain.repositories import VeterinarianRepository
 from app.shared.application.authorization import ActorContext
 from app.shared.application.clock import Clock
@@ -82,10 +85,11 @@ class SetVeterinarianClinicsUseCase:
                 "Uma clínica não pode ser vinculada e desvinculada ao mesmo tempo."
             )
 
-        veterinarian = self._veterinarians.get_by_id(command.veterinarian_id)
+        veterinarian = self._veterinarians.get_by_id_for_update(command.veterinarian_id)
         if veterinarian is None:
             raise NotFoundError("Veterinário não encontrado.")
         ensure_veterinarian_visible(command.actor, veterinarian, self._veterinarians)
+        ensure_veterinarian_linkable(command.actor, veterinarian, self._veterinarians)
 
         if veterinarian.row_version != command.expected_row_version:
             raise ConflictError(

@@ -49,7 +49,7 @@ class UnlinkVeterinarianFromClinicUseCase:
         if _REQUIRED_PERMISSION not in command.actor.permissions:
             raise ForbiddenError(f"Permissão ausente: {_REQUIRED_PERMISSION}")
 
-        veterinarian = self._veterinarians.get_by_id(command.veterinarian_id)
+        veterinarian = self._veterinarians.get_by_id_for_update(command.veterinarian_id)
         if veterinarian is None:
             raise NotFoundError("Veterinário não encontrado.")
         ensure_veterinarian_visible(command.actor, veterinarian, self._veterinarians)
