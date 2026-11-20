@@ -33,8 +33,8 @@ removidos; o histórico está no git.
 - Não rodado: nenhum QA real (`qa-fatia`) sobre a fatia do menu.
 
 ## Em andamento (não finalizado)
-- Nada pela metade no código. Branches sem mesclar na `main`: `feat/sidebar-permission-filter`
-  (`ad0673b`) e `docs/handoff-real-state`. A `main` está em `c6751da`; **nada foi enviado ao remoto**
+- Nada pela metade no código. Branch sem mesclar na `main`: `fix/veterinarian-mutation-ownership`
+  (`62ea48f`). A `main` está em `08d8db9` (já contém menu por permissão e este HANDOFF); **nada foi enviado ao remoto**
   (`origin/main` está 22+ commits atrás).
 
 ## Armadilhas conhecidas
@@ -51,12 +51,23 @@ removidos; o histórico está no git.
 - A planilha `.xlsx` da raiz é untracked de propósito; não commitar.
 
 ## Próximo passo recomendado
-1. Decidir a mesclagem de `feat/sidebar-permission-filter` e `docs/handoff-real-state` na `main`
-   (e se haverá push/PR; hoje nada foi publicado).
-2. Decisão de produto pendente: política de edição de veterinário compartilhado/autônomo por
-   clínica com `veterinarians.manage` (hoje a clínica B edita/desativa o autônomo da A).
-3. Rodar a consulta de preço/taxa máximos (maior valor existente) no banco real antes do deploy,
-   para confirmar que o teto R$ 99.999,99 não invalida dado já gravado.
+1. Confirmar com o produto a política de veterinários (commit `62ea48f`, branch
+   `fix/veterinarian-mutation-ownership`, ainda não mesclada): ator de clínica só altera ou
+   desativa veterinário cujos vínculos são todos com clínicas dele.
+2. Rodar no banco REAL, antes do deploy, a consulta abaixo; qualquer `over_limit > 0` é dado
+   que o teto novo (qtd 999, preço R$ 99.999,99) deixaria inválido. No banco de QA sintético
+   o resultado foi zero em todas as linhas (os máximos de 99999.99 e 999 vêm de testes de QA).
+3. Mesclar `fix/veterinarian-mutation-ownership` na `main` e decidir sobre push/PR (hoje nada foi publicado).
+
+```sql
+select 'exams.price_base' c, max(price_base) m, count(*) filter (where price_base > 99999.99) over_limit from exams
+union all select 'attendance_exams.price_base', max(price_base), count(*) filter (where price_base > 99999.99) from attendance_exams
+union all select 'attendance_exams.discount_amount (limit 99999.99*999)', max(discount_amount), count(*) filter (where discount_amount > 99999.99*999) from attendance_exams
+union all select 'clinic_fee_rules.fee_amount', max(fee_amount), count(*) filter (where fee_amount > 99999.99) from clinic_fee_rules
+union all select 'on_call_fee_settings.fee_amount', max(fee_amount), count(*) filter (where fee_amount > 99999.99) from on_call_fee_settings
+union all select 'urgency_fee_settings.fee_amount', max(fee_amount), count(*) filter (where fee_amount > 99999.99) from urgency_fee_settings
+union all select 'attendance_exams.quantity (limit 999)', max(quantity), count(*) filter (where quantity > 999) from attendance_exams;
+```
 
 ## Pendências fora do código
 - Abertas e priorizadas em `docs/pendencias-redesign-operacao.md`: acessibilidade restante
