@@ -26,15 +26,13 @@ removidos; o histórico está no git.
 - Fatia 7: este arquivo reescrito (branch `docs/handoff-real-state`).
 
 ## Estado do gate
-- backend: verde na fatia 6 (ruff, mypy, pytest 362). Não foi reexecutado depois porque as fatias
-  seguintes não tocaram backend.
+- backend: verde (ruff, mypy, pytest 365, após a política de veterinários). 
 - frontend: verde em `ad0673b` (tsc, oxlint, vitest 157, playwright 192, build verificado na fatia 6).
 - migrações: head em `0044_enable_unaccent_extension` (downgrade é no-op de propósito: não remove a extensão).
 - Não rodado: nenhum QA real (`qa-fatia`) sobre a fatia do menu.
 
 ## Em andamento (não finalizado)
-- Nada pela metade no código. As branches de veterinários (`62ea48f` e as ressalvas com lock de linha) foram mescladas na `main`; **nada foi enviado ao remoto**
-  (`origin/main` está 22+ commits atrás).
+- Nada pela metade no código. Tudo está na `main` local e no PR #2 (head `feat/redesign-pendencias-round`, ainda sem mesclar no remoto). 
 
 ## Armadilhas conhecidas
 - Docker precisa ser ligado à mão; sem ele todos os testes de integração dão erro de setup, não falha.
@@ -45,8 +43,7 @@ removidos; o histórico está no git.
   VETERINARIAN e CLINIC_STAFF têm zero permissões; o LAB_ADMIN semeado não tem `roles.manage`.
 - QA local: Postgres `vertere-qa-pg` (porta 55432, volume `vertere-qa-pg-data`), uvicorn 8321,
   Vite 5173, login `admin@qa.local`. Só dado sintético, com muitos usuários `qa7-`/`qa8-`.
-  Os diretórios `scratchpad/qa7` e `scratchpad/qa8` guardam senhas temporárias sintéticas e
-  ainda precisam ser apagados à mão; servidores e container continuam ligados.
+  Os diretórios de QA com senhas sintéticas já foram apagados; servidores e container continuam ligados.
 - A planilha `.xlsx` da raiz é untracked de propósito; não commitar.
 
 ## Próximo passo recomendado
@@ -55,7 +52,8 @@ removidos; o histórico está no git.
 2. Rodar no banco REAL, antes do deploy, a consulta abaixo; qualquer `over_limit > 0` é dado
    que o teto novo (qtd 999, preço R$ 99.999,99) deixaria inválido. No banco de QA sintético
    o resultado foi zero em todas as linhas (os máximos de 99999.99 e 999 vêm de testes de QA).
-3. Decidir sobre push/PR (hoje nada foi publicado no remoto).
+3. Revisar e mesclar o PR #2 (branch `feat/redesign-pendencias-round`, base `main`); a consulta de limites
+   já deu zero linhas acima do teto nos bancos de QA e de desenvolvimento (este está na migration 0039).
 
 ```sql
 select 'exams.price_base' c, max(price_base) m, count(*) filter (where price_base > 99999.99) over_limit from exams
