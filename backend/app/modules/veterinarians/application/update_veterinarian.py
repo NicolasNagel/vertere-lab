@@ -70,7 +70,7 @@ class UpdateVeterinarianUseCase:
         if not reason:
             raise ValidationError("Informe o motivo da alteração.")
 
-        veterinarian = self._veterinarians.get_by_id(command.veterinarian_id)
+        veterinarian = self._veterinarians.get_by_id_for_update(command.veterinarian_id)
         if veterinarian is None:
             raise NotFoundError("Veterinário não encontrado.")
         ensure_veterinarian_visible(command.actor, veterinarian, self._veterinarians)

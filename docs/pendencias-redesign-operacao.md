@@ -327,10 +327,12 @@ só concede papel de clínica com permissões contidas nas suas e nunca altera o
 laboratório e leitura limitada a perfis de clínica):
 - [x] **Política aplicada (a confirmar pelo produto):** ator de clínica só altera ou desativa veterinário cujos vínculos são todos com
       clínicas dele (403 se compartilhado ou sem vínculo), não muda `is_autonomous`, não cadastra autônomo e não vincula veterinário
-      que ainda não tem clínica; laboratório sem restrição. Teste em `test_clinic_scope_isolation_api.py`. Ressalvas abertas:
-      TOCTOU entre a checagem de vínculos e a escrita (link/unlink individual não incrementa `row_version`); o 409 de CRMV
-      duplicado confirma que o CRMV existe em outra clínica.
-      Também: se o ator de clínica desvincula o último vínculo de um autônomo, só o laboratório consegue revincular (403 sem explicação).
+      que ainda não tem clínica; laboratório sem restrição. Teste em `test_clinic_scope_isolation_api.py`.
+      Ressalvas tratadas: (1) TOCTOU: update, desativar, vincular, desvincular e o lote de vínculos agora seguram o lock da
+      linha do veterinário (`get_by_id_for_update`; teste `test_veterinarian_row_lock.py`); (2) o 403 de "sem clínica"
+      explica que só o laboratório vincula de novo; (3) 409 de CRMV duplicado: ACEITO de propósito, pois o CRMV é número
+      de registro profissional único e a restrição de unicidade só existe se avisar o conflito; não é segredo, e o 409 não
+      devolve nenhum outro dado do veterinário.
       Texto original: veterinário autônomo é visível a todo ator de clínica (`visibility.py`), então uma clínica B pode
       editar, desativar ou vincular a si um autônomo da clínica A.
       Reverificado no app (QA, 19/11): também vale para veterinário COMPARTILHADO entre A e B (ator da A edita o nome e desativa

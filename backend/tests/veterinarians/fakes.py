@@ -33,6 +33,9 @@ class FakeVeterinarianRepository:
         self._veterinarians: dict[UUID, Veterinarian] = {}
         self.linked_clinics: dict[UUID, set[UUID]] = {}
 
+    def get_by_id_for_update(self, veterinarian_id: UUID) -> Veterinarian | None:
+        return self.get_by_id(veterinarian_id)
+
     def linked_clinic_ids(self, veterinarian_id: UUID) -> frozenset[UUID]:
         return frozenset(self.linked_clinics.get(veterinarian_id, set()))
 

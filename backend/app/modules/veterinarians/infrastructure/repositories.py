@@ -101,6 +101,10 @@ class SqlAlchemyVeterinarianRepository:
         model.row_version = veterinarian.row_version + 1
         veterinarian.row_version = model.row_version
 
+    def get_by_id_for_update(self, veterinarian_id: UUID) -> Veterinarian | None:
+        model = self._session.get(VeterinarianModel, veterinarian_id, with_for_update=True)
+        return None if model is None else _to_domain(model)
+
     def linked_clinic_ids(self, veterinarian_id: UUID) -> frozenset[UUID]:
         stmt = select(VeterinarianClinicModel.clinic_id).where(
             VeterinarianClinicModel.veterinarian_id == veterinarian_id

@@ -33,8 +33,7 @@ removidos; o histórico está no git.
 - Não rodado: nenhum QA real (`qa-fatia`) sobre a fatia do menu.
 
 ## Em andamento (não finalizado)
-- Nada pela metade no código. Branch sem mesclar na `main`: `fix/veterinarian-mutation-ownership`
-  (`62ea48f`). A `main` está em `08d8db9` (já contém menu por permissão e este HANDOFF); **nada foi enviado ao remoto**
+- Nada pela metade no código. As branches de veterinários (`62ea48f` e as ressalvas com lock de linha) foram mescladas na `main`; **nada foi enviado ao remoto**
   (`origin/main` está 22+ commits atrás).
 
 ## Armadilhas conhecidas
@@ -51,13 +50,12 @@ removidos; o histórico está no git.
 - A planilha `.xlsx` da raiz é untracked de propósito; não commitar.
 
 ## Próximo passo recomendado
-1. Confirmar com o produto a política de veterinários (commit `62ea48f`, branch
-   `fix/veterinarian-mutation-ownership`, ainda não mesclada): ator de clínica só altera ou
-   desativa veterinário cujos vínculos são todos com clínicas dele.
+1. Confirmar com o produto a política de veterinários já mesclada: ator de clínica só altera ou
+   desativa veterinário cujos vínculos são todos com clínicas dele (ajuste pequeno se mudar).
 2. Rodar no banco REAL, antes do deploy, a consulta abaixo; qualquer `over_limit > 0` é dado
    que o teto novo (qtd 999, preço R$ 99.999,99) deixaria inválido. No banco de QA sintético
    o resultado foi zero em todas as linhas (os máximos de 99999.99 e 999 vêm de testes de QA).
-3. Mesclar `fix/veterinarian-mutation-ownership` na `main` e decidir sobre push/PR (hoje nada foi publicado).
+3. Decidir sobre push/PR (hoje nada foi publicado no remoto).
 
 ```sql
 select 'exams.price_base' c, max(price_base) m, count(*) filter (where price_base > 99999.99) over_limit from exams

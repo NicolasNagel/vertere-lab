@@ -62,5 +62,5 @@ def ensure_veterinarian_linkable(
         return
     if not veterinarians.linked_clinic_ids(veterinarian.id):
         raise ForbiddenError(
-            "Apenas o laboratório vincula um veterinário que ainda não tem clínica."
+            "Este veterinário não tem nenhuma clínica vinculada (por exemplo, o último vínculo foi removido); apenas o laboratório pode vinculá-lo de novo."
         )
