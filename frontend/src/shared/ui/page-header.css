@@ -17,6 +17,7 @@
 }
 
 .page-header__title {
+  overflow-wrap: anywhere; /* nomes longos quebram em vez de estourar a página */
   margin: 0.125rem 0 0;
   font-size: 1.25rem;
   font-weight: 650;

@@ -1,5 +1,6 @@
 import { useState } from 'react'
 
+import { useSubmitGuard } from '../../../shared/lib/use-submit-guard'
 import { useCreatePatientMutation } from '../../patients/api/use-create-patient-mutation'
 import type { Patient } from '../../patients/api/patients-api'
 import { AttendancePatientForm } from './attendance-patient-form'
@@ -28,6 +29,7 @@ export function AttendancePatientSection({
 }: AttendancePatientSectionProps) {
   const [mode, setMode] = useState<'create' | 'search'>('create')
   const createMutation = useCreatePatientMutation()
+  const guardCreate = useSubmitGuard()
 
   if (selectedPatient) {
     return (
@@ -61,7 +63,11 @@ export function AttendancePatientSection({
           submitting={createMutation.isPending || Boolean(disabled)}
           error={createMutation.error}
           onCancel={() => setMode('search')}
-          onSubmitCreate={(values) => createMutation.mutate(values, { onSuccess: onSelect })}
+          onSubmitCreate={(values) =>
+            guardCreate((release) =>
+              createMutation.mutate(values, { onSuccess: onSelect, onSettled: release }),
+            )
+          }
         />
       ) : (
         <PatientPicker

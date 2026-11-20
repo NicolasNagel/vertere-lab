@@ -15,7 +15,9 @@ beforeAll(() => server.listen({ onUnhandledRequest: 'error' }))
 afterEach(() => server.resetHandlers())
 afterAll(() => server.close())
 
-function mockAuthenticatedUser(permissions: string[] = ['clinics.manage']) {
+function mockAuthenticatedUser(
+  permissions: string[] = ['clinics.manage', 'clinics.read', 'veterinarians.read', 'catalog.read'],
+) {
   server.use(
     http.get('/api/v1/auth/me', () =>
       HttpResponse.json({
@@ -157,4 +159,21 @@ test('collapses the menu to icons, remembers the choice and shows the page trail
     'true',
   )
   localStorage.clear()
+})
+
+test('hides registration entries the user cannot read and the whole section when none is allowed', async () => {
+  mockAuthenticatedUser(['clinics.read'])
+  const view = renderShell('/')
+  await screen.findByText('conteúdo dashboard')
+  expect(await screen.findByRole('link', { name: /clínicas/i })).toBeInTheDocument()
+  expect(screen.queryByRole('link', { name: /veterinários/i })).not.toBeInTheDocument()
+  expect(screen.queryByRole('link', { name: /exames/i })).not.toBeInTheDocument()
+  expect(screen.queryByRole('link', { name: /pacientes/i })).not.toBeInTheDocument()
+  restart(view)
+
+  mockAuthenticatedUser([])
+  renderShell('/')
+  await screen.findByText('conteúdo dashboard')
+  await screen.findByText('Fabianna Garcia')
+  expect(screen.queryByText('Cadastros')).not.toBeInTheDocument()
 })

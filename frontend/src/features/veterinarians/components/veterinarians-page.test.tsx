@@ -266,6 +266,31 @@ test('creates veterinarians: autonomous, blocked without clinic, and with a link
   )
 })
 
+test('the new veterinarian form mirrors the API length limits instead of sending a doomed request', async () => {
+  const user = userEvent.setup()
+  const postSpy = vi.fn()
+  server.use(
+    meHandler(MANAGE),
+    listHandler(),
+    clinicsHandler(),
+    http.post('/api/v1/veterinarians', () => {
+      postSpy()
+      return HttpResponse.json(apiVeterinarian({ id: 'v9' }), { status: 201 })
+    }),
+  )
+  renderAt('/cadastros/veterinarios/novo')
+  await user.click(await screen.findByLabelText('Nome'))
+  await user.paste('N'.repeat(201))
+  await user.click(screen.getByLabelText('CRMV'))
+  await user.paste('9'.repeat(51))
+  await user.click(screen.getByLabelText('Veterinário autônomo'))
+  await user.click(screen.getByRole('button', { name: 'Salvar' }))
+
+  expect(await screen.findByText('Use até 200 caracteres.')).toBeInTheDocument()
+  expect(screen.getByText('Use até 50 caracteres.')).toBeInTheDocument()
+  expect(postSpy).not.toHaveBeenCalled()
+})
+
 test('detail block edit needs a reason and sends it with the whole veterinarian', async () => {
   const user = userEvent.setup()
   const patchSpy = vi.fn()
@@ -466,4 +491,31 @@ test('the read-only clinic list is searchable when it is long', async () => {
   expect(await screen.findByText('40 de 40 clínicas')).toBeInTheDocument()
   await user.type(screen.getByLabelText('Buscar nas clínicas vinculadas'), 'Clínica 03')
   expect(await screen.findByText('10 de 40 clínicas')).toBeInTheDocument()
+})
+
+test('a failed Inativar shows the reason in the list', async () => {
+  const user = userEvent.setup()
+  server.use(
+    meHandler(MANAGE),
+    listHandler(),
+    http.post('/api/v1/veterinarians/v1/deactivate', () =>
+      HttpResponse.json(
+        { error: { code: 'FORBIDDEN', message: 'Sem permissão para inativar.' } },
+        { status: 403 },
+      ),
+    ),
+  )
+  renderAt('/cadastros/veterinarios')
+
+  await user.click(await screen.findByRole('button', { name: /Ações para Dra. Fabianna Garcia/ }))
+  await user.click(await screen.findByRole('menuitem', { name: 'Inativar veterinário' }))
+  expect(await screen.findByRole('alert')).toHaveTextContent('Sem permissão para inativar.')
+})
+
+test('an empty list has no pagination footer', async () => {
+  server.use(meHandler(READ), listHandler([]))
+  renderAt('/cadastros/veterinarios')
+
+  expect(await screen.findByText(/Nenhum veterinário encontrado/)).toBeInTheDocument()
+  expect(screen.queryByRole('button', { name: 'Próxima página' })).not.toBeInTheDocument()
 })

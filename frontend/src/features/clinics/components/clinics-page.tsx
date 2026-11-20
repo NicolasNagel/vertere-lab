@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router'
 
 import { useAuth } from '../../auth/auth-context'
+import { useActionError } from '../../../shared/lib/use-action-error'
 import { Modal } from '../../../shared/ui/modal'
 import { PlusIcon, SearchIcon } from '../../../shared/ui/icons'
 import { PageHeader } from '../../../shared/ui/page-header'
@@ -11,6 +12,7 @@ import { useClinicsQuery } from '../api/use-clinics-query'
 import { useDeactivateClinicMutation } from '../api/use-deactivate-clinic-mutation'
 import { ClinicDetail } from './clinic-detail'
 import { ClinicTable } from './clinic-table'
+import { isForbiddenError } from '../../../shared/api/errors'
 import '../../../shared/ui/button.css'
 import '../../attendances/components/attendance-list-page.css'
 import '../../attendances/components/attendance-status-tabs.css'
@@ -49,6 +51,7 @@ export function ClinicsPage() {
   ]
   const detailQuery = useClinicQuery(selectedId)
   const deactivateMutation = useDeactivateClinicMutation()
+  const actionError = useActionError()
 
   function select(id: string | null) {
     setSearchParams(id ? { clinica: id } : {}, { replace: true })
@@ -103,12 +106,18 @@ export function ClinicsPage() {
           </div>
         </div>
 
+        {actionError.message && (
+          <p role="alert" className="attendance-list-page__error">
+            {actionError.message}
+          </p>
+        )}
         <ClinicTable
           clinics={listQuery.data?.items ?? []}
           canManage={canManage}
           selectedId={selectedId}
           isLoading={listQuery.isLoading}
           isError={listQuery.isError}
+          isForbidden={isForbiddenError(listQuery.error)}
           page={listQuery.data?.page ?? page}
           pageSize={listQuery.data?.pageSize ?? 25}
           total={listQuery.data?.total ?? 0}
@@ -130,9 +139,11 @@ export function ClinicsPage() {
             clinic={detailQuery.data ?? null}
             isLoading={detailQuery.isLoading}
             canManage={canManage}
+            actionError={actionError.message}
             onClose={() => select(null)}
             onDeactivate={() => {
-              deactivateMutation.mutate(selectedId)
+              actionError.clear()
+              deactivateMutation.mutate(selectedId, { onError: actionError.onError })
             }}
           />
         </Modal>

@@ -39,6 +39,12 @@ class FakePasswordHasher:
     def verify(self, plain_password: str, password_hash: str) -> bool:
         return password_hash == f"hashed::{plain_password}"
 
+    def __init__(self) -> None:
+        self.unknown_user_verifications = 0
+
+    def verify_against_unknown_user(self, plain_password: str) -> None:
+        self.unknown_user_verifications += 1
+
 
 class FakeSessionTokens:
     def __init__(self) -> None:
@@ -94,7 +100,13 @@ class FakeUserRepository:
         return None
 
     def list_page(
-        self, *, page: int, page_size: int, is_active: bool | None, search: str | None
+        self,
+        *,
+        page: int,
+        page_size: int,
+        is_active: bool | None,
+        search: str | None,
+        clinic_ids: frozenset[UUID] | None = None,
     ) -> tuple[list[User], int]:
         users = list(self._users.values())
         if is_active is not None:

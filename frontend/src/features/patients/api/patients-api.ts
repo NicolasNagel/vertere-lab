@@ -39,6 +39,7 @@ export interface PatientPage {
 
 export interface PatientListParams {
   clinicId?: string
+  speciesId?: string
   search?: string
   status?: PatientStatus
   page?: number
@@ -141,6 +142,7 @@ export async function fetchPatients(params: PatientListParams = {}): Promise<Pat
   const query = new URLSearchParams()
   if (params.search) query.set('search', params.search)
   if (params.clinicId) query.set('clinic_id', params.clinicId)
+  if (params.speciesId) query.set('species_id', params.speciesId)
   if (params.status) query.set('status', params.status)
   query.set('page', String(params.page ?? 1))
   query.set('page_size', String(params.pageSize ?? 20))
@@ -152,6 +154,31 @@ export async function fetchPatients(params: PatientListParams = {}): Promise<Pat
     page: body.page,
     pageSize: body.page_size,
   }
+}
+
+export interface PatientsSummaryParams {
+  search?: string
+  clinicId?: string
+  speciesId?: string
+}
+
+export interface PatientsSummary {
+  total: number
+  active: number
+  inactive: number
+}
+
+/** Contagens por status do servidor, com o mesmo escopo e filtros da lista (menos o status). */
+export async function fetchPatientsSummary(
+  params: PatientsSummaryParams = {},
+): Promise<PatientsSummary> {
+  const query = new URLSearchParams()
+  if (params.search) query.set('search', params.search)
+  if (params.clinicId) query.set('clinic_id', params.clinicId)
+  if (params.speciesId) query.set('species_id', params.speciesId)
+
+  const suffix = query.size > 0 ? `?${query.toString()}` : ''
+  return apiRequest<PatientsSummary>(`/patients/summary${suffix}`)
 }
 
 export async function fetchPatient(id: string): Promise<Patient> {
@@ -166,16 +193,21 @@ export async function createPatient(values: PatientFormValues): Promise<Patient>
   return fromApiPatient(patient)
 }
 
-export async function updatePatient(
-  id: string,
-  values: PatientFormValues & { status: PatientStatus; expectedRowVersion: number },
-): Promise<Patient> {
+export interface PatientUpdateValues extends PatientFormValues {
+  status: PatientStatus
+  expectedRowVersion: number
+  /** Obrigatório quando a clínica muda (o backend recusa sem motivo). */
+  reason?: string
+}
+
+export async function updatePatient(id: string, values: PatientUpdateValues): Promise<Patient> {
   const patient = await apiRequest<ApiPatient>(`/patients/${id}`, {
     method: 'PATCH',
     body: {
       ...toApiPayload(values),
       status: values.status,
       expected_row_version: values.expectedRowVersion,
+      ...(values.reason ? { reason: values.reason } : {}),
     },
   })
   return fromApiPatient(patient)
@@ -183,6 +215,13 @@ export async function updatePatient(
 
 export async function deactivatePatient(id: string): Promise<Patient> {
   const patient = await apiRequest<ApiPatient>(`/patients/${id}/deactivate`, {
+    method: 'POST',
+  })
+  return fromApiPatient(patient)
+}
+
+export async function reactivatePatient(id: string): Promise<Patient> {
+  const patient = await apiRequest<ApiPatient>(`/patients/${id}/reactivate`, {
     method: 'POST',
   })
   return fromApiPatient(patient)

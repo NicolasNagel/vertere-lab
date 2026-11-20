@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { render, screen } from '@testing-library/react'
+import { render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { http, HttpResponse } from 'msw'
 import { setupServer } from 'msw/node'
@@ -193,4 +193,70 @@ test('a double click on Salvar sends a single create request', async () => {
 
   expect(await screen.findByRole('heading', { name: 'Clínicas parceiras' })).toBeInTheDocument()
   expect(posts).toBe(1)
+})
+
+test('a failed Inativar in the popover shows the reason in the list', async () => {
+  const user = userEvent.setup()
+  server.use(
+    meHandler(['clinics.read', 'clinics.manage']),
+    clinicsListHandler(),
+    http.get('/api/v1/clinics/c1', () =>
+      HttpResponse.json(apiClinic({ id: 'c1', name: 'Schweitzer', tax_id: '78977352000199' })),
+    ),
+    http.post('/api/v1/clinics/c1/deactivate', () =>
+      HttpResponse.json(
+        { error: { code: 'CONFLICT', message: 'Clínica alterada por outra pessoa.' } },
+        { status: 409 },
+      ),
+    ),
+  )
+  renderWithProviders(
+    <Routes>
+      <Route path="/cadastros/clinicas" element={<ClinicsPage />} />
+    </Routes>,
+  )
+
+  await user.click(await screen.findByRole('button', { name: 'Schweitzer' }))
+  await user.click(await screen.findByRole('button', { name: 'Mais ações' }))
+  await user.click(await screen.findByRole('menuitem', { name: 'Inativar' }))
+  // The dialog covers the list, so the reason must be inside it (not only behind it).
+  const dialog = within(screen.getByRole('dialog'))
+  expect(await dialog.findByRole('alert')).toHaveTextContent('Clínica alterada por outra pessoa.')
+})
+
+test('an empty list has no pagination footer', async () => {
+  server.use(
+    meHandler(['clinics.read']),
+    http.get('/api/v1/clinics', () =>
+      HttpResponse.json({ items: [], total: 0, page: 1, page_size: 25 }),
+    ),
+  )
+  renderWithProviders(
+    <Routes>
+      <Route path="/cadastros/clinicas" element={<ClinicsPage />} />
+    </Routes>,
+  )
+
+  expect(await screen.findByText(/Nenhuma clínica encontrada/)).toBeInTheDocument()
+  expect(screen.queryByRole('button', { name: 'Próxima página' })).not.toBeInTheDocument()
+})
+
+test('a 403 on the list says there is no permission instead of a generic failure', async () => {
+  server.use(
+    meHandler([]),
+    http.get('/api/v1/clinics', () =>
+      HttpResponse.json(
+        { error: { code: 'FORBIDDEN', message: 'Permissão ausente: clinics.read' } },
+        { status: 403 },
+      ),
+    ),
+  )
+  renderWithProviders(
+    <Routes>
+      <Route path="/cadastros/clinicas" element={<ClinicsPage />} />
+    </Routes>,
+  )
+
+  expect(await screen.findByText('Você não tem permissão para ver esta lista.')).toBeInTheDocument()
+  expect(screen.queryByText(/Não foi possível carregar/)).not.toBeInTheDocument()
 })

@@ -1396,3 +1396,76 @@ async def test_clinic_rule_conditions_apply_by_exam_and_type_and_a_correction_re
         with session_factory() as session:
             session.execute(text("DELETE FROM clinic_fee_rules"))
             session.commit()
+
+
+async def test_item_quantity_and_discount_have_a_ceiling_instead_of_overflowing_the_column(
+    client: httpx.AsyncClient, session_factory: sessionmaker[Session]
+) -> None:
+    """Quantity had no ceiling and a huge value overflowed NUMERIC(14,2) into a 500."""
+    await _login_admin(client, session_factory)
+    attendance_id, exam_id = await _create_confirmable_draft(client, session_factory)
+    url = f"/api/v1/attendances/{attendance_id}/confirm"
+
+    for index, quantity in enumerate((0, -1, 1000, 2**31, 10**12)):
+        rejected = await client.post(
+            url,
+            json=_items(exam_id, quantity),
+            headers=_idempotency_header(f"qty-{index}"),
+        )
+        assert rejected.status_code == 422, quantity
+    huge_discount = await client.post(
+        url,
+        json={"items": [{"exam_id": exam_id, "quantity": 1, "discount_amount": "1" + "0" * 20}]},
+        headers=_idempotency_header("discount-huge"),
+    )
+    assert huge_discount.status_code == 422
+
+    confirmed = await client.post(
+        url, json=_items(exam_id, 999), headers=_idempotency_header("qty-at-limit")
+    )
+    assert confirmed.status_code == 200
+    assert confirmed.json()["items"][0]["quantity"] == 999
+
+
+async def test_a_failed_confirm_does_not_burn_its_idempotency_key(
+    client: httpx.AsyncClient, session_factory: sessionmaker[Session]
+) -> None:
+    """The record is begun and completed in the use case's transaction: a failure rolls it back, so
+    the same key can be used again once the request is fixed (no key stuck "in progress")."""
+    await _login_admin(client, session_factory)
+    attendance_id, exam_id = await _create_confirmable_draft(client, session_factory)
+    url = f"/api/v1/attendances/{attendance_id}/confirm"
+
+    failed = await client.post(
+        url, json=_items(str(uuid4())), headers=_idempotency_header("retry-me")
+    )
+    assert failed.status_code == 404
+
+    retried = await client.post(url, json=_items(exam_id), headers=_idempotency_header("retry-me"))
+    assert retried.status_code == 200, retried.text
+    with session_factory() as session:
+        rows = session.execute(
+            text("SELECT status FROM idempotency_keys WHERE idempotency_key = 'retry-me'")
+        ).all()
+    assert [row[0] for row in rows] == ["COMPLETED"]
+
+
+async def test_an_attendance_cannot_carry_more_than_the_item_limit(
+    client: httpx.AsyncClient, session_factory: sessionmaker[Session]
+) -> None:
+    await _login_admin(client, session_factory)
+    attendance_id, exam_id = await _create_confirmable_draft(client, session_factory)
+    too_many = {"items": [{"exam_id": exam_id, "quantity": 1}] * 101}
+
+    confirm = await client.post(
+        f"/api/v1/attendances/{attendance_id}/confirm",
+        json=too_many,
+        headers=_idempotency_header("too-many-items"),
+    )
+    edit = await client.put(
+        f"/api/v1/attendances/{attendance_id}/items",
+        json={**too_many, "reason": "Excesso de itens para testar o limite"},
+    )
+
+    assert confirm.status_code == 422
+    assert edit.status_code == 422

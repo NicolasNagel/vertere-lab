@@ -15,6 +15,7 @@ from app.modules.identity.domain.value_objects import Email
 from app.shared.domain.errors import ForbiddenError, NotFoundError
 from tests.identity.fakes import (
     FakeAuditLogWriter,
+    FakeClinicMembershipRepository,
     FakeClock,
     FakeRoleRepository,
     FakeUserRepository,
@@ -67,7 +68,13 @@ def test_activate_user_checks_permission_and_existence_then_reactivates_and_audi
     )
     roles.add(powerless_role)
     audit = FakeAuditLogWriter()
-    use_case = ActivateUserUseCase(users=users, roles=roles, audit=audit, clock=FakeClock(_NOW))
+    use_case = ActivateUserUseCase(
+        users=users,
+        roles=roles,
+        clinic_memberships=FakeClinicMembershipRepository(),
+        audit=audit,
+        clock=FakeClock(_NOW),
+    )
     actor = _actor_from(target, admin_role)
 
     with pytest.raises(ForbiddenError):

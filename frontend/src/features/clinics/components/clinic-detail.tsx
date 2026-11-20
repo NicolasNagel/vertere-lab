@@ -1,22 +1,22 @@
 import { Link } from 'react-router'
 
 import { KebabMenu, type KebabMenuItem } from '../../../shared/ui/kebab-menu'
-import { formatTaxId, getInitials } from '../../../shared/lib/formatters'
+import { displayValue, formatTaxId } from '../../../shared/lib/formatters'
 import type { Clinic } from '../api/clinics-api'
 import { ClinicStatusBadge } from './clinic-status-badge'
+import { ClinicVeterinariansList } from './clinic-veterinarians-list'
 import '../../../shared/ui/button.css'
+import '../../attendances/components/attendance-list-page.css'
 import '../../attendances/components/attendance-row-popover.css'
 import './clinic-detail.css'
-
-function displayValue(value: string | null): string {
-  return value && value.trim().length > 0 ? value : '—'
-}
 
 interface ClinicDetailProps {
   clinic: Clinic | null
   isLoading: boolean
   canManage: boolean
   onClose: () => void
+  /** Falha de Inativar: o diálogo cobre a lista, então a mensagem aparece aqui. */
+  actionError?: string | null
   onDeactivate: () => void
 }
 
@@ -26,6 +26,7 @@ export function ClinicDetail({
   isLoading,
   canManage,
   onClose,
+  actionError,
   onDeactivate,
 }: ClinicDetailProps) {
   if (isLoading || !clinic) {
@@ -77,6 +78,11 @@ export function ClinicDetail({
       </header>
 
       <div className="attendance-row-popover__body">
+        {actionError && (
+          <p role="alert" className="attendance-list-page__error">
+            {actionError}
+          </p>
+        )}
         <section>
           <h3 className="attendance-row-popover__section">Contato</h3>
           <dl className="attendance-row-popover__fields">
@@ -115,30 +121,7 @@ export function ClinicDetail({
           <h3 className="attendance-row-popover__section">
             Veterinários vinculados ({clinic.veterinarians.length})
           </h3>
-          {clinic.veterinarians.length === 0 ? (
-            <p className="clinic-detail__empty">Nenhum veterinário vinculado ainda.</p>
-          ) : (
-            <ul className="clinic-detail__vets-list">
-              {clinic.veterinarians.map((veterinarian) => (
-                <li key={veterinarian.veterinarianId} className="clinic-detail__vets-row">
-                  <span className="clinic-detail__vets-avatar" aria-hidden="true">
-                    {getInitials(veterinarian.veterinarianName)}
-                  </span>
-                  <span className="clinic-detail__vets-info">
-                    <span className="clinic-detail__vets-name">
-                      {veterinarian.veterinarianName}
-                      {veterinarian.primaryClinic && (
-                        <span className="clinic-detail__vets-primary">Principal</span>
-                      )}
-                    </span>
-                    <span className="clinic-detail__vets-crmv clinic-detail__mono">
-                      {veterinarian.crmv}
-                    </span>
-                  </span>
-                </li>
-              ))}
-            </ul>
-          )}
+          <ClinicVeterinariansList veterinarians={clinic.veterinarians} />
         </section>
       </div>
     </aside>

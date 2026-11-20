@@ -10,6 +10,13 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from app.api.field_types import (
+    MAX_ITEMS_PER_ATTENDANCE,
+    MAX_LINE_DISCOUNT,
+    MAX_UNIT_PRICE,
+    Quantity,
+)
+
 AttendanceStatusLiteral = Literal[
     "DRAFT", "CONFIRMED", "IN_PROGRESS", "COMPLETED", "CANCELLED", "ON_HOLD"
 ]
@@ -106,15 +113,17 @@ class AttendanceConfirmItemRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     exam_id: UUID
-    quantity: int = 1
-    discount_amount: Decimal | None = None
+    quantity: Quantity = 1
+    discount_amount: Decimal | None = Field(
+        default=None, ge=0, le=MAX_LINE_DISCOUNT, max_digits=14, decimal_places=2
+    )
     override_reason: str | None = None
 
 
 class AttendanceConfirmRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    items: list[AttendanceConfirmItemRequest]
+    items: list[AttendanceConfirmItemRequest] = Field(max_length=MAX_ITEMS_PER_ATTENDANCE)
 
 
 class AttendanceItemEditRequest(BaseModel):
@@ -125,8 +134,10 @@ class AttendanceItemEditRequest(BaseModel):
 
     item_id: UUID | None = None
     exam_id: UUID | None = None
-    quantity: int = Field(default=1, ge=1)
-    discount_amount: Decimal | None = Field(default=None, ge=0)
+    quantity: Quantity = 1
+    discount_amount: Decimal | None = Field(
+        default=None, ge=0, le=MAX_LINE_DISCOUNT, max_digits=14, decimal_places=2
+    )
     override_reason: str | None = Field(default=None, max_length=500)
 
 
@@ -138,7 +149,7 @@ class AttendanceItemsUpdateRequest(BaseModel):
 
     row_version: int = Field(ge=1)
     reason: str = Field(min_length=1, max_length=500)
-    items: list[AttendanceItemEditRequest]
+    items: list[AttendanceItemEditRequest] = Field(max_length=MAX_ITEMS_PER_ATTENDANCE)
 
 
 class AttendanceCancelRequest(BaseModel):
@@ -222,7 +233,7 @@ class OnCallFeeSettingListResponse(BaseModel):
 class OnCallFeeSettingUpdateRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    fee_amount: Decimal = Field(ge=0)
+    fee_amount: Decimal = Field(ge=0, le=MAX_UNIT_PRICE, max_digits=14, decimal_places=2)
     weekdays: list[Annotated[int, Field(ge=0, le=6)]] = Field(default_factory=list, max_length=7)
     start_time: time | None = None
     end_time: time | None = None
@@ -240,7 +251,7 @@ class UrgencyFeeSettingRead(BaseModel):
 class UrgencyFeeSettingUpdateRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    fee_amount: Decimal = Field(ge=0, max_digits=14, decimal_places=2)
+    fee_amount: Decimal = Field(ge=0, le=MAX_UNIT_PRICE, max_digits=14, decimal_places=2)
     reason: str = Field(min_length=1, max_length=500)
     expected_row_version: int = Field(ge=1)
 
@@ -271,7 +282,7 @@ class ClinicFeeRuleCreateRequest(BaseModel):
 
     clinic_id: UUID
     name: str = Field(min_length=1, max_length=120)
-    fee_amount: Decimal = Field(ge=0, max_digits=14, decimal_places=2)
+    fee_amount: Decimal = Field(ge=0, le=MAX_UNIT_PRICE, max_digits=14, decimal_places=2)
     valid_from: date
     valid_to: date | None = None
     exam_ids: list[UUID] = Field(default_factory=list, max_length=50)
@@ -283,7 +294,7 @@ class ClinicFeeRuleUpdateRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     name: str = Field(min_length=1, max_length=120)
-    fee_amount: Decimal = Field(ge=0, max_digits=14, decimal_places=2)
+    fee_amount: Decimal = Field(ge=0, le=MAX_UNIT_PRICE, max_digits=14, decimal_places=2)
     valid_from: date
     valid_to: date | None = None
     is_active: bool

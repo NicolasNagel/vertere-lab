@@ -171,7 +171,8 @@
             "schema": {
               "anyOf": [
                 {
-                  "type": "string"
+                  "type": "string",
+                  "maxLength": 254
                 },
                 {
                   "type": "null"
@@ -760,7 +761,8 @@
             "schema": {
               "anyOf": [
                 {
-                  "type": "string"
+                  "type": "string",
+                  "maxLength": 254
                 },
                 {
                   "type": "null"
@@ -1049,7 +1051,8 @@
             "schema": {
               "anyOf": [
                 {
-                  "type": "string"
+                  "type": "string",
+                  "maxLength": 254
                 },
                 {
                   "type": "null"
@@ -1398,7 +1401,8 @@
             "schema": {
               "anyOf": [
                 {
-                  "type": "string"
+                  "type": "string",
+                  "maxLength": 254
                 },
                 {
                   "type": "null"
@@ -1749,7 +1753,8 @@
             "schema": {
               "anyOf": [
                 {
-                  "type": "string"
+                  "type": "string",
+                  "maxLength": 254
                 },
                 {
                   "type": "null"
@@ -2217,7 +2222,8 @@
             "schema": {
               "anyOf": [
                 {
-                  "type": "string"
+                  "type": "string",
+                  "maxLength": 254
                 },
                 {
                   "type": "null"
@@ -2241,6 +2247,23 @@
                 }
               ],
               "title": "Clinic Id"
+            }
+          },
+          {
+            "name": "species_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Species Id"
             }
           }
         ],
@@ -2295,6 +2318,95 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/PatientRead"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/patients/summary": {
+      "get": {
+        "tags": [
+          "patients"
+        ],
+        "summary": "Summarize Patients",
+        "operationId": "summarize_patients_api_v1_patients_summary_get",
+        "security": [
+          {
+            "SessionCookie": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "search",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 254
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Search"
+            }
+          },
+          {
+            "name": "clinic_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Clinic Id"
+            }
+          },
+          {
+            "name": "species_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Species Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PatientsSummaryRead"
                 }
               }
             }
@@ -2423,6 +2535,54 @@
         ],
         "summary": "Deactivate Patient",
         "operationId": "deactivate_patient_api_v1_patients__patient_id__deactivate_post",
+        "security": [
+          {
+            "SessionCookie": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "patient_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Patient Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PatientRead"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/patients/{patient_id}/reactivate": {
+      "post": {
+        "tags": [
+          "patients"
+        ],
+        "summary": "Reactivate Patient",
+        "operationId": "reactivate_patient_api_v1_patients__patient_id__reactivate_post",
         "security": [
           {
             "SessionCookie": []
@@ -4940,17 +5100,21 @@
           },
           "quantity": {
             "type": "integer",
+            "maximum": 999.0,
+            "minimum": 1.0,
             "title": "Quantity",
             "default": 1
           },
           "discount_amount": {
             "anyOf": [
               {
-                "type": "number"
+                "type": "number",
+                "maximum": 99899990.01,
+                "minimum": 0.0
               },
               {
                 "type": "string",
-                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$"
+                "pattern": "^(?!^[-+.]*$)[+-]?0*(?:\\d{0,12}|(?=[\\d.]{1,15}0*$)\\d{0,12}\\.\\d{0,2}0*$)"
               },
               {
                 "type": "null"
@@ -4984,6 +5148,7 @@
               "$ref": "#/components/schemas/AttendanceConfirmItemRequest"
             },
             "type": "array",
+            "maxItems": 100,
             "title": "Items"
           }
         },
@@ -5269,6 +5434,7 @@
           },
           "quantity": {
             "type": "integer",
+            "maximum": 999.0,
             "minimum": 1.0,
             "title": "Quantity",
             "default": 1
@@ -5277,11 +5443,12 @@
             "anyOf": [
               {
                 "type": "number",
+                "maximum": 99899990.01,
                 "minimum": 0.0
               },
               {
                 "type": "string",
-                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$"
+                "pattern": "^(?!^[-+.]*$)[+-]?0*(?:\\d{0,12}|(?=[\\d.]{1,15}0*$)\\d{0,12}\\.\\d{0,2}0*$)"
               },
               {
                 "type": "null"
@@ -5325,6 +5492,7 @@
               "$ref": "#/components/schemas/AttendanceItemEditRequest"
             },
             "type": "array",
+            "maxItems": 100,
             "title": "Items"
           }
         },
@@ -6574,6 +6742,7 @@
             "anyOf": [
               {
                 "type": "number",
+                "maximum": 99999.99,
                 "minimum": 0.0
               },
               {
@@ -6758,6 +6927,7 @@
             "anyOf": [
               {
                 "type": "number",
+                "maximum": 99999.99,
                 "minimum": 0.0
               },
               {
@@ -7668,6 +7838,7 @@
             "anyOf": [
               {
                 "type": "number",
+                "maximum": 99999.99,
                 "exclusiveMinimum": 0.0
               },
               {
@@ -7940,6 +8111,7 @@
             "anyOf": [
               {
                 "type": "number",
+                "maximum": 99999.99,
                 "exclusiveMinimum": 0.0
               },
               {
@@ -9015,11 +9187,12 @@
             "anyOf": [
               {
                 "type": "number",
+                "maximum": 99999.99,
                 "minimum": 0.0
               },
               {
                 "type": "string",
-                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$"
+                "pattern": "^(?!^[-+.]*$)[+-]?0*(?:\\d{0,12}|(?=[\\d.]{1,15}0*$)\\d{0,12}\\.\\d{0,2}0*$)"
               }
             ],
             "title": "Fee Amount"
@@ -9088,6 +9261,7 @@
           },
           "name": {
             "type": "string",
+            "maxLength": 200,
             "minLength": 1,
             "title": "Name"
           },
@@ -9107,7 +9281,8 @@
           "breed": {
             "anyOf": [
               {
-                "type": "string"
+                "type": "string",
+                "maxLength": 100
               },
               {
                 "type": "null"
@@ -9118,7 +9293,8 @@
           "age_description": {
             "anyOf": [
               {
-                "type": "string"
+                "type": "string",
+                "maxLength": 100
               },
               {
                 "type": "null"
@@ -9128,13 +9304,15 @@
           },
           "owner_name": {
             "type": "string",
+            "maxLength": 200,
             "minLength": 1,
             "title": "Owner Name"
           },
           "owner_phone": {
             "anyOf": [
               {
-                "type": "string"
+                "type": "string",
+                "maxLength": 30
               },
               {
                 "type": "null"
@@ -9145,7 +9323,8 @@
           "owner_document": {
             "anyOf": [
               {
-                "type": "string"
+                "type": "string",
+                "maxLength": 30
               },
               {
                 "type": "null"
@@ -9156,7 +9335,8 @@
           "notes": {
             "anyOf": [
               {
-                "type": "string"
+                "type": "string",
+                "maxLength": 2000
               },
               {
                 "type": "null"
@@ -9168,6 +9348,7 @@
             "anyOf": [
               {
                 "type": "integer",
+                "maximum": 999.0,
                 "minimum": 0.0
               },
               {
@@ -9425,6 +9606,7 @@
         "properties": {
           "name": {
             "type": "string",
+            "maxLength": 200,
             "minLength": 1,
             "title": "Name"
           },
@@ -9444,7 +9626,8 @@
           "breed": {
             "anyOf": [
               {
-                "type": "string"
+                "type": "string",
+                "maxLength": 100
               },
               {
                 "type": "null"
@@ -9455,7 +9638,8 @@
           "age_description": {
             "anyOf": [
               {
-                "type": "string"
+                "type": "string",
+                "maxLength": 100
               },
               {
                 "type": "null"
@@ -9465,13 +9649,15 @@
           },
           "owner_name": {
             "type": "string",
+            "maxLength": 200,
             "minLength": 1,
             "title": "Owner Name"
           },
           "owner_phone": {
             "anyOf": [
               {
-                "type": "string"
+                "type": "string",
+                "maxLength": 30
               },
               {
                 "type": "null"
@@ -9482,7 +9668,8 @@
           "owner_document": {
             "anyOf": [
               {
-                "type": "string"
+                "type": "string",
+                "maxLength": 30
               },
               {
                 "type": "null"
@@ -9501,7 +9688,8 @@
           "notes": {
             "anyOf": [
               {
-                "type": "string"
+                "type": "string",
+                "maxLength": 2000
               },
               {
                 "type": "null"
@@ -9529,6 +9717,7 @@
             "anyOf": [
               {
                 "type": "integer",
+                "maximum": 999.0,
                 "minimum": 0.0
               },
               {
@@ -9551,6 +9740,19 @@
               }
             ],
             "title": "Age Unit"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 500,
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason"
           }
         },
         "additionalProperties": false,
@@ -9564,6 +9766,29 @@
           "expected_row_version"
         ],
         "title": "PatientUpdateRequest"
+      },
+      "PatientsSummaryRead": {
+        "properties": {
+          "total": {
+            "type": "integer",
+            "title": "Total"
+          },
+          "active": {
+            "type": "integer",
+            "title": "Active"
+          },
+          "inactive": {
+            "type": "integer",
+            "title": "Inactive"
+          }
+        },
+        "type": "object",
+        "required": [
+          "total",
+          "active",
+          "inactive"
+        ],
+        "title": "PatientsSummaryRead"
       },
       "PermissionRead": {
         "properties": {
@@ -10007,6 +10232,7 @@
             "anyOf": [
               {
                 "type": "number",
+                "maximum": 99999.99,
                 "minimum": 0.0
               },
               {
@@ -10345,18 +10571,21 @@
         "properties": {
           "name": {
             "type": "string",
+            "maxLength": 200,
             "minLength": 1,
             "title": "Name"
           },
           "crmv": {
             "type": "string",
+            "maxLength": 50,
             "minLength": 1,
             "title": "Crmv"
           },
           "phone": {
             "anyOf": [
               {
-                "type": "string"
+                "type": "string",
+                "maxLength": 30
               },
               {
                 "type": "null"
@@ -10367,7 +10596,9 @@
           "email": {
             "anyOf": [
               {
-                "type": "string"
+                "type": "string",
+                "maxLength": 254,
+                "pattern": "^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$"
               },
               {
                 "type": "null"
@@ -10383,7 +10614,8 @@
           "notes": {
             "anyOf": [
               {
-                "type": "string"
+                "type": "string",
+                "maxLength": 2000
               },
               {
                 "type": "null"
@@ -10704,18 +10936,21 @@
         "properties": {
           "name": {
             "type": "string",
+            "maxLength": 200,
             "minLength": 1,
             "title": "Name"
           },
           "crmv": {
             "type": "string",
+            "maxLength": 50,
             "minLength": 1,
             "title": "Crmv"
           },
           "phone": {
             "anyOf": [
               {
-                "type": "string"
+                "type": "string",
+                "maxLength": 30
               },
               {
                 "type": "null"
@@ -10726,7 +10961,9 @@
           "email": {
             "anyOf": [
               {
-                "type": "string"
+                "type": "string",
+                "maxLength": 254,
+                "pattern": "^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$"
               },
               {
                 "type": "null"
@@ -10750,7 +10987,8 @@
           "notes": {
             "anyOf": [
               {
-                "type": "string"
+                "type": "string",
+                "maxLength": 2000
               },
               {
                 "type": "null"

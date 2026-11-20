@@ -1,0 +1,4 @@
+/* Só o que é próprio da lista de pacientes; o restante vem de shared/ui/registry-table.css. */
+.patient-table__table {
+  --registry-table-min-width: 50rem;
+}

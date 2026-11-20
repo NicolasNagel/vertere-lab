@@ -27,6 +27,7 @@ from app.modules.patients.domain.repositories import SpeciesRepository
 from app.shared.application.authorization import ActorContext
 from app.shared.application.clock import Clock
 from app.shared.domain.errors import ForbiddenError
+from app.shared.domain.limits import MAX_UNIT_PRICE
 
 _REQUIRED_PERMISSION = "catalog.manage"
 _PRICE_MANAGE_PERMISSION = "pricing.manage"
@@ -134,6 +135,11 @@ class ImportExamsUseCase:
         now: datetime,
         actor_id: UUID | None,
     ) -> Exam:
+        # PostgreSQL text cannot hold a NUL byte: reject it on this row instead of letting it abort
+        # the whole file (every line must end with a known status).
+        texts = (row.code, row.name, row.category_name, row.price_base, row.description or "")
+        if any("\x00" in text for text in (*texts, *row.species_names)):
+            raise _RowValidationError("O texto contém o caractere NUL (0x00).")
         if not row.name.strip():
             raise _RowValidationError("Nome do exame é obrigatório.")
 
@@ -162,6 +168,10 @@ class ImportExamsUseCase:
             price_base = Decimal(row.price_base)
         except InvalidOperation as exc:
             raise _RowValidationError("Preço base inválido.") from exc
+        if not price_base.is_finite():
+            raise _RowValidationError("Preço base inválido.")
+        if price_base > MAX_UNIT_PRICE:
+            raise _RowValidationError(f"Preço base acima do limite de R$ {MAX_UNIT_PRICE}.")
 
         try:
             return Exam(

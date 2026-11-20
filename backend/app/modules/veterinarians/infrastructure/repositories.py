@@ -15,7 +15,7 @@ from app.modules.veterinarian_clinics.infrastructure.models import VeterinarianC
 from app.modules.veterinarians.domain.entities import Veterinarian, VeterinarianStatus
 from app.modules.veterinarians.domain.value_objects import Crmv
 from app.modules.veterinarians.infrastructure.models import VeterinarianModel
-from app.shared.infrastructure.sql import LIKE_ESCAPE, contains_pattern
+from app.shared.infrastructure.sql import LIKE_ESCAPE, folded, folded_pattern
 
 
 def _to_domain(model: VeterinarianModel) -> Veterinarian:
@@ -101,6 +101,16 @@ class SqlAlchemyVeterinarianRepository:
         model.row_version = veterinarian.row_version + 1
         veterinarian.row_version = model.row_version
 
+    def get_by_id_for_update(self, veterinarian_id: UUID) -> Veterinarian | None:
+        model = self._session.get(VeterinarianModel, veterinarian_id, with_for_update=True)
+        return None if model is None else _to_domain(model)
+
+    def linked_clinic_ids(self, veterinarian_id: UUID) -> frozenset[UUID]:
+        stmt = select(VeterinarianClinicModel.clinic_id).where(
+            VeterinarianClinicModel.veterinarian_id == veterinarian_id
+        )
+        return frozenset(self._session.execute(stmt).scalars())
+
     def is_linked_to_any_clinic(self, veterinarian_id: UUID, clinic_ids: frozenset[UUID]) -> bool:
         if not clinic_ids:
             return False
@@ -131,11 +141,11 @@ class SqlAlchemyVeterinarianRepository:
         if is_autonomous is not None:
             conditions.append(VeterinarianModel.is_autonomous == is_autonomous)
         if search:
-            like_pattern = contains_pattern(search.lower())
+            like_pattern = folded_pattern(search)
             conditions.append(
                 or_(
-                    func.lower(VeterinarianModel.name).like(like_pattern, escape=LIKE_ESCAPE),
-                    func.lower(VeterinarianModel.crmv).like(like_pattern, escape=LIKE_ESCAPE),
+                    folded(VeterinarianModel.name).like(like_pattern, escape=LIKE_ESCAPE),
+                    folded(VeterinarianModel.crmv).like(like_pattern, escape=LIKE_ESCAPE),
                 )
             )
         if available_for_clinic_id is not None:

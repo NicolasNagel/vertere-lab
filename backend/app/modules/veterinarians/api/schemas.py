@@ -4,12 +4,27 @@ kept separate; never the SQLAlchemy model (rule: .claude/rules/02-backend.md).""
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Literal
+from typing import Annotated, Literal
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, StringConstraints
 
 VeterinarianStatusLiteral = Literal["ACTIVE", "INACTIVE"]
+
+# Same convention as the clinics API. The CRMV must be non-empty *after* trimming: the domain
+# value object raises a bare ValueError for that, which would surface as a 500.
+VeterinarianName = Annotated[
+    str, StringConstraints(strip_whitespace=True, min_length=1, max_length=200)
+]
+VeterinarianCrmv = Annotated[
+    str, StringConstraints(strip_whitespace=True, min_length=1, max_length=50)
+]
+VeterinarianPhone = Annotated[str, StringConstraints(strip_whitespace=True, max_length=30)]
+VeterinarianEmail = Annotated[
+    str,
+    StringConstraints(strip_whitespace=True, max_length=254, pattern=r"^[^@\s]+@[^@\s]+\.[^@\s]+$"),
+]
+VeterinarianNotes = Annotated[str, StringConstraints(max_length=2000)]
 
 
 class VeterinarianRead(BaseModel):
@@ -66,12 +81,12 @@ class VeterinarianClinicsUpdateRequest(BaseModel):
 class VeterinarianCreateRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    name: str = Field(min_length=1)
-    crmv: str = Field(min_length=1)
-    phone: str | None = None
-    email: str | None = None
+    name: VeterinarianName
+    crmv: VeterinarianCrmv
+    phone: VeterinarianPhone | None = None
+    email: VeterinarianEmail | None = None
     is_autonomous: bool = False
-    notes: str | None = None
+    notes: VeterinarianNotes | None = None
     clinic_ids: list[UUID] = Field(default_factory=list)
     primary_clinic_id: UUID | None = None
 
@@ -79,12 +94,12 @@ class VeterinarianCreateRequest(BaseModel):
 class VeterinarianUpdateRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    name: str = Field(min_length=1)
-    crmv: str = Field(min_length=1)
-    phone: str | None = None
-    email: str | None = None
+    name: VeterinarianName
+    crmv: VeterinarianCrmv
+    phone: VeterinarianPhone | None = None
+    email: VeterinarianEmail | None = None
     is_autonomous: bool = False
     status: VeterinarianStatusLiteral
-    notes: str | None = None
+    notes: VeterinarianNotes | None = None
     expected_row_version: int
     reason: str = Field(min_length=1, max_length=500)

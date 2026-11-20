@@ -16,6 +16,7 @@ from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile
 from sqlalchemy.orm import Session as SqlAlchemySession
 
 from app.api.dependencies import get_session, get_unit_of_work
+from app.api.query_types import SearchQuery
 from app.modules.catalog.api.schemas import (
     ExamCategoryActiveListResponse,
     ExamCategoryCreateRequest,
@@ -104,7 +105,7 @@ def list_exam_categories(
     page: int = Query(1, ge=1),
     page_size: int = Query(20, ge=1, le=100),
     status: ExamCategoryStatus | None = Query(None),
-    search: str | None = Query(None),
+    search: SearchQuery = None,
     session: SqlAlchemySession = Depends(get_session),
     current_user: ActorContext = Depends(require_permission("catalog.read")),
 ) -> ExamCategoryListResponse:
@@ -219,7 +220,7 @@ def list_exams(
     status: ExamStatus | None = Query(None),
     category_id: UUID | None = Query(None),
     species_id: UUID | None = Query(None),
-    search: str | None = Query(None),
+    search: SearchQuery = None,
     session: SqlAlchemySession = Depends(get_session),
     current_user: ActorContext = Depends(require_permission("catalog.read")),
 ) -> ExamListResponse:

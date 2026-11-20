@@ -6,7 +6,12 @@ from uuid import UUID
 from app.modules.audit.domain.entities import ActorScope, AuditEntry
 from app.modules.audit.domain.repositories import AuditLogWriter
 from app.modules.identity.application.dtos import UserSummaryDTO
-from app.modules.identity.domain.repositories import RoleRepository, UserRepository
+from app.modules.identity.application.user_scope import ensure_user_in_actor_scope
+from app.modules.identity.domain.repositories import (
+    ClinicMembershipRepository,
+    RoleRepository,
+    UserRepository,
+)
 from app.shared.application.authorization import ActorContext
 from app.shared.application.clock import Clock
 from app.shared.domain.errors import ForbiddenError, NotFoundError
@@ -26,11 +31,13 @@ class ActivateUserUseCase:
         *,
         users: UserRepository,
         roles: RoleRepository,
+        clinic_memberships: ClinicMembershipRepository,
         audit: AuditLogWriter,
         clock: Clock,
     ) -> None:
         self._users = users
         self._roles = roles
+        self._clinic_memberships = clinic_memberships
         self._audit = audit
         self._clock = clock
 
@@ -41,6 +48,7 @@ class ActivateUserUseCase:
         user = self._users.get_by_id(command.user_id)
         if user is None:
             raise NotFoundError("Usuário não encontrado.")
+        ensure_user_in_actor_scope(command.actor, user.id, self._clinic_memberships)
 
         now = self._clock.now()
         user.activate(now=now)

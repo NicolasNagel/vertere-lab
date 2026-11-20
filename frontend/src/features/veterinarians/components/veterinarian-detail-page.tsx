@@ -1,17 +1,18 @@
 import { Link, useParams } from 'react-router'
 
 import { ApiError } from '../../../shared/api/errors'
+import { displayValue } from '../../../shared/lib/formatters'
 import { Badge } from '../../../shared/ui/badge'
 import { ArrowLeftIcon, ClinicsIcon, TagIcon, UserIcon } from '../../../shared/ui/icons'
 import { PageHeader } from '../../../shared/ui/page-header'
 import { useAuth } from '../../auth/auth-context'
 import { useVeterinarianQuery } from '../api/use-veterinarian-query'
 import { LinkedClinicsList } from './linked-clinics-list'
-import { VeterinarianDetailBlock } from './veterinarian-detail-block'
+import { DetailBlock } from '../../../shared/ui/detail-block'
 import { ClinicsForm, ContactForm, IdentityForm, StatusForm } from './veterinarian-detail-forms'
 import '../../../shared/ui/button.css'
 import '../../attendances/components/attendance-detail-page.css'
-import '../../attendances/components/attendance-readonly-detail.css'
+import '../../../shared/ui/readonly-detail.css'
 import '../../attendances/components/attendance-summary-cards.css'
 import './veterinarian-detail-page.css'
 
@@ -19,10 +20,6 @@ import './veterinarian-detail-page.css'
 function summarizeClinics(names: string[]): string {
   const shown = names.slice(0, 2).join(' · ')
   return names.length > 2 ? `${shown} e mais ${names.length - 2}` : shown
-}
-
-function displayValue(value: string | null): string {
-  return value && value.trim().length > 0 ? value : '—'
 }
 
 /** Detalhe do veterinário em blocos, cada um com "Editar" + motivo (auditado no backend). */
@@ -132,9 +129,8 @@ export function VeterinarianDetailPage() {
         <div className="attendance-readonly-detail">
           <div className="attendance-readonly-detail__columns" data-money={false}>
             <div className="attendance-readonly-detail__column">
-              <VeterinarianDetailBlock
+              <DetailBlock
                 title="Identificação"
-                veterinarianId={veterinarian.id}
                 canEdit={canEdit}
                 form={({ close }) => <IdentityForm {...formProps} onClose={close} />}
               >
@@ -146,11 +142,10 @@ export function VeterinarianDetailPage() {
                   <dt>Observação</dt>
                   <dd>{displayValue(veterinarian.notes)}</dd>
                 </dl>
-              </VeterinarianDetailBlock>
+              </DetailBlock>
 
-              <VeterinarianDetailBlock
+              <DetailBlock
                 title="Contato"
-                veterinarianId={veterinarian.id}
                 canEdit={canEdit}
                 form={({ close }) => <ContactForm {...formProps} onClose={close} />}
               >
@@ -160,13 +155,12 @@ export function VeterinarianDetailPage() {
                   <dt>E-mail</dt>
                   <dd>{displayValue(veterinarian.email)}</dd>
                 </dl>
-              </VeterinarianDetailBlock>
+              </DetailBlock>
             </div>
 
             <div className="attendance-readonly-detail__column">
-              <VeterinarianDetailBlock
+              <DetailBlock
                 title="Clínicas vinculadas"
-                veterinarianId={veterinarian.id}
                 canEdit={canEdit}
                 form={({ close }) => <ClinicsForm {...formProps} onClose={close} />}
               >
@@ -182,11 +176,10 @@ export function VeterinarianDetailPage() {
                     clinics={veterinarian.clinics}
                   />
                 )}
-              </VeterinarianDetailBlock>
+              </DetailBlock>
 
-              <VeterinarianDetailBlock
+              <DetailBlock
                 title="Status e vínculo"
-                veterinarianId={veterinarian.id}
                 canEdit={canEdit}
                 form={({ close }) => <StatusForm {...formProps} onClose={close} />}
               >
@@ -196,7 +189,7 @@ export function VeterinarianDetailPage() {
                   <dt>Vínculo</dt>
                   <dd>{veterinarian.isAutonomous ? 'Autônomo' : 'Vinculado a clínica'}</dd>
                 </dl>
-              </VeterinarianDetailBlock>
+              </DetailBlock>
             </div>
           </div>
         </div>

@@ -8,12 +8,14 @@ read-only endpoints reuse the request-scoped session from
 from __future__ import annotations
 
 from datetime import timedelta
+from typing import Literal
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, Query, Request, Response
 from sqlalchemy.orm import Session as SqlAlchemySession
 
 from app.api.dependencies import get_session, get_unit_of_work
+from app.api.query_types import SearchQuery
 from app.core.config import Settings
 from app.core.logging import request_id_var
 from app.modules.identity.api.dependencies import (
@@ -91,6 +93,7 @@ from app.shared.application.authorization import ActorContext
 from app.shared.infrastructure.clock import SystemClock
 from app.shared.infrastructure.uow import SqlAlchemyUnitOfWork
 
+_LAB_SCOPES: frozenset[Literal["GLOBAL", "LAB", "CLINIC"]] = frozenset({"GLOBAL", "LAB"})
 router = APIRouter(tags=["identity"])
 
 
@@ -223,7 +226,7 @@ def list_users(
     page: int = Query(1, ge=1),
     page_size: int = Query(20, ge=1, le=100),
     is_active: bool | None = Query(None),
-    search: str | None = Query(None),
+    search: SearchQuery = None,
     session: SqlAlchemySession = Depends(get_session),
     current_user: ActorContext = Depends(require_permission("users.read")),
 ) -> UserListResponse:
@@ -396,7 +399,9 @@ def get_permission_profile(
 def create_permission_profile(
     payload: RoleCreateRequest,
     uow: SqlAlchemyUnitOfWork = Depends(get_unit_of_work),
-    current_user: ActorContext = Depends(require_permission("roles.manage")),
+    current_user: ActorContext = Depends(
+        require_permission("roles.manage", allowed_scopes=_LAB_SCOPES)
+    ),
 ) -> RoleRead:
     role = handle_create_role(
         uow=SqlAlchemyIdentityUnitOfWork(uow),
@@ -425,7 +430,9 @@ def update_permission_profile(
     role_id: UUID,
     payload: RoleUpdateRequest,
     uow: SqlAlchemyUnitOfWork = Depends(get_unit_of_work),
-    current_user: ActorContext = Depends(require_permission("roles.manage")),
+    current_user: ActorContext = Depends(
+        require_permission("roles.manage", allowed_scopes=_LAB_SCOPES)
+    ),
 ) -> RoleRead:
     role = handle_update_role_permissions(
         uow=SqlAlchemyIdentityUnitOfWork(uow),

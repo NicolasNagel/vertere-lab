@@ -144,6 +144,7 @@ export function AttendanceListPage() {
                 <input
                   value={protocolNumber}
                   maxLength={32}
+                  aria-label="Buscar protocolo"
                   placeholder="Buscar protocolo..."
                   onChange={(event) =>
                     handleFilterChange(() => setProtocolNumber(event.target.value))
@@ -199,7 +200,7 @@ export function AttendanceListPage() {
               )}
 
               {isGenericError && (
-                <p className="attendance-list-page__error">
+                <p role="alert" className="attendance-list-page__error">
                   Não foi possível carregar os atendimentos. Tente novamente.
                 </p>
               )}

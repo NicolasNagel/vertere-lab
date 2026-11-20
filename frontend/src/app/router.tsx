@@ -86,6 +86,20 @@ export const router = createBrowserRouter([
         }),
       },
       {
+        path: '/pacientes/novo',
+        lazy: async () => ({
+          Component: (await import('../features/patients/components/patient-form-page'))
+            .PatientFormPage,
+        }),
+      },
+      {
+        path: '/pacientes/:patientId',
+        lazy: async () => ({
+          Component: (await import('../features/patients/components/patient-detail-page'))
+            .PatientDetailPage,
+        }),
+      },
+      {
         path: '/pacientes',
         lazy: async () => ({
           Component: (await import('../features/patients/components/patients-page')).PatientsPage,

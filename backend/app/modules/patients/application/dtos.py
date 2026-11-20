@@ -16,6 +16,13 @@ class SpeciesDTO:
 
 
 @dataclass(frozen=True, kw_only=True)
+class PatientsSummaryDTO:
+    total: int
+    active: int
+    inactive: int
+
+
+@dataclass(frozen=True, kw_only=True)
 class PatientDTO:
     id: UUID
     clinic_id: UUID | None

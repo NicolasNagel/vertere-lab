@@ -17,6 +17,7 @@ from app.modules.identity.domain.errors import SelfLockoutError
 from app.modules.identity.domain.value_objects import Email
 from tests.identity.fakes import (
     FakeAuditLogWriter,
+    FakeClinicMembershipRepository,
     FakeClock,
     FakeRoleRepository,
     FakeSessionRepository,
@@ -60,10 +61,20 @@ def test_the_only_admin_cannot_demote_or_deactivate_themselves_unless_another_ad
     sessions = FakeSessionRepository()
     audit = FakeAuditLogWriter()
     assign = AssignRoleUseCase(
-        users=users, roles=roles, sessions=sessions, audit=audit, clock=FakeClock(_NOW)
+        users=users,
+        roles=roles,
+        clinic_memberships=FakeClinicMembershipRepository(),
+        sessions=sessions,
+        audit=audit,
+        clock=FakeClock(_NOW),
     )
     deactivate = DeactivateUserUseCase(
-        users=users, roles=roles, sessions=sessions, audit=audit, clock=FakeClock(_NOW)
+        users=users,
+        roles=roles,
+        clinic_memberships=FakeClinicMembershipRepository(),
+        sessions=sessions,
+        audit=audit,
+        clock=FakeClock(_NOW),
     )
     actor = AuthenticatedUserDTO(
         user_id=admin.id,

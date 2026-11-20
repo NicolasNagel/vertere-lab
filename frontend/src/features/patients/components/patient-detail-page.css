@@ -1,0 +1,18 @@
+/* Mesma largura das colunas de blocos (attendance-readonly-detail: 60rem). */
+.patient-detail-page__cards {
+  max-width: 60rem;
+  padding: 0 0 1rem;
+  grid-template-columns: repeat(auto-fit, minmax(min(14rem, 100%), 1fr));
+}
+
+.patient-detail-page__cards .attendance-summary-card {
+  min-width: 0;
+}
+
+/* Nome do paciente, do tutor e observação podem ter centenas de caracteres: quebram, não estouram. */
+.patient-detail-page__cards .attendance-summary-card__value,
+.patient-detail-page__cards .attendance-summary-card__hint,
+.patient-detail-page__fields,
+.patient-detail-page__fields dd {
+  overflow-wrap: anywhere;
+}

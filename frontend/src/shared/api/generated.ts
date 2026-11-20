@@ -696,6 +696,12 @@ export type PatientRead = {
   "age_recorded_on": string | null
 }
 
+export type PatientsSummaryRead = {
+  "total": number
+  "active": number
+  "inactive": number
+}
+
 export type PatientStatus = "ACTIVE" | "INACTIVE"
 
 export type PatientUpdateRequest = {
@@ -713,6 +719,7 @@ export type PatientUpdateRequest = {
   "clinic_id"?: string | null
   "age_value"?: number | null
   "age_unit"?: "YEARS" | "MONTHS" | null
+  "reason"?: string | null
 }
 
 export type PermissionRead = {

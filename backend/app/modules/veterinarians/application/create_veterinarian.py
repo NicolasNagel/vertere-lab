@@ -66,6 +66,9 @@ class CreateVeterinarianUseCase:
         if _REQUIRED_PERMISSION not in command.actor.permissions:
             raise ForbiddenError(f"Permissão ausente: {_REQUIRED_PERMISSION}")
 
+        if command.is_autonomous and command.actor.clinic_filter is not None:
+            raise ForbiddenError("Apenas o laboratório cadastra veterinário autônomo.")
+
         if not command.is_autonomous and not command.clinic_ids:
             raise ValidationError(
                 "Veterinário não autônomo precisa de ao menos uma clínica vinculada."
@@ -77,6 +80,9 @@ class CreateVeterinarianUseCase:
             raise ValidationError("A clínica principal precisa estar entre as clínicas vinculadas.")
 
         for clinic_id in command.clinic_ids:
+            # A clinic-scope actor links only to its own clinics (404 hides the others).
+            if not command.actor.can_access_clinic(clinic_id):
+                raise NotFoundError("Clínica não encontrada.")
             if self._clinics.get_by_id(clinic_id) is None:
                 raise NotFoundError("Clínica não encontrada.")
 

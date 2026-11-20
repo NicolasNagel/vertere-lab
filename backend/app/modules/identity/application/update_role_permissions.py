@@ -45,6 +45,8 @@ class UpdateRolePermissionsUseCase:
     def execute(self, command: UpdateRolePermissionsCommand) -> RoleDTO:
         if _REQUIRED_PERMISSION not in command.actor.permissions:
             raise ForbiddenError(f"Permissão ausente: {_REQUIRED_PERMISSION}")
+        if command.actor.clinic_filter is not None:
+            raise ForbiddenError("Perfis de acesso são geridos apenas pelo laboratório.")
 
         role = self._roles.get_by_id(command.role_id)
         if role is None:

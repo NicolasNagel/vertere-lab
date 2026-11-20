@@ -2,7 +2,15 @@
 
 from __future__ import annotations
 
+from sqlalchemy import ColumnElement, func
+from sqlalchemy.sql.elements import SQLCoreOperations
+
 LIKE_ESCAPE = "\\"
+
+
+def folded(column: SQLCoreOperations[str] | SQLCoreOperations[str | None]) -> ColumnElement[str]:
+    """`lower(unaccent(column))`, so "joao" finds "João" (needs the `unaccent` extension, migration 0044)."""
+    return func.lower(func.unaccent(column))
 
 
 def contains_pattern(value: str) -> str:
@@ -15,3 +23,12 @@ def contains_pattern(value: str) -> str:
     escaped = value.replace(LIKE_ESCAPE, LIKE_ESCAPE * 2)
     escaped = escaped.replace("%", f"{LIKE_ESCAPE}%").replace("_", f"{LIKE_ESCAPE}_")
     return f"%{escaped}%"
+
+
+def folded_pattern(term: str) -> ColumnElement[str]:
+    """The LIKE pattern for `term`, folded by the SAME `lower(unaccent())` as the column.
+
+    Folding in the database (not in Python) keeps both sides symmetric for every character
+    `unaccent` knows, including those with no Unicode decomposition (ø, ł, ß).
+    """
+    return func.lower(func.unaccent(contains_pattern(term)))

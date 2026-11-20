@@ -186,3 +186,25 @@ def test_login_rate_limit_is_per_login_and_cleared_by_a_successful_login() -> No
         with pytest.raises(InvalidCredentialsError):
             _login(use_case, "typo@vertere.local", "wrong-password")
     assert _login(use_case, "typo@vertere.local").user.email == "typo@vertere.local"
+
+
+def test_unknown_login_spends_the_same_hash_work_as_a_wrong_password(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """QA 2026-11-19: unknown e-mails answered ~4x faster than wrong passwords (timing oracle)."""
+    calls: list[str] = []
+    monkeypatch.setattr(
+        FakePasswordHasher,
+        "verify_against_unknown_user",
+        lambda _self, plain_password: calls.append(plain_password),
+    )
+    use_case, users, roles, memberships, _audit = _make_use_case()
+    _add_user(users, roles, memberships)
+
+    with pytest.raises(InvalidCredentialsError):
+        _login(use_case, "nobody@vertere.local", "whatever")
+    assert calls == ["whatever"]
+
+    with pytest.raises(InvalidCredentialsError):
+        _login(use_case, "reception@vertere.local", "wrong-password")
+    assert calls == ["whatever"]  # a real account is verified against its own hash instead

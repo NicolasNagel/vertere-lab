@@ -6,6 +6,10 @@ from uuid import UUID
 from app.modules.audit.domain.entities import ActorScope, AuditEntry
 from app.modules.audit.domain.repositories import AuditLogWriter
 from app.modules.identity.application.dtos import UserSummaryDTO
+from app.modules.identity.application.user_scope import (
+    ensure_role_grantable,
+    ensure_user_in_actor_scope,
+)
 from app.modules.identity.domain.entities import RoleScope
 from app.modules.identity.domain.repositories import (
     ClinicMembershipRepository,
@@ -57,6 +61,12 @@ class UpdateUserAccessUseCase:
         user = self._users.get_by_id(command.user_id)
         if user is None:
             raise NotFoundError("Usuário não encontrado.")
+        ensure_user_in_actor_scope(command.actor, user.id, self._clinic_memberships)
+        if command.actor.clinic_filter is not None:
+            if user.id == command.actor.id:
+                raise ForbiddenError("Não é permitido alterar o próprio acesso.")
+            if not command.clinic_ids <= command.actor.clinic_filter:
+                raise NotFoundError("Clínica não encontrada.")
         role = self._roles.get_by_id(command.role_id)
         if role is None:
             raise NotFoundError("Papel não encontrado.")
@@ -67,10 +77,7 @@ class UpdateUserAccessUseCase:
             raise NotFoundError("Clínica não encontrada.")
         if role.scope is not RoleScope.CLINIC and command.clinic_ids:
             raise ValidationError("Papel de laboratório/global não aceita clínicas específicas.")
-        if command.actor.role_scope == "CLINIC" and (
-            role.scope is not RoleScope.CLINIC or not command.clinic_ids <= command.actor.clinic_ids
-        ):
-            raise ForbiddenError("Não é permitido conceder acesso fora do próprio escopo.")
+        ensure_role_grantable(command.actor, role)
 
         old_clinic_ids = self._clinic_memberships.list_active_clinic_ids_for_user(user.id)
         now = self._clock.now()

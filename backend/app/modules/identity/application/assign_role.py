@@ -6,10 +6,12 @@ from uuid import UUID
 from app.modules.audit.domain.entities import ActorScope, AuditEntry
 from app.modules.audit.domain.repositories import AuditLogWriter
 from app.modules.identity.application.dtos import UserSummaryDTO
+from app.modules.identity.application.user_scope import ensure_user_in_actor_scope
 from app.modules.identity.domain.constants import CONTROL_PERMISSIONS
 from app.modules.identity.domain.entities import RoleScope
 from app.modules.identity.domain.errors import SelfLockoutError
 from app.modules.identity.domain.repositories import (
+    ClinicMembershipRepository,
     RoleRepository,
     SessionRepository,
     UserRepository,
@@ -34,12 +36,14 @@ class AssignRoleUseCase:
         *,
         users: UserRepository,
         roles: RoleRepository,
+        clinic_memberships: ClinicMembershipRepository,
         sessions: SessionRepository,
         audit: AuditLogWriter,
         clock: Clock,
     ) -> None:
         self._users = users
         self._roles = roles
+        self._clinic_memberships = clinic_memberships
         self._sessions = sessions
         self._audit = audit
         self._clock = clock
@@ -48,9 +52,13 @@ class AssignRoleUseCase:
         if _REQUIRED_PERMISSION not in command.actor.permissions:
             raise ForbiddenError(f"Permissão ausente: {_REQUIRED_PERMISSION}")
 
+        if command.actor.clinic_filter is not None:
+            raise ForbiddenError("Usuário de clínica não atribui papéis do laboratório.")
+
         user = self._users.get_by_id(command.user_id)
         if user is None:
             raise NotFoundError("Usuário não encontrado.")
+        ensure_user_in_actor_scope(command.actor, user.id, self._clinic_memberships)
 
         new_role = self._roles.get_by_id(command.new_role_id)
         if new_role is None:

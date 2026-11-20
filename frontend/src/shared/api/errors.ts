@@ -38,3 +38,7 @@ export async function throwIfNotOk(response: Response): Promise<void> {
     body?.error?.details ?? [],
   )
 }
+
+export function isForbiddenError(error: unknown): boolean {
+  return error instanceof ApiError && error.status === 403
+}

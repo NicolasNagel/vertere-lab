@@ -25,6 +25,9 @@ from argon2 import PasswordHasher
 from argon2.exceptions import VerifyMismatchError
 
 _password_hasher = PasswordHasher()
+# Hash of a throwaway secret, computed once at import. Verifying against it when the login does not
+# exist makes "unknown user" cost the same Argon2 work as "wrong password" (timing enumeration).
+_UNKNOWN_USER_HASH = _password_hasher.hash("unknown-user-timing-equalizer")
 
 SESSION_TOKEN_BYTES = 32  # 256 bits of entropy
 
@@ -38,6 +41,14 @@ def verify_password(plain_password: str, password_hash: str) -> bool:
         return _password_hasher.verify(password_hash, plain_password)
     except VerifyMismatchError:
         return False
+
+
+def verify_against_unknown_user(plain_password: str) -> None:
+    """Spend the same Argon2 verification cost as a real account; the result is discarded."""
+    try:
+        _password_hasher.verify(_UNKNOWN_USER_HASH, plain_password)
+    except VerifyMismatchError:
+        return
 
 
 def generate_session_token() -> str:
