@@ -240,3 +240,23 @@ test('an empty list has no pagination footer', async () => {
   expect(await screen.findByText(/Nenhuma clínica encontrada/)).toBeInTheDocument()
   expect(screen.queryByRole('button', { name: 'Próxima página' })).not.toBeInTheDocument()
 })
+
+test('a 403 on the list says there is no permission instead of a generic failure', async () => {
+  server.use(
+    meHandler([]),
+    http.get('/api/v1/clinics', () =>
+      HttpResponse.json(
+        { error: { code: 'FORBIDDEN', message: 'Permissão ausente: clinics.read' } },
+        { status: 403 },
+      ),
+    ),
+  )
+  renderWithProviders(
+    <Routes>
+      <Route path="/cadastros/clinicas" element={<ClinicsPage />} />
+    </Routes>,
+  )
+
+  expect(await screen.findByText('Você não tem permissão para ver esta lista.')).toBeInTheDocument()
+  expect(screen.queryByText(/Não foi possível carregar/)).not.toBeInTheDocument()
+})
