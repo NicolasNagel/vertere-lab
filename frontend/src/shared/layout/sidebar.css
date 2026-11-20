@@ -248,11 +248,17 @@
     height: 100vh;
     z-index: 40;
     transform: translateX(-100%);
-    transition: transform 180ms ease-out;
+    transition:
+      transform 180ms ease-out,
+      visibility 0s linear 180ms;
+    /* Fechada, a barra sai da ordem de Tab e da árvore de acessibilidade (não só da tela). */
+    visibility: hidden;
   }
 
   .sidebar--mobile-open {
     transform: translateX(0);
+    visibility: visible;
+    transition: transform 180ms ease-out;
   }
 
   .sidebar__collapse {

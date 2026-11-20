@@ -296,3 +296,42 @@ Ressalvas da revisão e do QA desta rodada, não bloqueantes (dono: backend, pr�
 - [x] Teste de prévia do fechamento ainda depende de tempo (delay 500 ms); trocar por promise controlada.
 
       RESOLVIDO: promise controlada em vez de timer.
+
+## Fatia 6: isolamento por clínica, teclado, menu e acessibilidade (19/11)
+Primeira execução real com um papel de escopo clínica (perfil criado com `users.*`). Dados de negócio (pacientes,
+atendimentos, fechamentos, clínicas, filtros, buscas, contagens) estavam isolados. Falhas de governança achadas e
+CORRIGIDAS nesta fatia, com testes de integração (`test_clinic_scope_isolation_api.py`): usuário de clínica listava,
+ativava, desativava e mudava papel/acesso de usuários de outra clínica e do laboratório; vinculava a si um
+veterinário invisível; criava veterinário vinculado a outra clínica. Regra agora: alvo só alcançável se tem vínculo
+ativo apenas com clínicas do ator (fora disso 404); ator de clínica nunca atribui papel de laboratório.
+Corrigidos também: barra lateral fechada no mobile saía da tela mas continuava na ordem de Tab (agora `visibility`);
+linhas de Operação tinham `aria-haspopup`/`aria-expanded` inválidos em `tr` (axe serious); busca de Operação sem rótulo.
+Abertas (nenhuma bloqueia release; dono: frontend/UX salvo indicação):
+- [ ] **Menu lateral não filtra por permissão** (só Usuários e Fechamento): TECHNICAL/RECEPTION/FINANCE veem itens que
+      abrem "Não foi possível carregar" (403 tratado como erro genérico em Clínicas e Veterinários). Filtrar o menu por
+      `*.read` e tratar 403 com a mensagem de permissão, como Pacientes já faz. `/cadastros/exames/novo` abre o formulário
+      sem `catalog.manage` (o backend recusa ao salvar).
+- [ ] `document.title` é "Vertere Lab" em toda rota (WCAG 2.4.2); sem skip-link; foco vai ao `BODY` após navegar.
+- [ ] "Carregando…" e estados vazios não são regiões vivas (`role=status`/`aria-busy`); erro de lista de pacientes sem
+      "Tentar novamente"; `svg` sem `aria-hidden` no Login e no Novo Protocolo.
+- [ ] Esc não cancela a edição de um bloco; menu "Ações" não move o foco para dentro nem responde a setas.
+- [ ] Campos de texto têm `outline: none` (anel só no wrapper `:focus-within`): confirmar com captura focada de cada tipo.
+- [ ] Novo Protocolo: a busca do histórico lista pacientes de outras clínicas (o backend recusa com 422; a UI deveria
+      filtrar pela clínica escolhida e explicar); rascunhos órfãos ao abandonar a tela; opções do seletor de paciente
+      não respondem a seta+Enter.
+- [ ] Não existe endpoint de leitura do `audit_log` nem de owners: a auditoria não é consultável pela API (decidir se
+      entra no roadmap de relatórios).
+- [ ] Não executados: leitor de tela real; estado de carregamento por rede lenta real; contraste do anel sobre a barra lateral.
+Achados do auditor na correção da fatia 6 (ressalvas abertas; os dois bloqueantes foram corrigidos e testados: ator de clínica
+só concede papel de clínica com permissões contidas nas suas e nunca altera o próprio acesso; perfis de acesso só pelo
+laboratório e leitura limitada a perfis de clínica):
+- [ ] **Decisão de produto:** veterinário autônomo é visível a todo ator de clínica (`visibility.py`), então uma clínica B pode
+      editar, desativar ou vincular a si um autônomo da clínica A.
+      Reverificado no app (QA, 19/11): também vale para veterinário COMPARTILHADO entre A e B (ator da A edita o nome e desativa
+      o veterinário que a B também usa; os vínculos da B ficam protegidos) e o PATCH de um autônomo sobrescreve `is_autonomous`. Definir a política (ex.: ator de clínica só muta autônomo
+      sem vínculos ou com vínculo a clínica própria).
+- [ ] TOCTOU em ativar/desativar/papel: o escopo do alvo é checado sem lock nem `expected_row_version` (acessar e trocar vínculo
+      do alvo entre a checagem e a escrita). Usar `SELECT ... FOR UPDATE` do usuário (junto da fatia "row_version transversal").
+- [ ] `create_user` responde 409 de e-mail já cadastrado antes de qualquer escopo (enumera e-mails entre clínicas).
+- [ ] Cobertura a ampliar: vínculo inativo/revogado, usuário sem vínculo, `search`/`total` com escopo em testes de integração.
+

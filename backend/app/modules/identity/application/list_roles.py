@@ -4,7 +4,7 @@ from dataclasses import dataclass
 from uuid import UUID
 
 from app.modules.identity.application.dtos import PageDTO, RoleDTO
-from app.modules.identity.domain.entities import Role
+from app.modules.identity.domain.entities import Role, RoleScope
 from app.modules.identity.domain.repositories import RoleRepository
 from app.shared.application.authorization import ActorContext
 from app.shared.domain.errors import ForbiddenError, NotFoundError
@@ -40,6 +40,9 @@ class ListRolesUseCase:
             raise ForbiddenError(f"Permissão ausente: {_REQUIRED_PERMISSION}")
 
         roles, total = self._roles.list_page(page=query.page, page_size=query.page_size)
+        if query.actor.clinic_filter is not None:
+            roles = [role for role in roles if role.scope is RoleScope.CLINIC]
+            total = len(roles)
         items = [_to_dto(role) for role in roles]
         return PageDTO(items=items, total=total, page=query.page, page_size=query.page_size)
 
@@ -59,6 +62,8 @@ class GetRoleUseCase:
             raise ForbiddenError(f"Permissão ausente: {_REQUIRED_PERMISSION}")
 
         role = self._roles.get_by_id(query.role_id)
-        if role is None:
+        if role is None or (
+            query.actor.clinic_filter is not None and role.scope is not RoleScope.CLINIC
+        ):
             raise NotFoundError("Papel não encontrado.")
         return _to_dto(role)

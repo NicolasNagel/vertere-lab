@@ -8,6 +8,7 @@ from app.modules.audit.domain.entities import ActorScope, AuditEntry
 from app.modules.audit.domain.repositories import AuditLogWriter
 from app.modules.identity.application.dtos import UserCreatedDTO, UserSummaryDTO
 from app.modules.identity.application.password_hasher import PasswordHasher
+from app.modules.identity.application.user_scope import ensure_role_grantable
 from app.modules.identity.domain.entities import ClinicMembership, LabMembership, RoleScope, User
 from app.modules.identity.domain.errors import EmailAlreadyExistsError
 from app.modules.identity.domain.repositories import (
@@ -65,14 +66,16 @@ class CreateUserUseCase:
             raise NotFoundError("Papel não encontrado.")
         if role.scope is RoleScope.CLINIC and not command.clinic_ids:
             raise ValidationError("Papel de clínica exige ao menos uma clínica.")
+        if command.actor.clinic_filter is not None and not command.clinic_ids <= (
+            command.actor.clinic_filter
+        ):
+            # Same answer whether or not the clinic exists: it never confirms another tenant's clinics.
+            raise NotFoundError("Clínica não encontrada.")
         if not self._clinic_memberships.all_clinic_ids_exist(command.clinic_ids):
             raise NotFoundError("Clínica não encontrada.")
         if role.scope is not RoleScope.CLINIC and command.clinic_ids:
             raise ValidationError("Papel de laboratório/global não aceita clínicas específicas.")
-        if command.actor.role_scope == "CLINIC" and (
-            role.scope is not RoleScope.CLINIC or not command.clinic_ids <= command.actor.clinic_ids
-        ):
-            raise ForbiddenError("Não é permitido conceder acesso fora do próprio escopo.")
+        ensure_role_grantable(command.actor, role)
 
         now = self._clock.now()
         temporary_password = secrets.token_urlsafe(_TEMPORARY_PASSWORD_BYTES)
