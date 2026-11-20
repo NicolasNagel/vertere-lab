@@ -16,20 +16,30 @@ import {
 import { SidebarNavItem, type SidebarNavItemProps } from './sidebar-nav-item'
 import './sidebar.css'
 
+interface GatedEntry extends SidebarNavItemProps {
+  permission?: string
+}
+
 const baseMainNavEntries: SidebarNavItemProps[] = [
   { icon: <DashboardIcon />, label: 'Dashboard', to: '/' },
 ]
 
-const afterOperationNavEntries: SidebarNavItemProps[] = [
+const afterOperationNavEntries: GatedEntry[] = [
   { icon: <LaudosIcon />, label: 'Laudos', to: null },
-  { icon: <PatientsIcon />, label: 'Pacientes', to: '/pacientes' },
+  { icon: <PatientsIcon />, label: 'Pacientes', to: '/pacientes', permission: 'patients.read' },
 ]
 
-const registrationNavEntries: SidebarNavItemProps[] = [
-  { icon: <ClinicsIcon />, label: 'Clínicas', to: '/cadastros/clinicas' },
-  { icon: <UserIcon />, label: 'Veterinários', to: '/cadastros/veterinarios' },
-  { icon: <ExamsIcon />, label: 'Exames & Preços', to: '/cadastros/exames' },
+const registrationNavEntries: GatedEntry[] = [
+  { icon: <ClinicsIcon />, label: 'Clínicas', to: '/cadastros/clinicas', permission: 'clinics.read' },
+  {
+    icon: <UserIcon />,
+    label: 'Veterinários',
+    to: '/cadastros/veterinarios',
+    permission: 'veterinarians.read',
+  },
+  { icon: <ExamsIcon />, label: 'Exames & Preços', to: '/cadastros/exames', permission: 'catalog.read' },
 ]
+
 
 const baseAdminNavEntries: SidebarNavItemProps[] = [
   { icon: <ReportsIcon />, label: 'Relatórios', to: null },
@@ -74,6 +84,12 @@ export function Sidebar({
       : []),
   ]
 
+  const allowed = (entries: GatedEntry[]): SidebarNavItemProps[] =>
+    entries
+      .filter((entry) => !entry.permission || permissions.includes(entry.permission))
+      .map(({ permission: _permission, ...entry }) => entry)
+  const registrationEntries = allowed(registrationNavEntries)
+
   const mainNavEntries: SidebarNavItemProps[] = [
     ...baseMainNavEntries,
     {
@@ -81,7 +97,7 @@ export function Sidebar({
       label: 'Operação',
       to: permissions.includes('attendances.read') ? '/operacao' : null,
     },
-    ...afterOperationNavEntries,
+    ...allowed(afterOperationNavEntries),
   ]
 
   return (
@@ -109,14 +125,18 @@ export function Sidebar({
           />
         ))}
 
-        <div className="sidebar__section-label">Cadastros</div>
-        {registrationNavEntries.map((entry) => (
-          <SidebarNavItem
-            key={entry.label}
-            {...entry}
-            title={collapsed ? entry.label : undefined}
-          />
-        ))}
+        {registrationEntries.length > 0 && (
+          <>
+            <div className="sidebar__section-label">Cadastros</div>
+            {registrationEntries.map((entry) => (
+              <SidebarNavItem
+                key={entry.label}
+                {...entry}
+                title={collapsed ? entry.label : undefined}
+              />
+            ))}
+          </>
+        )}
 
         {financeNavEntries.length > 0 && (
           <>

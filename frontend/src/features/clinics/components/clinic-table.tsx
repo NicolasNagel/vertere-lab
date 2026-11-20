@@ -14,6 +14,7 @@ interface ClinicTableProps {
   selectedId: string | null
   isLoading: boolean
   isError: boolean
+  isForbidden?: boolean
   page: number
   pageSize: number
   total: number
@@ -29,6 +30,7 @@ export function ClinicTable({
   selectedId,
   isLoading,
   isError,
+  isForbidden = false,
   page,
   pageSize,
   total,
@@ -41,7 +43,9 @@ export function ClinicTable({
       {isLoading && <p className="attendance-list-page__hint">Carregando…</p>}
       {isError && (
         <p role="alert" className="attendance-list-page__error">
-          Não foi possível carregar as clínicas.
+          {isForbidden
+            ? 'Você não tem permissão para ver esta lista.'
+            : 'Não foi possível carregar as clínicas.'}
         </p>
       )}
       {!isLoading && !isError && clinics.length === 0 && (

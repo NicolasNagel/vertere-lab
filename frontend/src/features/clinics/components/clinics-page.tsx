@@ -12,6 +12,7 @@ import { useClinicsQuery } from '../api/use-clinics-query'
 import { useDeactivateClinicMutation } from '../api/use-deactivate-clinic-mutation'
 import { ClinicDetail } from './clinic-detail'
 import { ClinicTable } from './clinic-table'
+import { isForbiddenError } from '../../../shared/api/errors'
 import '../../../shared/ui/button.css'
 import '../../attendances/components/attendance-list-page.css'
 import '../../attendances/components/attendance-status-tabs.css'
@@ -116,6 +117,7 @@ export function ClinicsPage() {
           selectedId={selectedId}
           isLoading={listQuery.isLoading}
           isError={listQuery.isError}
+          isForbidden={isForbiddenError(listQuery.error)}
           page={listQuery.data?.page ?? page}
           pageSize={listQuery.data?.pageSize ?? 25}
           total={listQuery.data?.total ?? 0}

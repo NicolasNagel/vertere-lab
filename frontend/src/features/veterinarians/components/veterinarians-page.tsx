@@ -16,6 +16,7 @@ import { VeterinarianSummaryCards } from './veterinarian-summary-cards'
 import { VeterinarianTable } from './veterinarian-table'
 import '../../../shared/ui/button.css'
 import '../../attendances/components/attendance-list-filters.css'
+import { isForbiddenError } from '../../../shared/api/errors'
 import '../../attendances/components/attendance-list-page.css'
 import '../../attendances/components/attendance-status-tabs.css'
 
@@ -203,6 +204,7 @@ export function VeterinariansPage() {
           selectedId={selectedId}
           isLoading={listQuery.isLoading}
           isError={listQuery.isError}
+          isForbidden={isForbiddenError(listQuery.error)}
           page={listQuery.data?.page ?? page}
           pageSize={listQuery.data?.pageSize ?? 25}
           total={listQuery.data?.total ?? 0}

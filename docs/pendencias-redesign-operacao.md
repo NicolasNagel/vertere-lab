@@ -307,7 +307,7 @@ ativo apenas com clínicas do ator (fora disso 404); ator de clínica nunca atri
 Corrigidos também: barra lateral fechada no mobile saía da tela mas continuava na ordem de Tab (agora `visibility`);
 linhas de Operação tinham `aria-haspopup`/`aria-expanded` inválidos em `tr` (axe serious); busca de Operação sem rótulo.
 Abertas (nenhuma bloqueia release; dono: frontend/UX salvo indicação):
-- [ ] **Menu lateral não filtra por permissão** (só Usuários e Fechamento): TECHNICAL/RECEPTION/FINANCE veem itens que
+- [x] (resolvido: menu filtrado por `*.read` e 403 com mensagem de permissão em Clínicas/Veterinários; resta o formulário de novo exame sem `catalog.manage`) **Menu lateral não filtra por permissão** (só Usuários e Fechamento): TECHNICAL/RECEPTION/FINANCE veem itens que
       abrem "Não foi possível carregar" (403 tratado como erro genérico em Clínicas e Veterinários). Filtrar o menu por
       `*.read` e tratar 403 com a mensagem de permissão, como Pacientes já faz. `/cadastros/exames/novo` abre o formulário
       sem `catalog.manage` (o backend recusa ao salvar).
