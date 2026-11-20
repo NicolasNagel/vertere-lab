@@ -6,8 +6,9 @@ Create Date: 2026-11-19
 
 The lists searched with `lower(column) LIKE %term%`, so "joao" never found "João". Search now compares
 `lower(unaccent(column))` with the accent-folded term. `unaccent` is a *trusted* extension (PostgreSQL
-13+): the database owner can create it, no superuser is needed. Rolling back drops it again; the code
-that calls it must be rolled back first.
+13+): the database owner can create it, no superuser is needed. The downgrade keeps the extension: it may
+predate this migration (created by a DBA) and leaving an unused one is harmless, while dropping it
+could break other objects that depend on it.
 """
 
 from __future__ import annotations
@@ -27,4 +28,5 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
-    op.execute("DROP EXTENSION IF EXISTS unaccent")
+    # Intentionally a no-op: see the module docstring.
+    pass

@@ -15,7 +15,7 @@ from app.modules.veterinarian_clinics.infrastructure.models import VeterinarianC
 from app.modules.veterinarians.domain.entities import Veterinarian, VeterinarianStatus
 from app.modules.veterinarians.domain.value_objects import Crmv
 from app.modules.veterinarians.infrastructure.models import VeterinarianModel
-from app.shared.infrastructure.sql import LIKE_ESCAPE, contains_pattern, fold, folded
+from app.shared.infrastructure.sql import LIKE_ESCAPE, folded, folded_pattern
 
 
 def _to_domain(model: VeterinarianModel) -> Veterinarian:
@@ -131,7 +131,7 @@ class SqlAlchemyVeterinarianRepository:
         if is_autonomous is not None:
             conditions.append(VeterinarianModel.is_autonomous == is_autonomous)
         if search:
-            like_pattern = contains_pattern(fold(search))
+            like_pattern = folded_pattern(search)
             conditions.append(
                 or_(
                     folded(VeterinarianModel.name).like(like_pattern, escape=LIKE_ESCAPE),

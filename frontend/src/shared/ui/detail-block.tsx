@@ -12,13 +12,15 @@ import './correction-block.css'
 interface DetailBlockProps {
   title: string
   canEdit: boolean
+  /** Ações extras ao lado do "Editar" (ex.: corrigir o cadastro do paciente). */
+  actions?: ReactNode
   children: ReactNode
   /** Formulário do bloco; `close` volta à leitura. */
   form: (api: { close: () => void }) => ReactNode
 }
 
 /** Bloco de detalhe: leitura à vista; "Editar" troca pelo formulário do próprio bloco. */
-export function DetailBlock({ title, canEdit, children, form }: DetailBlockProps) {
+export function DetailBlock({ title, canEdit, actions, children, form }: DetailBlockProps) {
   const [editing, setEditing] = useState(false)
   const headingId = useId()
   const editButtonRef = useRef<HTMLButtonElement>(null)
@@ -47,17 +49,20 @@ export function DetailBlock({ title, canEdit, children, form }: DetailBlockProps
         <h2 id={headingId} className="attendance-readonly-detail__section-title">
           {title}
         </h2>
-        {canEdit && !showForm && (
-          <button
-            ref={editButtonRef}
-            type="button"
-            className="button button--secondary attendance-correction-block__edit"
-            aria-label={`Editar ${title.toLowerCase()}`}
-            onClick={() => setEditing(true)}
-          >
-            Editar
-          </button>
-        )}
+        <div className="attendance-correction-block__buttons">
+          {actions}
+          {canEdit && !showForm && (
+            <button
+              ref={editButtonRef}
+              type="button"
+              className="button button--secondary attendance-correction-block__edit"
+              aria-label={`Editar ${title.toLowerCase()}`}
+              onClick={() => setEditing(true)}
+            >
+              Editar
+            </button>
+          )}
+        </div>
       </div>
       {showForm ? <div ref={formRef}>{form({ close: () => setEditing(false) })}</div> : children}
     </section>

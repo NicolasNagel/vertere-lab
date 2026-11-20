@@ -204,3 +204,19 @@ async def test_accent_insensitive_search_also_covers_patients_owners_and_categor
     assert by_owner.json()["total"] == 1
     assert by_category.json()["total"] == 1
     assert attendances.status_code == 200
+
+
+async def test_search_folds_letters_without_a_unicode_decomposition_on_both_sides(
+    admin_client: httpx.AsyncClient,
+) -> None:
+    """The term is folded by PostgreSQL itself, so "ø", "ł" and "ß" behave like the column."""
+    vet = await admin_client.post(
+        "/api/v1/veterinarians",
+        json={"name": "Søren Łukasz", "crmv": "SP-7777", "is_autonomous": True},
+    )
+    assert vet.status_code == 201
+
+    for term in ("soren lukasz", "SØREN", "Łukasz", "lukasz"):
+        response = await admin_client.get("/api/v1/veterinarians", params={"search": term})
+        assert response.status_code == 200
+        assert response.json()["total"] == 1, term

@@ -38,7 +38,7 @@ from app.modules.attendances.infrastructure.models import (
     UrgencyFeeSettingModel,
 )
 from app.modules.patients.infrastructure.models import PatientModel
-from app.shared.infrastructure.sql import LIKE_ESCAPE, contains_pattern, fold, folded
+from app.shared.infrastructure.sql import LIKE_ESCAPE, contains_pattern, folded, folded_pattern
 
 
 def _components_to_json(item: AttendanceExam) -> list[dict[str, str]]:
@@ -342,7 +342,7 @@ class SqlAlchemyAttendanceRepository:
         if owner_name:
             conditions.append(
                 folded(PatientModel.owner_name).like(
-                    contains_pattern(fold(owner_name.strip())), escape=LIKE_ESCAPE
+                    folded_pattern(owner_name.strip()), escape=LIKE_ESCAPE
                 )
             )
         return conditions

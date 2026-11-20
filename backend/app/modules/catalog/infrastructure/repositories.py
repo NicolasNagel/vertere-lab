@@ -19,7 +19,7 @@ from app.modules.catalog.infrastructure.models import (
     ExamPanelItemModel,
     ExamSpeciesModel,
 )
-from app.shared.infrastructure.sql import LIKE_ESCAPE, contains_pattern, fold, folded
+from app.shared.infrastructure.sql import LIKE_ESCAPE, folded, folded_pattern
 
 
 def _category_to_domain(model: ExamCategoryModel) -> ExamCategory:
@@ -86,7 +86,7 @@ class SqlAlchemyExamCategoryRepository:
         if status is not None:
             conditions.append(ExamCategoryModel.status == status.value)
         if search:
-            like_pattern = contains_pattern(fold(search))
+            like_pattern = folded_pattern(search)
             conditions.append(folded(ExamCategoryModel.name).like(like_pattern, escape=LIKE_ESCAPE))
 
         count_stmt = select(func.count()).select_from(ExamCategoryModel)
@@ -265,7 +265,7 @@ class SqlAlchemyExamRepository:
         if category_id is not None:
             conditions.append(ExamModel.category_id == category_id)
         if search:
-            like_pattern = contains_pattern(fold(search))
+            like_pattern = folded_pattern(search)
             conditions.append(
                 or_(
                     folded(ExamModel.name).like(like_pattern, escape=LIKE_ESCAPE),

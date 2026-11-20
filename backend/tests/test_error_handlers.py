@@ -136,3 +136,12 @@ async def test_other_data_errors_stay_a_500_so_a_server_calculation_is_never_bla
     record = next(r for r in capture.records if r.getMessage() == "data_error_not_client_text")
     assert record.__dict__["sqlstate"] == sqlstate
     assert all("valor-secreto" not in r.getMessage() for r in capture.records)
+
+
+async def test_a_disallowed_method_has_its_own_stable_code(
+    failing_client: httpx.AsyncClient,
+) -> None:
+    response = await failing_client.post("/api/v1/echo-int")
+
+    assert response.status_code == 405
+    assert response.json()["error"]["code"] == "METHOD_NOT_ALLOWED"

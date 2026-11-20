@@ -8,7 +8,7 @@ from app.modules.audit.domain.repositories import AuditLogWriter
 from app.modules.clinics.domain.repositories import ClinicRepository
 from app.modules.patients.application.dtos import PatientDTO
 from app.modules.patients.application.mappers import patient_to_dto
-from app.modules.patients.domain.entities import PatientAge, PatientSex, PatientStatus
+from app.modules.patients.domain.entities import Patient, PatientAge, PatientSex, PatientStatus
 from app.modules.patients.domain.repositories import PatientRepository, SpeciesRepository
 from app.shared.application.authorization import ActorContext
 from app.shared.application.clock import Clock
@@ -36,6 +36,45 @@ class UpdatePatientCommand:
     age_value: int | None = None
     age_unit: str | None = None
     reason: str | None = None
+
+
+# Contact and tax data of the tutor: the log says THAT it changed, never the value (PII).
+_REDACTED_FIELDS = frozenset({"owner_phone", "owner_document"})
+_REDACTED = "[alterado]"
+
+
+def _audit_snapshot(patient: Patient) -> dict[str, object]:
+    age = patient.age
+    return {
+        "name": patient.name,
+        "species_id": str(patient.species_id),
+        "sex": patient.sex.value,
+        "breed": patient.breed,
+        "age_description": patient.age_description,
+        "age_value": age.value if age else None,
+        "age_unit": age.unit.value if age else None,
+        "owner_name": patient.owner_name,
+        "owner_phone": patient.owner_phone,
+        "owner_document": patient.owner_document,
+        "status": patient.status.value,
+        "notes": patient.notes,
+        "clinic_id": str(patient.clinic_id) if patient.clinic_id else None,
+    }
+
+
+def _changed_fields(
+    before: dict[str, object], after: dict[str, object]
+) -> tuple[dict[str, object], dict[str, object]]:
+    """Only the fields that changed, before and after, so the log answers "which data changed"."""
+    changed = [field for field in after if before[field] != after[field]]
+
+    def shown(state: dict[str, object], field: str) -> object:
+        return _REDACTED if field in _REDACTED_FIELDS else state[field]
+
+    return (
+        {field: shown(before, field) for field in changed},
+        {field: shown(after, field) for field in changed},
+    )
 
 
 class UpdatePatientUseCase:
@@ -90,11 +129,7 @@ class UpdatePatientUseCase:
         if command.species_id not in known_species_ids:
             raise NotFoundError("Espécie não encontrada.")
 
-        before_state = {
-            "name": patient.name,
-            "status": patient.status.value,
-            "clinic_id": str(patient.clinic_id) if patient.clinic_id else None,
-        }
+        before = _audit_snapshot(patient)
 
         patient.update_details(
             name=command.name,
@@ -114,6 +149,9 @@ class UpdatePatientUseCase:
         )
         self._patients.save(patient)
 
+        before_state, after_state = _changed_fields(before, _audit_snapshot(patient))
+        if clinic_changed:
+            after_state["reason"] = reason
         self._audit.record(
             AuditEntry(
                 actor_user_id=command.actor.id,
@@ -122,12 +160,7 @@ class UpdatePatientUseCase:
                 entity_type="patient",
                 entity_id=str(patient.id),
                 before_state=before_state,
-                after_state={
-                    "name": patient.name,
-                    "status": patient.status.value,
-                    "clinic_id": str(patient.clinic_id) if patient.clinic_id else None,
-                    **({"reason": reason} if clinic_changed else {}),
-                },
+                after_state=after_state,
             )
         )
 

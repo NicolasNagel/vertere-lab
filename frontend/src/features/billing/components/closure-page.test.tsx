@@ -1,7 +1,7 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { http, HttpResponse, delay } from 'msw'
+import { http, HttpResponse } from 'msw'
 import { setupServer } from 'msw/node'
 import type { ReactNode } from 'react'
 import { MemoryRouter } from 'react-router'
@@ -307,13 +307,17 @@ test('the prévia shows eligible and blocked items, the demonstrativo, grouping 
       total_amount: '120.00',
     },
   ]
+  let releasePreview: () => void = () => {}
+  const previewGate = new Promise<void>((resolve) => {
+    releasePreview = resolve
+  })
   server.use(
     meHandler(['closures.preview']),
     clinicsListHandler(),
     clinicDetailHandler(),
     http.get('/api/v1/closures/preview', async ({ request }) => {
       const clinicId = new URL(request.url).searchParams.get('clinic_id')
-      await delay(500)
+      await previewGate // só responde depois que o teste viu o estado "Carregando"
       return HttpResponse.json(
         previewResponseBody({
           clinic_id: clinicId,
@@ -329,6 +333,7 @@ test('the prévia shows eligible and blocked items, the demonstrativo, grouping 
   await screen.findByRole('button', { name: /^Clínica/ })
   await pickOption(user, 'Clínica', 'Schweitzer')
   expect(await screen.findByText('Carregando prévia…')).toBeInTheDocument()
+  releasePreview()
   expect(await screen.findByText('Rex')).toBeInTheDocument()
   expect(screen.getByText('Mia')).toBeInTheDocument()
   expect(screen.getByText('Item de exame cancelado.')).toBeInTheDocument()

@@ -86,7 +86,7 @@ class PatientCreateRequest(BaseModel):
     owner_phone: PatientContact | None = None
     owner_document: PatientContact | None = None
     notes: PatientNotes | None = None
-    age_value: int | None = Field(default=None, ge=0)
+    age_value: int | None = Field(default=None, ge=0, le=999)
     age_unit: AgeUnitLiteral | None = None
 
     @model_validator(mode="after")
@@ -110,7 +110,7 @@ class PatientUpdateRequest(BaseModel):
     notes: PatientNotes | None = None
     expected_row_version: int
     clinic_id: UUID | None = None
-    age_value: int | None = Field(default=None, ge=0)
+    age_value: int | None = Field(default=None, ge=0, le=999)
     age_unit: AgeUnitLiteral | None = None
     # Required when `clinic_id` moves the patient to another clinic (checked in the use case).
     reason: ChangeReason | None = None

@@ -2,22 +2,10 @@
 
 from __future__ import annotations
 
-import unicodedata
-
 from sqlalchemy import ColumnElement, func
 from sqlalchemy.sql.elements import SQLCoreOperations
 
 LIKE_ESCAPE = "\\"
-
-
-def fold(text: str) -> str:
-    """Lowercase and strip accents: the Python twin of `folded(column)`, for the search term.
-
-    NFD removes combining marks (ã, ç, é, ü: all of Portuguese). PostgreSQL `unaccent` also maps letters
-    with no decomposition (ø, đ, ł, ß, æ), which this does not, so such terms need the exact form.
-    """
-    decomposed = unicodedata.normalize("NFD", text.lower())
-    return "".join(char for char in decomposed if not unicodedata.combining(char))
 
 
 def folded(column: SQLCoreOperations[str] | SQLCoreOperations[str | None]) -> ColumnElement[str]:
@@ -35,3 +23,12 @@ def contains_pattern(value: str) -> str:
     escaped = value.replace(LIKE_ESCAPE, LIKE_ESCAPE * 2)
     escaped = escaped.replace("%", f"{LIKE_ESCAPE}%").replace("_", f"{LIKE_ESCAPE}_")
     return f"%{escaped}%"
+
+
+def folded_pattern(term: str) -> ColumnElement[str]:
+    """The LIKE pattern for `term`, folded by the SAME `lower(unaccent())` as the column.
+
+    Folding in the database (not in Python) keeps both sides symmetric for every character
+    `unaccent` knows, including those with no Unicode decomposition (ø, ł, ß).
+    """
+    return func.lower(func.unaccent(contains_pattern(term)))

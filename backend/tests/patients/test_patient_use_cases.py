@@ -399,6 +399,8 @@ def test_moving_a_patient_to_another_clinic_requires_a_reason_and_audits_it() ->
     assert entry.after_state is not None
     assert entry.after_state["clinic_id"] == str(_CLINIC_B)
     assert entry.after_state["reason"] == "Tutor mudou de clínica"
+    # The reason has no "before" counterpart on purpose: it explains the change, it is not a field.
+    assert "reason" not in entry.before_state
 
     # Same clinic (or none given) needs no reason and records none.
     same = update.execute(
@@ -466,3 +468,32 @@ def test_species_and_clinic_filters_combine_with_actor_scope_and_summary_counts(
     assert summarizer.execute(SummarizePatientsQuery(actor=_clinic_actor(_CLINIC_A))).total == 2
     outside = SummarizePatientsQuery(actor=_clinic_actor(_CLINIC_A), clinic_id=_CLINIC_B)
     assert summarizer.execute(outside).total == 0
+
+
+def test_update_audit_records_only_the_changed_fields_and_never_the_tutor_contact_values() -> None:
+    patients = FakePatientRepository()
+    audit = FakeAuditLogWriter()
+    created = _patient_in_clinic(patients, audit, _CLINIC_A)
+
+    _update_use_case(patients, audit).execute(
+        _update_command(
+            created,
+            name="Rex Renomeado",
+            notes="Alérgico a dipirona",
+            owner_phone="+55 11 99999-0000",
+            owner_document="123.456.789-09",
+        )
+    )
+
+    entry = audit.entries[-1]
+    assert entry.actor_user_id is not None
+    assert entry.before_state is not None and entry.after_state is not None
+    assert set(entry.after_state) == set(entry.before_state)
+    assert entry.after_state["name"] == "Rex Renomeado"
+    assert entry.after_state["notes"] == "Alérgico a dipirona"
+    # Which contact data changed is recorded; the value never is (PII).
+    assert entry.after_state["owner_phone"] == "[alterado]"
+    assert entry.after_state["owner_document"] == "[alterado]"
+    assert "+55 11 99999-0000" not in str(entry.after_state)
+    # Untouched fields stay out of the record.
+    assert "sex" not in entry.after_state and "clinic_id" not in entry.after_state

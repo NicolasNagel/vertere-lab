@@ -21,7 +21,7 @@ from app.modules.patients.domain.entities import (
 )
 from app.modules.patients.infrastructure.models import PatientModel, SpeciesModel
 from app.shared.domain.errors import ConflictError
-from app.shared.infrastructure.sql import LIKE_ESCAPE, contains_pattern, fold, folded
+from app.shared.infrastructure.sql import LIKE_ESCAPE, folded, folded_pattern
 
 
 def _species_to_domain(model: SpeciesModel) -> Species:
@@ -174,7 +174,7 @@ class SqlAlchemyPatientRepository:
         if species_id is not None:
             conditions.append(PatientModel.species_id == species_id)
         if search:
-            like_pattern = contains_pattern(fold(search))
+            like_pattern = folded_pattern(search)
             conditions.append(
                 or_(
                     folded(PatientModel.name).like(like_pattern, escape=LIKE_ESCAPE),

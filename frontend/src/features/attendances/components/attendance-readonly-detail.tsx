@@ -14,7 +14,7 @@ import {
 } from '../api/attendances-api'
 import { AttendanceExamCategoryTag } from './attendance-exam-category-tag'
 import { Button } from '../../../shared/ui/button'
-import { AttendanceCorrectionBlock } from './attendance-correction-block'
+import { DetailBlock } from '../../../shared/ui/detail-block'
 import { AttendancePatientDataModal } from './attendance-patient-data-modal'
 import { ExamsCorrectionForm } from './attendance-exams-correction'
 import {
@@ -70,9 +70,8 @@ export function AttendanceReadonlyDetail({ attendance }: AttendanceReadonlyDetai
         data-money={showMoney ? 'true' : 'false'}
       >
         <div className="attendance-readonly-detail__column">
-          <AttendanceCorrectionBlock
+          <DetailBlock
             title="Solicitante"
-            attendanceId={attendance.id}
             canEdit={canEdit}
             form={({ close }) => <RequesterCorrectionForm attendance={attendance} onClose={close} />}
           >
@@ -80,11 +79,10 @@ export function AttendanceReadonlyDetail({ attendance }: AttendanceReadonlyDetai
               clinic={clinicQuery.data}
               veterinarian={veterinarianQuery.data}
             />
-          </AttendanceCorrectionBlock>
+          </DetailBlock>
 
-          <AttendanceCorrectionBlock
+          <DetailBlock
             title="Paciente"
-            attendanceId={attendance.id}
             canEdit={canEdit}
             actions={
               canEditPatientData && patientQuery.data ? (
@@ -107,11 +105,10 @@ export function AttendanceReadonlyDetail({ attendance }: AttendanceReadonlyDetai
             )}
           >
             <AttendancePatientCard patient={patientQuery.data} species={speciesQuery.data} />
-          </AttendanceCorrectionBlock>
+          </DetailBlock>
 
-          <AttendanceCorrectionBlock
+          <DetailBlock
             title="Atendimento"
-            attendanceId={attendance.id}
             canEdit={canEdit}
             form={({ close }) => <ServiceCorrectionForm attendance={attendance} onClose={close} />}
           >
@@ -129,11 +126,10 @@ export function AttendanceReadonlyDetail({ attendance }: AttendanceReadonlyDetai
               <dt>Data</dt>
               <dd>{formatServiceDateTime(attendance.serviceDate, attendance.createdAt)}</dd>
             </dl>
-          </AttendanceCorrectionBlock>
+          </DetailBlock>
 
-          <AttendanceCorrectionBlock
+          <DetailBlock
             title="Exames"
-            attendanceId={attendance.id}
             canEdit={canEdit}
             form={({ close }) => (
               <ExamsCorrectionForm
@@ -182,18 +178,17 @@ export function AttendanceReadonlyDetail({ attendance }: AttendanceReadonlyDetai
                 ))}
               </ul>
             )}
-          </AttendanceCorrectionBlock>
+          </DetailBlock>
 
-          <AttendanceCorrectionBlock
+          <DetailBlock
             title="Observações"
-            attendanceId={attendance.id}
             canEdit={canEdit}
             form={({ close }) => <NotesCorrectionForm attendance={attendance} onClose={close} />}
           >
             <p className="attendance-readonly-detail__notes">
               {attendance.notes || 'Nenhuma observação registrada.'}
             </p>
-          </AttendanceCorrectionBlock>
+          </DetailBlock>
         </div>
 
         <div className="attendance-readonly-detail__column">

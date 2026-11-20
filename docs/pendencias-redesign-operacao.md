@@ -257,9 +257,11 @@ vai ao primeiro campo ao abrir e volta ao "Editar" ao fechar. Abertas, não bloq
       com nomes `detail-block__*` e migrar o detalhe de Veterinários e o de atendimento para o `DetailBlock`
       (Veterinários ainda tem a cópia `veterinarian-detail-block.tsx`).
       PARCIAL: o CSS saiu de `features/attendances` para `shared/ui/readonly-detail.css` e `correction-block.css` (sem inversão de camada). Renomear as classes para `detail-block__*` e migrar Veterinários/atendimento para o `DetailBlock` segue aberto.
-- [ ] O `audit_log` de `patients.updated` guarda só nome, status e `clinic_id` (e o motivo na troca de clínica);
+      RESOLVIDO: Veterinários, Exames e Atendimento usam o `DetailBlock`/`BlockFooter` compartilhado (cópias removidas, -310 linhas). Os nomes das classes CSS seguem `attendance-*` (renomear é cosmético).
+- [x] O `audit_log` de `patients.updated` guarda só nome, status e `clinic_id` (e o motivo na troca de clínica);
       não registra quais campos mudaram (telefone, observação, raça, espécie, idade). Decidir o que auditar
       (cuidado com PII de tutor) e gravar antes/depois dos campos alterados.
+      RESOLVIDO: grava só os campos alterados (antes/depois), quem e quando; telefone e documento do tutor registram só "[alterado]" (PII).
 - [x] `create-patient-modal.tsx` não é usado em nenhum lugar (código morto, achado do QA): apagar ou
       reaproveitar. `PatientForm` segue só no "Corrigir cadastro" de atendimento; migrar para os blocos
       ou para o formulário de criação na fatia de atendimento.
@@ -275,15 +277,22 @@ Teste de prévia do fechamento (`closure-page.test.tsx`) falhava 1 em 3 por o es
 atraso do mock subiu para 500 ms (4 de 4 verdes). Abertas e dependentes de decisão: o que auditar nos campos do
 paciente (PII do tutor) e a correção transversal de `row_version` (catálogo, clínicas, identidade, veterinários).
 Ressalvas da revisão e do QA desta rodada, não bloqueantes (dono: backend, próxima rodada de API):
-- [ ] 405 (método não permitido) responde `error.code = "INTERNAL_ERROR"` (ex.: GET em `/on-call-fee-settings/NORMAL`):
+- [x] 405 (método não permitido) responde `error.code = "INTERNAL_ERROR"` (ex.: GET em `/on-call-fee-settings/NORMAL`):
       mapear `HTTPException` 4xx para código estável (`METHOD_NOT_ALLOWED`) no handler de erros.
-- [ ] `fold()` (NFD) não cobre ø, đ, ł, ß, æ que o `unaccent` do Postgres mapeia; irrelevante para nomes em
+      RESOLVIDO: código estável `METHOD_NOT_ALLOWED` (teste).
+- [x] `fold()` (NFD) não cobre ø, đ, ł, ß, æ que o `unaccent` do Postgres mapeia; irrelevante para nomes em
       português. Se aparecer, aplicar `unaccent(:termo)` no SQL em vez de dobrar em Python.
+      RESOLVIDO: o termo é dobrado no banco (`folded_pattern`), simétrico com a coluna; teste com ø/ł.
 - [ ] Índice de busca: `unaccent` é STABLE; um índice trigram exigirá wrapper IMMUTABLE em migration própria,
       só quando houver volume medido (hoje varredura sequencial, igual ao `lower(col) LIKE` anterior).
-- [ ] Migration 0044: o `downgrade` remove a extensão mesmo se um DBA a criou antes; confirmar no runbook de
+- [x] Migration 0044: o `downgrade` remove a extensão mesmo se um DBA a criou antes; confirmar no runbook de
       deploy que o papel da migration tem `CREATE` no banco e a versão do Postgres de produção (>= 13).
-- [ ] Antes do deploy rodar `SELECT max(price_base) FROM exams` e `max(fee_amount)` nas taxas: valor legado acima de
+      RESOLVIDO: downgrade é no-op documentado (a extensão permanece). Segue valendo confirmar no runbook o privilégio CREATE e Postgres >= 13.
+- [x] Antes do deploy rodar `SELECT max(price_base) FROM exams` e `max(fee_amount)` nas taxas: valor legado acima de
       R$ 99.999,99 impediria reenviar o valor em edição (422).
-- [ ] `age_value` do paciente segue sem teto numérico (dono: cadastro de pacientes, próxima fatia de pacientes).
-- [ ] Teste de prévia do fechamento ainda depende de tempo (delay 500 ms); trocar por promise controlada.
+      EXECUTADO no banco de QA (sintético): máximos 99.999,99 (valores de teste no teto), taxas de plantão 150,00. O mesmo SELECT ainda precisa rodar no banco real antes do deploy.
+- [x] `age_value` do paciente segue sem teto numérico (dono: cadastro de pacientes, próxima fatia de pacientes).
+      RESOLVIDO: teto 999 (teste); openapi regenerado.
+- [x] Teste de prévia do fechamento ainda depende de tempo (delay 500 ms); trocar por promise controlada.
+
+      RESOLVIDO: promise controlada em vez de timer.

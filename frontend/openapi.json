@@ -5100,17 +5100,21 @@
           },
           "quantity": {
             "type": "integer",
+            "maximum": 999.0,
+            "minimum": 1.0,
             "title": "Quantity",
             "default": 1
           },
           "discount_amount": {
             "anyOf": [
               {
-                "type": "number"
+                "type": "number",
+                "maximum": 99899990.01,
+                "minimum": 0.0
               },
               {
                 "type": "string",
-                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$"
+                "pattern": "^(?!^[-+.]*$)[+-]?0*(?:\\d{0,12}|(?=[\\d.]{1,15}0*$)\\d{0,12}\\.\\d{0,2}0*$)"
               },
               {
                 "type": "null"
@@ -5144,6 +5148,7 @@
               "$ref": "#/components/schemas/AttendanceConfirmItemRequest"
             },
             "type": "array",
+            "maxItems": 100,
             "title": "Items"
           }
         },
@@ -5429,6 +5434,7 @@
           },
           "quantity": {
             "type": "integer",
+            "maximum": 999.0,
             "minimum": 1.0,
             "title": "Quantity",
             "default": 1
@@ -5437,11 +5443,12 @@
             "anyOf": [
               {
                 "type": "number",
+                "maximum": 99899990.01,
                 "minimum": 0.0
               },
               {
                 "type": "string",
-                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$"
+                "pattern": "^(?!^[-+.]*$)[+-]?0*(?:\\d{0,12}|(?=[\\d.]{1,15}0*$)\\d{0,12}\\.\\d{0,2}0*$)"
               },
               {
                 "type": "null"
@@ -5485,6 +5492,7 @@
               "$ref": "#/components/schemas/AttendanceItemEditRequest"
             },
             "type": "array",
+            "maxItems": 100,
             "title": "Items"
           }
         },
@@ -6734,6 +6742,7 @@
             "anyOf": [
               {
                 "type": "number",
+                "maximum": 99999.99,
                 "minimum": 0.0
               },
               {
@@ -6918,6 +6927,7 @@
             "anyOf": [
               {
                 "type": "number",
+                "maximum": 99999.99,
                 "minimum": 0.0
               },
               {
@@ -7828,6 +7838,7 @@
             "anyOf": [
               {
                 "type": "number",
+                "maximum": 99999.99,
                 "exclusiveMinimum": 0.0
               },
               {
@@ -8100,6 +8111,7 @@
             "anyOf": [
               {
                 "type": "number",
+                "maximum": 99999.99,
                 "exclusiveMinimum": 0.0
               },
               {
@@ -9175,11 +9187,12 @@
             "anyOf": [
               {
                 "type": "number",
+                "maximum": 99999.99,
                 "minimum": 0.0
               },
               {
                 "type": "string",
-                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$"
+                "pattern": "^(?!^[-+.]*$)[+-]?0*(?:\\d{0,12}|(?=[\\d.]{1,15}0*$)\\d{0,12}\\.\\d{0,2}0*$)"
               }
             ],
             "title": "Fee Amount"
@@ -9335,6 +9348,7 @@
             "anyOf": [
               {
                 "type": "integer",
+                "maximum": 999.0,
                 "minimum": 0.0
               },
               {
@@ -9703,6 +9717,7 @@
             "anyOf": [
               {
                 "type": "integer",
+                "maximum": 999.0,
                 "minimum": 0.0
               },
               {
@@ -10217,6 +10232,7 @@
             "anyOf": [
               {
                 "type": "number",
+                "maximum": 99999.99,
                 "minimum": 0.0
               },
               {

@@ -8,7 +8,7 @@ import { PageHeader } from '../../../shared/ui/page-header'
 import { useAuth } from '../../auth/auth-context'
 import { useVeterinarianQuery } from '../api/use-veterinarian-query'
 import { LinkedClinicsList } from './linked-clinics-list'
-import { VeterinarianDetailBlock } from './veterinarian-detail-block'
+import { DetailBlock } from '../../../shared/ui/detail-block'
 import { ClinicsForm, ContactForm, IdentityForm, StatusForm } from './veterinarian-detail-forms'
 import '../../../shared/ui/button.css'
 import '../../attendances/components/attendance-detail-page.css'
@@ -129,9 +129,8 @@ export function VeterinarianDetailPage() {
         <div className="attendance-readonly-detail">
           <div className="attendance-readonly-detail__columns" data-money={false}>
             <div className="attendance-readonly-detail__column">
-              <VeterinarianDetailBlock
+              <DetailBlock
                 title="Identificação"
-                veterinarianId={veterinarian.id}
                 canEdit={canEdit}
                 form={({ close }) => <IdentityForm {...formProps} onClose={close} />}
               >
@@ -143,11 +142,10 @@ export function VeterinarianDetailPage() {
                   <dt>Observação</dt>
                   <dd>{displayValue(veterinarian.notes)}</dd>
                 </dl>
-              </VeterinarianDetailBlock>
+              </DetailBlock>
 
-              <VeterinarianDetailBlock
+              <DetailBlock
                 title="Contato"
-                veterinarianId={veterinarian.id}
                 canEdit={canEdit}
                 form={({ close }) => <ContactForm {...formProps} onClose={close} />}
               >
@@ -157,13 +155,12 @@ export function VeterinarianDetailPage() {
                   <dt>E-mail</dt>
                   <dd>{displayValue(veterinarian.email)}</dd>
                 </dl>
-              </VeterinarianDetailBlock>
+              </DetailBlock>
             </div>
 
             <div className="attendance-readonly-detail__column">
-              <VeterinarianDetailBlock
+              <DetailBlock
                 title="Clínicas vinculadas"
-                veterinarianId={veterinarian.id}
                 canEdit={canEdit}
                 form={({ close }) => <ClinicsForm {...formProps} onClose={close} />}
               >
@@ -179,11 +176,10 @@ export function VeterinarianDetailPage() {
                     clinics={veterinarian.clinics}
                   />
                 )}
-              </VeterinarianDetailBlock>
+              </DetailBlock>
 
-              <VeterinarianDetailBlock
+              <DetailBlock
                 title="Status e vínculo"
-                veterinarianId={veterinarian.id}
                 canEdit={canEdit}
                 form={({ close }) => <StatusForm {...formProps} onClose={close} />}
               >
@@ -193,7 +189,7 @@ export function VeterinarianDetailPage() {
                   <dt>Vínculo</dt>
                   <dd>{veterinarian.isAutonomous ? 'Autônomo' : 'Vinculado a clínica'}</dd>
                 </dl>
-              </VeterinarianDetailBlock>
+              </DetailBlock>
             </div>
           </div>
         </div>

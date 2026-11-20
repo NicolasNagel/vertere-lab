@@ -544,3 +544,25 @@ async def test_concurrent_patches_with_the_same_version_let_exactly_one_win(
     assert final["row_version"] == int(str(patient["row_version"])) + 1
     assert final["clinic_id"] == clinic_b
     assert _audit_count(session_factory, "patients.updated") == 1
+
+
+async def test_patient_age_value_has_a_ceiling(
+    client: httpx.AsyncClient, session_factory: sessionmaker[Session]
+) -> None:
+    dog_id = _get_species_id(session_factory, name="Canino")
+    clinic_id = _clinic_id(session_factory)
+    await _login_as(client, session_factory, email="admin@vertere.local", role_id=ROLE_LAB_ADMIN)
+
+    def body(age_value: int) -> dict[str, object]:
+        return {
+            "clinic_id": clinic_id,
+            "name": "Idoso",
+            "species_id": dog_id,
+            "sex": "MALE",
+            "owner_name": "Maria",
+            "age_value": age_value,
+            "age_unit": "MONTHS",
+        }
+
+    assert (await client.post("/api/v1/patients", json=body(1000))).status_code == 422
+    assert (await client.post("/api/v1/patients", json=body(10**12))).status_code == 422
